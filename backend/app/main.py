@@ -113,6 +113,8 @@ if settings.FRONTEND_URL not in ("http://localhost:3000", ""):
 
 # Add Vercel deployment
 ALLOWED_ORIGINS.append("https://callmedex-v1.vercel.app")
+ALLOWED_ORIGINS.append("https://callmedex-frontend.vercel.app")
+ALLOWED_ORIGINS.append("https://callmedex-frontend-omyj2rbhs-xylarc-ai.vercel.app")
 
 # Allow Jitsi Meet for video consultation
 ALLOWED_ORIGINS.append("https://meet.jit.si")
