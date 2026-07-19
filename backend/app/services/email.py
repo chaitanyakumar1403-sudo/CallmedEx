@@ -193,6 +193,7 @@ A new home visit request is available in your area.
 Type: {task_details.get('service_subtype', 'Service').replace('_', ' ').title()}
 Location: {task_details.get('patient_address', 'Unknown Location')}
 Distance: {task_details.get('distance_km', '?')} km away
+Notes: {task_details.get('notes', 'None')}
 --------------------
 
 You have 5 minutes to respond. Click a link below:
@@ -212,6 +213,7 @@ DECLINE: {decline_link}
                     <p style="margin: 5px 0;"><strong>Type:</strong> {task_details.get('service_subtype', 'Service').replace('_', ' ').title()}</p>
                     <p style="margin: 5px 0;"><strong>Location:</strong> {task_details.get('patient_address', 'Unknown Location')}</p>
                     <p style="margin: 5px 0;"><strong>Distance:</strong> {task_details.get('distance_km', '?')} km away</p>
+                    {f'<p style="margin: 5px 0; white-space: pre-wrap;"><strong>Notes:</strong><br/>{task_details.get("notes")}</p>' if task_details.get('notes') else ''}
                 </div>
                 
                 <p style="color: #ef4444; font-weight: bold; font-size: 14px;">⏱️ This offer expires in 5 minutes.</p>

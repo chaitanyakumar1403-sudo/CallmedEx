@@ -30,6 +30,7 @@ export default function PatientDashboard() {
   const [dispatchProviderType, setDispatchProviderType] = useState("");
   const [dispatchServiceType, setDispatchServiceType] = useState("");
   const [dispatchSpecificReason, setDispatchSpecificReason] = useState("");
+  const [dispatchOtherText, setDispatchOtherText] = useState("");
   const [dispatchLabel, setDispatchLabel] = useState("");
 
   const dispatchOptions: Record<string, string[]> = {
@@ -206,7 +207,8 @@ export default function PatientDashboard() {
           
           let createdBookingId = null;
           try {
-            const bookingRes = await fetch("http://localhost:8000/api/bookings", {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            const bookingRes = await fetch(`${apiBase}/api/bookings`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
               body: JSON.stringify({
@@ -214,7 +216,7 @@ export default function PatientDashboard() {
                 provider_type: dispatchProviderType,
                 service_type: dispatchServiceType,
                 slot_id: `on_demand|${yyyymmdd}|${hhmm}`,
-                notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}`,
+                notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
                 total_price: 0
               })
             });
@@ -226,7 +228,8 @@ export default function PatientDashboard() {
             console.warn("Failed to log booking, proceeding with dispatch", e);
           }
 
-          const res = await fetch("http://localhost:8000/api/dispatch/request", {
+          const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const res = await fetch(`${apiBase}/api/dispatch/request`, {
             method: "POST",
             headers: { 
               "Content-Type": "application/json",
@@ -238,7 +241,7 @@ export default function PatientDashboard() {
               patient_address: "Current GPS Location",
               provider_type: dispatchProviderType,
               service_subtype: dispatchServiceType,
-              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}`,
+              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}${dispatchOtherText ? '\nDetails: ' + dispatchOtherText : ''}`,
               booking_id: createdBookingId
             })
           });
@@ -598,8 +601,22 @@ export default function PatientDashboard() {
               ))}
             </div>
 
+            {(dispatchSpecificReason === "Other" || dispatchSpecificReason === "Prescription Medicines" || dispatchSpecificReason === "OTC Medicines") && (
+              <div style={{ marginBottom: "24px", animation: "fadeIn 0.3s" }}>
+                <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151", fontSize: "0.95rem" }}>
+                  {dispatchSpecificReason === "Other" ? "Please specify your requirement:" : "List the medicines you need (e.g. Paracetamol 500mg x2, Dolo 650 x1):"}
+                </label>
+                <textarea
+                  value={dispatchOtherText}
+                  onChange={(e) => setDispatchOtherText(e.target.value)}
+                  placeholder="Enter details here..."
+                  style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #d1d5db", minHeight: "80px", resize: "vertical", fontFamily: "inherit" }}
+                />
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={() => setShowDispatchModal(false)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+              <button onClick={() => { setShowDispatchModal(false); setDispatchOtherText(""); }} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
               <button onClick={confirmDispatchRequest} disabled={!dispatchSpecificReason} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "none", backgroundColor: dispatchSpecificReason ? "#3182ce" : "#9ca3af", color: "white", fontWeight: 600, cursor: dispatchSpecificReason ? "pointer" : "not-allowed", transition: "background-color 0.2s" }}>Confirm Request</button>
             </div>
           </div>

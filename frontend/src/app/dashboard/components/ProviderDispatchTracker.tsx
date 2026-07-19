@@ -427,8 +427,20 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                 <span style={{ textTransform: "capitalize" }}>{activeTask.service_type.replace('_', ' ')}</span>
               </div>
               {activeTask.notes && (
-                <div style={{ color: "#94a3b8", fontSize: "0.78rem", marginTop: 4 }}>
-                  Note: {activeTask.notes}
+                <div style={{ color: "#475569", fontSize: "0.85rem", marginTop: 8, padding: 10, backgroundColor: "#f1f5f9", borderRadius: 8, borderLeft: "3px solid #6366f1" }}>
+                  <strong>Requirements:</strong><br />
+                  {activeTask.notes.split('\n').map((line, i) => (
+                    <span key={i}>
+                      {line.includes('http') ? (
+                        <a href={line.split(' ').find(w => w.startsWith('http'))} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>
+                          View Prescription Document
+                        </a>
+                      ) : (
+                        line
+                      )}
+                      <br />
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
@@ -532,8 +544,24 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                     📍 {task.patient_address}
                   </div>
                   <div style={{ color: "#64748b", fontSize: "0.82rem", marginBottom: 12 }}>
-                    <span style={{ textTransform: "capitalize" }}>{task.service_type.replace('_', ' ')}</span>
-                    {task.notes && ` • ${task.notes}`}
+                    <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{task.service_type.replace('_', ' ')}</span>
+                    {task.notes && (
+                      <div style={{ marginTop: 8, padding: 10, backgroundColor: "#f8fafc", borderRadius: 8, borderLeft: "3px solid #3b82f6", color: "#334155" }}>
+                        <strong>Details:</strong><br/>
+                        {task.notes.split('\n').map((line, i) => (
+                          <span key={i}>
+                            {line.includes('http') ? (
+                              <a href={line.split(' ').find(w => w.startsWith('http'))} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>
+                                View Prescription Document
+                              </a>
+                            ) : (
+                              line
+                            )}
+                            <br/>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", gap: 10 }}>

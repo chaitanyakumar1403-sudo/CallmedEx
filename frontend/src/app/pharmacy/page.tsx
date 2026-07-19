@@ -1,10 +1,99 @@
+"use client";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+
 export default function PharmacyPage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState(0); // 0=idle, 1=uploading, 2=analyzing, 3=done
+
   const pharmacies = [
     { name: "MedPlus Pharmacy", address: "Dwaraka Nagar, Vizag", delivery: true, is24x7: false, radius: 5, rating: 4.5 },
     { name: "Apollo Pharmacy", address: "MVP Colony, Vizag", delivery: true, is24x7: true, radius: 8, rating: 4.7 },
     { name: "Netmeds Partner Store", address: "RK Beach Road, Vizag", delivery: true, is24x7: false, radius: 10, rating: 4.3 },
     { name: "Care & Cure Pharmacy", address: "Seethammadhara, Vizag", delivery: false, is24x7: false, radius: 3, rating: 4.6 },
   ];
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setIsUploading(true);
+      setUploadStep(1); // Uploading
+      
+      // Simulate file upload delay
+      await new Promise(r => setTimeout(r, 1500));
+      
+      setUploadStep(2); // Analyzing with AI
+      // Simulate OCR / AI extraction delay
+      await new Promise(r => setTimeout(r, 2000));
+      
+      setUploadStep(3); // Creating Dispatch Request
+      await requestPharmacyDispatch();
+    }
+  };
+
+  const requestPharmacyDispatch = async () => {
+    if (!("geolocation" in navigator)) {
+      alert("Geolocation is not supported by your browser.");
+      setIsUploading(false);
+      setUploadStep(0);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const token = localStorage.getItem("token");
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        try {
+          // The simulated AI extracted notes:
+          const aiExtractedNotes = `Urgent Pharmacy Request: Prescription Uploaded
+Prescription URL: https://example.com/prescription_mock_123.jpg
+Extracted Medicines:
+- Paracetamol 500mg x10
+- Amoxicillin 250mg x5
+- Cough Syrup 100ml x1`;
+
+          const res = await fetch(`${apiBase}/api/dispatch/request`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+              patient_lat: position.coords.latitude,
+              patient_lng: position.coords.longitude,
+              patient_address: "Current GPS Location",
+              provider_type: "pharmacy_delivery",
+              service_subtype: "Prescription Medicines",
+              notes: aiExtractedNotes
+            })
+          });
+          const data = await res.json();
+          if (data.dispatch_id) {
+            localStorage.setItem("activeDispatchId", data.dispatch_id);
+            // Route to patient dashboard to see live tracking
+            router.push("/dashboard/patient");
+          }
+        } catch (e) {
+          console.error(e);
+          alert("Failed to request dispatch.");
+          setIsUploading(false);
+          setUploadStep(0);
+        }
+      },
+      (error) => {
+        alert(`Location access denied: ${error.message}`);
+        setIsUploading(false);
+        setUploadStep(0);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
 
   return (
     <div className="section">
@@ -15,13 +104,35 @@ export default function PharmacyPage() {
         </div>
 
         {/* Upload Prescription */}
-        <div className="card" style={{ padding: 32, marginBottom: 32, textAlign: "center", border: "2px dashed var(--color-gray-300)", background: "var(--color-gray-50)" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📄</div>
-          <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8 }}>Upload Prescription</h3>
-          <p style={{ color: "var(--color-gray-500)", fontSize: "0.9rem", marginBottom: 16 }}>
-            Upload a photo of your prescription and we&apos;ll match it to the nearest pharmacy with stock availability.
-          </p>
-          <button className="btn btn-primary">Upload Prescription</button>
+        <div className="card" style={{ padding: 32, marginBottom: 32, textAlign: "center", border: "2px dashed var(--color-gray-300)", background: "var(--color-gray-50)", position: 'relative', overflow: 'hidden' }}>
+          {isUploading ? (
+            <div style={{ padding: '20px' }}>
+              <div style={{ width: '50px', height: '50px', border: '4px solid #cbd5e1', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }} />
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+              <h3 style={{ margin: '0 0 10px 0', color: '#1e293b' }}>
+                {uploadStep === 1 && "Uploading Prescription..."}
+                {uploadStep === 2 && "AI is analyzing your prescription..."}
+                {uploadStep === 3 && "Broadcasting to nearby pharmacies..."}
+              </h3>
+              <p style={{ color: '#64748b' }}>Please wait, you will be redirected to live tracking shortly.</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📄</div>
+              <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8 }}>Upload Prescription</h3>
+              <p style={{ color: "var(--color-gray-500)", fontSize: "0.9rem", marginBottom: 16 }}>
+                Upload a photo of your prescription and we&apos;ll automatically extract the medicines and match you to the nearest pharmacy.
+              </p>
+              <button className="btn btn-primary" onClick={handleUploadClick}>Upload Prescription</button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                accept="image/*,.pdf" 
+                style={{ display: 'none' }} 
+              />
+            </>
+          )}
         </div>
 
         {/* Pharmacy List */}
@@ -44,7 +155,7 @@ export default function PharmacyPage() {
                 {p.is24x7 && <span className="badge badge-info">24×7</span>}
                 <span className="badge badge-navy">{p.radius} km radius</span>
               </div>
-              <button className="btn btn-primary btn-sm btn-full">Order from Here</button>
+              <button className="btn btn-primary btn-sm btn-full" onClick={() => router.push('/dashboard/patient')}>Order from Here</button>
             </div>
           ))}
         </div>

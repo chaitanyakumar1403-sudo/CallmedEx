@@ -280,7 +280,8 @@ class UniversalDispatchEngine:
                             task_details={
                                 "service_subtype": service_subtype,
                                 "patient_address": patient_address,
-                                "distance_km": candidate["distance_km"]
+                                "distance_km": candidate["distance_km"],
+                                "notes": notes
                             },
                             offer_id=offer["id"],
                             provider_id=candidate["user_id"]
