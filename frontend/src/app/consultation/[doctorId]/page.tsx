@@ -7,7 +7,7 @@
  */
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/useAuth';
 import { telemedAPI } from '@/lib/api';
@@ -17,7 +17,7 @@ import PrescriptionView from '../components/PrescriptionView';
 
 type CallPhase = 'consent' | 'connecting' | 'in_call' | 'ended' | 'prescription';
 
-export default function VideoCallPage({ params }: { params: Promise<{ doctorId: string }> }) {
+function VideoCallPageContent({ params }: { params: Promise<{ doctorId: string }> }) {
   const { doctorId } = use(params);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -255,5 +255,13 @@ export default function VideoCallPage({ params }: { params: Promise<{ doctorId: 
         </div>
       )}
     </div>
+  );
+}
+
+export default function VideoCallPage({ params }: { params: Promise<{ doctorId: string }> }) {
+  return (
+    <Suspense fallback={<div style={{ textAlign: 'center', padding: '50px' }}>Loading...</div>}>
+      <VideoCallPageContent params={params} />
+    </Suspense>
   );
 }
