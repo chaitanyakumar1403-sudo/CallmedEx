@@ -157,6 +157,7 @@ app.include_router(payments.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")
+@app.head("/api/health")
 async def health_check():
     return {
         "status": "healthy",
@@ -184,6 +185,7 @@ async def health_check():
 
 
 @app.get("/")
+@app.head("/")
 async def root():
     return {
         "message": "CallMedex API v3.1 — Enterprise Healthcare Marketplace. Visit /api/docs for documentation.",
