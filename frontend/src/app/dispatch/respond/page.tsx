@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import TaskTracker from "./components/TaskTracker";
 
-export default function MagicRespondPage() {
+function MagicRespondContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const action = searchParams.get("action");
@@ -110,4 +110,18 @@ export default function MagicRespondPage() {
   }
 
   return null;
+}
+
+export default function MagicRespondPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f8fafc' }}>
+        <div style={{ width: '40px', height: '40px', border: '4px solid #cbd5e1', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        <h2 style={{ marginTop: '20px', color: '#334155' }}>Loading...</h2>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    }>
+      <MagicRespondContent />
+    </Suspense>
+  );
 }
