@@ -1,0 +1,18 @@
+MEMORANDUM OF UNDERSTANDING (MOU)
+
+Between CallMeDex (hereinafter "Platform") and the Registering Organization (hereinafter "Partner").
+
+1. PURPOSE
+This MOU outlines the terms under which the Partner agrees to list their healthcare facility, services, and available staff on the CallMeDex platform.
+
+2. RESPONSIBILITIES OF PARTNER
+- The Partner guarantees that all medical licenses, establishment certificates, and staff qualifications provided to the Platform are genuine and legally valid.
+- The Partner will honor all appointments booked through the Platform.
+- The Partner agrees to abide by the ABDM data sharing and privacy regulations.
+
+3. RESPONSIBILITIES OF PLATFORM
+- The Platform agrees to route patient bookings securely.
+- The Platform handles initial AI document verification but holds no liability for falsified records.
+
+4. ACCEPTANCE
+By clicking the "Accept MOU & Create Account" button in your email, the Partner legally binds themselves to these terms and conditions.
