@@ -27,10 +27,10 @@ export default function SupervisorDashboard() {
 
     const fetchData = async () => {
       try {
-        const metricsRes = await fetch('http://localhost:8000/api/admin/metrics', {
+        const metricsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/admin/metrics`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const verifRes = await fetch('http://localhost:8000/api/admin/verifications', {
+        const verifRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/admin/verifications`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 

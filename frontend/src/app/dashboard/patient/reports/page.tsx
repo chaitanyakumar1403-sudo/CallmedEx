@@ -21,7 +21,7 @@ export default function AIReportInterpreter() {
       const formData = new FormData();
       formData.append("file", file);
       
-      const res = await fetch('http://localhost:8000/api/reports/analyze', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/reports/analyze`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData

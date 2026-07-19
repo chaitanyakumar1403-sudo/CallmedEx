@@ -57,7 +57,7 @@ export default function VideoConsultationRoom({ params }: { params: Promise<{ id
     setStatus('Capturing Digital Consent (NMC 2026 Mandate)...');
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:8000/api/telemed/start', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/telemed/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ doctor_id: 'doc-uuid-here', consent_given: true })
@@ -100,7 +100,7 @@ export default function VideoConsultationRoom({ params }: { params: Promise<{ id
       
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:8000/api/telemed/finalize', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/telemed/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ consultation_id: consultId, raw_transcript: finalTranscript })

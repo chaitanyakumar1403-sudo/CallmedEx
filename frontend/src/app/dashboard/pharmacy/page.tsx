@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
 
-const apiBase = "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => localStorage.getItem("token") || "";
 
 export default function PharmacyDashboard() {

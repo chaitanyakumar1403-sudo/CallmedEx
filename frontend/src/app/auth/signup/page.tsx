@@ -159,7 +159,7 @@ export default function SignupPage() {
         body.service_radius_km = Number(formData.get("service_radius_km")) || 5;
       }
 
-      const res = await fetch("http://localhost:8000/api/auth/signup", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

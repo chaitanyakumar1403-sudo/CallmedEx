@@ -13,7 +13,7 @@ export default function NHCXInsuranceDashboard() {
     setEligibility(null);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:8000/api/insurance/eligibility', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/insurance/eligibility`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ abha_number: abha })

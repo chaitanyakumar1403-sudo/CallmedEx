@@ -113,7 +113,7 @@ export default function AdminDashboard() {
   const [formMsg, setFormMsg] = useState('');
 
   const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const apiBase = 'http://localhost:8000';
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchData = useCallback(async () => {
     const token = getToken();

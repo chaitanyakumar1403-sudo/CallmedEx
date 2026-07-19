@@ -97,7 +97,7 @@ export default function PatientDashboard() {
       const token = localStorage.getItem("token");
       if (!token) return;
       try {
-        const res = await fetch("http://localhost:8000/api/bookings/my", {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
@@ -114,7 +114,7 @@ export default function PatientDashboard() {
       const token = localStorage.getItem("token");
       if (!token) return;
       try {
-        const res = await fetch("http://localhost:8000/api/auth/me", {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
@@ -143,7 +143,7 @@ export default function PatientDashboard() {
     const fetchTracking = async () => {
       const token = localStorage.getItem("token");
       try {
-        const res = await fetch(`http://localhost:8000/api/dispatch/track/${activeDispatchId}`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/track/${activeDispatchId}`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
@@ -151,7 +151,7 @@ export default function PatientDashboard() {
         
         // If arrived, fetch OTP so patient can tell the provider
         if (data.status === "arrived") {
-          const otpRes = await fetch(`http://localhost:8000/api/dispatch/${activeDispatchId}/patient-otp`, {
+          const otpRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/${activeDispatchId}/patient-otp`, {
             headers: { "Authorization": `Bearer ${token}` }
           });
           const otpData = await otpRes.json();
@@ -269,7 +269,7 @@ export default function PatientDashboard() {
   const handleLinkAbha = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    const res = await fetch("http://localhost:8000/api/auth/link-abha", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/link-abha`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ abha_number: abhaInput })
@@ -284,7 +284,7 @@ export default function PatientDashboard() {
   const handleCreateAbha = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    const res = await fetch("http://localhost:8000/api/auth/create-abha", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/create-abha`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ aadhaar_number: aadhaarInput, otp: otpInput })

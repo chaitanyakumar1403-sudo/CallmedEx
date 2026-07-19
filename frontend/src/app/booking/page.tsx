@@ -200,7 +200,7 @@ function BookingPageContent() {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const res = await fetch("http://localhost:8000/api/bookings/my", {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
@@ -243,7 +243,7 @@ function BookingPageContent() {
         ? `Tests: ${selectedTests.map(t => t.name).join(", ")} | Total: ₹${multiTestTotal}`
         : selectedTest ? `Test: ${selectedTest.name}` : "";
 
-      const res = await fetch("http://localhost:8000/api/bookings", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -310,7 +310,7 @@ function BookingPageContent() {
         const yyyymmdd = now.toISOString().split("T")[0];
         const hhmm = now.toTimeString().split(" ")[0].substring(0, 5); // local time HH:MM
         
-        const bookingRes = await fetch("http://localhost:8000/api/bookings", {
+        const bookingRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
@@ -332,7 +332,7 @@ function BookingPageContent() {
       }
 
       // 2. Request Dispatch
-      const res = await fetch("http://localhost:8000/api/dispatch/request", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/request`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -377,7 +377,7 @@ function BookingPageContent() {
   const [realOrgs, setRealOrgs] = useState<any[]>([]);
   useEffect(() => {
     if (step === 2 && realOrgs.length === 0) {
-      fetch("http://localhost:8000/api/providers/search/organizations")
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations`)
         .then(r => r.json())
         .then(data => { if (data.success) setRealOrgs(data.organizations || []); })
         .catch(console.error);
@@ -386,7 +386,7 @@ function BookingPageContent() {
 
   useEffect(() => {
     if (selectedOrg?.isReal && !selectedOrg.fetchedDetails) {
-      fetch(`http://localhost:8000/api/bookings/org-services/${selectedOrg.id}`)
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/org-services/${selectedOrg.id}`)
         .then(r => r.json())
         .then(data => {
           if (data.success) {

@@ -22,7 +22,7 @@ export default function StaffDashboard() {
       const token = localStorage.getItem("token");
       if (!token) { setError("Not logged in"); setLoading(false); return; }
 
-      const res = await fetch("http://localhost:8000/api/bookings/staff/profile", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/staff/profile`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
@@ -52,7 +52,7 @@ export default function StaffDashboard() {
   const fetchOrgBookings = async (orgId: string) => {
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:8000/api/bookings/organization/${orgId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/organization/${orgId}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
@@ -70,11 +70,11 @@ export default function StaffDashboard() {
     setActionLoading(bookingId);
     try {
       const token = localStorage.getItem("token");
-      let url = `http://localhost:8000/api/bookings/${bookingId}/${action}`;
+      let url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/${bookingId}/${action}`;
       let method = "PATCH";
 
       if (action === "cancel") {
-        url = `http://localhost:8000/api/bookings/${bookingId}/status?status=cancelled`;
+        url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/${bookingId}/status?status=cancelled`;
       }
 
       const res = await fetch(url, {

@@ -31,7 +31,7 @@ function AcceptMOUContent() {
 
     const fetchMOU = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/api/auth/mou/preview?token=${encodeURIComponent(token)}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/mou/preview?token=${encodeURIComponent(token)}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -71,7 +71,7 @@ function AcceptMOUContent() {
     setStage("accepting");
 
     try {
-      const response = await fetch("http://localhost:8000/api/auth/accept-mou", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/accept-mou`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

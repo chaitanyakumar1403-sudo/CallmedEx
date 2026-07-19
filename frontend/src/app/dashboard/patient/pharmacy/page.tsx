@@ -52,7 +52,7 @@ export default function PharmacyDelivery() {
     
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:8000/api/pharmacy/order', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/pharmacy/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -81,7 +81,7 @@ export default function PharmacyDelivery() {
       interval = setInterval(async () => {
         try {
           const token = localStorage.getItem('token');
-          const res = await fetch(`http://localhost:8000/api/pharmacy/track/${orderId}`, {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/pharmacy/track/${orderId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const data = await res.json();
