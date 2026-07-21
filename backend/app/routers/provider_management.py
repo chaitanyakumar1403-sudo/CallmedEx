@@ -811,13 +811,15 @@ async def get_org_packages(current_user: dict = Depends(get_current_user)):
     try:
         org_result = supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).execute()
         if not org_result.data:
-            raise HTTPException(404, "Organization not found")
+            return {"success": True, "packages": []}
 
         result = supabase.table("organization_packages").select("*").eq("organization_id", org_result.data[0]["id"]).eq("is_active", True).execute()
         return {"success": True, "packages": result.data or []}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching packages: {e}")
-        raise HTTPException(500, "Failed to fetch packages")
+        return {"success": True, "packages": []}
 
 
 @router.delete("/org/packages/{package_id}")
@@ -846,13 +848,15 @@ async def get_org_timings(current_user: dict = Depends(get_current_user)):
     try:
         org_result = supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).execute()
         if not org_result.data:
-            raise HTTPException(404, "Organization not found")
+            return {"success": True, "timings": []}
 
         result = supabase.table("organization_timings").select("*").eq("organization_id", org_result.data[0]["id"]).order("day_of_week").execute()
         return {"success": True, "timings": result.data or []}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching org timings: {e}")
-        raise HTTPException(500, "Failed to fetch timings")
+        return {"success": True, "timings": []}
 
 
 @router.post("/org/timings")
@@ -901,7 +905,16 @@ async def get_org_stats(current_user: dict = Depends(get_current_user)):
     try:
         org_result = supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).execute()
         if not org_result.data:
-            raise HTTPException(404, "Organization not found")
+            return {
+                "success": True,
+                "stats": {
+                    "total_bookings": 0,
+                    "total_revenue": 0,
+                    "total_patients": 0,
+                    "total_doctors": 0,
+                    "total_services": 0,
+                }
+            }
         org_id = org_result.data[0]["id"]
 
         # Fetch bookings
@@ -931,9 +944,20 @@ async def get_org_stats(current_user: dict = Depends(get_current_user)):
                 "total_services": total_services,
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching org stats: {e}")
-        raise HTTPException(500, "Failed to fetch stats")
+        return {
+            "success": True,
+            "stats": {
+                "total_bookings": 0,
+                "total_revenue": 0,
+                "total_patients": 0,
+                "total_doctors": 0,
+                "total_services": 0,
+            }
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1036,7 +1060,9 @@ async def search_organizations(
         if org_type:
             query = query.eq("organization_type", org_type)
         if city:
-            query = query.ilike("users.city", f"%{city}%")
+            query = query.ilike("users.city", f"*{city}*")
+        if q:
+            query = query.ilike("organization_name", f"*{q}*")
 
         result = query.limit(limit).execute()
         orgs = result.data or []
@@ -1090,3 +1116,30 @@ async def search_organizations(
     except Exception as e:
         logger.error(f"Error searching orgs: {e}")
         return {"success": True, "organizations": []}
+
+
+@router.get("/search/packages")
+async def search_packages(limit: int = Query(50, le=100)):
+    """
+    Public endpoint: retrieve active health packages created by organizations.
+    Used by the patient health packages page.
+    """
+    if not supabase:
+        return {"success": True, "packages": []}
+
+    try:
+        # Fetch active packages
+        result = (
+            supabase.table("organization_packages")
+            .select("*")
+            .eq("is_active", True)
+            .limit(limit)
+            .execute()
+        )
+        packages = result.data or []
+        
+        # We can enrich the packages with tests info if needed, but for now just return them
+        return {"success": True, "packages": packages}
+    except Exception as e:
+        logger.error(f"Error fetching public org packages: {e}")
+        return {"success": True, "packages": []}

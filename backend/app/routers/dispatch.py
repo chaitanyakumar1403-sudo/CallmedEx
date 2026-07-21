@@ -808,3 +808,75 @@ async def magic_status(dispatch_id: str, req: MagicStatusRequest):
     )
     
     return {"success": True, "status": req.status}
+
+
+@router.post("/{dispatch_id}/cancel")
+async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Cancel a dispatch request directly.
+    Also cancels the associated booking if it exists.
+    """
+    user_id = current_user["sub"]
+    from app.database import supabase
+    if not supabase:
+        return {"success": True, "message": "Simulated cancellation", "status": "cancelled"}
+        
+    res = supabase.table("dispatch_requests").select("*").eq("id", dispatch_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Dispatch not found")
+        
+    dispatch = res.data[0]
+    
+    if dispatch.get("patient_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to cancel this dispatch")
+        
+    current_status = dispatch.get("status")
+    
+    if current_status in ["cancelled", "completed", "arrived", "in_progress"]:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel a dispatch that is currently {current_status}")
+        
+    fee_applied = False
+    if current_status in ["provider_accepted", "en_route"]:
+        created_at_str = dispatch.get("created_at")
+        if created_at_str:
+            try:
+                from datetime import datetime, timezone
+                created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                elapsed_mins = (datetime.now(timezone.utc) - created_at).total_seconds() / 60
+                if current_status == "en_route" or elapsed_mins > 5:
+                    fee_applied = True
+            except Exception:
+                fee_applied = True
+
+    # 1. Cancel the dispatch
+    update_data = {"status": "cancelled"}
+    supabase.table("dispatch_requests").update(update_data).eq("id", dispatch_id).execute()
+    
+    # 2. Cancel the associated booking if it exists
+    booking_id = dispatch.get("booking_id")
+    if booking_id:
+        from datetime import datetime
+        notes = "Cancelled by patient via dispatch tracker."
+        if fee_applied:
+            notes += " Cancellation fee applied."
+            
+        b_res = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+        if b_res.data:
+            existing_notes = b_res.data[0].get("notes", "")
+            supabase.table("bookings").update({
+                "status": "cancelled",
+                "notes": existing_notes + f"\n[{datetime.now().isoformat()}] {notes}"
+            }).eq("id", booking_id).execute()
+            
+            # Record booking history
+            try:
+                from app.routers.bookings import _record_booking_history
+                _record_booking_history(booking_id, b_res.data[0].get("status"), "cancelled", changed_by=user_id, notes=notes)
+            except Exception:
+                pass
+                
+    return {
+        "success": True, 
+        "message": f"Request cancelled successfully. {'A cancellation fee will be applied.' if fee_applied else 'No fee applied.'}",
+        "fee_applied": fee_applied
+    }

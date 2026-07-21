@@ -49,6 +49,12 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   const [statusMsg, setStatusMsg] = useState("");
   const [otp, setOtp] = useState("");
   const [showAllTasks, setShowAllTasks] = useState(false);
+  
+  // Selfie Verification State
+  const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [verifyingSelfie, setVerifyingSelfie] = useState(false);
+
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const taskIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -145,6 +151,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   }, []);
 
   // ─── Toggle Duty ──────────────────────────────────────────────────────
+  const onToggleClick = () => {
+    if (!onDuty && providerType === "phlebotomist") {
+      setShowSelfieModal(true);
+    } else {
+      handleToggleDuty();
+    }
+  };
+
   const handleToggleDuty = async () => {
     setDutyLoading(true);
     const token = getToken();
@@ -171,6 +185,21 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
     } finally {
       setDutyLoading(false);
     }
+  };
+
+  const handleSelfieSubmit = async () => {
+    if (!selfieFile) {
+      setStatusMsg("❌ Please upload your duty selfie first.");
+      return;
+    }
+    setVerifyingSelfie(true);
+    // Simulate AI verification delay
+    setTimeout(() => {
+      setVerifyingSelfie(false);
+      setShowSelfieModal(false);
+      setSelfieFile(null);
+      handleToggleDuty(); // Proceed to go on duty
+    }, 1500);
   };
 
   // ─── Accept / Reject Task ─────────────────────────────────────────────
@@ -294,8 +323,8 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
             {/* Duty Toggle and GPS Indicator */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
               <button
-                onClick={handleToggleDuty}
-                disabled={dutyLoading}
+                onClick={onToggleClick}
+                disabled={dutyLoading || verifyingSelfie}
                 style={{
                   backgroundColor: onDuty ? "rgba(220,38,38,0.9)" : "rgba(5,150,105,0.9)",
                   color: "white",
@@ -674,6 +703,69 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {/* ─── SELFIE VERIFICATION MODAL ─── */}
+        {showSelfieModal && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
+            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
+          }}>
+            <div style={{
+              backgroundColor: "white", borderRadius: 16, padding: 30,
+              width: "100%", maxWidth: 450,
+            }}>
+              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
+                <span>📸</span> Pre-Duty Selfie Verification
+              </h3>
+              <div style={{ backgroundColor: "#fef3c7", padding: 16, borderRadius: 10, border: "1px solid #fde68a", marginBottom: 20 }}>
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#92400e", fontWeight: 600 }}>
+                  As per the Phlebotomist MOU, you must upload a live selfie showing:
+                </p>
+                <ul style={{ margin: "10px 0 0", paddingLeft: 20, fontSize: "0.85rem", color: "#b45309" }}>
+                  <li>Your Face clearly visible</li>
+                  <li>Official Uniform and ID Card</li>
+                  <li>Sample Collection Kit</li>
+                </ul>
+              </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={(e) => setSelfieFile(e.target.files?.[0] || null)}
+                style={{
+                  display: "block", width: "100%", padding: "12px",
+                  border: "2px dashed #cbd5e1", borderRadius: 8, marginBottom: 20,
+                  color: "#475569"
+                }}
+              />
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  onClick={() => { setShowSelfieModal(false); setSelfieFile(null); }}
+                  style={{
+                    flex: 1, backgroundColor: "#f1f5f9", color: "#475569",
+                    border: "none", padding: "12px", borderRadius: 8, fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSelfieSubmit}
+                  disabled={verifyingSelfie || !selfieFile}
+                  style={{
+                    flex: 1, backgroundColor: "#059669", color: "white",
+                    border: "none", padding: "12px", borderRadius: 8, fontWeight: 700,
+                    cursor: verifyingSelfie || !selfieFile ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {verifyingSelfie ? "⏳ AI Verifying..." : "Verify & Go On Duty"}
+                </button>
+              </div>
             </div>
           </div>
         )}

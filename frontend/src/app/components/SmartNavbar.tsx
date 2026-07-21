@@ -48,10 +48,15 @@ export default function SmartNavbar() {
         </a>
         <ul className="navbar__nav">
           <li><a href="/about">About</a></li>
-          <li><a href="/health-packages">Health Packages</a></li>
-          <li><a href="/diagnostics">Diagnostics</a></li>
-          <li><a href="/consultation">Consultation</a></li>
-          <li><a href="/pharmacy">Pharmacy</a></li>
+          {(!user || user.role === "patient") && (
+            <>
+              <li><a href="/search">Find Hospitals</a></li>
+              <li><a href="/health-packages">Health Packages</a></li>
+              <li><a href="/diagnostics">Diagnostics</a></li>
+              <li><a href="/consultation">Consultation</a></li>
+              <li><a href="/pharmacy">Pharmacy</a></li>
+            </>
+          )}
         </ul>
         <div className="navbar__actions">
           {user ? (

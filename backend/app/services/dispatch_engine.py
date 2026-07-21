@@ -619,6 +619,7 @@ class UniversalDispatchEngine:
 
         return {
             "dispatch_id": dispatch_id,
+            "booking_id": dispatch.get("booking_id"),
             "provider_type": dispatch.get("provider_type"),
             "service_subtype": dispatch.get("service_subtype"),
             "status": dispatch["status"],

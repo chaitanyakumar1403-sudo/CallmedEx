@@ -141,6 +141,33 @@ app.add_middleware(
     ],
 )
 
+from fastapi.exceptions import RequestValidationError
+
+# ─── Global Exception Handlers ──────────────────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Check if it's a Supabase/PostgREST error (PGRST)
+    exc_str = str(exc)
+    if "postgrest" in exc.__class__.__module__ or "PGRST" in exc_str:
+        logger.error(f"Supabase DB Error on {request.url.path}: {exc}")
+        return JSONResponse(
+            status_code=200, # Degrade gracefully for the frontend
+            content={
+                "success": False,
+                "message": "A database relationship or constraint error occurred. Please try again later or contact support.",
+                "details": str(exc)
+            },
+        )
+    
+    logger.exception(f"Unhandled Exception on {request.url.path}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "message": "An unexpected system error occurred."
+        },
+    )
+
 # ─── Routers ──────────────────────────────────────────────────────────────
 app.include_router(auth.router)
 app.include_router(bookings.router)

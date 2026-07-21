@@ -36,6 +36,11 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [verificationStatus, setVerificationStatus] = useState<Record<string, string>>({});
+  const [additionalDocs, setAdditionalDocs] = useState<{ id: number; name: string }[]>([]);
+
+  const addDocumentField = () => setAdditionalDocs(prev => [...prev, { id: Date.now(), name: "" }]);
+  const removeDocumentField = (id: number) => setAdditionalDocs(prev => prev.filter(doc => doc.id !== id));
+  const handleDocNameChange = (id: number, name: string) => setAdditionalDocs(prev => prev.map(doc => doc.id === id ? { ...doc, name } : doc));
 
   const toggleMedical = (condition: string) => {
     setMedicalHistory((prev) =>
@@ -786,6 +791,52 @@ export default function SignupPage() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ─── Additional Documents ─── */}
+          {role !== "patient" && role !== "staff" && (
+            <div className="card-section">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <h4 style={{ margin: 0 }}>Additional Documents (Optional)</h4>
+                <button type="button" onClick={addDocumentField} className="btn btn-secondary btn-sm" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1' }}>
+                  + Add Document
+                </button>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: 16 }}>
+                Upload any additional certificates (e.g., PG Certificate, MBBS Certificate, Fellowship, Clinic License, etc.) to strengthen your profile.
+              </p>
+              
+              {additionalDocs.map(doc => (
+                <div key={doc.id} className="form-group" style={{ marginBottom: 16, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Document Name (e.g., PG Certificate)" 
+                      value={doc.name} 
+                      onChange={(e) => handleDocNameChange(doc.id, e.target.value)}
+                      required 
+                      style={{ flex: 1 }}
+                    />
+                    <button type="button" onClick={() => removeDocumentField(doc.id)} className="btn btn-secondary btn-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                      ✕ Remove
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required />
+                    {verificationStatus[`doc_${doc.id}`] === 'verified' ? (
+                        <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                    ) : verificationStatus[`doc_${doc.id}`] === 'verifying' ? (
+                        <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                    ) : (
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification(`doc_${doc.id}`)}>
+                            Verify via AI
+                        </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* ─── MOU Notice (non-patient roles) ─── */}

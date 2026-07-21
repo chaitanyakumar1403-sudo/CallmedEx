@@ -46,9 +46,7 @@ class TelephonyService:
         virtual_number = f"+91-800-CALLMDX-{uuid.uuid4().hex[:4].upper()}"
 
         telephony_provider = "simulated"
-        if hasattr(settings, "TWILIO_ACCOUNT_SID") and settings.TWILIO_ACCOUNT_SID:
-            telephony_provider = "twilio"
-        elif hasattr(settings, "EXOTEL_API_KEY") and settings.EXOTEL_API_KEY:
+        if hasattr(settings, "EXOTEL_API_KEY") and settings.EXOTEL_API_KEY:
             telephony_provider = "exotel"
 
         session_data = {

@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import DashboardProfile from "../components/DashboardProfile";
+import { bookingsAPI, dispatchAPI } from "@/lib/api";
 
 interface UserData {
   full_name: string;
@@ -18,6 +20,7 @@ export default function PatientDashboard() {
   const [otpInput, setOtpInput] = useState('');
   const [abhaStep, setAbhaStep] = useState(1); // 1 = enter aadhaar, 2 = enter otp
   const [abhaLinkedNumber, setAbhaLinkedNumber] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   // Live Tracking State
   const [activeDispatchId, setActiveDispatchId] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export default function PatientDashboard() {
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [dispatchProviderType, setDispatchProviderType] = useState("");
   const [dispatchServiceType, setDispatchServiceType] = useState("");
-  const [dispatchSpecificReason, setDispatchSpecificReason] = useState("");
+  const [dispatchSpecificReason, setDispatchSpecificReason] = useState<string[]>([]);
   const [dispatchOtherText, setDispatchOtherText] = useState("");
   const [dispatchLabel, setDispatchLabel] = useState("");
 
@@ -118,8 +121,11 @@ export default function PatientDashboard() {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.success && data.data?.abha_number) {
-          setAbhaLinkedNumber(data.data.abha_number);
+        if (data.success) {
+          setProfile(data.data);
+          if (data.data?.abha_number) {
+            setAbhaLinkedNumber(data.data.abha_number);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -162,13 +168,14 @@ export default function PatientDashboard() {
           setPatientOtp(null);
         }
 
-        // Clear tracking if the dispatch is completed or cancelled
-        if (data.status === "completed" || data.status === "cancelled" || data.status === "no_provider") {
+        // Clear tracking if the dispatch is completed, cancelled, or missing
+        if (data.status === "completed" || data.status === "cancelled" || data.status === "no_provider" || data.status === "not_found") {
+          const timeoutMs = data.status === "not_found" ? 0 : 10000;
           setTimeout(() => {
             setActiveDispatchId(null);
             setTrackingData(null);
             localStorage.removeItem("activeDispatchId");
-          }, 10000); // Leave it on screen for 10 seconds before clearing
+          }, timeoutMs); // Leave it on screen for 10 seconds before clearing (unless not found)
         }
       } catch (e) {
         console.error("Tracking error", e);
@@ -184,7 +191,7 @@ export default function PatientDashboard() {
     setDispatchProviderType(providerType);
     setDispatchServiceType(serviceType);
     setDispatchLabel(label);
-    setDispatchSpecificReason("");
+    setDispatchSpecificReason([]);
     setShowDispatchModal(true);
   };
 
@@ -216,7 +223,7 @@ export default function PatientDashboard() {
                 provider_type: dispatchProviderType,
                 service_type: dispatchServiceType,
                 slot_id: `on_demand|${yyyymmdd}|${hhmm}`,
-                notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
+                notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
                 total_price: 0
               })
             });
@@ -241,7 +248,7 @@ export default function PatientDashboard() {
               patient_address: "Current GPS Location",
               provider_type: dispatchProviderType,
               service_subtype: dispatchServiceType,
-              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason}${dispatchOtherText ? '\nDetails: ' + dispatchOtherText : ''}`,
+              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? '\nDetails: ' + dispatchOtherText : ''}`,
               booking_id: createdBookingId
             })
           });
@@ -296,6 +303,68 @@ export default function PatientDashboard() {
     }
   };
 
+  const handleCancelRequest = async (dispatchId: string | undefined, currentStatus: string) => {
+    if (!dispatchId) {
+      alert("Unable to cancel: Missing dispatch ID. Please contact support.");
+      return;
+    }
+    let msg = "Are you sure you want to cancel this request?";
+    if (currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "confirmed") {
+      msg = "Are you sure? If the provider is already on the way or it has been more than 5 minutes since acceptance, a cancellation fee may apply.";
+    }
+    if (!confirm(msg)) return;
+
+    try {
+      const res = await dispatchAPI.cancelDispatch(dispatchId);
+      if (res.success) {
+        alert(res.message);
+        if (dispatchId === activeDispatchId) {
+          setActiveDispatchId(null);
+          setTrackingData(null);
+        }
+        // Refresh bookings
+        const bRes = await fetch('/api/bookings/my', {
+          headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
+        });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          setBookings(bData.bookings || []);
+        }
+      } else {
+        alert(res.message || "Failed to cancel");
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to cancel request");
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: string, currentStatus: string) => {
+    let msg = "Are you sure you want to cancel this booking?";
+    if (currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "confirmed") {
+      msg = "Are you sure? If the provider is already on the way or it has been more than 5 minutes since acceptance, a cancellation fee may apply.";
+    }
+    if (!confirm(msg)) return;
+
+    try {
+      const res = await bookingsAPI.cancelBooking(bookingId);
+      if (res.success) {
+        alert(res.message);
+        // Refresh bookings
+        const bRes = await fetch('/api/bookings/my', {
+          headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
+        });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          setBookings(bData.bookings || []);
+        }
+      } else {
+        alert(res.message || "Failed to cancel booking");
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to cancel booking");
+    }
+  };
+
   const name = user?.full_name || "Patient";
   
   const upcomingCount = bookings.filter(b => b.status === "confirmed").length;
@@ -344,7 +413,7 @@ export default function PatientDashboard() {
             <div className="card" style={{ padding: 24, border: trackingData.status === "searching" ? '2px dashed #ecc94b' : '2px solid #38a169', backgroundColor: trackingData.status === "searching" ? '#fffff0' : '#f0fff4', transition: 'all 0.3s ease' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
                 <span style={{ backgroundColor: trackingData.status === "searching" ? "#fef08a" : "#dcfce7", color: trackingData.status === "searching" ? "#854d0e" : "#16a34a", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold", textTransform: "uppercase" }}>
-                  Status: {trackingData.status.replace("_", " ")}
+                  Status: {trackingData.status?.replace("_", " ") || "Unknown"}
                 </span>
                 
                 {trackingData.provider && trackingData.provider.distance_km != null ? (
@@ -362,6 +431,21 @@ export default function PatientDashboard() {
                   <div style={{ color: "#6b7280", fontStyle: "italic" }}>Calculating distance...</div>
                 )}
               </div>
+              
+              {/* Cancel Button Area */}
+              {trackingData.status !== "arrived" && trackingData.status !== "in_progress" && trackingData.status !== "completed" && trackingData.status !== "cancelled" && (
+                <div style={{ textAlign: 'right', marginBottom: 15 }}>
+                  <button 
+                    onClick={() => handleCancelRequest(activeDispatchId || trackingData.dispatch_id, trackingData.status)}
+                    style={{
+                      background: 'none', border: 'none', color: '#dc2626', fontWeight: 600, 
+                      fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline'
+                    }}
+                  >
+                    Cancel Request
+                  </button>
+                </div>
+              )}
 
               {trackingData.provider ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -495,9 +579,22 @@ export default function PatientDashboard() {
                     </div>
                   </div>
                 </div>
-                <span className={`badge ${booking.status === "confirmed" ? "badge-info" : "badge-success"}`}>
-                  {booking.status}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <span className={`badge ${booking.status === "confirmed" ? "badge-info" : booking.status === "cancelled" ? "badge-danger" : "badge-success"}`} style={{ backgroundColor: booking.status === "cancelled" ? "#fee2e2" : undefined, color: booking.status === "cancelled" ? "#ef4444" : undefined }}>
+                    {booking.status}
+                  </span>
+                  {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && (
+                    <button 
+                      onClick={() => handleCancelBooking(booking.id, booking.status)}
+                      style={{
+                        background: 'none', border: 'none', color: '#dc2626', fontWeight: 500, 
+                        fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', padding: 0
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           ) : (
@@ -505,6 +602,11 @@ export default function PatientDashboard() {
               <p>No recent bookings found.</p>
               <a href="/booking" className="btn btn-primary" style={{ marginTop: 12, display: "inline-block" }}>Book Your First Service</a>
             </div>
+          )}
+          {bookings?.length > 0 && (
+            <a href="/dashboard/patient/bookings" className="btn btn-outline" style={{ marginTop: 8, display: 'block', textAlign: 'center' }}>
+              View All Bookings History
+            </a>
           )}
         </div>
 
@@ -530,6 +632,9 @@ export default function PatientDashboard() {
             </div>
           )}
         </div>
+
+        {/* ─── Profile Details ─── */}
+        <DashboardProfile profile={profile} role="patient" />
       </div>
 
       {showAbhaModal && (
@@ -587,24 +692,30 @@ export default function PatientDashboard() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
               {(dispatchOptions[dispatchProviderType] || ["Other"]).map((opt) => (
-                <label key={opt} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px", border: dispatchSpecificReason === opt ? "2px solid #3182ce" : "1px solid #e5e7eb", backgroundColor: dispatchSpecificReason === opt ? "#ebf8ff" : "white", cursor: "pointer", transition: "all 0.2s" }}>
+                <label key={opt} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", borderRadius: "8px", border: dispatchSpecificReason.includes(opt) ? "2px solid #3182ce" : "1px solid #e5e7eb", backgroundColor: dispatchSpecificReason.includes(opt) ? "#ebf8ff" : "white", cursor: "pointer", transition: "all 0.2s" }}>
                   <input
-                    type="radio"
+                    type="checkbox"
                     name="dispatchReason"
                     value={opt}
-                    checked={dispatchSpecificReason === opt}
-                    onChange={(e) => setDispatchSpecificReason(e.target.value)}
+                    checked={dispatchSpecificReason.includes(opt)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setDispatchSpecificReason([...dispatchSpecificReason, opt]);
+                      } else {
+                        setDispatchSpecificReason(dispatchSpecificReason.filter(r => r !== opt));
+                      }
+                    }}
                     style={{ cursor: "pointer", width: "18px", height: "18px" }}
                   />
-                  <span style={{ fontWeight: dispatchSpecificReason === opt ? 600 : 400, color: dispatchSpecificReason === opt ? "#2b6cb0" : "#374151" }}>{opt}</span>
+                  <span style={{ fontWeight: dispatchSpecificReason.includes(opt) ? 600 : 400, color: dispatchSpecificReason.includes(opt) ? "#2b6cb0" : "#374151" }}>{opt}</span>
                 </label>
               ))}
             </div>
 
-            {(dispatchSpecificReason === "Other" || dispatchSpecificReason === "Prescription Medicines" || dispatchSpecificReason === "OTC Medicines") && (
+            {(dispatchSpecificReason.includes("Other") || dispatchSpecificReason.includes("Prescription Medicines") || dispatchSpecificReason.includes("OTC Medicines")) && (
               <div style={{ marginBottom: "24px", animation: "fadeIn 0.3s" }}>
                 <label style={{ display: "block", marginBottom: "8px", fontWeight: 500, color: "#374151", fontSize: "0.95rem" }}>
-                  {dispatchSpecificReason === "Other" ? "Please specify your requirement:" : "List the medicines you need (e.g. Paracetamol 500mg x2, Dolo 650 x1):"}
+                  {dispatchSpecificReason.includes("Other") ? "Please specify your requirement:" : "List the medicines you need (e.g. Paracetamol 500mg x2, Dolo 650 x1):"}
                 </label>
                 <textarea
                   value={dispatchOtherText}
@@ -617,7 +728,7 @@ export default function PatientDashboard() {
 
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => { setShowDispatchModal(false); setDispatchOtherText(""); }} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #d1d5db", backgroundColor: "white", color: "#374151", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-              <button onClick={confirmDispatchRequest} disabled={!dispatchSpecificReason} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "none", backgroundColor: dispatchSpecificReason ? "#3182ce" : "#9ca3af", color: "white", fontWeight: 600, cursor: dispatchSpecificReason ? "pointer" : "not-allowed", transition: "background-color 0.2s" }}>Confirm Request</button>
+              <button onClick={confirmDispatchRequest} disabled={dispatchSpecificReason.length === 0} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "none", backgroundColor: dispatchSpecificReason.length > 0 ? "#3182ce" : "#9ca3af", color: "white", fontWeight: 600, cursor: dispatchSpecificReason.length > 0 ? "pointer" : "not-allowed", transition: "background-color 0.2s" }}>Confirm Request</button>
             </div>
           </div>
         </div>

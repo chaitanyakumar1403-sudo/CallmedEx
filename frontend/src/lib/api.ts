@@ -240,5 +240,15 @@ export const telemedAPI = {
     api.get(`/telemed/${consultationId}`),
 };
 
+export const bookingsAPI = {
+  cancelBooking: (bookingId: string) =>
+    api.post(`/bookings/${bookingId}/cancel`),
+};
+
+export const dispatchAPI = {
+  cancelDispatch: (dispatchId: string) =>
+    api.post(`/dispatch/${dispatchId}/cancel`),
+};
+
 export { APIError };
 export default api;

@@ -205,6 +205,25 @@ export default function AdminDashboard() {
     } catch { /* silent */ }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to completely delete this user? This action cannot be undone.")) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setUsers(users.filter((u: any) => u.id !== userId));
+      } else {
+        const data = await res.json();
+        alert(data.detail || "Failed to delete user");
+      }
+    } catch {
+      alert("Network error");
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
@@ -554,6 +573,14 @@ export default function AdminDashboard() {
                             border: '1px solid #e5e7eb', borderRadius: 6, backgroundColor: 'white',
                           }}
                         >{u.is_active ? 'Suspend' : 'Activate'}</button>
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          style={{
+                            fontSize: '0.7rem', padding: '4px 10px', cursor: 'pointer',
+                            border: '1px solid #fecaca', borderRadius: 6, backgroundColor: '#fef2f2',
+                            color: '#dc2626', fontWeight: 600
+                          }}
+                        >Delete</button>
                       </div>
                     </td>
                   </tr>

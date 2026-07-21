@@ -42,9 +42,6 @@ class Settings:
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
     # ─── Phase 3: Telephony (Masked Calling) ──────────────────────────
-    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
-    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
-    TWILIO_PHONE_NUMBER: str = os.getenv("TWILIO_PHONE_NUMBER", "")
     EXOTEL_API_KEY: str = os.getenv("EXOTEL_API_KEY", "")
     EXOTEL_API_TOKEN: str = os.getenv("EXOTEL_API_TOKEN", "")
     EXOTEL_SID: str = os.getenv("EXOTEL_SID", "")

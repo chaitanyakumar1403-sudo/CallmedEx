@@ -233,6 +233,12 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     if not supabase:
         return {"success": True, "message": "Simulated user deletion"}
 
-    supabase.table("users").delete().eq("id", user_id).execute()
+    try:
+        # Delete from Supabase Auth (this usually cascades to the public.users table)
+        supabase.auth.admin.delete_user(user_id)
+    except Exception as e:
+        # Fallback to just deleting from public.users if auth admin fails
+        supabase.table("users").delete().eq("id", user_id).execute()
+
     return {"success": True, "message": "User deleted successfully"}
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
+import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -340,6 +341,7 @@ export default function DoctorDashboard() {
     { id: "home_visits", label: "Home Visits", icon: "🏠" },
     { id: "fees", label: "Consultation Fees", icon: "💰" },
     { id: "leave", label: "Leave / Holidays", icon: "🏖️" },
+    { id: "profile", label: "Profile Details", icon: "👤" },
   ];
 
   return (
@@ -449,6 +451,11 @@ export default function DoctorDashboard() {
           }}>
             {statusMsg}
           </div>
+        )}
+
+        {/* ═══ PROFILE TAB ═══ */}
+        {activeTab === "profile" && (
+          <DashboardProfile profile={profile} role="doctor" />
         )}
 
         {/* ═══ SCHEDULE TAB ═══ */}

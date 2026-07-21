@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
+import DashboardProfile from '../components/DashboardProfile';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => localStorage.getItem("token") || "";
@@ -12,6 +13,7 @@ export default function PharmacyDashboard() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [profile, setProfile] = useState<any>(null);
   
   // New Inventory State
   const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, stock_quantity: 0, category: 'medicine', is_prescription_required: false });
@@ -40,10 +42,24 @@ export default function PharmacyDashboard() {
     }
   };
 
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/auth/me`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      const data = await res.json();
+      if (data.success && data.data.role === "pharmacy") {
+        setProfile(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchOrders(), fetchInventory()]);
+      await Promise.all([fetchProfile(), fetchOrders(), fetchInventory()]);
       setLoading(false);
     };
     loadData();
@@ -124,7 +140,7 @@ export default function PharmacyDashboard() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
-          {['overview', 'orders', 'inventory', 'delivery'].map(tab => (
+          {['overview', 'orders', 'inventory', 'delivery', 'profile'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -140,7 +156,7 @@ export default function PharmacyDashboard() {
                 textTransform: 'capitalize'
               }}
             >
-              {tab === 'delivery' ? 'Delivery Dispatch' : tab}
+              {tab === 'delivery' ? 'Delivery Dispatch' : tab === 'profile' ? 'Profile Details' : tab}
             </button>
           ))}
         </div>
@@ -305,6 +321,11 @@ export default function PharmacyDashboard() {
                   earningsRate={100}
                 />
               </div>
+            )}
+            
+            {/* PROFILE TAB */}
+            {activeTab === 'profile' && (
+              <DashboardProfile profile={profile} role="pharmacy" />
             )}
           </>
         )}

@@ -38,7 +38,6 @@ class EndConsultationRequest(BaseModel):
 @router.get("/doctors")
 async def list_available_doctors(
     specialization: Optional[str] = Query(None, description="Filter by specialization"),
-    current_user: dict = Depends(get_current_user),
 ):
     """List doctors available for video consultation."""
     doctors = await TelemedicineService.get_available_doctors(specialization)
