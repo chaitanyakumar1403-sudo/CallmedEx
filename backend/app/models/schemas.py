@@ -102,6 +102,11 @@ class ServiceType(str, Enum):
     AMBULANCE = "ambulance"
     PHARMACY_DELIVERY = "pharmacy_delivery"
     PHYSIOTHERAPY = "physiotherapy"
+    HOME_VISIT = "home_visit"
+    NURSING_CARE = "nursing_care"
+    MEDICINE_DELIVERY = "medicine_delivery"
+    PROCEDURE = "procedure"
+    CONSULTATION = "consultation"
 
 
 class DispatchStatus(str, Enum):

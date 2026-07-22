@@ -29,6 +29,7 @@ VALID_PROVIDER_TYPES = {
 
 OFFER_EXPIRY_SECONDS = 30  # Each provider has 30 seconds to accept
 MAX_SEARCH_ROUNDS = 3      # Number of rounds to search for providers
+_local_dispatches: List[dict] = []
 
 
 class UniversalDispatchEngine:
@@ -230,10 +231,27 @@ class UniversalDispatchEngine:
         # We no longer auto-assign the closest provider.
         # Instead, we send magic emails to all candidates and let them accept.
 
+        # Ensure booking_id and patient_id are valid UUIDs for DB columns, or None
+        valid_booking_id = None
+        if booking_id:
+            try:
+                uuid.UUID(str(booking_id))
+                valid_booking_id = str(booking_id)
+            except (ValueError, TypeError):
+                valid_booking_id = None
+
+        valid_patient_id = None
+        if patient_id:
+            try:
+                uuid.UUID(str(patient_id))
+                valid_patient_id = str(patient_id)
+            except (ValueError, TypeError):
+                valid_patient_id = None
+
         dispatch_data = {
             "id": dispatch_id,
-            "patient_id": patient_id,
-            "booking_id": booking_id,
+            "patient_id": valid_patient_id,
+            "booking_id": valid_booking_id,
             "provider_type": provider_type,
             "service_subtype": service_subtype,
             "status": status,
@@ -250,6 +268,9 @@ class UniversalDispatchEngine:
             "created_at": now,
             "updated_at": now,
         }
+
+        # Store in local memory fallback list
+        _local_dispatches.append(dispatch_data)
 
         if supabase:
             try:

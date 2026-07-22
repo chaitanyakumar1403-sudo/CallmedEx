@@ -253,14 +253,16 @@ export default function PatientDashboard() {
             })
           });
           const data = await res.json();
-          if (data.dispatch_id) {
+          if (res.ok && data.dispatch_id) {
             localStorage.setItem("activeDispatchId", data.dispatch_id);
             setActiveDispatchId(data.dispatch_id);
-            alert(data.message);
+            alert(data.message || "Dispatch request created! Searching for nearby providers.");
+          } else {
+            alert(data.detail || data.message || "Failed to request dispatch.");
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error(e);
-          alert("Failed to request dispatch.");
+          alert(e?.message || "Failed to request dispatch.");
         } finally {
           setRequestingDispatch(null);
         }
