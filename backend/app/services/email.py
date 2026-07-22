@@ -177,9 +177,16 @@ class EmailService:
             try:
                 import json
                 import urllib.request
+                import urllib.error
 
                 url = "https://api.resend.com/emails"
-                from_email = settings.SMTP_FROM_EMAIL or "onboarding@resend.dev"
+                # If custom domain is unverified, onboarding@resend.dev guarantees delivery
+                configured_from = settings.SMTP_FROM_EMAIL or "onboarding@resend.dev"
+                if "callmedex.com" in configured_from:
+                    from_email = f"CallMedex <onboarding@resend.dev>"
+                else:
+                    from_email = configured_from
+
                 payload = {
                     "from": from_email,
                     "to": [to_email],
@@ -190,6 +197,7 @@ class EmailService:
                 headers = {
                     "Authorization": f"Bearer {settings.RESEND_API_KEY}",
                     "Content-Type": "application/json",
+                    "User-Agent": "CallMedex-Backend/1.0",
                 }
                 req = urllib.request.Request(
                     url,
@@ -197,10 +205,27 @@ class EmailService:
                     headers=headers,
                     method="POST",
                 )
-                with urllib.request.urlopen(req) as resp:
-                    if resp.status in (200, 201):
-                        logger.info(f"Resend email delivered to {to_email}")
-                        return True
+                try:
+                    with urllib.request.urlopen(req) as resp:
+                        if resp.status in (200, 201):
+                            logger.info(f"Resend email delivered to {to_email}")
+                            return True
+                except urllib.error.HTTPError as http_err:
+                    err_body = http_err.read().decode("utf-8", errors="ignore")
+                    logger.warning(f"Resend primary send failed ({http_err.code}): {err_body}")
+                    # If failed due to domain verification, retry with onboarding@resend.dev
+                    if "domain" in err_body.lower() or "not verified" in err_body.lower():
+                        payload["from"] = "CallMedex <onboarding@resend.dev>"
+                        req_retry = urllib.request.Request(
+                            url,
+                            data=json.dumps(payload).encode("utf-8"),
+                            headers=headers,
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(req_retry) as resp_retry:
+                            if resp_retry.status in (200, 201):
+                                logger.info(f"Resend email delivered to {to_email} via fallback sender")
+                                return True
             except Exception as e:
                 logger.error(f"Resend API email sending failed: {e}")
 
