@@ -5,6 +5,8 @@ import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 
+import PhlebotomistToolsModal from "../../components/PhlebotomistToolsModal";
+
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
@@ -13,6 +15,7 @@ export default function PhlebotomistDashboard() {
   const [activeTab, setActiveTab] = useState("dispatch");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showToolsModal, setShowToolsModal] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -65,12 +68,32 @@ export default function PhlebotomistDashboard() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              onClick={() => setShowToolsModal(true)}
+              style={{
+                padding: "8px 16px",
+                background: "linear-gradient(135deg, #0d9488 0%, #06b6d4 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 20,
+                fontWeight: 700,
+                fontSize: "0.82rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6
+              }}
+            >
+              🧪 Specimen & Tube Guide
+            </button>
             <span style={{ background: "rgba(255,255,255,0.15)", color: "#fecdd3", padding: "8px 16px", borderRadius: 20, fontSize: "0.85rem", fontWeight: 700, backdropFilter: "blur(4px)", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 8, height: 8, background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 10px #ef4444" }}></div>
               Cold-Chain Monitor Active
             </span>
           </div>
         </div>
+
+        <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
       </div>
 
       {/* ─── Tabs ─── */}

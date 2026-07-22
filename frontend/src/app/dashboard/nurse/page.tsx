@@ -5,6 +5,8 @@ import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 
+import NurseToolsModal from "../../components/NurseToolsModal";
+
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
@@ -13,6 +15,7 @@ export default function NurseDashboard() {
   const [activeTab, setActiveTab] = useState("dispatch");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showToolsModal, setShowToolsModal] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -65,12 +68,32 @@ export default function NurseDashboard() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              onClick={() => setShowToolsModal(true)}
+              style={{
+                padding: "8px 16px",
+                background: "linear-gradient(135deg, #db2777 0%, #e11d48 100%)",
+                color: "white",
+                border: "none",
+                borderRadius: 20,
+                fontWeight: 700,
+                fontSize: "0.82rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6
+              }}
+            >
+              💧 IV Drip & Vitals Calculator
+            </button>
             <span style={{ background: "rgba(255,255,255,0.15)", color: "#fbcfe8", padding: "8px 16px", borderRadius: 20, fontSize: "0.85rem", fontWeight: 700, backdropFilter: "blur(4px)", display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 8, height: 8, background: "#f43f5e", borderRadius: "50%", boxShadow: "0 0 10px #f43f5e" }}></div>
               Emergency Priority Ready
             </span>
           </div>
         </div>
+
+        <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
       </div>
 
       {/* ─── Tabs ─── */}
