@@ -5,6 +5,8 @@ Universal dispatch endpoints for ALL field providers:
 
 Backward-compatible with legacy phlebotomist-only dispatches.
 """
+import uuid
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
@@ -13,11 +15,17 @@ from app.services.dispatch import DispatchService
 from app.services.dispatch_engine import UniversalDispatchEngine
 from app.services.otp import OTPService
 from app.services.magic_link import MagicLinkService
+from app.database import supabase
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dispatch", tags=["Dispatch"])
 
 # Roles allowed to use field dispatch features
 FIELD_PROVIDER_ROLES = {"phlebotomist", "nurse", "doctor", "ambulance", "pharmacy_delivery", "admin"}
+
+# Local in-memory store for fallback dispatch tracking
+_local_dispatches = []
 
 
 # ─── Request Models ──────────────────────────────────────────────────────
