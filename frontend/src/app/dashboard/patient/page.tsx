@@ -250,12 +250,27 @@ export default function PatientDashboard() {
           })
         });
 
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          alert("Your login session has expired. Please log in again to continue.");
+          window.location.href = "/auth/login";
+          return;
+        }
+
         const data = await res.json();
         if (res.ok && data.dispatch_id) {
           localStorage.setItem("activeDispatchId", data.dispatch_id);
           setActiveDispatchId(data.dispatch_id);
           alert(data.message || "Dispatch request created! Searching for nearby providers.");
         } else {
+          if (data.detail === "Invalid or expired token") {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            alert("Your login session has expired. Please log in again to continue.");
+            window.location.href = "/auth/login";
+            return;
+          }
           alert(data.detail || data.message || "Failed to request dispatch.");
         }
       } catch (e: any) {
