@@ -65,10 +65,18 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception as e:
-            logger.error(f"[{request_id}] Unhandled error: {e}")
+            logger.error(f"[{request_id}] Unhandled error: {e}", exc_info=True)
+            origin = request.headers.get("origin", "*")
             return JSONResponse(
                 status_code=500,
-                content={"detail": "An internal error occurred. Please try again."},
+                content={"detail": f"An internal error occurred: {str(e)}"},
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Methods": "*",
+                    "X-Request-ID": request_id,
+                },
             )
 
         # ── Add Security Headers ─────────────────────────────────────

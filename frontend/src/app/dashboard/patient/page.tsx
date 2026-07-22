@@ -198,81 +198,82 @@ export default function PatientDashboard() {
   const confirmDispatchRequest = () => {
     setShowDispatchModal(false);
     setRequestingDispatch(dispatchProviderType);
-    if (!("geolocation" in navigator)) {
-      alert("Geolocation is not supported by your browser.");
-      setRequestingDispatch(null);
-      return;
-    }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const token = localStorage.getItem("token");
+    const executeDispatch = async (lat: number, lng: number, address: string) => {
+      const token = localStorage.getItem("token");
+      try {
+        const now = new Date();
+        const yyyymmdd = now.toISOString().split("T")[0];
+        const hhmm = now.toTimeString().split(" ")[0].substring(0, 5); // local time HH:MM
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        
+        let createdBookingId = null;
         try {
-          const now = new Date();
-          const yyyymmdd = now.toISOString().split("T")[0];
-          const hhmm = now.toTimeString().split(" ")[0].substring(0, 5); // local time HH:MM
-          
-          let createdBookingId = null;
-          try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-            const bookingRes = await fetch(`${apiBase}/api/bookings`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({
-                provider_id: "on_demand",
-                provider_type: dispatchProviderType,
-                service_type: dispatchServiceType,
-                slot_id: `on_demand|${yyyymmdd}|${hhmm}`,
-                notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
-                total_price: 0
-              })
-            });
-            if (bookingRes.ok) {
-              const bData = await bookingRes.json();
-              createdBookingId = bData.data?.id;
-            }
-          } catch (e) {
-            console.warn("Failed to log booking, proceeding with dispatch", e);
-          }
-
-          const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-          const res = await fetch(`${apiBase}/api/dispatch/request`, {
+          const bookingRes = await fetch(`${apiBase}/api/bookings`, {
             method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}` 
-            },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
             body: JSON.stringify({
-              patient_lat: position.coords.latitude,
-              patient_lng: position.coords.longitude,
-              patient_address: "Current GPS Location",
+              provider_id: "on_demand",
               provider_type: dispatchProviderType,
-              service_subtype: dispatchServiceType,
-              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? '\nDetails: ' + dispatchOtherText : ''}`,
-              booking_id: createdBookingId
+              service_type: dispatchServiceType,
+              slot_id: `on_demand|${yyyymmdd}|${hhmm}`,
+              notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
+              total_price: 0
             })
           });
-          const data = await res.json();
-          if (res.ok && data.dispatch_id) {
-            localStorage.setItem("activeDispatchId", data.dispatch_id);
-            setActiveDispatchId(data.dispatch_id);
-            alert(data.message || "Dispatch request created! Searching for nearby providers.");
-          } else {
-            alert(data.detail || data.message || "Failed to request dispatch.");
+          if (bookingRes.ok) {
+            const bData = await bookingRes.json();
+            createdBookingId = bData.data?.id;
           }
-        } catch (e: any) {
-          console.error(e);
-          alert(e?.message || "Failed to request dispatch.");
-        } finally {
-          setRequestingDispatch(null);
+        } catch (e) {
+          console.warn("Failed to log booking, proceeding with dispatch", e);
         }
-      },
-      (error) => {
-        alert(`Location access denied: ${error.message}`);
+
+        const res = await fetch(`${apiBase}/api/dispatch/request`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` 
+          },
+          body: JSON.stringify({
+            patient_lat: lat,
+            patient_lng: lng,
+            patient_address: address,
+            provider_type: dispatchProviderType,
+            service_subtype: dispatchServiceType,
+            notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? '\nDetails: ' + dispatchOtherText : ''}`,
+            booking_id: createdBookingId
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.dispatch_id) {
+          localStorage.setItem("activeDispatchId", data.dispatch_id);
+          setActiveDispatchId(data.dispatch_id);
+          alert(data.message || "Dispatch request created! Searching for nearby providers.");
+        } else {
+          alert(data.detail || data.message || "Failed to request dispatch.");
+        }
+      } catch (e: any) {
+        console.error("Dispatch request network error:", e);
+        alert(e?.message === "Failed to fetch" ? "Unable to connect to CallMedex server (http://localhost:8000). Please check your backend connection." : (e?.message || "Failed to request dispatch."));
+      } finally {
         setRequestingDispatch(null);
-      },
-      { enableHighAccuracy: true, timeout: 5000 }
-    );
+      }
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => executeDispatch(pos.coords.latitude, pos.coords.longitude, "Current GPS Location"),
+        (err) => {
+          console.warn("Geolocation fallback activated:", err.message);
+          executeDispatch(17.7231, 83.3013, "Visakhapatnam (Default)");
+        },
+        { enableHighAccuracy: false, timeout: 4000 }
+      );
+    } else {
+      executeDispatch(17.7231, 83.3013, "Visakhapatnam (Default)");
+    }
   };
 
   const handleLinkAbha = async () => {
