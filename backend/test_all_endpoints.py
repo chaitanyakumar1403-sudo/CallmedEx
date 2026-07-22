@@ -43,11 +43,35 @@ def test_patient_signup_and_login():
     get_patient_token()
 
 def get_org_token():
+    email = f"org_{uuid.uuid4().hex[:6]}@clinic.com"
+    signup_payload = {
+        "full_name": "Clinic Admin",
+        "email": email,
+        "mobile": "+919876543211",
+        "password": "Password123!",
+        "confirm_password": "Password123!",
+        "role": "organization",
+        "gender": "male",
+        "date_of_birth": "1985-06-20",
+        "organization_name": "Apex Diagnostics",
+        "organization_type": "diagnostic_center"
+    }
+    r = client.post("/api/auth/signup", json=signup_payload)
+    assert r.status_code == 200, f"Org Signup failed: {r.text}"
+
+    login_payload = {"email": email, "password": "Password123!"}
+    r_login = client.post("/api/auth/login", json=login_payload)
+    assert r_login.status_code == 200, f"Org Login failed: {r_login.text}"
+    data = r_login.json()
+    token = data.get("access_token") or data.get("data", {}).get("access_token")
+    return token
+
+def test_org_signup_with_owner_flow():
     email = f"manager_{uuid.uuid4().hex[:6]}@clinic.com"
     signup_payload = {
         "full_name": "Clinic Manager",
         "email": email,
-        "mobile": "+919876543211",
+        "mobile": "+919876543212",
         "password": "Password123!",
         "confirm_password": "Password123!",
         "role": "organization",
@@ -59,17 +83,7 @@ def get_org_token():
         "organization_type": "diagnostic_center"
     }
     r = client.post("/api/auth/signup", json=signup_payload)
-    assert r.status_code == 200, f"Org Signup failed: {r.text}"
-
-    login_payload = {"email": email, "password": "Password123!"}
-    r_login = client.post("/api/auth/login", json=login_payload)
-    assert r_login.status_code == 200
-    data = r_login.json()
-    token = data.get("access_token") or data.get("data", {}).get("access_token")
-    return token
-
-def test_org_signup_with_owner_flow():
-    get_org_token()
+    assert r.status_code == 200, f"Org Signup with owner failed: {r.text}"
     print(f"[PASS] Org Signup with Owner MOU Email flow")
 
 def test_diagnostic_booking_and_allotment():
