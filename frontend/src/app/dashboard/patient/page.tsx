@@ -430,8 +430,8 @@ export default function PatientDashboard() {
           </div>
         </div>
 
-        {/* ─── NEW: LIVE UBER-STYLE TRACKER ─── */}
-        {activeDispatchId && trackingData && (
+        {/* ─── LIVE SERVICE TRACKER ─── */}
+        {activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status) && (
           <div style={{ marginBottom: 32, animation: "fadeIn 0.5s ease-out" }}>
             <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.2rem", display: 'flex', alignItems: 'center', gap: 8, color: '#2f855a' }}>
               <span style={{ position: 'relative', display: 'flex', width: 12, height: 12 }}>
