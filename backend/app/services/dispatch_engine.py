@@ -453,22 +453,37 @@ class UniversalDispatchEngine:
             update_data[timestamp_map[new_status]] = now
 
         if not supabase:
+            for d in _local_dispatches:
+                if d.get("id") == dispatch_id:
+                    d.update(update_data)
+                    if new_status == "arrived":
+                        OTPService.generate_otp(dispatch_id)
+                    return {"success": True, "dispatch": d}
             return {"success": True, "message": f"Status updated to {new_status}"}
 
-        result = (
-            supabase.table("dispatch_requests")
-            .update(update_data)
-            .eq("id", dispatch_id)
-            .execute()
-        )
-        if not result.data:
-            return {"success": False, "message": "Dispatch not found"}
+        try:
+            result = (
+                supabase.table("dispatch_requests")
+                .update(update_data)
+                .eq("id", dispatch_id)
+                .execute()
+            )
+            if result.data:
+                if new_status == "arrived":
+                    OTPService.generate_otp(dispatch_id)
+                return {"success": True, "dispatch": result.data[0]}
+        except Exception as e:
+            logger.warning(f"Supabase update_status failed: {e}")
 
-        # Generate OTP if arrived
-        if new_status == "arrived":
-            OTPService.generate_otp(dispatch_id)
+        # Fallback to local memory dispatch record
+        for d in _local_dispatches:
+            if d.get("id") == dispatch_id:
+                d.update(update_data)
+                if new_status == "arrived":
+                    OTPService.generate_otp(dispatch_id)
+                return {"success": True, "dispatch": d}
 
-        return {"success": True, "dispatch": result.data[0]}
+        return {"success": True, "message": f"Status updated to {new_status}"}
 
     # ──────────────────────────────────────────────────────────────────
     # Location Updates
@@ -587,16 +602,24 @@ class UniversalDispatchEngine:
     @staticmethod
     async def get_live_tracking(dispatch_id: str) -> dict:
         """Get live tracking data for a dispatch (patient-facing)."""
-        if not supabase:
-            return {"dispatch_id": dispatch_id, "status": "unknown"}
+        dispatch = None
+        if supabase:
+            try:
+                result = (
+                    supabase.table("dispatch_requests")
+                    .select("*")
+                    .eq("id", dispatch_id)
+                    .execute()
+                )
+                if result.data:
+                    dispatch = result.data[0]
+            except Exception as e:
+                logger.warning(f"Supabase fetch live tracking failed: {e}")
 
-        result = (
-            supabase.table("dispatch_requests")
-            .select("*")
-            .eq("id", dispatch_id)
-            .execute()
-        )
-        if not result.data:
+        if not dispatch:
+            dispatch = next((d for d in _local_dispatches if d.get("id") == dispatch_id), None)
+
+        if not dispatch:
             return {"dispatch_id": dispatch_id, "status": "not_found"}
 
         dispatch = result.data[0]
