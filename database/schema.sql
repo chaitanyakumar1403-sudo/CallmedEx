@@ -300,3 +300,102 @@ ALTER TABLE dispatches ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Patients view own dispatches" ON dispatches
     FOR SELECT USING (auth.uid() = patient_id);
+
+-- Add managed_city column for Admin/Supervisor hierarchy
+ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_city TEXT DEFAULT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_managed_city ON users(managed_city);
+
+-- ─── Universal Dispatch Requests (v2.0) ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS dispatch_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id UUID REFERENCES bookings(id),
+    patient_id UUID REFERENCES users(id),
+    provider_type TEXT NOT NULL,
+    service_subtype TEXT,
+    status TEXT DEFAULT 'searching' CHECK (status IN (
+        'searching','provider_notified','provider_accepted','en_route',
+        'arrived','in_progress','samples_delivered_to_lab','completed','cancelled','no_provider'
+    )),
+    patient_lat DOUBLE PRECISION NOT NULL,
+    patient_lng DOUBLE PRECISION NOT NULL,
+    patient_address TEXT DEFAULT '',
+    patient_address_details JSONB DEFAULT '{}',
+    assigned_provider_id UUID,
+    search_radius_km REAL DEFAULT 10.0,
+    search_timeout_minutes INT DEFAULT 5,
+    max_offers INT DEFAULT 5,
+    notes TEXT DEFAULT '',
+    estimated_distance_km REAL,
+    estimated_eta_minutes INT,
+    assigned_at TIMESTAMPTZ,
+    en_route_at TIMESTAMPTZ,
+    arrived_at TIMESTAMPTZ,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispatch_requests_patient ON dispatch_requests(patient_id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_requests_provider ON dispatch_requests(assigned_provider_id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_requests_status ON dispatch_requests(status);
+CREATE INDEX IF NOT EXISTS idx_dispatch_requests_type ON dispatch_requests(provider_type);
+
+-- ─── Provider Locations (v2.0) ───────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS provider_locations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    provider_type TEXT NOT NULL,
+    is_online BOOLEAN DEFAULT false,
+    current_lat DOUBLE PRECISION,
+    current_lng DOUBLE PRECISION,
+    heading DOUBLE PRECISION,
+    speed_kmh DOUBLE PRECISION,
+    last_updated TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_locations_user ON provider_locations(user_id);
+CREATE INDEX IF NOT EXISTS idx_provider_locations_online ON provider_locations(is_online);
+
+-- ─── Pharmacy Inventory (v2.0 Dark Store Bulk SKU Import) ─────────────
+CREATE TABLE IF NOT EXISTS pharmacy_inventory (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pharmacy_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    sku TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT DEFAULT 'General Medicine',
+    unit_price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    stock_quantity INT DEFAULT 0,
+    generic_name TEXT DEFAULT '',
+    discount_percentage NUMERIC(5,2) DEFAULT 0.00,
+    requires_prescription BOOLEAN DEFAULT false,
+    batch_number TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pharmacy_inventory_pharmacy ON pharmacy_inventory(pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_inventory_sku ON pharmacy_inventory(sku);
+
+-- ─── Nurses (v2.0 Field Provider) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS nurses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    nursing_license_number TEXT NOT NULL DEFAULT '',
+    qualification TEXT DEFAULT '',
+    specializations TEXT[] DEFAULT '{}',
+    years_of_experience INT DEFAULT 0,
+    is_online BOOLEAN DEFAULT false,
+    current_lat DOUBLE PRECISION,
+    current_lng DOUBLE PRECISION,
+    service_radius_km REAL DEFAULT 10.0,
+    rating REAL DEFAULT 5.0,
+    acceptance_rate REAL DEFAULT 100.0,
+    total_completed INT DEFAULT 0,
+    verification_status TEXT DEFAULT 'pending' CHECK (verification_status IN ('pending', 'verified', 'flagged', 'rejected')),
+    verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nurses_user ON nurses(user_id);
+
