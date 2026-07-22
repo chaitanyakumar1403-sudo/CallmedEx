@@ -10,7 +10,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ─── 1. Extend user roles ──────────────────────────────────────────────────
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('patient','doctor','phlebotomist','organization','staff','pharmacy','nurse','ambulance','admin'));
+  CHECK (role IN ('patient','doctor','phlebotomist','organization','staff','pharmacy','nurse','ambulance','admin','supervisor'));
+
 
 -- Add registration_status to users table
 ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_status TEXT DEFAULT 'active';
@@ -177,3 +178,12 @@ CREATE TABLE IF NOT EXISTS booking_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id);
+
+-- ─── 9. Extend Bookings status check to include pending_review ──────────────
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_status_check
+  CHECK (status IN (
+    'pending','pending_review','searching','provider_notified','provider_accepted',
+    'confirmed','checked_in','in_progress','completed','cancelled','no_show'
+  ));
+
