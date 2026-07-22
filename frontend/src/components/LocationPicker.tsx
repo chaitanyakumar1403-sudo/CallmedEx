@@ -46,26 +46,44 @@ export default function LocationPicker({
   const [manualAddress, setManualAddress] = useState(initialAddress);
   const [showManual, setShowManual] = useState(false);
 
-  // Reverse geocode using Nominatim (free, no API key)
+  // Reverse geocode using Geoapify (with Nominatim fallback if no API key)
   const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<Partial<LocationData>> => {
+    const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-        {
-          headers: {
-            "Accept-Language": "en",
-            "User-Agent": "CallMedex/2.0",
-          },
-        }
-      );
-      const data = await res.json();
-      const addr = data.address || {};
-      return {
-        address: data.display_name || "",
-        city: addr.city || addr.town || addr.village || addr.county || "",
-        state: addr.state || "",
-        pincode: addr.postcode || "",
-      };
+      let data: any;
+      if (geoapifyKey) {
+        // Geoapify Reverse Geocoding
+        const res = await fetch(
+          `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${geoapifyKey}&format=json`
+        );
+        const json = await res.json();
+        const result = json.results?.[0] || {};
+        return {
+          address: result.formatted || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+          city: result.city || result.town || result.village || result.county || "",
+          state: result.state || "",
+          pincode: result.postcode || "",
+        };
+      } else {
+        // Fallback: Nominatim (free, no API key)
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+          {
+            headers: {
+              "Accept-Language": "en",
+              "User-Agent": "CallMedex/2.0",
+            },
+          }
+        );
+        data = await res.json();
+        const addr = data.address || {};
+        return {
+          address: data.display_name || "",
+          city: addr.city || addr.town || addr.village || addr.county || "",
+          state: addr.state || "",
+          pincode: addr.postcode || "",
+        };
+      }
     } catch (e) {
       console.error("Reverse geocode failed:", e);
       return {

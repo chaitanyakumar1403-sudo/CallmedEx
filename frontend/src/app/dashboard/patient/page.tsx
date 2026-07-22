@@ -367,8 +367,35 @@ export default function PatientDashboard() {
 
   const name = user?.full_name || "Patient";
   
-  const upcomingCount = bookings.filter(b => b.status === "confirmed").length;
+  const upcomingCount = bookings.filter(b => ["confirmed", "pending_review", "slot_allotted"].includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === "completed").length;
+  const allottedBookings = bookings.filter(b => b.status === "slot_allotted");
+
+  // Respond to an allotted slot
+  const handleRespondSlot = async (bookingId: string, accepted: boolean, reason?: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/${bookingId}/respond-slot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accepted, reason: reason || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message);
+        // Refresh bookings
+        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my-bookings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const bData = await bRes.json();
+        if (bData.success) setBookings(bData.data.bookings || []);
+      } else {
+        alert(data.detail || "Failed to respond");
+      }
+    } catch (e) {
+      alert("Network error");
+    }
+  };
 
   // Filter out any active dispatch/home visits for Swiggy-style tracking
   const activeDispatches = bookings.filter(b => 
@@ -512,6 +539,61 @@ export default function PatientDashboard() {
           </div>
         </div>
 
+        {/* Slot Allotment Notifications */}
+        {allottedBookings.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <h3 style={{ marginBottom: 12, fontFamily: "var(--font-body)", fontSize: "1.05rem", display: "flex", alignItems: "center", gap: 8 }}>
+              🔔 Slot Allotment Notifications
+              <span style={{ backgroundColor: "#fbbf24", color: "#78350f", borderRadius: 20, padding: "2px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
+                {allottedBookings.length} pending
+              </span>
+            </h3>
+            {allottedBookings.map((b: any) => {
+              const slotStart = new Date(b.slot_start);
+              const slotEnd = new Date(b.slot_end);
+              return (
+                <div key={b.id} className="card" style={{
+                  padding: "16px 24px", marginBottom: 10, border: "2px solid #f59e0b",
+                  background: "linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#92400e", fontSize: "0.95rem", marginBottom: 4 }}>
+                        ⏰ Time Slot Allotted
+                      </div>
+                      <div style={{ fontSize: "0.88rem", color: "#78350f", marginBottom: 4 }}>
+                        <strong>{slotStart.toLocaleDateString()}</strong> • {slotStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {slotEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#a16207" }}>{b.notes || b.service_type?.replace('_', ' ')}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => handleRespondSlot(b.id, true)}
+                        style={{
+                          padding: "8px 20px", borderRadius: 8, border: "none",
+                          backgroundColor: "#16a34a", color: "white", fontWeight: 600,
+                          fontSize: "0.85rem", cursor: "pointer",
+                        }}
+                      >✅ Accept</button>
+                      <button
+                        onClick={() => {
+                          const reason = prompt("Reason for declining (optional):");
+                          handleRespondSlot(b.id, false, reason || undefined);
+                        }}
+                        style={{
+                          padding: "8px 20px", borderRadius: 8, border: "1.5px solid #dc2626",
+                          backgroundColor: "white", color: "#dc2626", fontWeight: 600,
+                          fontSize: "0.85rem", cursor: "pointer",
+                        }}
+                      >❌ Decline</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Quick Actions */}
         <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem" }}>{t.quick}</h3>
         <div className="quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
@@ -580,10 +662,28 @@ export default function PatientDashboard() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                  <span className={`badge ${booking.status === "confirmed" ? "badge-info" : booking.status === "cancelled" ? "badge-danger" : "badge-success"}`} style={{ backgroundColor: booking.status === "cancelled" ? "#fee2e2" : undefined, color: booking.status === "cancelled" ? "#ef4444" : undefined }}>
-                    {booking.status}
+                  <span className={`badge ${
+                    booking.status === "confirmed" ? "badge-info"
+                    : booking.status === "cancelled" || booking.status === "slot_rejected" ? "badge-danger"
+                    : booking.status === "pending_review" ? "badge-warning"
+                    : booking.status === "slot_allotted" ? "badge-warning"
+                    : "badge-success"
+                  }`} style={{
+                    backgroundColor: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#fee2e2"
+                      : booking.status === "pending_review" ? "#eff6ff"
+                      : booking.status === "slot_allotted" ? "#fef3c7"
+                      : undefined,
+                    color: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#ef4444"
+                      : booking.status === "pending_review" ? "#2563eb"
+                      : booking.status === "slot_allotted" ? "#d97706"
+                      : undefined,
+                  }}>
+                    {booking.status === "pending_review" ? "⏳ Pending Review"
+                      : booking.status === "slot_allotted" ? "🔔 Slot Allotted"
+                      : booking.status === "slot_rejected" ? "❌ Slot Declined"
+                      : booking.status.replace('_', ' ')}
                   </span>
-                  {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && (
+                  {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
                     <button 
                       onClick={() => handleCancelBooking(booking.id, booking.status)}
                       style={{

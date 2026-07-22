@@ -61,6 +61,10 @@ class ConsultationMode(str, Enum):
 
 class BookingStatus(str, Enum):
     PENDING = "pending"
+    PENDING_REVIEW = "pending_review"  # Patient booked date, org must allot time
+    SLOT_ALLOTTED = "slot_allotted"    # Org allotted a time slot, awaiting patient response
+    SLOT_ACCEPTED = "slot_accepted"    # Patient accepted the allotted slot
+    SLOT_REJECTED = "slot_rejected"    # Patient declined the allotted slot
     SEARCHING = "searching"
     PROVIDER_NOTIFIED = "provider_notified"
     PROVIDER_ACCEPTED = "provider_accepted"
@@ -70,6 +74,14 @@ class BookingStatus(str, Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     NO_SHOW = "no_show"
+
+
+class RegistrantRole(str, Enum):
+    FRONT_DESK_MANAGER = "front_desk_manager"
+    GENERAL_MANAGER = "general_manager"
+    ADMIN_STAFF = "admin_staff"
+    OWNER = "owner"
+    OTHER = "other"
 
 
 class VerificationStatus(str, Enum):
@@ -207,6 +219,10 @@ class UserSignup(UserBase):
     # MOU acceptance (kept for backward compat, but now handled via email workflow)
     mou_accepted: Optional[bool] = None
 
+    # Registrant info (non-patient roles) — who is filling out this form
+    registrant_role: Optional[str] = None  # front_desk_manager, general_manager, admin_staff, owner, other
+    owner_email: Optional[str] = None  # Owner's email for MOU delivery (if different from registrant)
+
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -278,6 +294,20 @@ class BookingCreate(BaseModel):
     notes: Optional[str] = None
     selected_tests: Optional[List[str]] = None  # Multi-test selection for diagnostics/home collection
     total_price: Optional[float] = None  # Computed total for multi-test bookings
+    preferred_date: Optional[str] = None  # For diagnostic bookings — patient picks date only
+
+
+class SlotAllotment(BaseModel):
+    """Organization allots a specific time slot to a pending diagnostic booking."""
+    allotted_start_time: str  # HH:MM format
+    allotted_end_time: str    # HH:MM format
+    message: Optional[str] = None  # Optional message to patient
+
+
+class SlotResponse(BaseModel):
+    """Patient responds to an allotted slot."""
+    accepted: bool
+    reason: Optional[str] = None  # If rejected, optional reason
 
 
 class BookingResponse(BaseModel):

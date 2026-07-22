@@ -9,8 +9,9 @@ from datetime import datetime, timezone, date, time, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from app.models.schemas import (
-    BookingCreate, BookingResponse, SlotResponse, APIResponse,
-    BookingStatus, ServiceType
+    BookingCreate, BookingResponse, APIResponse,
+    BookingStatus, ServiceType,
+    SlotAllotment, SlotResponse as SlotResponseSchema
 )
 from app.middleware.auth import get_current_user
 from app.database import supabase
@@ -156,21 +157,46 @@ async def create_booking(
     if conflict:
         raise HTTPException(status_code=409, detail="You have already booked this slot. Please choose a different time.")
 
-    booking_data = {
-        "id": booking_id,
-        "patient_id": current_user["sub"],
-        "provider_id": booking.provider_id,
-        "provider_type": booking.provider_type,
-        "service_type": booking.service_type.value,
-        "slot_id": booking.slot_id,
-        "slot_start": slot_start,
-        "slot_end": slot_end,
-        "status": BookingStatus.CONFIRMED.value,
-        "notes": booking.notes or "",
-        "selected_tests": booking.selected_tests or [],
-        "total_price": booking.total_price or 0,
-        "created_at": now,
-    }
+    # Determine if this is a diagnostic/lab booking that uses the review workflow
+    is_diagnostic_review = booking.service_type in (
+        ServiceType.LAB_TEST, ServiceType.IMAGING, ServiceType.HEALTH_PACKAGE
+    ) and booking.preferred_date
+
+    if is_diagnostic_review:
+        # Diagnostic booking: patient selects date only, org allots time
+        booking_data = {
+            "id": booking_id,
+            "patient_id": current_user["sub"],
+            "provider_id": booking.provider_id,
+            "provider_type": booking.provider_type,
+            "service_type": booking.service_type.value,
+            "slot_id": f"{booking.provider_id}|{booking.preferred_date}|pending",
+            "slot_start": f"{booking.preferred_date}T00:00:00",
+            "slot_end": f"{booking.preferred_date}T23:59:59",
+            "preferred_date": booking.preferred_date,
+            "status": BookingStatus.PENDING_REVIEW.value,
+            "notes": booking.notes or "",
+            "selected_tests": booking.selected_tests or [],
+            "total_price": booking.total_price or 0,
+            "created_at": now,
+        }
+    else:
+        # Standard booking: patient selects date + time slot → confirmed immediately
+        booking_data = {
+            "id": booking_id,
+            "patient_id": current_user["sub"],
+            "provider_id": booking.provider_id,
+            "provider_type": booking.provider_type,
+            "service_type": booking.service_type.value,
+            "slot_id": booking.slot_id,
+            "slot_start": slot_start,
+            "slot_end": slot_end,
+            "status": BookingStatus.CONFIRMED.value,
+            "notes": booking.notes or "",
+            "selected_tests": booking.selected_tests or [],
+            "total_price": booking.total_price or 0,
+            "created_at": now,
+        }
 
     if supabase:
         try:
@@ -181,9 +207,15 @@ async def create_booking(
     else:
         _local_bookings.append(booking_data)
 
+    status_msg = (
+        "Booking submitted for review. The diagnostic centre will allot your time slot."
+        if is_diagnostic_review
+        else "Booking confirmed"
+    )
+
     return APIResponse(
         success=True,
-        message="Booking confirmed",
+        message=status_msg,
         data=booking_data
     )
 
@@ -595,6 +627,214 @@ async def get_org_services_for_booking(org_id: str):
     except Exception as e:
         logger.error(f"Error fetching org services for booking: {e}")
         return APIResponse(success=False, message="Failed to fetch services", data={"services": [], "packages": [], "doctors": []})
+
+
+# ─── Diagnostic Booking Workflow: Request → Review → Allot → Accept ──────
+
+@router.get("/pending-review", response_model=APIResponse)
+async def get_pending_review_bookings(current_user: dict = Depends(get_current_user)):
+    """Get all bookings with PENDING_REVIEW status for this organization."""
+    role = current_user.get("role")
+    if role not in ("organization", "staff", "admin"):
+        raise HTTPException(status_code=403, detail="Only organization staff can view pending reviews")
+
+    user_id = current_user["sub"]
+    org_id = user_id  # For org admins, their user_id IS the org_id
+
+    if role == "staff":
+        staff_profile = _get_staff_profile(user_id)
+        if not staff_profile:
+            raise HTTPException(status_code=404, detail="Staff profile not found")
+        org_id = staff_profile.get("linked_organization_id", user_id)
+
+    pending_bookings = []
+    if supabase:
+        try:
+            result = (
+                supabase.table("bookings")
+                .select("*")
+                .eq("provider_id", org_id)
+                .eq("status", "pending_review")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            pending_bookings = result.data or []
+        except Exception as e:
+            logger.error(f"Failed to fetch pending reviews: {e}")
+
+    # Local fallback
+    local_pending = [
+        b for b in _local_bookings
+        if b.get("provider_id") == org_id and b.get("status") == "pending_review"
+    ]
+    merged = {b["id"]: b for b in local_pending}
+    for sb in pending_bookings:
+        merged[sb["id"]] = sb
+
+    return APIResponse(
+        success=True,
+        message="Pending review bookings",
+        data={"bookings": list(merged.values()), "total": len(merged)}
+    )
+
+
+@router.post("/{booking_id}/allot-slot", response_model=APIResponse)
+async def allot_slot(
+    booking_id: str,
+    allotment: SlotAllotment,
+    current_user: dict = Depends(get_current_user),
+):
+    """Organization allots a specific time slot to a pending diagnostic booking."""
+    role = current_user.get("role")
+    if role not in ("organization", "staff", "admin"):
+        raise HTTPException(status_code=403, detail="Only organization staff can allot slots")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Find the booking
+    booking = None
+    is_local = False
+
+    if supabase:
+        try:
+            result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+            if result.data:
+                booking = result.data[0]
+        except Exception:
+            pass
+
+    if not booking:
+        for b in _local_bookings:
+            if b["id"] == booking_id:
+                booking = b
+                is_local = True
+                break
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.get("status") not in ("pending_review", "slot_rejected"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot allot slot to a booking with status '{booking.get('status')}'."
+        )
+
+    # Build the allotted slot datetime using the preferred date
+    preferred_date = booking.get("preferred_date", booking.get("slot_start", "")[:10])
+    allotted_start = f"{preferred_date}T{allotment.allotted_start_time}:00"
+    allotted_end = f"{preferred_date}T{allotment.allotted_end_time}:00"
+
+    update_data = {
+        "status": BookingStatus.SLOT_ALLOTTED.value,
+        "slot_start": allotted_start,
+        "slot_end": allotted_end,
+        "slot_id": f"{booking.get('provider_id')}|{preferred_date}|{allotment.allotted_start_time}",
+        "updated_at": now,
+    }
+    if allotment.message:
+        existing_notes = booking.get("notes", "")
+        update_data["notes"] = f"{existing_notes}\n[Org] {allotment.message}".strip()
+
+    if is_local:
+        for b in _local_bookings:
+            if b["id"] == booking_id:
+                b.update(update_data)
+                break
+    elif supabase:
+        try:
+            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to allot slot: {e}")
+            raise HTTPException(status_code=500, detail="Failed to allot slot")
+
+    _record_booking_history(
+        booking_id, booking.get("status", "pending_review"),
+        "slot_allotted", current_user.get("sub"),
+        f"Allotted: {allotment.allotted_start_time} - {allotment.allotted_end_time}"
+    )
+
+    return APIResponse(
+        success=True,
+        message=f"Slot allotted: {allotment.allotted_start_time} - {allotment.allotted_end_time}. Waiting for patient response.",
+        data={
+            "booking_id": booking_id,
+            "allotted_start": allotted_start,
+            "allotted_end": allotted_end,
+            "status": "slot_allotted",
+        }
+    )
+
+
+@router.post("/{booking_id}/respond-slot", response_model=APIResponse)
+async def respond_to_slot(
+    booking_id: str,
+    response: SlotResponseSchema,
+    current_user: dict = Depends(get_current_user),
+):
+    """Patient accepts or rejects an allotted time slot."""
+    if current_user.get("role") != "patient":
+        raise HTTPException(status_code=403, detail="Only patients can respond to slot allotments")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Find the booking
+    booking = None
+    is_local = False
+
+    if supabase:
+        try:
+            result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+            if result.data:
+                booking = result.data[0]
+        except Exception:
+            pass
+
+    if not booking:
+        for b in _local_bookings:
+            if b["id"] == booking_id:
+                booking = b
+                is_local = True
+                break
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.get("patient_id") != current_user["sub"]:
+        raise HTTPException(status_code=403, detail="Not your booking")
+
+    if booking.get("status") != "slot_allotted":
+        raise HTTPException(status_code=400, detail="This booking does not have a pending slot allotment")
+
+    if response.accepted:
+        new_status = BookingStatus.CONFIRMED.value
+        message = "Slot accepted! Your booking is now confirmed."
+    else:
+        new_status = BookingStatus.SLOT_REJECTED.value
+        message = "Slot declined. The centre will assign a new time slot."
+
+    update_data = {"status": new_status, "updated_at": now}
+    if response.reason:
+        existing_notes = booking.get("notes", "")
+        update_data["notes"] = f"{existing_notes}\n[Patient] Declined: {response.reason}".strip()
+
+    if is_local:
+        for b in _local_bookings:
+            if b["id"] == booking_id:
+                b.update(update_data)
+                break
+    elif supabase:
+        try:
+            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to respond to slot: {e}")
+            raise HTTPException(status_code=500, detail="Failed to process response")
+
+    _record_booking_history(
+        booking_id, "slot_allotted", new_status, current_user.get("sub"),
+        f"{'Accepted' if response.accepted else 'Rejected'}: {response.reason or ''}"
+    )
+
+    return APIResponse(success=True, message=message, data={"status": new_status, "booking_id": booking_id})
 
 
 @router.post("/{booking_id}/cancel")

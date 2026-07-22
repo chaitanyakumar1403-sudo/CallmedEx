@@ -236,7 +236,10 @@ function BookingPageContent() {
               ? "nurse_visit"
               : "lab_test";
 
-      const slotKey = `${providerId}|${selectedDate}|${selectedSlot}`;
+      const isDiagnostic = bookingType === "lab";
+      const slotKey = isDiagnostic
+        ? `${providerId}|${selectedDate}|pending`
+        : `${providerId}|${selectedDate}|${selectedSlot}`;
 
       // Build notes with all selected tests if multi-select
       const testNotes = selectedTests.length > 0
@@ -256,7 +259,8 @@ function BookingPageContent() {
           slot_id: slotKey,
           notes: selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes,
           selected_tests: selectedTests.length > 0 ? selectedTests.map(t => t.name) : undefined,
-          total_price: selectedTests.length > 0 ? multiTestTotal : (selectedTest?.price || selectedDoctor?.fee || 0)
+          total_price: selectedTests.length > 0 ? multiTestTotal : (selectedTest?.price || selectedDoctor?.fee || 0),
+          ...(isDiagnostic ? { preferred_date: selectedDate } : {})
         })
       });
 
@@ -437,7 +441,7 @@ function BookingPageContent() {
     if (isOnDemand) return ["Select Service", "Choose Item", "Enter Address"];
     if (bookingType === "video_consult") return ["Select Service", "Choose Doctor", "Date & Time"];
     if (bookingType === "doctor") return ["Select Service", "Find Provider", "Choose Doctor", "Date & Time"];
-    if (bookingType === "lab") return ["Select Service", "Find Center", "Choose Tests", "Date & Time"];
+    if (bookingType === "lab") return ["Select Service", "Find Center", "Choose Tests", "Select Date"];
     return [];
   };
   const currentStepIdx = step === 10 ? -1 : isOnDemand ? (step <= 2 ? step - 1 : 2) : Math.min(step - 1, getSteps().length - 1);
@@ -887,7 +891,26 @@ function BookingPageContent() {
         {/* ─── STEP 4: Select Date & Time Slot (for scheduled bookings only) ─── */}
         {step === 4 && (
           <div className="card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: "1.05rem", marginBottom: 20, color: '#1a2b4a' }}>Select Date & Time</h3>
+            <h3 style={{ fontSize: "1.05rem", marginBottom: 20, color: '#1a2b4a' }}>
+              {bookingType === "lab" ? "Select Your Preferred Date" : "Select Date & Time"}
+            </h3>
+
+            {/* Diagnostic info banner */}
+            {bookingType === "lab" && (
+              <div style={{
+                padding: '12px 16px', backgroundColor: '#eff6ff', borderRadius: 10,
+                border: '1px solid #bfdbfe', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 10,
+              }}>
+                <span style={{ fontSize: '1.2rem' }}>ℹ️</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: '#1e40af', fontSize: '0.88rem' }}>How it works</div>
+                  <div style={{ fontSize: '0.8rem', color: '#3b82f6', lineHeight: 1.5 }}>
+                    Select your preferred date. The diagnostic centre will review your booking and allot a specific time slot.
+                    You'll be notified in your dashboard to accept or decline the allotted time.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Date picker — horizontal scrollable cards */}
             <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
@@ -918,7 +941,8 @@ function BookingPageContent() {
               })}
             </div>
 
-            {selectedDate && (
+            {/* Time slots — only for NON-diagnostic bookings */}
+            {selectedDate && bookingType !== "lab" && (
               <>
                 <h4 style={{ fontSize: "0.9rem", marginBottom: 12, color: "#4a5568" }}>Available Slots</h4>
                 {/* Morning slots */}
@@ -978,8 +1002,21 @@ function BookingPageContent() {
               </>
             )}
 
-            {/* Payment Summary */}
-            {selectedSlot && fee > 0 && (
+            {/* Diagnostic: date-selected confirmation */}
+            {selectedDate && bookingType === "lab" && (
+              <div style={{ marginTop: 4, padding: 16, backgroundColor: '#f0fff4', borderRadius: 10, border: '1px solid #c6f6d5' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                  <span>🧪 Estimated Total</span>
+                  <span style={{ color: '#2f855a', fontSize: '1.2rem' }}>₹{fee}</span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#718096', marginTop: 4 }}>
+                  Payment will be collected after the centre confirms your time slot
+                </div>
+              </div>
+            )}
+
+            {/* Non-diagnostic: Payment Summary */}
+            {bookingType !== "lab" && selectedSlot && fee > 0 && (
               <div style={{ marginTop: 20, padding: 16, backgroundColor: '#f0fff4', borderRadius: 10, border: '1px solid #c6f6d5' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                   <span>💳 Prepaid Amount</span>
@@ -991,9 +1028,17 @@ function BookingPageContent() {
 
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <button className="btn btn-secondary" onClick={() => setStep(bookingType === "video_consult" ? 2 : 3)}>← Back</button>
-              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={!selectedSlot || loading} onClick={handleConfirm}>
-                {loading ? "Processing Payment & Booking..." : `Pay ₹${fee} & Confirm`}
-              </button>
+              {bookingType === "lab" ? (
+                <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10, backgroundColor: '#38a169', borderColor: '#38a169' }}
+                  disabled={!selectedDate || loading} onClick={handleConfirm}
+                >
+                  {loading ? "Submitting..." : "📋 Submit for Review"}
+                </button>
+              ) : (
+                <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={!selectedSlot || loading} onClick={handleConfirm}>
+                  {loading ? "Processing Payment & Booking..." : `Pay ₹${fee} & Confirm`}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1086,9 +1131,9 @@ function BookingPageContent() {
         {/* ─── STEP 10: SUCCESS ─── */}
         {step === 10 && (
           <div className="card" style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ fontSize: "4rem", marginBottom: 16 }}>🎉</div>
+            <div style={{ fontSize: "4rem", marginBottom: 16 }}>{bookingType === "lab" ? "📋" : "🎉"}</div>
             <h2 style={{ color: '#1a2b4a' }}>
-              {isOnDemand ? "Dispatch Requested!" : "Booking Confirmed!"}
+              {isOnDemand ? "Dispatch Requested!" : bookingType === "lab" ? "Submitted for Review!" : "Booking Confirmed!"}
             </h2>
             <p style={{ color: "#718096", marginTop: 8, maxWidth: 420, margin: "8px auto 24px", fontSize: '0.9rem' }}>
               {bookingType === "home_doctor"
@@ -1099,7 +1144,9 @@ function BookingPageContent() {
                     ? "A nurse will be dispatched to your location. You'll receive OTP verification before the service starts. Track live from your dashboard."
                     : bookingType === "video_consult"
                       ? "Your video consultation is booked. You'll receive a video call link via WhatsApp before the scheduled time."
-                      : "Your appointment has been booked successfully. You'll receive a confirmation via WhatsApp shortly."
+                      : bookingType === "lab"
+                        ? "Your booking has been submitted. The diagnostic centre will review and allot a specific time slot. You'll see a notification in your dashboard to accept or decline."
+                        : "Your appointment has been booked successfully. You'll receive a confirmation via WhatsApp shortly."
               }
             </p>
             <div style={{ maxWidth: 400, margin: "0 auto 24px", textAlign: "left", padding: 20, backgroundColor: '#f7fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>

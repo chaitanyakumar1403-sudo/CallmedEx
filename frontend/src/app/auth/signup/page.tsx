@@ -1,5 +1,6 @@
 "use client";
 import { useState, FormEvent } from "react";
+import DateOfBirthPicker from "@/components/DateOfBirthPicker";
 
 const ROLES = [
   { value: "patient", label: "Patient", icon: "🧑‍🦱" },
@@ -37,6 +38,9 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [verificationStatus, setVerificationStatus] = useState<Record<string, string>>({});
   const [additionalDocs, setAdditionalDocs] = useState<{ id: number; name: string }[]>([]);
+  const [dob, setDob] = useState("");
+  const [registrantRole, setRegistrantRole] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
 
   const addDocumentField = () => setAdditionalDocs(prev => [...prev, { id: Date.now(), name: "" }]);
   const removeDocumentField = (id: number) => setAdditionalDocs(prev => prev.filter(doc => doc.id !== id));
@@ -76,9 +80,11 @@ export default function SignupPage() {
         email: formData.get("email"),
         mobile: formData.get("mobile"),
         gender: formData.get("gender"),
-        date_of_birth: formData.get("date_of_birth"),
+        date_of_birth: dob || formData.get("date_of_birth"),
         password, confirm_password: confirmPassword,
         role,
+        ...(role !== "patient" && registrantRole ? { registrant_role: registrantRole } : {}),
+        ...(role !== "patient" && ownerEmail ? { owner_email: ownerEmail } : {}),
         address_info: {
           address: formData.get("address") || "",
           city: formData.get("city") || "",
@@ -289,14 +295,58 @@ export default function SignupPage() {
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Date of Birth *</label>
-                <input name="date_of_birth" type="date" className="form-input" required />
+                <DateOfBirthPicker value={dob} onChange={setDob} />
+                {/* Hidden input for form compatibility */}
+                <input type="hidden" name="date_of_birth" value={dob} />
               </div>
               <div className="form-group">
                 <label className="form-label">Mobile Number *</label>
                 <input name="mobile" type="tel" className="form-input" placeholder="+91 XXXXXXXXXX" required />
               </div>
             </div>
+
+            {/* Registrant Role & Owner Email — only for non-patient roles */}
+            {role !== "patient" && (
+              <>
+                <div style={{
+                  padding: '14px 18px', backgroundColor: '#eff6ff', borderRadius: 10,
+                  border: '1px solid #bfdbfe', marginBottom: 16, marginTop: 8,
+                }}>
+                  <div style={{ fontSize: '0.85rem', color: '#1e40af', fontWeight: 600, marginBottom: 6 }}>
+                    ℹ️ Registration Details
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#3b82f6', lineHeight: 1.5 }}>
+                    The account will be managed by the front desk or general manager. The MOU will be sent to the owner for approval.
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Your Designation / Role *</label>
+                    <select className="form-select" value={registrantRole} onChange={e => setRegistrantRole(e.target.value)} required>
+                      <option value="">Select your role</option>
+                      <option value="front_desk_manager">Front Desk Manager</option>
+                      <option value="general_manager">General Manager</option>
+                      <option value="admin_staff">Administrative Staff</option>
+                      <option value="receptionist">Receptionist</option>
+                      <option value="owner">Owner (Self)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Owner's Email (for MOU) *</label>
+                    <input
+                      type="email" className="form-input" placeholder="owner@organization.com"
+                      value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
+                      required={registrantRole !== "owner"}
+                    />
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 3 }}>
+                      {registrantRole === "owner"
+                        ? "Leave blank if same as your email above"
+                        : "MOU will be sent to this email for owner approval"}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
             <div className="form-group">
               <label className="form-label">Email Address *</label>
               <input name="email" type="email" className="form-input" placeholder="you@example.com" required />

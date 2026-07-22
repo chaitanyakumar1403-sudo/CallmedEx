@@ -47,6 +47,14 @@ export default function OrganizationDashboard() {
   const [orgTimings, setOrgTimings] = useState<any[]>([]);
   const [orgStats, setOrgStats] = useState<any>(null);
 
+  // Pending Bookings (diagnostic slot allotment workflow)
+  const [pendingBookings, setPendingBookings] = useState<any[]>([]);
+  const [allotDialog, setAllotDialog] = useState<{ bookingId: string; patientName: string; date: string; tests: string } | null>(null);
+  const [allotStartTime, setAllotStartTime] = useState("");
+  const [allotEndTime, setAllotEndTime] = useState("");
+  const [allotMessage, setAllotMessage] = useState("");
+  const [allotting, setAllotting] = useState(false);
+
   // ─── Data Fetching ─────────────────────────────────────────────────────
 
   const fetchProfile = useCallback(async () => {
@@ -118,6 +126,49 @@ export default function OrganizationDashboard() {
     } catch (e) { console.error(e); }
   }, []);
 
+  const fetchPendingBookings = useCallback(async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/bookings/pending-review`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setPendingBookings(data.data?.bookings || []);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  const handleAllotSlot = async () => {
+    if (!allotDialog || !allotStartTime || !allotEndTime) return;
+    setAllotting(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/bookings/${allotDialog.bookingId}/allot-slot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          allotted_start_time: allotStartTime,
+          allotted_end_time: allotEndTime,
+          message: allotMessage || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMsg(`✅ Slot allotted: ${allotStartTime} - ${allotEndTime}. Patient will be notified.`);
+        setAllotDialog(null);
+        setAllotStartTime("");
+        setAllotEndTime("");
+        setAllotMessage("");
+        fetchPendingBookings();
+      } else {
+        setStatusMsg(`❌ ${data.detail || "Failed to allot slot"}`);
+      }
+    } catch (e) {
+      setStatusMsg("❌ Network error while allotting slot");
+    } finally {
+      setAllotting(false);
+    }
+  };
+
   useEffect(() => {
     fetchProfile();
     fetchDoctors();
@@ -125,7 +176,8 @@ export default function OrganizationDashboard() {
     fetchPackages();
     fetchTimings();
     fetchStats();
-  }, [fetchProfile, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats]);
+    fetchPendingBookings();
+  }, [fetchProfile, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats, fetchPendingBookings]);
 
   // ─── Verification Handler ──────────────────────────────────────────────
 
@@ -336,6 +388,7 @@ export default function OrganizationDashboard() {
   const orgType = profile?.organization_type || "hospital";
   const allTabs = [
     { id: "overview", label: "Overview", icon: "📊" },
+    { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: "🔔" },
     { id: "doctors", label: `Doctors (${orgDoctors.length})`, icon: "👨‍⚕️" },
     { id: "services", label: `Tests & Services (${orgServices.length})`, icon: "🧪" },
     { id: "packages", label: `Packages (${orgPackages.length})`, icon: "📦" },
@@ -1064,6 +1117,142 @@ export default function OrganizationDashboard() {
           </div>
         )}
 
+        {/* ═══ PENDING REVIEW TAB ═══ */}
+        {activeTab === "pending" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontSize: "1.15rem", color: "#1e293b", margin: 0 }}>🔔 Pending Booking Requests</h3>
+              <button onClick={fetchPendingBookings} style={{
+                padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db",
+                background: "white", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600,
+              }}>🔄 Refresh</button>
+            </div>
+            {pendingBookings.length === 0 ? (
+              <div style={{
+                backgroundColor: "white", borderRadius: 12, padding: 40, textAlign: "center", border: "2px dashed #d1d5db",
+              }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>✅</div>
+                <h3 style={{ fontSize: "1.1rem", marginBottom: 8, color: "#1e293b" }}>No Pending Requests</h3>
+                <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
+                  All diagnostic booking requests have been reviewed. New requests from patients will appear here.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {pendingBookings.map((b: any) => (
+                  <div key={b.id} style={{
+                    backgroundColor: "white", borderRadius: 12, padding: 20,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)", border: "1px solid #fbbf24",
+                    display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.95rem", marginBottom: 4 }}>
+                        {b.notes || "Diagnostic Tests"}
+                      </div>
+                      <div style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 2 }}>
+                        📅 Preferred Date: <strong>{b.preferred_date || b.slot_start?.split("T")[0] || "—"}</strong>
+                      </div>
+                      {b.selected_tests && b.selected_tests.length > 0 && (
+                        <div style={{ fontSize: "0.78rem", color: "#2563eb", marginTop: 2 }}>
+                          🧪 {b.selected_tests.join(", ")}
+                        </div>
+                      )}
+                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
+                        Patient ID: {b.patient_id?.substring(0, 8)}... · Booked: {new Date(b.created_at).toLocaleString()}
+                      </div>
+                      {b.total_price > 0 && (
+                        <div style={{ fontSize: "0.85rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
+                          ₹{b.total_price}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <span style={{
+                        padding: "4px 12px", borderRadius: 20, fontSize: "0.72rem", fontWeight: 700,
+                        backgroundColor: "#fef3c7", color: "#92400e",
+                      }}>⏳ Pending Review</span>
+                      <button
+                        onClick={() => setAllotDialog({
+                          bookingId: b.id,
+                          patientName: b.patient_id?.substring(0, 8) || "Patient",
+                          date: b.preferred_date || b.slot_start?.split("T")[0] || "",
+                          tests: b.selected_tests?.join(", ") || b.notes || "",
+                        })}
+                        style={{
+                          padding: "6px 16px", borderRadius: 8, border: "none",
+                          backgroundColor: "#7e22ce", color: "white", fontWeight: 600,
+                          fontSize: "0.82rem", cursor: "pointer",
+                        }}
+                      >
+                        ⏰ Allot Time Slot
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Allot Slot Dialog */}
+            {allotDialog && (
+              <div style={{
+                position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+              }}>
+                <div style={{
+                  backgroundColor: "white", borderRadius: 16, padding: 32, width: "90%", maxWidth: 480,
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+                }}>
+                  <h3 style={{ fontSize: "1.1rem", color: "#1e293b", marginBottom: 4 }}>⏰ Allot Time Slot</h3>
+                  <p style={{ color: "#64748b", fontSize: "0.85rem", marginBottom: 20 }}>
+                    Assign a specific time for this diagnostic booking on <strong>{allotDialog.date}</strong>
+                  </p>
+                  {allotDialog.tests && (
+                    <div style={{
+                      padding: "10px 14px", backgroundColor: "#f1f5f9", borderRadius: 8, marginBottom: 16,
+                      fontSize: "0.82rem", color: "#475569",
+                    }}>
+                      🧪 <strong>Tests:</strong> {allotDialog.tests}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4, color: "#374151" }}>Start Time</label>
+                      <input type="time" value={allotStartTime} onChange={e => setAllotStartTime(e.target.value)}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: "0.9rem" }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4, color: "#374151" }}>End Time</label>
+                      <input type="time" value={allotEndTime} onChange={e => setAllotEndTime(e.target.value)}
+                        style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: "0.9rem" }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4, color: "#374151" }}>Message to Patient (optional)</label>
+                    <input type="text" value={allotMessage} onChange={e => setAllotMessage(e.target.value)}
+                      placeholder="e.g., Please come 10 mins early for registration"
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: "0.85rem" }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button onClick={() => { setAllotDialog(null); setAllotStartTime(""); setAllotEndTime(""); setAllotMessage(""); }}
+                      style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "white", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem" }}>
+                      Cancel
+                    </button>
+                    <button onClick={handleAllotSlot} disabled={!allotStartTime || !allotEndTime || allotting}
+                      style={{
+                        flex: 1, padding: "10px", borderRadius: 8, border: "none",
+                        backgroundColor: (!allotStartTime || !allotEndTime) ? "#d1d5db" : "#7e22ce",
+                        color: "white", cursor: (!allotStartTime || !allotEndTime) ? "not-allowed" : "pointer",
+                        fontWeight: 600, fontSize: "0.9rem",
+                      }}>
+                      {allotting ? "Allotting..." : "✅ Confirm & Notify Patient"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ═══ BOOKINGS TAB ═══ */}
         {activeTab === "bookings" && (
           <div style={{
@@ -1073,7 +1262,7 @@ export default function OrganizationDashboard() {
             <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📋</div>
             <h3 style={{ fontSize: "1.1rem", marginBottom: 8, color: "#1e293b" }}>Bookings Dashboard</h3>
             <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              Once patients start booking appointments with your doctors and services, all incoming bookings will appear here with real-time status tracking.
+              All confirmed appointments and completed bookings appear here with status tracking.
             </p>
           </div>
         )}

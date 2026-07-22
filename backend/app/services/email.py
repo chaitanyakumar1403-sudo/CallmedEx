@@ -33,10 +33,12 @@ class EmailService:
             return "MOU Terms could not be loaded. Please contact support."
 
     @staticmethod
-    def send_mou_email_for_role(to_email: str, role: str, user_payload: dict):
+    def send_mou_email_for_role(to_email: str, role: str, user_payload: dict, registrant_email: str = None):
         """
         Sends role-specific MOU email with a secure magic link.
         Fetches the correct MOU from the legal_documents table (or fallback).
+        If registrant_email is provided, it means the MOU is being sent to the owner
+        on behalf of the registrant.
         """
         # Get the correct legal document for this role
         legal_doc = LegalService.get_active_document(role)
@@ -58,24 +60,43 @@ class EmailService:
         mou_title = legal_doc.get("title", "CallMedex MOU")
         mou_text = legal_doc.get("content_text", "MOU content unavailable.")
 
-        # --- MOCK MAILER (ASCII-safe for Windows console) ---
         role_display = role.replace("_", " ").title()
-        print("\n" + "=" * 70)
-        print(f"[EMAIL DISPATCHED TO] {to_email}")
-        print(f"[SUBJECT] Action Required: Accept {role_display} MOU to Activate Your CallMedex Account")
-        print("=" * 70)
-        print(f"\nDear {user_payload.get('user_data', {}).get('full_name', 'Partner')},\n")
-        print(f"Thank you for registering as a {role_display} on CallMedex.")
-        print("To complete your registration, you must review and accept our")
-        print(f"Memorandum of Understanding ({mou_title}).\n")
-        print("--- MOU PREVIEW ---")
-        print(mou_text[:500] + ("..." if len(mou_text) > 500 else ""))
-        print("--------------------\n")
-        print("To read the full MOU and activate your account, click the link below:")
-        print(f"[LINK] {magic_link}\n")
-        print(f"[EXPIRES] This link will expire in 24 hours.")
-        print(f"[VERSION] Document Version: {legal_doc.get('version', 'v1.0')}")
-        print("=" * 70 + "\n")
+        registrant_name = user_payload.get('user_data', {}).get('full_name', 'Partner')
+
+        # Build HTML content
+        subject = f"Action Required: Accept {role_display} MOU to Activate Your CallMedex Account"
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px;">
+                <h2 style="color: #1e293b;">📋 CallMedex Partner Registration</h2>
+                <p>Dear {'Owner' if registrant_email else registrant_name},</p>
+                <p>{f"Your representative ({registrant_name}, {registrant_email}) has initiated a {role_display} registration." if registrant_email else f"Thank you for registering as a {role_display} on CallMedex."}</p>
+                <p>Please review and accept the <strong>{mou_title}</strong> to activate the account:</p>
+                <div style="margin: 25px 0;">
+                    <a href="{magic_link}" style="background-color: #7e22ce; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        Review & Accept MOU
+                    </a>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">This link will expire in 24 hours.</p>
+            </div>
+        </body>
+        </html>
+        """
+        text_content = f"Accept MOU to activate account: {magic_link}"
+
+        # Dispatch via Resend API / SMTP or fallback to console log
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            print("\n" + "=" * 70)
+            print(f"[EMAIL DISPATCHED TO] {to_email}")
+            if registrant_email:
+                print(f"[INITIATED BY] {registrant_email} (Registrant)")
+            print(f"[SUBJECT] {subject}")
+            print("=" * 70)
+            print(f"Dear {'Owner' if registrant_email else registrant_name},\n")
+            print(f"Review and accept MOU link: {magic_link}\n")
+            print("=" * 70 + "\n")
+
         return token
 
     @staticmethod
@@ -146,28 +167,64 @@ class EmailService:
         print("=" * 70 + "\n")
 
     @staticmethod
-    def _send_smtp_email(to_email: str, subject: str, html_content: str, text_content: str):
-        """Internal helper to send real SMTP email if configured."""
-        if not settings.SMTP_HOST or not settings.SMTP_USERNAME:
-            return False
-        
-        try:
-            msg = EmailMessage()
-            msg['Subject'] = subject
-            msg['From'] = settings.SMTP_FROM_EMAIL
-            msg['To'] = to_email
-            
-            msg.set_content(text_content)
-            msg.add_alternative(html_content, subtype='html')
-            
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-                server.starttls()
-                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-                server.send_message(msg)
-            return True
-        except Exception as e:
-            logger.error(f"SMTP sending failed: {e}")
-            return False
+    def _send_real_email(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
+        """
+        Internal helper to send real email using Resend API or SMTP if configured.
+        Returns True if sent via Resend or SMTP, False otherwise.
+        """
+        # 1. Try Resend API if RESEND_API_KEY is configured
+        if getattr(settings, "RESEND_API_KEY", ""):
+            try:
+                import json
+                import urllib.request
+
+                url = "https://api.resend.com/emails"
+                from_email = settings.SMTP_FROM_EMAIL or "onboarding@resend.dev"
+                payload = {
+                    "from": from_email,
+                    "to": [to_email],
+                    "subject": subject,
+                    "html": html_content,
+                    "text": text_content,
+                }
+                headers = {
+                    "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                }
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers=headers,
+                    method="POST",
+                )
+                with urllib.request.urlopen(req) as resp:
+                    if resp.status in (200, 201):
+                        logger.info(f"Resend email delivered to {to_email}")
+                        return True
+            except Exception as e:
+                logger.error(f"Resend API email sending failed: {e}")
+
+        # 2. Try SMTP fallback if SMTP_HOST and SMTP_USERNAME are configured
+        if settings.SMTP_HOST and settings.SMTP_USERNAME:
+            try:
+                msg = EmailMessage()
+                msg['Subject'] = subject
+                msg['From'] = settings.SMTP_FROM_EMAIL or "noreply@callmedex.com"
+                msg['To'] = to_email
+                msg.set_content(text_content)
+                msg.add_alternative(html_content, subtype='html')
+
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+                    server.starttls()
+                    server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                    server.send_message(msg)
+                logger.info(f"SMTP email delivered to {to_email}")
+                return True
+            except Exception as e:
+                logger.error(f"SMTP sending failed: {e}")
+                return False
+
+        return False
 
     @staticmethod
     def send_magic_dispatch_email(to_email: str, provider_name: str, task_details: dict, offer_id: str, provider_id: str):
@@ -227,8 +284,8 @@ DECLINE: {decline_link}
         </html>
         """
 
-        # Try real SMTP first, fallback to Mock logger
-        if not EmailService._send_smtp_email(to_email, subject, html_content, text_content):
+        # Try real Resend API / SMTP first, fallback to Mock logger
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
             print("\n" + "=" * 70)
             print(f"[MAGIC DISPATCH EMAIL TO] {to_email}")
             print(f"[SUBJECT] {subject}")

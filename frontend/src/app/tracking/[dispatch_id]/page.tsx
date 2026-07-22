@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import GeoapifyMap from "@/components/GeoapifyMap";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -348,18 +349,43 @@ export default function LiveTrackingPage() {
           </div>
         )}
 
-        {/* ─── Location Map Placeholder ─── */}
+        {/* ─── Interactive Map ─── */}
         <div style={{
           backgroundColor: "white", borderRadius: 16, overflow: "hidden",
           marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
         }}>
-          {/* OpenStreetMap iframe — no API key needed */}
           {dispatch?.patient_lat && dispatch?.patient_lng ? (
             <div>
-              <iframe
-                title="Dispatch Location"
-                src={`https://www.openstreetmap.org/export/embed.html?bbox=${dispatch.patient_lng - 0.01},${dispatch.patient_lat - 0.01},${dispatch.patient_lng + 0.01},${dispatch.patient_lat + 0.01}&layer=mapnik&marker=${dispatch.patient_lat},${dispatch.patient_lng}`}
-                style={{ width: "100%", height: 240, border: "none" }}
+              <GeoapifyMap
+                center={{ lat: dispatch.patient_lat, lng: dispatch.patient_lng }}
+                markers={[
+                  {
+                    lat: dispatch.patient_lat,
+                    lng: dispatch.patient_lng,
+                    label: "Your Location",
+                    icon: "📍",
+                  },
+                  ...(dispatch.provider_lat && dispatch.provider_lng ? [{
+                    lat: dispatch.provider_lat,
+                    lng: dispatch.provider_lng,
+                    label: dispatch.provider_name || "Provider",
+                    icon: dispatch.service_subtype === "home_collection" ? "🩸"
+                      : dispatch.service_subtype === "nurse_visit" ? "👩‍⚕️" : "🩺",
+                    pulse: true,
+                  }] : []),
+                ]}
+                routePoints={
+                  dispatch.provider_lat && dispatch.provider_lng
+                    ? [
+                      { lat: dispatch.provider_lat, lng: dispatch.provider_lng },
+                      { lat: dispatch.patient_lat, lng: dispatch.patient_lng },
+                    ]
+                    : undefined
+                }
+                showRoute={!!(dispatch.provider_lat && dispatch.provider_lng)}
+                height={260}
+                zoom={14}
+                style={{ borderRadius: 0 }}
               />
               <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
                 <div style={{ fontWeight: 600, color: "#1e293b", fontSize: "0.85rem" }}>
@@ -368,6 +394,11 @@ export default function LiveTrackingPage() {
                 <div style={{ color: "#64748b", fontSize: "0.8rem", marginTop: 2 }}>
                   {dispatch.patient_address || `${dispatch.patient_lat.toFixed(4)}, ${dispatch.patient_lng.toFixed(4)}`}
                 </div>
+                {dispatch.provider_lat && dispatch.provider_lng && (
+                  <div style={{ color: "#0891b2", fontSize: "0.78rem", marginTop: 4, fontWeight: 600 }}>
+                    🚗 Provider is en route — tracking live
+                  </div>
+                )}
               </div>
             </div>
           ) : (

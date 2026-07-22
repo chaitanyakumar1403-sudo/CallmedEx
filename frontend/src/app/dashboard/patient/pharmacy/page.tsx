@@ -22,11 +22,20 @@ export default function PharmacyDelivery() {
           setCoords({ lat, lng });
           
           try {
-            // Reverse Geocoding using free OpenStreetMap API
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-            const data = await res.json();
-            if (data && data.display_name) {
-              setAddress(data.display_name);
+            // Reverse Geocoding using Geoapify (or fallback to Nominatim)
+            const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
+            let displayName = "";
+            if (geoapifyKey) {
+              const res = await fetch(`https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${geoapifyKey}&format=json`);
+              const data = await res.json();
+              displayName = data.results?.[0]?.formatted || "";
+            } else {
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+              const data = await res.json();
+              displayName = data?.display_name || "";
+            }
+            if (displayName) {
+              setAddress(displayName);
               setStatus('Exact address resolved successfully!');
             } else {
               setAddress(`GPS Detected: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);

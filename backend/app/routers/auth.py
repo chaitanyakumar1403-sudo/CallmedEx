@@ -78,7 +78,7 @@ def _create_role_profile(table: str, profile_data: dict) -> dict:
 def _build_user_data(user: UserSignup, user_id: str, registration_status: str = "active") -> dict:
     """Build the common user record from signup data."""
     now = datetime.now(timezone.utc).isoformat()
-    return {
+    data = {
         "id": user_id,
         "full_name": user.full_name,
         "email": user.email,
@@ -98,6 +98,12 @@ def _build_user_data(user: UserSignup, user_id: str, registration_status: str = 
         "created_at": now,
         "updated_at": now,
     }
+    # Store registrant role for non-patient signups (audit trail)
+    if user.registrant_role:
+        data["registrant_role"] = user.registrant_role
+    if user.owner_email:
+        data["owner_email"] = user.owner_email
+    return data
 
 
 def _build_profile_data(user: UserSignup, user_id: str) -> dict:
@@ -249,8 +255,14 @@ async def signup(user: UserSignup):
             "profile_data": profile_data,
         }
 
+        # Determine MOU recipient: owner_email if provided, else registrant's email
+        mou_recipient = user.owner_email if user.owner_email else user.email
+
         # Send role-specific MOU email and capture token
-        mou_token = EmailService.send_mou_email_for_role(user.email, user.role.value, payload)
+        mou_token = EmailService.send_mou_email_for_role(
+            mou_recipient, user.role.value, payload,
+            registrant_email=user.email if user.owner_email and user.owner_email != user.email else None
+        )
 
         # Log the signup attempt
         LegalService.log_audit(
@@ -258,14 +270,21 @@ async def signup(user: UserSignup):
             action="user.signup_initiated",
             entity_type="user",
             entity_id=user_id,
-            details={"role": user.role.value, "email": user.email, "status": "pending_mou"},
+            details={
+                "role": user.role.value,
+                "email": user.email,
+                "owner_email": user.owner_email or user.email,
+                "registrant_role": user.registrant_role or "unknown",
+                "status": "pending_mou",
+            },
         )
 
         role_display = user.role.value.replace("_", " ").title()
+        mou_sent_to = mou_recipient if mou_recipient != user.email else user.email
         return APIResponse(
             success=True,
-            message=f"Registration initiated. A {role_display} MOU has been sent to {user.email}. Please review and accept it to activate your account.",
-            data={"status": "pending_mou", "role": user.role.value, "mou_token": mou_token},
+            message=f"Registration initiated. A {role_display} MOU has been sent to {mou_sent_to}. The owner must review and accept it to activate the account.",
+            data={"status": "pending_mou", "role": user.role.value, "mou_sent_to": mou_sent_to, "mou_token": mou_token},
         )
 
     # ─── IMMEDIATE CREATION: Patient role ──────────────────────────────
