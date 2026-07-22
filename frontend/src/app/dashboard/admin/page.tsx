@@ -112,7 +112,13 @@ export default function AdminDashboard() {
   const [supervisorForm, setSupervisorForm] = useState({ full_name: '', email: '', mobile: '', password: '', managed_city: '' });
   const [formMsg, setFormMsg] = useState('');
 
+  // Weekly Report State
+  const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
+  const [weeklyReportData, setWeeklyReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
   const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchData = useCallback(async () => {
@@ -224,6 +230,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleGenerateWeeklyReport = async () => {
+
+    setReportLoading(true);
+    const token = getToken();
+    try {
+      const res = await fetch(`${apiBase}/api/admin/analytics/weekly-summary-report`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setWeeklyReportData(data.report);
+        setShowWeeklyReportModal(true);
+      } else {
+        alert(data.detail || "Failed to generate weekly report");
+      }
+    } catch (e) {
+      alert("Error contacting server for weekly report.");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
@@ -266,6 +296,26 @@ export default function AdminDashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <button
+            onClick={handleGenerateWeeklyReport}
+            disabled={reportLoading}
+            style={{
+              padding: "8px 16px",
+              background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              cursor: reportLoading ? "wait" : "pointer",
+              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6
+            }}
+          >
+            {reportLoading ? "⏳ Generating..." : "📧 Send Weekly Executive Report"}
+          </button>
           <div style={{
             backgroundColor: 'rgba(255,255,255,0.1)',
             borderRadius: 8,
@@ -284,6 +334,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
 
       {/* ─── Tab Navigation ─── */}
       <div style={{
@@ -659,7 +710,88 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* ─── WEEKLY EXECUTIVE SUMMARY REPORT MODAL ─── */}
+        {showWeeklyReportModal && weeklyReportData && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.7)", zIndex: 1000,
+            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
+          }}>
+            <div style={{
+              backgroundColor: "white", borderRadius: 16, padding: 30,
+              width: "100%", maxWidth: 550, color: "#1e293b",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.4)", maxHeight: "90vh", overflowY: "auto"
+            }}>
+              <div style={{ borderBottom: "2px solid #e2e8f0", paddingBottom: 16, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <span style={{ backgroundColor: "#dbeafe", color: "#1e40af", fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: 12, textTransform: "uppercase" }}>
+                      📊 Executive Platform Summary Report
+                    </span>
+                    <h3 style={{ margin: "6px 0 2px", color: "#0f172a", fontSize: "1.3rem" }}>
+                      Weekly CallMedex Health & Growth Digest
+                    </h3>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                      Period: {weeklyReportData.report_period}
+                    </div>
+                  </div>
+                  <button onClick={() => setShowWeeklyReportModal(false)} style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
+                </div>
+              </div>
+
+              {/* KPI Matrix */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>New Registrations</div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#2563eb" }}>{weeklyReportData.kpis?.new_registrations}</div>
+                </div>
+                <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Active Providers Online</div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#16a34a" }}>{weeklyReportData.kpis?.active_providers_online}</div>
+                </div>
+                <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Completed Dispatches</div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#7c3aed" }}>{weeklyReportData.kpis?.completed_home_dispatches}</div>
+                </div>
+                <div style={{ backgroundColor: "#f8fafc", padding: 14, borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Gross Platform Volume</div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#059669" }}>₹{weeklyReportData.kpis?.total_platform_volume_inr?.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* Highlights */}
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ margin: "0 0 10px", fontSize: "0.9rem", color: "#0f172a" }}>🌟 Platform Security & Operational Highlights</h4>
+                <ul style={{ margin: 0, paddingLeft: 20, fontSize: "0.82rem", color: "#475569", lineHeight: 1.6 }}>
+                  {weeklyReportData.highlights?.map((h: string, idx: number) => (
+                    <li key={idx}>{h}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div style={{ backgroundColor: "#f0fdf4", padding: 12, borderRadius: 8, border: "1px solid #bbf7d0", fontSize: "0.8rem", color: "#166534", marginBottom: 20 }}>
+                ✅ Email summary report dispatched to administrator inbox ({weeklyReportData.email_dispatched_to?.join(", ")})
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowWeeklyReportModal(false)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f1f5f9", cursor: "pointer", fontWeight: 700 }}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#4f46e5", color: "white", fontWeight: 800, cursor: "pointer" }}
+                >
+                  🖨️ Print Executive Report
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

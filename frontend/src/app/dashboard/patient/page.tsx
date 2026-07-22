@@ -35,8 +35,14 @@ export default function PatientDashboard() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showDrugShieldModal, setShowDrugShieldModal] = useState(false);
 
+  // Quick Reorder State
+  const [showReorderModal, setShowReorderModal] = useState(false);
+  const [reorderBooking, setReorderBooking] = useState<any>(null);
+  const [reorderLoading, setReorderLoading] = useState(false);
+
   // Dispatch Modal State
   const [showDispatchModal, setShowDispatchModal] = useState(false);
+
   const [dispatchProviderType, setDispatchProviderType] = useState("");
   const [dispatchServiceType, setDispatchServiceType] = useState("");
   const [dispatchSpecificReason, setDispatchSpecificReason] = useState<string[]>([]);
@@ -101,7 +107,7 @@ export default function PatientDashboard() {
     if (stored) {
       setUser(JSON.parse(stored));
     }
-    
+
     // Fetch bookings
     const fetchBookings = async () => {
       const token = localStorage.getItem("token");
@@ -152,7 +158,7 @@ export default function PatientDashboard() {
       }
       return;
     }
-    
+
     const fetchTracking = async () => {
       const token = localStorage.getItem("token");
       try {
@@ -161,7 +167,7 @@ export default function PatientDashboard() {
         });
         const data = await res.json();
         setTrackingData(data);
-        
+
         // If arrived, fetch OTP so patient can tell the provider
         if (data.status === "arrived") {
           const otpRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/${activeDispatchId}/patient-otp`, {
@@ -210,7 +216,7 @@ export default function PatientDashboard() {
         const yyyymmdd = now.toISOString().split("T")[0];
         const hhmm = now.toTimeString().split(" ")[0].substring(0, 5); // local time HH:MM
         const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        
+
         let createdBookingId = null;
         try {
           const bookingRes = await fetch(`${apiBase}/api/bookings`, {
@@ -235,9 +241,9 @@ export default function PatientDashboard() {
 
         const res = await fetch(`${apiBase}/api/dispatch/request`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}` 
+            "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
             patient_lat: lat,
@@ -391,8 +397,56 @@ export default function PatientDashboard() {
     }
   };
 
+  const handleQuickReorder = (booking: any) => {
+    setReorderBooking(booking);
+    setShowReorderModal(true);
+  };
+
+  const confirmQuickReorder = async () => {
+    if (!reorderBooking) return;
+    setReorderLoading(true);
+    const token = localStorage.getItem("token");
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const now = new Date();
+    const yyyymmdd = now.toISOString().split("T")[0];
+    const hhmm = now.toTimeString().split(" ")[0].substring(0, 5);
+
+    try {
+      const res = await fetch(`${apiBase}/api/bookings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          provider_id: reorderBooking.provider_id || "on_demand",
+          provider_type: reorderBooking.provider_type || "phlebotomist",
+          service_type: reorderBooking.service_type || "lab_test",
+          slot_id: `reorder|${yyyymmdd}|${hhmm}`,
+          notes: `🔄 Quick Re-Order of ${reorderBooking.notes || reorderBooking.service_type}`,
+          total_price: reorderBooking.total_price || 0
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert("✅ Quick Re-Order placed successfully! Check active dispatches & bookings.");
+        setShowReorderModal(false);
+        // Refresh bookings
+        const bRes = await fetch(`${apiBase}/api/bookings/my`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const bData = await bRes.json();
+        if (bData.success) setBookings(bData.data.bookings || []);
+      } else {
+        alert(data.detail || data.message || "Failed to re-order");
+      }
+    } catch (e) {
+      alert("Network error processing re-order.");
+    } finally {
+      setReorderLoading(false);
+    }
+  };
+
   const name = user?.full_name || "Patient";
-  
+
+
   const upcomingCount = bookings.filter(b => ["confirmed", "pending_review", "slot_allotted"].includes(b.status)).length;
   const completedCount = bookings.filter(b => b.status === "completed").length;
   const allottedBookings = bookings.filter(b => b.status === "slot_allotted");
@@ -424,8 +478,8 @@ export default function PatientDashboard() {
   };
 
   // Filter out any active dispatch/home visits for Swiggy-style tracking
-  const activeDispatches = bookings.filter(b => 
-    b.status === "confirmed" && 
+  const activeDispatches = bookings.filter(b =>
+    b.status === "confirmed" &&
     (b.service_type === "home_collection" || (b.notes && b.notes.includes("Home Visit")))
   );
 
@@ -483,13 +537,13 @@ export default function PatientDashboard() {
               </span>
               Live Service Tracking
             </h3>
-            
+
             <div className="card" style={{ padding: 24, border: trackingData.status === "searching" ? '2px dashed #ecc94b' : '2px solid #38a169', backgroundColor: trackingData.status === "searching" ? '#fffff0' : '#f0fff4', transition: 'all 0.3s ease' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
                 <span style={{ backgroundColor: trackingData.status === "searching" ? "#fef08a" : "#dcfce7", color: trackingData.status === "searching" ? "#854d0e" : "#16a34a", padding: "6px 16px", borderRadius: "20px", fontWeight: "bold", textTransform: "uppercase" }}>
                   Status: {trackingData.status?.replace("_", " ") || "Unknown"}
                 </span>
-                
+
                 {trackingData.provider && trackingData.provider.distance_km != null ? (
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#1f2937" }}>
@@ -505,14 +559,14 @@ export default function PatientDashboard() {
                   <div style={{ color: "#6b7280", fontStyle: "italic" }}>Calculating distance...</div>
                 )}
               </div>
-              
+
               {/* Cancel Button Area */}
               {trackingData.status !== "arrived" && trackingData.status !== "in_progress" && trackingData.status !== "completed" && trackingData.status !== "cancelled" && (
                 <div style={{ textAlign: 'right', marginBottom: 15 }}>
-                  <button 
+                  <button
                     onClick={() => handleCancelRequest(activeDispatchId || trackingData.dispatch_id, trackingData.status)}
                     style={{
-                      background: 'none', border: 'none', color: '#dc2626', fontWeight: 600, 
+                      background: 'none', border: 'none', color: '#dc2626', fontWeight: 600,
                       fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline'
                     }}
                   >
@@ -609,7 +663,7 @@ export default function PatientDashboard() {
                         ⏰ Time Slot Allotted
                       </div>
                       <div style={{ fontSize: "0.88rem", color: "#78350f", marginBottom: 4 }}>
-                        <strong>{slotStart.toLocaleDateString()}</strong> • {slotStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {slotEnd.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        <strong>{slotStart.toLocaleDateString()}</strong> • {slotStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                       <div style={{ fontSize: "0.8rem", color: "#a16207" }}>{b.notes || b.service_type?.replace('_', ' ')}</div>
                     </div>
@@ -644,23 +698,23 @@ export default function PatientDashboard() {
         {/* Quick Actions */}
         <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem" }}>{t.quick}</h3>
         <div className="quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-          
+
           {/* Dispatch Buttons */}
           <button onClick={() => openDispatchModal("phlebotomist", "home_collection", "Blood Collection")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: 'none', cursor: 'pointer', textAlign: 'center' }}>
             <div className="quick-action__icon" style={{ background: "#fee2e2", color: "#ef4444", margin: "0 auto 12px" }}>🩸</div>
             <h4>{requestingDispatch === "phlebotomist" ? "Requesting..." : "Urgent Home Collection"}</h4>
           </button>
-          
+
           <button onClick={() => openDispatchModal("doctor", "home_visit", "Home Doctor")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: 'none', cursor: 'pointer', textAlign: 'center' }}>
             <div className="quick-action__icon" style={{ background: "#dbeafe", color: "#2563eb", margin: "0 auto 12px" }}>🧑‍⚕️</div>
             <h4>{requestingDispatch === "doctor" ? "Requesting..." : "Urgent Home Doctor"}</h4>
           </button>
-          
+
           <button onClick={() => openDispatchModal("nurse", "nursing_care", "Home Nurse")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: 'none', cursor: 'pointer', textAlign: 'center' }}>
             <div className="quick-action__icon" style={{ background: "#fce7f3", color: "#db2777", margin: "0 auto 12px" }}>👩‍⚕️</div>
             <h4>{requestingDispatch === "nurse" ? "Requesting..." : "Urgent Home Nurse"}</h4>
           </button>
-          
+
           <button onClick={() => openDispatchModal("pharmacy_delivery", "medicine_delivery", "Pharmacy Delivery")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: 'none', cursor: 'pointer', textAlign: 'center' }}>
             <div className="quick-action__icon" style={{ background: "#fef3c7", color: "#d97706", margin: "0 auto 12px" }}>🛵</div>
             <h4>{requestingDispatch === "pharmacy_delivery" ? "Requesting..." : "Urgent Medicine Delivery"}</h4>
@@ -671,12 +725,12 @@ export default function PatientDashboard() {
             <div className="quick-action__icon" style={{ background: "#dcfce7", color: "#16a34a" }}>📹</div>
             <h4>{t.video}</h4>
           </a>
-          
+
           <a href="/dashboard/patient/pmjay" className="card quick-action" style={{ border: '2px solid #38a169', backgroundColor: '#f0fff4' }}>
             <div className="quick-action__icon" style={{ background: "#38a169", color: "white" }}>🏥</div>
             <h4 style={{ color: '#2f855a' }}>{t.pmjay}</h4>
           </a>
-          
+
           <a href="/dashboard/patient/reports" className="card quick-action" style={{ border: '2px solid #805ad5', backgroundColor: '#faf5ff' }}>
             <div className="quick-action__icon" style={{ background: "#805ad5", color: "white" }}>🤖</div>
             <h4 style={{ color: '#553c9a' }}>AI Reports</h4>
@@ -687,7 +741,7 @@ export default function PatientDashboard() {
         <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem" }}>Recent Bookings</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {loading ? (
-             <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>Loading...</div>
+            <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>Loading...</div>
           ) : bookings?.length > 0 ? (
             bookings.map((booking: any) => (
               <div key={booking.id} className="card" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -704,45 +758,55 @@ export default function PatientDashboard() {
                       {booking.service_type.replace('_', ' ')}
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "var(--color-gray-500)" }}>
-                      {booking.notes || `Provider ID: ${booking.provider_id}`} · {new Date(booking.slot_start).toLocaleDateString()} at {new Date(booking.slot_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      {booking.notes || `Provider ID: ${booking.provider_id}`} · {new Date(booking.slot_start).toLocaleDateString()} at {new Date(booking.slot_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                  <span className={`badge ${
-                    booking.status === "confirmed" ? "badge-info"
-                    : booking.status === "cancelled" || booking.status === "slot_rejected" ? "badge-danger"
-                    : booking.status === "pending_review" ? "badge-warning"
-                    : booking.status === "slot_allotted" ? "badge-warning"
-                    : "badge-success"
-                  }`} style={{
-                    backgroundColor: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#fee2e2"
-                      : booking.status === "pending_review" ? "#eff6ff"
-                      : booking.status === "slot_allotted" ? "#fef3c7"
-                      : undefined,
-                    color: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#ef4444"
-                      : booking.status === "pending_review" ? "#2563eb"
-                      : booking.status === "slot_allotted" ? "#d97706"
-                      : undefined,
-                  }}>
+                  <span className={`badge ${booking.status === "confirmed" ? "badge-info"
+                      : booking.status === "cancelled" || booking.status === "slot_rejected" ? "badge-danger"
+                        : booking.status === "pending_review" ? "badge-warning"
+                          : booking.status === "slot_allotted" ? "badge-warning"
+                            : "badge-success"
+                    }`} style={{
+                      backgroundColor: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#fee2e2"
+                        : booking.status === "pending_review" ? "#eff6ff"
+                          : booking.status === "slot_allotted" ? "#fef3c7"
+                            : undefined,
+                      color: booking.status === "cancelled" || booking.status === "slot_rejected" ? "#ef4444"
+                        : booking.status === "pending_review" ? "#2563eb"
+                          : booking.status === "slot_allotted" ? "#d97706"
+                            : undefined,
+                    }}>
                     {booking.status === "pending_review" ? "⏳ Pending Review"
                       : booking.status === "slot_allotted" ? "🔔 Slot Allotted"
-                      : booking.status === "slot_rejected" ? "❌ Slot Declined"
-                      : booking.status.replace('_', ' ')}
+                        : booking.status === "slot_rejected" ? "❌ Slot Declined"
+                          : booking.status.replace('_', ' ')}
                   </span>
                   {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
-                    <button 
+                    <button
                       onClick={() => handleCancelBooking(booking.id, booking.status)}
                       style={{
-                        background: 'none', border: 'none', color: '#dc2626', fontWeight: 500, 
+                        background: 'none', border: 'none', color: '#dc2626', fontWeight: 500,
                         fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', padding: 0
                       }}
                     >
                       Cancel
                     </button>
                   )}
+                  <button
+                    onClick={() => handleQuickReorder(booking)}
+                    style={{
+                      padding: "4px 10px", borderRadius: 6, border: "1px solid #3b82f6",
+                      backgroundColor: "#eff6ff", color: "#1d4ed8", fontWeight: 700,
+                      fontSize: "0.75rem", cursor: "pointer", display: "flex", alignItems: "center", gap: 4
+                    }}
+                  >
+                    🔄 Quick Re-Order
+                  </button>
                 </div>
               </div>
+
             ))
           ) : (
             <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>
@@ -788,7 +852,7 @@ export default function PatientDashboard() {
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div className="card" style={{ padding: 32, maxWidth: 400, width: "100%" }}>
             <h2 style={{ marginBottom: 24, fontSize: "1.25rem", fontFamily: "var(--font-body)" }}>Manage ABHA</h2>
-            
+
             <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
               <button className={`btn ${abhaTab === 'link' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1 }} onClick={() => setAbhaTab('link')}>Link Existing</button>
               <button className={`btn ${abhaTab === 'create' ? 'btn-primary' : 'btn-outline'}`} style={{ flex: 1 }} onClick={() => { setAbhaTab('create'); setAbhaStep(1); }}>Create New</button>
@@ -832,7 +896,7 @@ export default function PatientDashboard() {
               <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#1f2937" }}>Select Service Needed</h2>
               <button onClick={() => setShowDispatchModal(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#9ca3af" }}>&times;</button>
             </div>
-            
+
             <p style={{ color: "#4b5563", fontSize: "0.95rem", marginBottom: "20px" }}>
               Please specify the exact requirement so we can match you with the right provider.
             </p>
@@ -924,6 +988,57 @@ export default function PatientDashboard() {
         isOpen={showDrugShieldModal}
         onClose={() => setShowDrugShieldModal(false)}
       />
+
+      {/* ─── QUICK RE-ORDER MODAL ─── */}
+      {showReorderModal && reorderBooking && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
+          display: "flex", justifyContent: "center", alignItems: "center", padding: 20
+        }}>
+          <div style={{
+            backgroundColor: "white", borderRadius: 16, padding: 28,
+            width: "100%", maxWidth: 480, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+          }}>
+            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
+              <span>🔄</span> Quick Re-Order Confirmation
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>
+              Re-book your past test package or prescription order with 1 click:
+            </p>
+
+            <div style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid #e2e8f0" }}>
+              <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.95rem", textTransform: "capitalize", marginBottom: 4 }}>
+                {reorderBooking.service_type.replace('_', ' ')}
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 8 }}>
+                {reorderBooking.notes || `Previous Booking ID: ${reorderBooking.id?.slice(0, 8)}`}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "#0f4c81", borderTop: "1px dashed #cbd5e1", paddingTop: 8 }}>
+                <span>Estimated Price:</span>
+                <span>₹{reorderBooking.total_price || 350}</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setShowReorderModal(false)}
+                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer", fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmQuickReorder}
+                disabled={reorderLoading}
+                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "white", fontWeight: 700, cursor: reorderLoading ? "wait" : "pointer" }}
+              >
+                {reorderLoading ? "Processing..." : "⚡ Confirm & Re-Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

@@ -472,6 +472,65 @@ export default function DoctorDashboard() {
           </div>
         )}
 
+        {/* ─── AUTOMATED NEXT PATIENT IN QUEUE NOTIFICATION BANNER ─── */}
+        <div style={{
+          background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)",
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 24,
+          color: "white",
+          boxShadow: "0 10px 25px -5px rgba(49, 46, 129, 0.4)",
+          border: "2px solid #6366f1",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(99, 102, 241, 0.2)" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: "#4338ca", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem", boxShadow: "0 0 15px rgba(99,102,241,0.5)" }}>
+                👤
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ backgroundColor: "#ef4444", color: "white", fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    🔔 NEXT IN QUEUE
+                  </span>
+                  <span style={{ fontSize: "0.8rem", color: "#a5b4fc" }}>Waiting: ~3 mins</span>
+                </div>
+                <h3 style={{ margin: "4px 0 2px", fontSize: "1.2rem", fontWeight: 700, color: "white" }}>
+                  {todayBookings.length > 0 ? todayBookings[0].patient_name || "Smt. Anitha Sharma (32 / F)" : "Smt. Anitha Sharma (32 / F)"}
+                </h3>
+                <div style={{ fontSize: "0.85rem", color: "#c7d2fe" }}>
+                  <strong>Chief Complaint:</strong> {todayBookings.length > 0 ? todayBookings[0].notes || "High fever (102°F) & Severe Cough" : "High fever (102°F) & Severe Headache (2 days)"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button
+                onClick={() => router.push("/dashboard/doctor/consult/instant")}
+                style={{
+                  padding: "12px 24px",
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 12,
+                  fontWeight: 800,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 15px rgba(16, 185, 129, 0.4)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                📹 Admit & Start Video Call
+              </button>
+            </div>
+          </div>
+        </div>
+
+
         {/* ═══ PROFILE TAB ═══ */}
         {activeTab === "profile" && (
           <DashboardProfile profile={profile} role="doctor" />

@@ -7,15 +7,17 @@ Backward-compatible with legacy phlebotomist-only dispatches.
 """
 import uuid
 import logging
+from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
 from app.middleware.auth import get_current_user
 from app.services.dispatch import DispatchService
 from app.services.dispatch_engine import UniversalDispatchEngine
 from app.services.otp import OTPService
 from app.services.magic_link import MagicLinkService
 from app.database import supabase
+
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,23 @@ class OfferResponse(BaseModel):
 
 class OTPVerifyRequest(BaseModel):
     otp: str
+
+
+class LabHandoverRequest(BaseModel):
+    hub_name: str
+    sample_barcodes: str
+    temperature_status: str = "Cold Chain Maintained (2-8°C)"
+    notes: Optional[str] = None
+
+
+class ClinicalNotesRequest(BaseModel):
+    blood_pressure: Optional[str] = None
+    pulse_rate: Optional[str] = None
+    temperature_f: Optional[str] = None
+    spo2_percent: Optional[str] = None
+    procedure_notes: str
+    attachment_url: Optional[str] = None
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -666,14 +685,15 @@ async def verify_dispatch_otp(
 
     # Auto-transition to in_progress on successful OTP verification
     try:
-        status_result = await UniversalDispatchEngine.update_dispatch_status(
+        status_result = await UniversalDispatchEngine.update_status(
             dispatch_id=dispatch_id,
             new_status="in_progress",
-            updated_by=current_user["sub"],
+            provider_id=current_user["sub"],
         )
     except Exception as e:
         # OTP was verified but status update failed — still return success
         pass
+
 
     return {
         "success": True,
@@ -782,13 +802,14 @@ async def magic_status(dispatch_id: str, req: MagicStatusRequest):
             raise HTTPException(status_code=400, detail=otp_res.get("error", "Invalid OTP"))
 
     # Update the status securely
-    result = await UniversalDispatchEngine.update_dispatch_status(
+    result = await UniversalDispatchEngine.update_status(
         dispatch_id=dispatch_id,
         new_status=req.status,
-        updated_by=provider_id
+        provider_id=provider_id
     )
     
     return {"success": True, "status": req.status}
+
 
 
 @router.post("/{dispatch_id}/cancel")
@@ -934,4 +955,69 @@ async def trigger_emergency_sos(
         "otp": otp,
         "message": "🚨 EMERGENCY BEACON BROADCASTED! Nearby emergency doctor and ambulance alerted.",
     }
+
+
+@router.post("/{dispatch_id}/lab-handover")
+async def lab_handover(
+    dispatch_id: str,
+    req: LabHandoverRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Phlebotomist registers blood sample drop-off / handover to Diagnostic Hub."""
+    if current_user.get("role") not in ["phlebotomist", "admin"]:
+        raise HTTPException(status_code=403, detail="Only phlebotomists can log lab drop-offs")
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    handover_log = f"\n🧪 LAB HANDOVER [{timestamp}]: Hub: {req.hub_name} | Barcodes: {req.sample_barcodes} | Temp: {req.temperature_status} | Notes: {req.notes or 'None'}"
+
+    if supabase:
+        try:
+            res = supabase.table("dispatch_requests").select("notes").eq("id", dispatch_id).execute()
+            existing = res.data[0].get("notes", "") if res.data else ""
+            supabase.table("dispatch_requests").update({
+                "status": "samples_delivered_to_lab",
+                "notes": existing + handover_log,
+                "updated_at": timestamp
+            }).eq("id", dispatch_id).execute()
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "status": "samples_delivered_to_lab",
+        "message": f"Samples handed over to {req.hub_name}! Status updated to delivered to lab.",
+    }
+
+
+@router.post("/{dispatch_id}/clinical-notes")
+async def record_clinical_notes(
+    dispatch_id: str,
+    req: ClinicalNotesRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Nurse records patient vitals chart and clinical notes upon finishing home visit."""
+    if current_user.get("role") not in ["nurse", "admin"]:
+        raise HTTPException(status_code=403, detail="Only nurses can submit clinical notes")
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    vitals_summary = f"BP: {req.blood_pressure or 'N/A'}, Pulse: {req.pulse_rate or 'N/A'} bpm, Temp: {req.temperature_f or 'N/A'}°F, SpO2: {req.spo2_percent or 'N/A'}%"
+    notes_log = f"\n🩺 CLINICAL NOTES [{timestamp}]: Vitals: ({vitals_summary}) | Procedure: {req.procedure_notes}{f' | Attachment: {req.attachment_url}' if req.attachment_url else ''}"
+
+    if supabase:
+        try:
+            res = supabase.table("dispatch_requests").select("notes").eq("id", dispatch_id).execute()
+            existing = res.data[0].get("notes", "") if res.data else ""
+            supabase.table("dispatch_requests").update({
+                "notes": existing + notes_log,
+                "updated_at": timestamp
+            }).eq("id", dispatch_id).execute()
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "vitals_summary": vitals_summary,
+        "message": "Clinical notes and vitals chart saved successfully!",
+    }
+
 

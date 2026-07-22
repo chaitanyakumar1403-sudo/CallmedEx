@@ -125,3 +125,36 @@ def test_e2e_otp_verification():
     otp = OTPService.generate_otp(entity_id)
     assert len(otp) == 6
     assert otp.isdigit()
+
+
+@pytest.mark.asyncio
+async def test_e2e_dispatch_status_updates():
+    """Scenario 9: UniversalDispatchEngine status updates lifecycle."""
+    res = await UniversalDispatchEngine.create_dispatch(
+        patient_id=VALID_PATIENT_ID,
+        patient_lat=17.7231,
+        patient_lng=83.3013,
+        patient_address="Sector 5, Visakhapatnam",
+        provider_type="phlebotomist",
+        service_subtype="Blood Collection",
+        notes="Fasting Blood Sample"
+    )
+    dispatch_id = res["dispatch_id"]
+    assert dispatch_id is not None
+
+    # Transition to en_route
+    up1 = await UniversalDispatchEngine.update_status(dispatch_id, "en_route", provider_id="prov_123")
+    assert up1["success"] is True
+
+    # Transition to arrived
+    up2 = await UniversalDispatchEngine.update_status(dispatch_id, "arrived", provider_id="prov_123")
+    assert up2["success"] is True
+
+    # Transition to in_progress
+    up3 = await UniversalDispatchEngine.update_status(dispatch_id, "in_progress", provider_id="prov_123")
+    assert up3["success"] is True
+
+    # Transition to completed
+    up4 = await UniversalDispatchEngine.update_status(dispatch_id, "completed", provider_id="prov_123")
+    assert up4["success"] is True
+

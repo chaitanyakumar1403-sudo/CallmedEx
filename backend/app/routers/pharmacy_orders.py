@@ -197,3 +197,54 @@ async def delete_inventory_item(item_id: str, current_user: dict = Depends(get_c
             pass
             
     return {"success": True, "message": "Item removed from inventory"}
+
+
+class BulkImportSKU(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    price: float
+    stock_quantity: int
+    category: Optional[str] = "medicine"
+    is_prescription_required: Optional[bool] = False
+
+
+class BulkImportRequest(BaseModel):
+    items: List[BulkImportSKU]
+
+
+@router.post("/inventory/bulk-import")
+async def bulk_import_inventory(req: BulkImportRequest, current_user: dict = Depends(get_current_user)):
+    """Batch import hundreds/thousands of medicine SKUs at once."""
+    if current_user.get("role") not in ["pharmacy", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    imported_items = []
+    now = datetime.now(timezone.utc).isoformat()
+
+    for item in req.items:
+        item_data = {
+            "id": str(uuid.uuid4()),
+            "pharmacy_id": current_user["sub"],
+            "name": item.name,
+            "description": item.description,
+            "price": item.price,
+            "stock_quantity": item.stock_quantity,
+            "category": item.category,
+            "is_prescription_required": item.is_prescription_required,
+            "created_at": now,
+            "updated_at": now
+        }
+        imported_items.append(item_data)
+        if supabase:
+            try:
+                supabase.table("pharmacy_inventory").insert(item_data).execute()
+            except Exception:
+                pass
+
+    return {
+        "success": True,
+        "count": len(imported_items),
+        "message": f"Successfully batch imported {len(imported_items)} medicine SKUs!",
+        "items": imported_items
+    }
+

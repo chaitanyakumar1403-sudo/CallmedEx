@@ -49,14 +49,29 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   const [statusMsg, setStatusMsg] = useState("");
   const [otp, setOtp] = useState("");
   const [showAllTasks, setShowAllTasks] = useState(false);
-  
+
   // Selfie Verification State
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [verifyingSelfie, setVerifyingSelfie] = useState(false);
 
+  // Phlebotomist Lab Handover State
+  const [showLabModal, setShowLabModal] = useState(false);
+  const [labHubName, setLabHubName] = useState("Apollo Diagnostics Central Hub");
+  const [sampleBarcodes, setSampleBarcodes] = useState("");
+  const [labNotes, setLabNotes] = useState("");
+
+  // Nurse Clinical Vitals State
+  const [showVitalsModal, setShowVitalsModal] = useState(false);
+  const [vitalsBP, setVitalsBP] = useState("120/80");
+  const [vitalsPulse, setVitalsPulse] = useState("72");
+  const [vitalsTemp, setVitalsTemp] = useState("98.6");
+  const [vitalsSpO2, setVitalsSpO2] = useState("99");
+  const [procedureNotes, setProcedureNotes] = useState("");
+
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const taskIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
 
   // ─── Fetch profile and initial data ──────────────────────────────────
   const fetchProfile = useCallback(async () => {
@@ -89,7 +104,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         setTasks(all.filter((t: DispatchTask) => !["completed", "cancelled"].includes(t.status)));
         const done = all.filter((t: DispatchTask) => t.status === "completed");
         setCompletedToday(done.length);
-        setEarnings(done.length * earningsRate); 
+        setEarnings(done.length * earningsRate);
         // Find current in-progress task
         const active = all.find((t: DispatchTask) =>
           ["provider_accepted", "en_route", "arrived", "in_progress"].includes(t.status)
@@ -280,6 +295,70 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
     }
   };
 
+  // ─── Lab Handover Submit ────────────────────────────────────────────────
+  const handleLabHandoverSubmit = async () => {
+    if (!activeTask) return;
+    setActionLoading("lab_handover");
+    const token = getToken();
+    try {
+      const res = await fetch(`${apiBase}/api/dispatch/${activeTask.id}/lab-handover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          hub_name: labHubName,
+          sample_barcodes: sampleBarcodes || "BAR-DEFAULT-001",
+          notes: labNotes,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMsg(`✅ Samples Handed Over to ${labHubName}!`);
+        setShowLabModal(false);
+        fetchTasks();
+      } else {
+        setStatusMsg(`❌ ${data.detail || "Handover failed"}`);
+      }
+    } catch (e) {
+      setStatusMsg("❌ Network error saving lab handover");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  // ─── Clinical Notes Submit ──────────────────────────────────────────────
+  const handleClinicalNotesSubmit = async () => {
+    if (!activeTask) return;
+    setActionLoading("clinical_notes");
+    const token = getToken();
+    try {
+      const res = await fetch(`${apiBase}/api/dispatch/${activeTask.id}/clinical-notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          blood_pressure: vitalsBP,
+          pulse_rate: vitalsPulse,
+          temperature_f: vitalsTemp,
+          spo2_percent: vitalsSpO2,
+          procedure_notes: procedureNotes || "Standard nursing procedure completed with full infection control protocol.",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMsg("✅ Clinical Vitals & Notes recorded successfully!");
+        setShowVitalsModal(false);
+        // Complete the task
+        handleUpdateStatus(activeTask.id, "completed");
+      } else {
+        setStatusMsg(`❌ ${data.detail || "Submission failed"}`);
+      }
+    } catch (e) {
+      setStatusMsg("❌ Network error saving clinical notes");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f8fafc" }}>
@@ -347,10 +426,10 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                   backgroundColor: "rgba(255,255,255,0.15)", color: "white",
                   fontSize: "0.7rem", fontWeight: 700,
                 }}>
-                  <span style={{ 
-                    display: "inline-block", width: 6, height: 6, borderRadius: "50%", 
+                  <span style={{
+                    display: "inline-block", width: 6, height: 6, borderRadius: "50%",
                     backgroundColor: "#6ee7b7", marginRight: 6, boxShadow: "0 0 8px #6ee7b7",
-                    animation: "pulse 1.5s infinite" 
+                    animation: "pulse 1.5s infinite"
                   }} />
                   GPS Live
                 </div>
@@ -474,6 +553,68 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
               )}
             </div>
 
+              {/* 1-Click Driving Turn-by-Turn Navigation Deep Links */}
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${activeTask.patient_lat},${activeTask.patient_lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    flex: 1, padding: "8px 12px", borderRadius: 8, backgroundColor: "#4285F4",
+                    color: "white", textAlign: "center", textDecoration: "none", fontWeight: 700, fontSize: "0.8rem",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4
+                  }}
+                >
+                  🗺️ Google Maps
+                </a>
+                <a
+                  href={`https://waze.com/ul?ll=${activeTask.patient_lat},${activeTask.patient_lng}&navigate=yes`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    flex: 1, padding: "8px 12px", borderRadius: 8, backgroundColor: "#33CCFF",
+                    color: "#1e293b", textAlign: "center", textDecoration: "none", fontWeight: 700, fontSize: "0.8rem",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4
+                  }}
+                >
+                  🚗 Waze
+                </a>
+              </div>
+
+            {/* Specialized Field Action Buttons */}
+
+            {activeTask.status === "in_progress" && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {providerType === "phlebotomist" && (
+                  <button
+                    onClick={() => setShowLabModal(true)}
+                    style={{
+                      flex: 1, padding: "10px", borderRadius: 8, border: "none",
+                      background: "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)",
+                      color: "white", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                    }}
+                  >
+                    🧪 Sample Handover to Lab Hub
+                  </button>
+                )}
+
+                {providerType === "nurse" && (
+                  <button
+                    onClick={() => setShowVitalsModal(true)}
+                    style={{
+                      flex: 1, padding: "10px", borderRadius: 8, border: "none",
+                      background: "linear-gradient(135deg, #db2777 0%, #f472b6 100%)",
+                      color: "white", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                    }}
+                  >
+                    🩺 Upload Vitals & Clinical Note
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Action buttons for status progression */}
             {activeTask.status === "arrived" ? (
               <div style={{ backgroundColor: "#fef3c7", padding: 16, borderRadius: 10, border: "2px dashed #f59e0b" }}>
@@ -519,22 +660,9 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                     ? "⏳..."
                     : statusNextMap[activeTask.status].label}
                 </button>
-                <a
-                  href={`https://maps.google.com/?q=${activeTask.patient_lat},${activeTask.patient_lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    backgroundColor: "#f1f5f9", color: "#1e293b",
-                    border: "1px solid #e2e8f0",
-                    padding: "12px 16px", borderRadius: 10, fontWeight: 600,
-                    cursor: "pointer", fontSize: "0.9rem", textDecoration: "none",
-                    display: "flex", alignItems: "center",
-                  }}
-                >
-                  🗺️
-                </a>
               </div>
             )}
+
           </div>
         )}
 
@@ -576,7 +704,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                     <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{task.service_type.replace('_', ' ')}</span>
                     {task.notes && (
                       <div style={{ marginTop: 8, padding: 10, backgroundColor: "#f8fafc", borderRadius: 8, borderLeft: "3px solid #3b82f6", color: "#334155" }}>
-                        <strong>Details:</strong><br/>
+                        <strong>Details:</strong><br />
                         {task.notes.split('\n').map((line, i) => (
                           <span key={i}>
                             {line.includes('http') ? (
@@ -586,7 +714,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                             ) : (
                               line
                             )}
-                            <br/>
+                            <br />
                           </span>
                         ))}
                       </div>
@@ -662,7 +790,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                 <h3 style={{ margin: 0, color: "#1e293b" }}>📋 All Active Tasks</h3>
                 <button onClick={() => setShowAllTasks(false)} style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
               </div>
-              
+
               {tasks.length === 0 ? (
                 <p style={{ color: "#64748b", textAlign: "center" }}>No active tasks in your queue.</p>
               ) : (
@@ -686,7 +814,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                       <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: 8 }}>📍 {task.patient_address}</div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Created: {new Date(task.created_at).toLocaleString()}</div>
-                        <a 
+                        <a
                           href={`https://maps.google.com/?q=${task.patient_lat},${task.patient_lng}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -769,7 +897,149 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
             </div>
           </div>
         )}
+
+        {/* ─── LAB HANDOVER MODAL (Phlebotomist) ─── */}
+        {showLabModal && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
+            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
+          }}>
+            <div style={{
+              backgroundColor: "white", borderRadius: 16, padding: 28,
+              width: "100%", maxWidth: 480,
+            }}>
+              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.15rem" }}>
+                🧪 Phlebotomist Sample Handover to Lab Hub
+              </h3>
+              <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 16 }}>
+                Record the diagnostic hub details and sample container barcodes before dropping off tubes.
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
+                    Diagnostic Lab Hub Name
+                  </label>
+                  <input
+                    type="text"
+                    value={labHubName}
+                    onChange={(e) => setLabHubName(e.target.value)}
+                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
+                    Sample Barcode IDs / Tube Numbers
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. BAR-98231, BAR-98232 (EDTA / SST)"
+                    value={sampleBarcodes}
+                    onChange={(e) => setSampleBarcodes(e.target.value)}
+                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
+                    Handover Notes & Temp Verification
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Cold chain status, transport container temp (e.g. 4°C)"
+                    value={labNotes}
+                    onChange={(e) => setLabNotes(e.target.value)}
+                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowLabModal(false)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLabHandoverSubmit}
+                  disabled={actionLoading === "lab_handover"}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#b91c1c", color: "white", fontWeight: 700, cursor: "pointer" }}
+                >
+                  {actionLoading === "lab_handover" ? "Saving..." : "Confirm Handover"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── CLINICAL VITALS & NOTES MODAL (Nurse) ─── */}
+        {showVitalsModal && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
+            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
+          }}>
+            <div style={{
+              backgroundColor: "white", borderRadius: 16, padding: 28,
+              width: "100%", maxWidth: 500,
+            }}>
+              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.15rem" }}>
+                🩺 Upload Patient Vitals & Clinical Note
+              </h3>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Blood Pressure (mmHg)</label>
+                  <input type="text" value={vitalsBP} onChange={(e) => setVitalsBP(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Pulse Rate (bpm)</label>
+                  <input type="text" value={vitalsPulse} onChange={(e) => setVitalsPulse(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Body Temp (°F)</label>
+                  <input type="text" value={vitalsTemp} onChange={(e) => setVitalsTemp(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>SpO2 (%)</label>
+                  <input type="text" value={vitalsSpO2} onChange={(e) => setVitalsSpO2(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>Procedure & Dressing Clinical Notes</label>
+                <textarea
+                  rows={3}
+                  placeholder="Record nursing procedure, wound dressing details, medications administered..."
+                  value={procedureNotes}
+                  onChange={(e) => setProcedureNotes(e.target.value)}
+                  style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setShowVitalsModal(false)}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClinicalNotesSubmit}
+                  disabled={actionLoading === "clinical_notes"}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#db2777", color: "white", fontWeight: 700, cursor: "pointer" }}
+                >
+                  {actionLoading === "clinical_notes" ? "Saving..." : "Save Vitals & Complete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

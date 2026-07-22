@@ -42,8 +42,9 @@ CREATE TABLE IF NOT EXISTS dispatch_requests (
     service_subtype TEXT,         -- 'wound_dressing','injection','blood_collection' etc.
     status TEXT DEFAULT 'searching' CHECK (status IN (
         'searching','provider_notified','provider_accepted','en_route',
-        'arrived','in_progress','completed','cancelled','no_provider'
+        'arrived','in_progress','samples_delivered_to_lab','completed','cancelled','no_provider'
     )),
+
     patient_lat DOUBLE PRECISION NOT NULL,
     patient_lng DOUBLE PRECISION NOT NULL,
     patient_address TEXT DEFAULT '',
