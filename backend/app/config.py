@@ -55,7 +55,7 @@ class Settings:
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", "onboarding@resend.dev")
+    SMTP_FROM_EMAIL: str = os.getenv("EMAIL_FROM") or os.getenv("SMTP_FROM_EMAIL", "support@callmedex.com")
 
     # ─── Phase 5: Rate Limiting ───────────────────────────────────────
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
