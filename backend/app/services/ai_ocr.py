@@ -167,10 +167,22 @@ class AIOCRService:
             import google.generativeai as genai
 
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-flash-latest")
 
-            # Send the first page/image + prompt
-            response = model.generate_content([prompt, images[0]])
+            # Call Gemini Vision with model fallback strategy
+            model_names = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+            response = None
+            last_err = None
+            for m_name in model_names:
+                try:
+                    model = genai.GenerativeModel(m_name)
+                    response = model.generate_content([prompt, images[0]])
+                    if response:
+                        break
+                except Exception as e:
+                    last_err = e
+            if not response and last_err:
+                raise last_err
+
             response_text = (response.text or "").strip()
 
             # Clean markdown wrappers if Gemini adds them despite instructions
