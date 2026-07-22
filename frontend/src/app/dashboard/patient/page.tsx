@@ -168,14 +168,11 @@ export default function PatientDashboard() {
           setPatientOtp(null);
         }
 
-        // Clear tracking if the dispatch is completed, cancelled, or missing
+        // Clear tracking immediately if the dispatch is completed, cancelled, or missing
         if (data.status === "completed" || data.status === "cancelled" || data.status === "no_provider" || data.status === "not_found") {
-          const timeoutMs = data.status === "not_found" ? 0 : 10000;
-          setTimeout(() => {
-            setActiveDispatchId(null);
-            setTrackingData(null);
-            localStorage.removeItem("activeDispatchId");
-          }, timeoutMs); // Leave it on screen for 10 seconds before clearing (unless not found)
+          localStorage.removeItem("activeDispatchId");
+          setActiveDispatchId(null);
+          setTrackingData(null);
         }
       } catch (e) {
         console.error("Tracking error", e);
@@ -319,12 +316,13 @@ export default function PatientDashboard() {
 
     try {
       const res = await dispatchAPI.cancelDispatch(dispatchId);
-      if (res.success) {
-        alert(res.message);
-        if (dispatchId === activeDispatchId) {
-          setActiveDispatchId(null);
-          setTrackingData(null);
-        }
+      // Immediately purge tracking state and local storage
+      localStorage.removeItem("activeDispatchId");
+      setActiveDispatchId(null);
+      setTrackingData(null);
+
+      if (res.success || res.message?.includes("cancelled")) {
+        alert(res.message || "Request cancelled successfully.");
         // Refresh bookings
         const bRes = await fetch('/api/bookings/my', {
           headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
@@ -337,7 +335,10 @@ export default function PatientDashboard() {
         alert(res.message || "Failed to cancel");
       }
     } catch (e: any) {
-      alert(e.message || "Failed to cancel request");
+      localStorage.removeItem("activeDispatchId");
+      setActiveDispatchId(null);
+      setTrackingData(null);
+      alert(e.message || "Request cancelled.");
     }
   };
 
