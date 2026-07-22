@@ -3,8 +3,9 @@
    Matches claude.md Section 2 brand specifications exactly.
    ============================================================================ */
 
-/* ─── Google Fonts ───────────────────────────────────────────────────────── */
+/* ─── Google Fonts & Design System ───────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
+@import './styles/design-system.css';
 
 /* ─── CSS Variables / Design Tokens ──────────────────────────────────────── */
 :root {

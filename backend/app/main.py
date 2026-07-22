@@ -178,6 +178,8 @@ app.include_router(whatsapp.router)
 app.include_router(admin.router)
 app.include_router(pharmacy_orders.router)
 app.include_router(telemedicine.router)
+from app.routers import ai_features
+app.include_router(ai_features.router)
 app.include_router(insurance.router)
 app.include_router(ai_reports.router)
 app.include_router(communications.router)

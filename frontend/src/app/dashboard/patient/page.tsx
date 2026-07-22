@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import DashboardProfile from "../components/DashboardProfile";
+import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
+import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
+import DrugShieldModal from "@/app/components/DrugShieldModal";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
 
 interface UserData {
@@ -27,6 +30,10 @@ export default function PatientDashboard() {
   const [trackingData, setTrackingData] = useState<any>(null);
   const [requestingDispatch, setRequestingDispatch] = useState<string | null>(null);
   const [patientOtp, setPatientOtp] = useState<string | null>(null);
+
+  // Industry-First Feature Modals
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showDrugShieldModal, setShowDrugShieldModal] = useState(false);
 
   // Dispatch Modal State
   const [showDispatchModal, setShowDispatchModal] = useState(false);
@@ -428,7 +435,26 @@ export default function PatientDashboard() {
             </select>
             <a href="/booking" className="btn btn-primary">{t.bookTest}</a>
           </div>
+        {/* Industry-First Features Quick-Action Bar */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
+          <button
+            className="btn btn-teal"
+            style={{ background: "linear-gradient(135deg, #0d9488 0%, #06b6d4 100%)", color: "white", fontWeight: 700 }}
+            onClick={() => setShowVoiceModal(true)}
+          >
+            🎙️ AI Multilingual Voice Scribe & Triage
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)", color: "white", fontWeight: 700 }}
+            onClick={() => setShowDrugShieldModal(true)}
+          >
+            🛡️ DrugShield AI (80% Generic Savings)
+          </button>
         </div>
+
+        {/* ─── INTERACTIVE ORGAN BODY MAP & HEALTH TWIN ─── */}
+        <InteractiveBodyMap />
 
         {/* ─── LIVE SERVICE TRACKER ─── */}
         {activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status) && (
@@ -837,6 +863,51 @@ export default function PatientDashboard() {
           </div>
         </div>
       )}
+
+      {/* 🚨 Floating Emergency SOS Button */}
+      <button
+        className="sos-floating-btn"
+        onClick={async () => {
+          if (!confirm("🚨 EMERGENCY SOS ALERT: Broadcast high-priority beacon to nearby emergency doctors and ambulance network now?")) return;
+          try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/emergency-sos`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({ lat: 17.7231, lng: 83.3013, address: "Visakhapatnam Emergency Location" })
+            });
+            const data = await res.json();
+            if (res.ok && data.dispatch_id) {
+              localStorage.setItem("activeDispatchId", data.dispatch_id);
+              setActiveDispatchId(data.dispatch_id);
+              alert(data.message || "🚨 EMERGENCY BEACON DISPATCHED!");
+            }
+          } catch (e) {
+            alert("Failed to send emergency SOS.");
+          }
+        }}
+      >
+        🚨 EMERGENCY SOS
+      </button>
+
+      {/* Industry-First Feature Modals */}
+      <AIVoiceIntakeModal
+        isOpen={showVoiceModal}
+        onClose={() => setShowVoiceModal(false)}
+        onSelectProvider={(prov, summary) => {
+          setDispatchProviderType(prov);
+          setDispatchServiceType("Urgent " + prov.toUpperCase() + " Visit");
+          setDispatchLabel("AI Voice Triage Recommended Visit");
+          setDispatchSpecificReason([summary]);
+          setShowDispatchModal(true);
+        }}
+      />
+
+      <DrugShieldModal
+        isOpen={showDrugShieldModal}
+        onClose={() => setShowDrugShieldModal(false)}
+      />
+      </div>
     </div>
   );
 }

@@ -1,0 +1,144 @@
+/* CallMedex Premium Design System & Micro-Animations Engine */
+
+:root {
+  /* HSL Color System */
+  --primary-hsl: 175, 84%, 32%;      /* Vibrant Teal */
+  --primary-hover-hsl: 175, 84%, 26%;
+  --navy-hsl: 222, 47%, 11%;         /* Midnight Navy */
+  --accent-purple-hsl: 262, 83%, 58%; /* Quantum Purple */
+  --emergency-red-hsl: 0, 84%, 60%;  /* Emergency Red */
+  --gold-hsl: 43, 96%, 56%;          /* Premium Gold */
+
+  --color-primary: hsl(var(--primary-hsl));
+  --color-primary-light: hsl(175, 84%, 95%);
+  --color-navy: hsl(var(--navy-hsl));
+  --color-purple: hsl(var(--accent-purple-hsl));
+  --color-emergency: hsl(var(--emergency-red-hsl));
+  --color-gold: hsl(var(--gold-hsl));
+
+  /* Glassmorphism Tokens */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+
+  /* Transitions */
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Glassmorphism Card Utility */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+}
+
+/* Floating SOS Emergency Button */
+.sos-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: 2px solid #fca5a5;
+  border-radius: 50px;
+  padding: 14px 24px;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 10px 25px rgba(220, 38, 38, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: pulse-sos 2s infinite;
+  transition: var(--transition-spring);
+}
+
+.sos-floating-btn:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 15px 35px rgba(220, 38, 38, 0.7);
+}
+
+@keyframes pulse-sos {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* Interactive SVG Organ Hot-Spots */
+.organ-path {
+  fill: rgba(13, 148, 136, 0.15);
+  stroke: #0d9488;
+  stroke-width: 2;
+  transition: var(--transition-smooth);
+  cursor: pointer;
+}
+
+.organ-path:hover {
+  fill: rgba(13, 148, 136, 0.45);
+  stroke: #0d9488;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px rgba(13, 148, 136, 0.6));
+}
+
+.organ-path--selected {
+  fill: rgba(13, 148, 136, 0.65) !important;
+  stroke: #0f766e !important;
+  stroke-width: 3.5 !important;
+  filter: drop-shadow(0 0 12px rgba(13, 148, 136, 0.8)) !important;
+}
+
+/* Voice Waveform Pulse */
+.voice-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 48px;
+}
+
+.voice-wave span {
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(180deg, #0d9488 0%, #06b6d4 100%);
+  border-radius: 4px;
+  animation: wave 1.2s infinite ease-in-out;
+}
+
+.voice-wave span:nth-child(2) { animation-delay: 0.2s; }
+.voice-wave span:nth-child(3) { animation-delay: 0.4s; }
+.voice-wave span:nth-child(4) { animation-delay: 0.6s; }
+.voice-wave span:nth-child(5) { animation-delay: 0.8s; }
+
+@keyframes wave {
+  0%, 100% { height: 12px; }
+  50% { height: 44px; }
+}
+
+/* Micro Badge Styles */
+.badge-ai {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badge-emergency {
+  background: #ef4444;
+  color: white;
+  font-weight: 800;
+  animation: flash 1s infinite;
+}
+
+@keyframes flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
