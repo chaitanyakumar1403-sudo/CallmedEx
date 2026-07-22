@@ -59,12 +59,38 @@ def get_org_token():
     r = client.post("/api/auth/signup", json=signup_payload)
     assert r.status_code == 200, f"Org Signup failed: {r.text}"
 
+    # Non-patient roles require MOU acceptance before account activation
+    user_payload = {
+        "user_data": {
+            "id": str(uuid.uuid4()),
+            "full_name": "Clinic Admin",
+            "email": email,
+            "mobile": "+919876543211",
+            "password_hash": "$2b$12$4S8TqD3iupbLSlKnS/rKou6cd91ULcjkaWho.HD3J6OT.1ORIHr5C",
+            "role": "organization",
+            "gender": "male",
+            "date_of_birth": "1985-06-20",
+            "registration_status": "pending_mou",
+            "is_active": True
+        },
+        "profile_data": {
+            "id": str(uuid.uuid4()),
+            "organization_name": "Apex Diagnostics",
+            "organization_type": "diagnostic_center"
+        }
+    }
+    from app.services.email import EmailService
+    token = EmailService.send_mou_email_for_role(email, "organization", user_payload)
+
+    r_accept = client.post("/api/auth/accept-mou", json={"token": token})
+    assert r_accept.status_code == 200, f"MOU acceptance failed: {r_accept.text}"
+
+    # Login now succeeds with active account
     login_payload = {"email": email, "password": "Password123!"}
     r_login = client.post("/api/auth/login", json=login_payload)
     assert r_login.status_code == 200, f"Org Login failed: {r_login.text}"
     data = r_login.json()
-    token = data.get("access_token") or data.get("data", {}).get("access_token")
-    return token
+    return data.get("access_token") or data.get("data", {}).get("access_token")
 
 def test_org_signup_with_owner_flow():
     email = f"manager_{uuid.uuid4().hex[:6]}@clinic.com"
