@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 interface VideoRoomProps {
   roomName: string;
   roomUrl: string;
+  meetingToken?: string;
   userName: string;
   userEmail?: string;
   consultationId: string;
@@ -26,6 +27,7 @@ type ConnectionQuality = 'good' | 'fair' | 'poor' | 'disconnected';
 export default function VideoRoom({
   roomName,
   roomUrl,
+  meetingToken,
   userName,
   userEmail,
   consultationId,
@@ -76,7 +78,7 @@ export default function VideoRoom({
 
   const getQualityLabel = (quality: ConnectionQuality): string => {
     switch (quality) {
-      case 'good': return '● Excellent';
+      case 'good': return '● Excellent (Daily.co HD)';
       case 'fair': return '● Fair';
       case 'poor': return '● Poor';
       case 'disconnected': return '● Disconnected';
@@ -99,8 +101,11 @@ export default function VideoRoom({
     setIsFullscreen(!isFullscreen);
   }, [isFullscreen]);
 
-  // Build Jitsi iframe URL with config
-  const jitsiUrl = `${roomUrl}#config.prejoinConfig.enabled=false&config.startWithAudioMuted=${isMuted}&config.startWithVideoMuted=${isVideoOff}&config.disableDeepLinking=true&config.hideConferenceSubject=true&userInfo.displayName=${encodeURIComponent(userName)}${userEmail ? `&userInfo.email=${encodeURIComponent(userEmail)}` : ''}`;
+  // Construct Daily.co or Jitsi video iframe URL
+  const isDaily = roomUrl.includes("daily.co");
+  const videoIframeUrl = isDaily
+    ? `${roomUrl}${meetingToken ? `?t=${meetingToken}` : ""}`
+    : `${roomUrl}#config.prejoinConfig.enabled=false&config.startWithAudioMuted=${isMuted}&config.startWithVideoMuted=${isVideoOff}&config.disableDeepLinking=true&config.hideConferenceSubject=true&userInfo.displayName=${encodeURIComponent(userName)}${userEmail ? `&userInfo.email=${encodeURIComponent(userEmail)}` : ''}`;
 
   return (
     <div className="video-room" ref={containerRef}>
@@ -131,7 +136,7 @@ export default function VideoRoom({
       <div className="video-room__frame">
         <iframe
           ref={iframeRef}
-          src={jitsiUrl}
+          src={videoIframeUrl}
           allow="camera; microphone; display-capture; autoplay; clipboard-write"
           allowFullScreen
           style={{

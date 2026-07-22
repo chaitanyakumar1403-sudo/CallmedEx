@@ -27,6 +27,7 @@ class Settings:
 
     # AI Services
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    DAILY_API_KEY: str = os.getenv("DAILY_API_KEY", "")
 
     # Optional — Phase 2+
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

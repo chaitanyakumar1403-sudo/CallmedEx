@@ -159,6 +159,56 @@ export default function PrescriptionView({
         )}
       </div>
 
+      {/* 1-Click Post-Consultation Action Hub */}
+      <div style={{ backgroundColor: "#f0fdf4", border: "2px solid #22c55e", borderRadius: 12, padding: 20, marginBottom: 24, textAlign: "center" }}>
+        <h4 style={{ margin: "0 0 10px 0", color: "#15803d", fontSize: "1.1rem" }}>⚡ 1-Click Patient Care Fulfillment</h4>
+        <p style={{ margin: "0 0 16px 0", fontSize: "0.9rem", color: "#166534" }}>Order your prescribed medicines or book home blood sample collection directly from this consultation:</p>
+        
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <button
+            className="btn btn-teal"
+            style={{ fontWeight: "bold", background: "#16a34a", color: "white" }}
+            onClick={async () => {
+              try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/telemed/order-prescribed`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                  body: JSON.stringify({ consultation_id: consultationId, action_type: "pharmacy" })
+                });
+                const data = await res.json();
+                alert(data.message || "Prescribed medicines routed to nearby partner pharmacy for home delivery!");
+              } catch (e: any) {
+                alert("Failed to create medicine order. Please try again.");
+              }
+            }}
+          >
+            📦 Order Medicines for Home Delivery
+          </button>
+
+          <button
+            className="btn btn-primary"
+            style={{ fontWeight: "bold", background: "#2563eb", color: "white" }}
+            onClick={async () => {
+              try {
+                const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/telemed/order-prescribed`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                  body: JSON.stringify({ consultation_id: consultationId, action_type: "diagnostics" })
+                });
+                const data = await res.json();
+                alert(data.message || "Home blood sample collection dispatched! A phlebotomist will be assigned shortly.");
+              } catch (e: any) {
+                alert("Failed to book sample collection. Please try again.");
+              }
+            }}
+          >
+            🩸 Book Home Sample Collection
+          </button>
+        </div>
+      </div>
+
       {/* Actions */}
       <div className="prescription__actions">
         <button className="btn btn-primary" onClick={onDownload}>

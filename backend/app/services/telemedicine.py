@@ -33,18 +33,112 @@ class TelemedicineService:
     """
 
     # ──────────────────────────────────────────────────────────────────
-    # Room Generation
+    # Room Generation (Daily.co & Jitsi Fallback)
     # ──────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def generate_video_room(consultation_id: str = None) -> dict:
+    def generate_daily_room(consultation_id: str = None) -> dict:
         """
-        Generates a secure, unique Jitsi Meet room URL.
-        Room name is derived from consultation ID for traceability.
-        Returns room URL and room name for embedding.
+        Creates a high-definition private video room using the Daily.co REST API.
+        Auto-expires after 45 minutes for security.
         """
+        if not getattr(settings, "DAILY_API_KEY", ""):
+            return TelemedicineService.generate_jitsi_room(consultation_id)
+
+        import time
+        import json
+        import urllib.request
+        import urllib.error
+
         room_suffix = consultation_id[:12] if consultation_id else str(uuid.uuid4())[:12]
-        # Create a deterministic but opaque room name
+        room_name = f"cmx-{room_suffix}"
+        exp_time = int(time.time()) + (CONSULTATION_TIMEOUT_MINUTES * 60)
+
+        payload = {
+            "name": room_name,
+            "privacy": "private",
+            "properties": {
+                "exp": exp_time,
+                "enable_chat": True,
+                "enable_screenshare": True,
+                "enable_prejoin_ui": True,
+                "start_video_off": False,
+                "start_audio_off": False,
+                "lang": "en"
+            }
+        }
+
+        try:
+            req = urllib.request.Request(
+                "https://api.daily.co/v1/rooms",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {settings.DAILY_API_KEY}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "CallMedex-Backend/1.0"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req) as resp:
+                if resp.status in (200, 201):
+                    data = json.loads(resp.read().decode("utf-8"))
+                    return {
+                        "room_url": data.get("url"),
+                        "room_name": data.get("name"),
+                        "provider": "daily",
+                    }
+        except Exception as e:
+            logger.warning(f"Daily.co API room creation failed, falling back to Jitsi: {e}")
+
+        return TelemedicineService.generate_jitsi_room(consultation_id)
+
+    @staticmethod
+    def generate_daily_meeting_token(room_name: str, user_name: str, is_doctor: bool) -> Optional[str]:
+        """
+        Generates a role-specific meeting token via Daily.co API.
+        Doctors receive moderator privileges (owner/record/mute), patients receive attendee tokens.
+        """
+        if not getattr(settings, "DAILY_API_KEY", ""):
+            return None
+
+        import json
+        import urllib.request
+        import time
+
+        exp_time = int(time.time()) + (CONSULTATION_TIMEOUT_MINUTES * 60)
+        payload = {
+            "properties": {
+                "room_name": room_name,
+                "is_owner": is_doctor,
+                "user_name": user_name,
+                "exp": exp_time
+            }
+        }
+
+        try:
+            req = urllib.request.Request(
+                "https://api.daily.co/v1/meeting-tokens",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {settings.DAILY_API_KEY}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "CallMedex-Backend/1.0"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req) as resp:
+                if resp.status in (200, 201):
+                    data = json.loads(resp.read().decode("utf-8"))
+                    return data.get("token")
+        except Exception as e:
+            logger.error(f"Failed to generate Daily.co meeting token: {e}")
+
+        return None
+
+    @staticmethod
+    def generate_jitsi_room(consultation_id: str = None) -> dict:
+        """Fallback: Generates a secure Jitsi Meet room URL."""
+        room_suffix = consultation_id[:12] if consultation_id else str(uuid.uuid4())[:12]
         room_hash = hashlib.sha256(
             f"callmedex-{room_suffix}-{settings.JWT_SECRET}".encode()
         ).hexdigest()[:16]
@@ -56,6 +150,11 @@ class TelemedicineService:
             "room_name": room_name,
             "provider": "jitsi",
         }
+
+    @staticmethod
+    def generate_video_room(consultation_id: str = None) -> dict:
+        """Generates a video room (Daily.co with Jitsi fallback)."""
+        return TelemedicineService.generate_daily_room(consultation_id)
 
     # ──────────────────────────────────────────────────────────────────
     # Consultation Lifecycle
@@ -405,4 +504,89 @@ class TelemedicineService:
             "success": True,
             "consultation_id": consultation_id,
             "ai_analysis": ai_output,
+        }
+
+    # ──────────────────────────────────────────────────────────────────
+    # Pre-Intake & 1-Click Post-Consultation Action Hub
+    # ──────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def submit_pre_intake(
+        consultation_id: str,
+        symptoms: str,
+        duration: str,
+        pain_score: int,
+        active_medications: str = "",
+        allergies: str = "",
+    ) -> dict:
+        """
+        Processes pre-call patient intake and generates a clinical note for the doctor.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        intake_summary = f"Symptoms: {symptoms} ({duration}). Pain Score: {pain_score}/10. Meds: {active_medications or 'None'}. Allergies: {allergies or 'None'}."
+
+        if supabase:
+            try:
+                supabase.table("consultations").update({
+                    "transcript_text": f"[PRE-INTAKE] {intake_summary}",
+                    "updated_at": now,
+                }).eq("id", consultation_id).execute()
+            except Exception as e:
+                logger.warning(f"Failed to update pre-intake in DB: {e}")
+
+        return {
+            "success": True,
+            "consultation_id": consultation_id,
+            "intake_summary": intake_summary,
+        }
+
+    @staticmethod
+    async def order_prescribed_actions(
+        consultation_id: str,
+        patient_id: str,
+        action_type: str,  # 'pharmacy' or 'diagnostics'
+        address: str = "Patient Default Address",
+    ) -> dict:
+        """
+        1-Click Post-Consultation Dispatch:
+        Routes prescribed medicines to pharmacy partner or dispatches phlebotomist for lab tests.
+        """
+        consultation = await TelemedicineService.get_consultation(consultation_id) or {}
+
+        now = datetime.now(timezone.utc).isoformat()
+        dispatch_id = f"disp_{str(uuid.uuid4())[:8]}"
+
+        if action_type == "pharmacy":
+            medicines = consultation.get("ai_medicines", [])
+            med_text = ", ".join([m.get("generic_name", "") for m in medicines if isinstance(m, dict)])
+            notes = f"Telemedicine E-Prescription Order ({consultation_id[:8]}): {med_text or 'Prescribed medications'}"
+            provider_type = "pharmacy"
+        else:
+            investigations = consultation.get("ai_investigations", [])
+            inv_text = ", ".join(investigations) if isinstance(investigations, list) else str(investigations)
+            notes = f"Telemedicine Prescribed Lab Test ({consultation_id[:8]}): {inv_text or 'Diagnostic blood tests'}"
+            provider_type = "phlebotomist"
+
+        dispatch_data = {
+            "id": dispatch_id,
+            "patient_id": patient_id,
+            "provider_type": provider_type,
+            "patient_address": address,
+            "status": "searching",
+            "notes": notes,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        if supabase:
+            try:
+                supabase.table("dispatch_requests").insert(dispatch_data).execute()
+            except Exception as e:
+                logger.warning(f"Failed to insert dispatch request in DB: {e}")
+
+        return {
+            "success": True,
+            "action_type": action_type,
+            "dispatch_id": dispatch_id,
+            "message": f"Successfully created 1-click {action_type} request."
         }

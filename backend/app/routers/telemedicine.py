@@ -291,3 +291,92 @@ async def get_consultation_details(
         raise HTTPException(status_code=403, detail="Access denied")
 
     return {"success": True, "consultation": consultation}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DAILY.CO MEETING TOKENS, PRE-INTAKE & 1-CLICK DISPATCH
+# ═══════════════════════════════════════════════════════════════════════════
+
+class PreIntakeRequest(BaseModel):
+    consultation_id: str
+    symptoms: str
+    duration: str
+    pain_score: int = 5
+    active_medications: Optional[str] = ""
+    allergies: Optional[str] = ""
+
+
+class OrderPrescribedRequest(BaseModel):
+    consultation_id: str
+    action_type: str  # 'pharmacy' or 'diagnostics'
+    address: Optional[str] = "Patient Default Address"
+
+
+@router.get("/{consultation_id}/meeting-token")
+async def get_daily_meeting_token(
+    consultation_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Returns a Daily.co meeting token.
+    Doctors get moderator privileges (is_owner: True), patients get attendee privileges.
+    """
+    consultation = await TelemedicineService.get_consultation(consultation_id)
+    if not consultation:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+
+    user_id = current_user["sub"]
+    is_doctor = (current_user.get("role") in ("doctor", "admin") or consultation.get("doctor_id") == user_id)
+    user_name = current_user.get("name") or ("Dr. Provider" if is_doctor else "Patient")
+    room_name = consultation.get("video_room_name") or f"cmx-{consultation_id[:8]}"
+
+    token = TelemedicineService.generate_daily_meeting_token(
+        room_name=room_name,
+        user_name=user_name,
+        is_doctor=is_doctor,
+    )
+
+    return {
+        "success": True,
+        "consultation_id": consultation_id,
+        "room_name": room_name,
+        "room_url": consultation.get("video_room_url"),
+        "meeting_token": token,
+        "is_doctor": is_doctor,
+    }
+
+
+@router.post("/pre-intake")
+async def submit_pre_consultation_intake(
+    req: PreIntakeRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Submit pre-call patient intake symptoms before video consultation."""
+    result = await TelemedicineService.submit_pre_intake(
+        consultation_id=req.consultation_id,
+        symptoms=req.symptoms,
+        duration=req.duration,
+        pain_score=req.pain_score,
+        active_medications=req.active_medications,
+        allergies=req.allergies,
+    )
+    return result
+
+
+@router.post("/order-prescribed")
+async def order_prescribed_actions(
+    req: OrderPrescribedRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    1-Click Post-Consultation Action Dispatch:
+    Order medicines directly to nearby pharmacy or dispatch phlebotomist for lab tests.
+    """
+    result = await TelemedicineService.order_prescribed_actions(
+        consultation_id=req.consultation_id,
+        patient_id=current_user["sub"],
+        action_type=req.action_type,
+        address=req.address,
+    )
+    return result
+
