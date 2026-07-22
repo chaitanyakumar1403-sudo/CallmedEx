@@ -435,6 +435,8 @@ export default function PatientDashboard() {
             </select>
             <a href="/booking" className="btn btn-primary">{t.bookTest}</a>
           </div>
+        </div>
+
         {/* Industry-First Features Quick-Action Bar */}
         <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
           <button
@@ -907,7 +909,6 @@ export default function PatientDashboard() {
         isOpen={showDrugShieldModal}
         onClose={() => setShowDrugShieldModal(false)}
       />
-      </div>
     </div>
   );
 }
