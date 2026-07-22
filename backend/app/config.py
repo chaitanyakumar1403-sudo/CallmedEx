@@ -23,7 +23,7 @@ class Settings:
 
     # Server
     BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://callmedex-frontend.vercel.app")
 
     # AI Services
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
