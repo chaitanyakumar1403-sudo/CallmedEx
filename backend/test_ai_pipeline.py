@@ -93,7 +93,7 @@ async def test_pipeline():
         
         assert result['status'] == 'verified', f"Expected 'verified', got {result['status']}"
         
-        print("\n⏳ Sleeping for 15 seconds to respect Gemini Free Tier rate limits...")
+        print("\n[WAIT] Sleeping for 15 seconds to respect Gemini Free Tier rate limits...")
         await asyncio.sleep(15)
         
         # 4. RUN THE PIPELINE (Mismatch Case)
