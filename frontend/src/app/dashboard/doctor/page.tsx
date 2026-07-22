@@ -365,7 +365,7 @@ export default function DoctorDashboard() {
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button
-            onClick={() => router.push("/consultation")}
+            onClick={() => router.push("/dashboard/doctor/consult/instant")}
             style={{
               padding: "8px 16px",
               background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
@@ -381,7 +381,7 @@ export default function DoctorDashboard() {
               boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
             }}
           >
-            📹 Launch Video Consultation
+            📹 Launch Live Consultation Room
           </button>
           <span style={{
             backgroundColor: availability.length > 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
@@ -761,16 +761,25 @@ export default function DoctorDashboard() {
                         {booking.slot_time || booking.time} • {booking.service_type || "Consultation"}
                       </div>
                     </div>
-                    <span style={{
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      backgroundColor: booking.status === "confirmed" ? "#dcfce7" : "#fef3c7",
-                      color: booking.status === "confirmed" ? "#166534" : "#92400e",
-                    }}>
-                      {booking.status || "Pending"}
-                    </span>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <button
+                        onClick={() => router.push(`/dashboard/doctor/consult/${booking.id || "instant"}`)}
+                        className="btn btn-teal btn-sm"
+                        style={{ padding: "6px 14px", fontSize: "0.8rem" }}
+                      >
+                        📹 Start Video Call
+                      </button>
+                      <span style={{
+                        padding: "6px 14px",
+                        borderRadius: 20,
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        backgroundColor: booking.status === "confirmed" ? "#dcfce7" : "#fef3c7",
+                        color: booking.status === "confirmed" ? "#166534" : "#92400e",
+                      }}>
+                        {booking.status || "Pending"}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
