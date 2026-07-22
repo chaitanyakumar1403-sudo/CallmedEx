@@ -593,34 +593,7 @@ async def update_task_status_lifecycle(
         raise HTTPException(500, f"Failed to update status: {e}")
 
 
-@router.post("/{dispatch_id}/cancel")
-async def cancel_dispatch(
-    dispatch_id: str,
-    current_user: dict = Depends(get_current_user),
-):
-    """Patient cancels a pending or assigned dispatch request."""
-    from app.database import supabase
-    from datetime import datetime, timezone
-    if not supabase:
-        raise HTTPException(500, "Database not configured")
 
-    now = datetime.now(timezone.utc).isoformat()
-    try:
-        result = (
-            supabase.table("dispatch_requests")
-            .update({"status": "cancelled", "updated_at": now})
-            .eq("id", dispatch_id)
-            .eq("patient_id", current_user["sub"])
-            .in_("status", ["pending", "assigned"])
-            .execute()
-        )
-        if result.data:
-            return {"success": True, "message": "Request cancelled successfully"}
-        raise HTTPException(400, "Cannot cancel — dispatch may already be in progress or completed")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Failed to cancel dispatch: {e}")
 
 
 @router.post("/{dispatch_id}/masked-call")
@@ -818,23 +791,34 @@ async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_cur
     """
     user_id = current_user["sub"]
     from app.database import supabase
-    if not supabase:
-        return {"success": True, "message": "Simulated cancellation", "status": "cancelled"}
-        
-    res = supabase.table("dispatch_requests").select("*").eq("id", dispatch_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Dispatch not found")
-        
-    dispatch = res.data[0]
-    
-    if dispatch.get("patient_id") != user_id:
+    from app.services.dispatch_engine import _local_dispatches
+
+    dispatch = None
+    if supabase:
+        try:
+            res = supabase.table("dispatch_requests").select("*").eq("id", dispatch_id).execute()
+            if res.data:
+                dispatch = res.data[0]
+        except Exception:
+            pass
+
+    if not dispatch:
+        dispatch = next((d for d in _local_dispatches if d.get("id") == dispatch_id), None)
+
+    if not dispatch:
+        raise HTTPException(status_code=404, detail="Dispatch request not found")
+
+    if dispatch.get("patient_id") and dispatch.get("patient_id") != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to cancel this dispatch")
-        
-    current_status = dispatch.get("status")
-    
-    if current_status in ["cancelled", "completed", "arrived", "in_progress"]:
+
+    current_status = dispatch.get("status", "searching")
+
+    if current_status == "cancelled":
+        return {"success": True, "message": "Request is already cancelled", "fee_applied": False}
+
+    if current_status in ["completed", "arrived", "in_progress"]:
         raise HTTPException(status_code=400, detail=f"Cannot cancel a dispatch that is currently {current_status}")
-        
+
     fee_applied = False
     if current_status in ["provider_accepted", "en_route"]:
         created_at_str = dispatch.get("created_at")
@@ -848,10 +832,16 @@ async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_cur
             except Exception:
                 fee_applied = True
 
-    # 1. Cancel the dispatch
+    # 1. Update dispatch in Supabase and memory fallback
     update_data = {"status": "cancelled"}
-    supabase.table("dispatch_requests").update(update_data).eq("id", dispatch_id).execute()
-    
+    dispatch["status"] = "cancelled"
+
+    if supabase:
+        try:
+            supabase.table("dispatch_requests").update(update_data).eq("id", dispatch_id).execute()
+        except Exception:
+            pass
+
     # 2. Cancel the associated booking if it exists
     booking_id = dispatch.get("booking_id")
     if booking_id:
@@ -859,22 +849,25 @@ async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_cur
         notes = "Cancelled by patient via dispatch tracker."
         if fee_applied:
             notes += " Cancellation fee applied."
-            
-        b_res = supabase.table("bookings").select("*").eq("id", booking_id).execute()
-        if b_res.data:
-            existing_notes = b_res.data[0].get("notes", "")
-            supabase.table("bookings").update({
-                "status": "cancelled",
-                "notes": existing_notes + f"\n[{datetime.now().isoformat()}] {notes}"
-            }).eq("id", booking_id).execute()
-            
-            # Record booking history
+
+        if supabase:
             try:
-                from app.routers.bookings import _record_booking_history
-                _record_booking_history(booking_id, b_res.data[0].get("status"), "cancelled", changed_by=user_id, notes=notes)
+                b_res = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+                if b_res.data:
+                    existing_notes = b_res.data[0].get("notes", "")
+                    supabase.table("bookings").update({
+                        "status": "cancelled",
+                        "notes": existing_notes + f"\n[{datetime.now().isoformat()}] {notes}"
+                    }).eq("id", booking_id).execute()
+
+                    try:
+                        from app.routers.bookings import _record_booking_history
+                        _record_booking_history(booking_id, b_res.data[0].get("status"), "cancelled", changed_by=user_id, notes=notes)
+                    except Exception:
+                        pass
             except Exception:
                 pass
-                
+
     return {
         "success": True, 
         "message": f"Request cancelled successfully. {'A cancellation fee will be applied.' if fee_applied else 'No fee applied.'}",
