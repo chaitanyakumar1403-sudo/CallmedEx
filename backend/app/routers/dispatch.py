@@ -898,7 +898,7 @@ async def trigger_emergency_sos(
     sos_data = {
         "id": dispatch_id,
         "patient_id": current_user["sub"],
-        "provider_type": "home_doctor",
+        "provider_type": "doctor",
         "patient_lat": req.lat,
         "patient_lng": req.lng,
         "patient_address": req.address,
