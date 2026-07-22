@@ -119,23 +119,33 @@ async def create_booking(
     booking_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
-    # The frontend sends slot_id as "provider_id|date|time" (e.g. "org-demo-1|2026-07-15|09:00")
+    # The frontend sends slot_id as "provider_id|date|time" or "provider_id|date|pending"
     # Parse it to build the booking record
     slot_parts = booking.slot_id.split("|")
-    if len(slot_parts) == 3:
+    if len(slot_parts) == 3 and slot_parts[2] != "pending" and ":" in slot_parts[2]:
         slot_provider, slot_date, slot_time = slot_parts
         slot_start = f"{slot_date}T{slot_time}:00"
-        hour = int(slot_time.split(":")[0])
-        slot_end = f"{slot_date}T{hour:02d}:30:00"
+        try:
+            hour = int(slot_time.split(":")[0])
+            slot_end = f"{slot_date}T{hour:02d}:30:00"
+        except ValueError:
+            slot_end = f"{slot_date}T23:59:59"
+    elif len(slot_parts) == 3 or booking.preferred_date:
+        slot_date = slot_parts[1] if len(slot_parts) >= 2 else (booking.preferred_date or now.split("T")[0])
+        slot_start = f"{slot_date}T00:00:00"
+        slot_end = f"{slot_date}T23:59:59"
     else:
         # Fallback: try to find in local slots by UUID
         slot = None
         _init_demo_slots()
         slot = next((s for s in _local_slots if s["id"] == booking.slot_id), None)
         if not slot:
-            raise HTTPException(status_code=404, detail="Slot not found")
-        slot_start = f"{slot['date']}T{slot['start_time']}"
-        slot_end = f"{slot['date']}T{slot['end_time']}"
+            # Default to full day if slot_id is dynamic/custom
+            slot_start = f"{now.split('T')[0]}T00:00:00"
+            slot_end = f"{now.split('T')[0]}T23:59:59"
+        else:
+            slot_start = f"{slot['date']}T{slot['start_time']}"
+            slot_end = f"{slot['date']}T{slot['end_time']}"
 
     # Prevent double-booking: same user, same slot
     conflict = False
