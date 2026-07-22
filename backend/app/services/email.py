@@ -113,58 +113,113 @@ class EmailService:
         Sends a welcome email after MOU acceptance and account activation.
         """
         role_display = role.replace("_", " ").title()
-        print("\n" + "=" * 70)
-        print(f"[WELCOME EMAIL TO] {to_email}")
-        print(f"[SUBJECT] Welcome to CallMedex! Your {role_display} Account is Active")
-        print("=" * 70)
-        print(f"\nDear {provider_name},\n")
-        print(f"Your MOU acceptance was successful. Your {role_display} account has been officially created.\n")
-        print("You can now log in to your dashboard and begin using CallMedex:\n")
-        print(f"[LOGIN URL] {settings.FRONTEND_URL}/auth/login\n")
-        print("What you can do next:")
-        print("  [OK] Complete your profile and upload verification documents")
-        print("  [OK] Start receiving bookings from patients")
-        print("  [OK] Manage your availability and services\n")
-        print("Welcome to the future of healthcare orchestration!")
-        print("-- The CallMedex Team")
-        print("=" * 70 + "\n")
+        subject = f"Welcome to CallMedex! Your {role_display} Account is Active"
+        login_url = f"{settings.FRONTEND_URL}/auth/login"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="color: #16a34a; margin-top: 0;">🎉 Welcome to CallMedex!</h2>
+                <p style="color: #374151; font-size: 16px;">Dear <strong>{provider_name}</strong>,</p>
+                <p style="color: #374151; font-size: 16px;">Your MOU acceptance was successful. Your <strong>{role_display}</strong> account is now officially active!</p>
+                
+                <div style="margin: 25px 0;">
+                    <a href="{login_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        Log In to Your Dashboard
+                    </a>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">Next steps on CallMedex:</p>
+                <ul style="color: #4b5563; font-size: 14px; line-height: 1.6;">
+                    <li>Complete your organization profile & upload documents</li>
+                    <li>Receive and manage patient bookings in real-time</li>
+                    <li>Manage service availability and staff schedules</li>
+                </ul>
+            </div>
+        </body>
+        </html>
+        """
+        text_content = f"Dear {provider_name},\nYour {role_display} account is active! Log in at: {login_url}"
+
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            print("\n" + "=" * 70)
+            print(f"[WELCOME EMAIL TO] {to_email}")
+            print(f"[SUBJECT] {subject}")
+            print("=" * 70 + "\n")
 
     @staticmethod
     def send_dispatch_alert_email(to_email: str, provider_name: str, task_details: dict):
         """
         Sends an alert email to a nearby provider when a new dispatch is requested.
         """
-        print("\n" + "=" * 70)
-        print(f"[DISPATCH ALERT TO] {to_email}")
-        print(f"[SUBJECT] 🚨 Urgent: New Home Visit Request Nearby!")
-        print("=" * 70)
-        print(f"\nHello {provider_name},\n")
-        print(f"A new home visit request is available in your area.\n")
-        print("--- TASK DETAILS ---")
-        print(f"Type: {task_details.get('service_subtype', 'Service').replace('_', ' ').title()}")
-        print(f"Location: {task_details.get('patient_address', 'Unknown Location')}")
-        print(f"Distance: {task_details.get('distance_km', '?')} km away")
-        print("--------------------\n")
-        print("Please log in to your CallMedex dashboard to accept the request before it expires:")
-        print(f"[DASHBOARD URL] {settings.FRONTEND_URL}/dashboard\n")
-        print("=" * 70 + "\n")
+        service_title = task_details.get('service_subtype', 'Service').replace('_', ' ').title()
+        subject = f"🚨 Urgent: New {service_title} Request Nearby!"
+        dashboard_url = f"{settings.FRONTEND_URL}/dashboard"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="color: #dc2626; margin-top: 0;">🚨 Urgent Dispatch Request</h2>
+                <p style="color: #374151; font-size: 16px;">Hello <strong>{provider_name}</strong>,</p>
+                <p style="color: #374151; font-size: 16px;">A new home visit request matched your service area.</p>
+                
+                <div style="background: #f8fafc; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 5px 0;"><strong>Service:</strong> {service_title}</p>
+                    <p style="margin: 5px 0;"><strong>Location:</strong> {task_details.get('patient_address', 'Unknown Location')}</p>
+                    <p style="margin: 5px 0;"><strong>Distance:</strong> {task_details.get('distance_km', '?')} km away</p>
+                </div>
+                
+                <div style="margin: 25px 0;">
+                    <a href="{dashboard_url}" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        Open Dashboard to Respond
+                    </a>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        text_content = f"Hello {provider_name}, new request nearby: {service_title}. Open dashboard: {dashboard_url}"
+
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            print("\n" + "=" * 70)
+            print(f"[DISPATCH ALERT TO] {to_email}")
+            print(f"[SUBJECT] {subject}")
+            print("=" * 70 + "\n")
 
     @staticmethod
     def send_tracking_link_email(to_email: str, patient_name: str, tracking_url: str, provider_name: str, provider_type: str):
         """
         Sends the tracking link to the patient when a provider accepts the dispatch.
         """
-        print("\n" + "=" * 70)
-        print(f"[TRACKING LINK TO] {to_email}")
-        print(f"[SUBJECT] Your {provider_type.replace('_', ' ').title()} is on the way!")
-        print("=" * 70)
-        print(f"\nDear {patient_name},\n")
-        print(f"Great news! {provider_name} has accepted your home visit request and will be heading to your location shortly.\n")
-        print(f"You can track their location and get your unique Service OTP by clicking the link below:")
-        print(f"[TRACKING URL] {tracking_url}\n")
-        print("Please keep your OTP ready to share with the provider when they arrive.")
-        print("-- The CallMedex Team")
-        print("=" * 70 + "\n")
+        provider_title = provider_type.replace('_', ' ').title()
+        subject = f"🚗 Your {provider_title} is on the way!"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="color: #16a34a; margin-top: 0;">🚗 Provider En Route!</h2>
+                <p style="color: #374151; font-size: 16px;">Dear <strong>{patient_name}</strong>,</p>
+                <p style="color: #374151; font-size: 16px;">Great news! <strong>{provider_name}</strong> has accepted your request and is heading to your location.</p>
+                
+                <div style="margin: 25px 0;">
+                    <a href="{tracking_url}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        Track Live Location & View Service OTP
+                    </a>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">Please keep your 6-digit Service OTP ready to share when the provider arrives.</p>
+            </div>
+        </body>
+        </html>
+        """
+        text_content = f"Dear {patient_name},\n{provider_name} is on the way! Track live location & OTP here: {tracking_url}"
+
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            print("\n" + "=" * 70)
+            print(f"[TRACKING LINK TO] {to_email}")
+            print(f"[SUBJECT] {subject}")
+            print("=" * 70 + "\n")
 
     @staticmethod
     def _send_real_email(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
