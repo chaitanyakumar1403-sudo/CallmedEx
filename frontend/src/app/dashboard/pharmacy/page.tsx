@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
 import DashboardProfile from '../components/DashboardProfile';
+import DrugShieldModal from '../../components/DrugShieldModal';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => localStorage.getItem("token") || "";
@@ -14,6 +15,7 @@ export default function PharmacyDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<any>(null);
+  const [showDrugShield, setShowDrugShield] = useState(false);
   
   // New Inventory State
   const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, stock_quantity: 0, category: 'medicine', is_prescription_required: false });
@@ -132,11 +134,33 @@ export default function PharmacyDashboard() {
             </h1>
             <p style={{ color: '#94a3b8', margin: '0', fontSize: '16px' }}>Manage prescriptions, digital inventory, and dispatches.</p>
           </div>
-          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981' }}></div>
-            Store Online
-          </span>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setShowDrugShield(true)}
+              style={{
+                padding: '10px 18px',
+                background: 'linear-gradient(135deg, #0d9488 0%, #06b6d4 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              🛡️ DrugShield AI Verification
+            </button>
+            <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981' }}></div>
+              Store Online
+            </span>
+          </div>
         </div>
+
+        <DrugShieldModal isOpen={showDrugShield} onClose={() => setShowDrugShield(false)} />
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>

@@ -364,6 +364,25 @@ export default function DoctorDashboard() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button
+            onClick={() => router.push("/consultation")}
+            style={{
+              padding: "8px 16px",
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+              color: "white",
+              border: "none",
+              borderRadius: 20,
+              fontWeight: 700,
+              fontSize: "0.82rem",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
+            }}
+          >
+            📹 Launch Video Consultation
+          </button>
           <span style={{
             backgroundColor: availability.length > 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
             color: availability.length > 0 ? "#86efac" : "#fca5a5",
