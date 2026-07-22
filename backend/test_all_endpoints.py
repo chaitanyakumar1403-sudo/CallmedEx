@@ -42,7 +42,7 @@ def get_patient_token():
 def test_patient_signup_and_login():
     get_patient_token()
 
-def test_org_signup_with_owner_flow():
+def get_org_token():
     email = f"manager_{uuid.uuid4().hex[:6]}@clinic.com"
     signup_payload = {
         "full_name": "Clinic Manager",
@@ -60,11 +60,24 @@ def test_org_signup_with_owner_flow():
     }
     r = client.post("/api/auth/signup", json=signup_payload)
     assert r.status_code == 200, f"Org Signup failed: {r.text}"
+
+    login_payload = {"email": email, "password": "Password123!"}
+    r_login = client.post("/api/auth/login", json=login_payload)
+    assert r_login.status_code == 200
+    data = r_login.json()
+    token = data.get("access_token") or data.get("data", {}).get("access_token")
+    return token
+
+def test_org_signup_with_owner_flow():
+    get_org_token()
     print(f"[PASS] Org Signup with Owner MOU Email flow")
 
 def test_diagnostic_booking_and_allotment():
     patient_token = get_patient_token()
-    headers = {"Authorization": f"Bearer {patient_token}"}
+    org_token = get_org_token()
+    
+    patient_headers = {"Authorization": f"Bearer {patient_token}"}
+    org_headers = {"Authorization": f"Bearer {org_token}"}
     
     # 1. Patient creates date-only lab booking
     booking_payload = {
@@ -77,14 +90,14 @@ def test_diagnostic_booking_and_allotment():
         "selected_tests": ["Lipid Profile", "HbA1c"],
         "total_price": 850
     }
-    r = client.post("/api/bookings", json=booking_payload, headers=headers)
+    r = client.post("/api/bookings", json=booking_payload, headers=patient_headers)
     assert r.status_code in (200, 201), f"Booking creation failed: {r.text}"
     booking_id = r.json()["data"]["id"]
     assert r.json()["data"]["status"] == "pending_review"
     print(f"[PASS] Diagnostic Booking Creation (Status: pending_review, ID: {booking_id})")
 
     # 2. Org fetches pending reviews
-    r_pending = client.get("/api/bookings/pending-review", headers=headers)
+    r_pending = client.get("/api/bookings/pending-review", headers=org_headers)
     assert r_pending.status_code == 200
     print(f"[PASS] Org GET pending-review bookings")
 
@@ -94,13 +107,13 @@ def test_diagnostic_booking_and_allotment():
         "allotted_end_time": "11:00",
         "message": "Fasting required for 10 hours"
     }
-    r_allot = client.post(f"/api/bookings/{booking_id}/allot-slot", json=allot_payload, headers=headers)
+    r_allot = client.post(f"/api/bookings/{booking_id}/allot-slot", json=allot_payload, headers=org_headers)
     assert r_allot.status_code == 200
     print(f"[PASS] Org Allot Time Slot (10:00 - 11:00)")
 
     # 4. Patient accepts slot
     respond_payload = {"accepted": True}
-    r_resp = client.post(f"/api/bookings/{booking_id}/respond-slot", json=respond_payload, headers=headers)
+    r_resp = client.post(f"/api/bookings/{booking_id}/respond-slot", json=respond_payload, headers=patient_headers)
     assert r_resp.status_code == 200
     print(f"[PASS] Patient Respond Slot (Accepted -> confirmed)")
 
