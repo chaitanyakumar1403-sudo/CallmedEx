@@ -9,9 +9,10 @@ Supports: provider matching, offer rotation, live tracking, and ETA calculation.
 import uuid
 import math
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
-from app.database import supabase
+from typing import List
 import logging
+from app.config import settings
+from app.database import supabase
 from app.services.otp import OTPService
 from app.services.email import EmailService
 
