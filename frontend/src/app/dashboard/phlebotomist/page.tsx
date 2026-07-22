@@ -42,58 +42,54 @@ export default function PhlebotomistDashboard() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16 }}>🩸</div>
-          <h2 style={{ color: '#1a2b4a' }}>Loading Phlebotomist Dashboard...</h2>
+          <h2 style={{ color: '#1a2b4a' }}>Loading Phlebotomist Command Hub...</h2>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
-      {/* ─── Header ─── */}
-      <div style={{
-        background: "linear-gradient(135deg, #b91c1c 0%, #ef4444 50%, #b91c1c 100%)",
-        padding: "24px 40px",
-        color: "#ffffff",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#ffffff" }}>
-            🩸 Phlebotomist Hub
-          </h1>
-          <p style={{ margin: "4px 0 0 0", color: "rgba(255,255,255,0.75)", fontSize: "0.85rem" }}>
-            Welcome, {profile?.full_name || "Phlebotomist"} • Manage your collections
-          </p>
+    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+      {/* ─── Hero Header ─── */}
+      <div className="dashboard-hero-header" style={{ background: "linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 2 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+              <h1 style={{ margin: 0, fontSize: "1.8rem", fontWeight: 800, color: "#ffffff" }}>
+                🩸 Phlebotomist Diagnostic Radar
+              </h1>
+              <span className="badge-ai">Live Field Collection</span>
+            </div>
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.85)", fontSize: "0.92rem" }}>
+              Welcome, {profile?.full_name || "Phlebotomist"} • Real-time GPS Home Sample Collection Dispatch
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ background: "rgba(255,255,255,0.15)", color: "#fecdd3", padding: "8px 16px", borderRadius: 20, fontSize: "0.85rem", fontWeight: 700, backdropFilter: "blur(4px)", display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 8, height: 8, background: "#ef4444", borderRadius: "50%", boxShadow: "0 0 10px #ef4444" }}></div>
+              Cold-Chain Monitor Active
+            </span>
+          </div>
         </div>
       </div>
 
       {/* ─── Tabs ─── */}
-      <div style={{ padding: "0 40px", display: "flex", gap: 4, borderBottom: "1px solid #e2e8f0", backgroundColor: "white", marginTop: 16 }}>
-        {[
-          { id: "dispatch", label: "Dispatch Tracking", icon: "📍" },
-          { id: "profile", label: "Profile Details", icon: "👤" },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "12px 20px",
-              border: "none",
-              backgroundColor: activeTab === tab.id ? "white" : "transparent",
-              color: activeTab === tab.id ? "#b91c1c" : "#64748b",
-              fontWeight: activeTab === tab.id ? 700 : 500,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              borderBottom: activeTab === tab.id ? "3px solid #b91c1c" : "3px solid transparent",
-              borderRadius: "8px 8px 0 0",
-              transition: "all 0.2s",
-            }}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+      <div style={{ padding: "20px 40px 0 40px" }}>
+        <div className="tab-nav-bar" style={{ maxWidth: 400 }}>
+          {[
+            { id: "dispatch", label: "Live Dispatch Radar", icon: "📍" },
+            { id: "profile", label: "Agent Profile", icon: "👤" },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`tab-pill-btn ${activeTab === tab.id ? "tab-pill-btn--active" : ""}`}
+              style={{ flex: 1 }}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ─── Content ─── */}
