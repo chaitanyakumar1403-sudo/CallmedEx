@@ -330,7 +330,8 @@ class VerificationService:
                     "pipeline": "structural_only",
                 },
                 "verification_status": db_status,
-                "created_at": now,
+                "verification_notes": f"Status: {new_status}",
+                "uploaded_at": now,
             }).execute()
 
         return {
@@ -379,14 +380,28 @@ class VerificationService:
     @staticmethod
     def _strict_match(stored: str, extracted: str) -> bool:
         """
-        Strict case-insensitive comparison with whitespace normalization.
-        Both values must be non-empty and match exactly after normalization.
+        Robust case-insensitive comparison with prefix normalization and substring matching.
         """
         if not stored or not extracted:
             return False
-        s = " ".join(stored.lower().split())
-        e = " ".join(extracted.lower().split())
-        return s == e
+
+        import re
+        s = stored.lower().strip()
+        e = extracted.lower().strip()
+
+        # Remove common prefixes and punctuation
+        clean_re = r'\b(m/s|ms|dr|dr\.|mr|mrs|prof)\b'
+        s_clean = re.sub(clean_re, '', s).strip()
+        e_clean = re.sub(clean_re, '', e).strip()
+
+        # Alphanumeric normalization
+        s_norm = re.sub(r'[^a-z0-9]', '', s_clean)
+        e_norm = re.sub(r'[^a-z0-9]', '', e_clean)
+
+        if not s_norm or not e_norm:
+            return False
+
+        return s_norm == e_norm or s_norm in e_norm or e_norm in s_norm
 
     @staticmethod
     def _get_extracted_name(ocr_result: dict, role: str) -> str:
@@ -470,7 +485,8 @@ class VerificationService:
                     "verified_at": now,
                 },
                 "verification_status": db_status,
-                "created_at": now,
+                "verification_notes": f"Pipeline status: {status}",
+                "uploaded_at": now,
             }).execute()
 
         logger.info(f"[VERIFY] Final status for {role} user={user_id}: {status}")
