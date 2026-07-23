@@ -691,9 +691,6 @@ async def forgot_password(req: ForgotPasswordRequest):
 
     _local_password_resets.append(reset_record)
 
-    # Always print OTP prominently in console for easy dev testing
-    print(f"\n======================================================================\n🔑 DEV OTP CODE FOR {email}: {otp_code}\n🔗 RESET LINK: {reset_link}\n======================================================================\n")
-
     # Send email (falls back to console print in dev)
     try:
         EmailService.send_password_reset_email(
@@ -708,10 +705,7 @@ async def forgot_password(req: ForgotPasswordRequest):
     return APIResponse(
         success=True,
         message="If an account with that email exists, a password reset code has been sent.",
-        data={
-            "dev_otp": otp_code,
-            "reset_token": reset_token,
-        }
+        data={}
     )
 
 

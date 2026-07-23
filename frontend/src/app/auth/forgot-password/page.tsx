@@ -6,8 +6,6 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
-  const [devOtp, setDevOtp] = useState("");
-  const [resetToken, setResetToken] = useState("");
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -26,8 +24,6 @@ export default function ForgotPasswordPage() {
       if (!res.ok) {
         throw new Error(data.detail || "Failed to send reset code");
       }
-      if (data.data?.dev_otp) setDevOtp(data.data.dev_otp);
-      if (data.data?.reset_token) setResetToken(data.data.reset_token);
       setSent(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -56,20 +52,6 @@ export default function ForgotPasswordPage() {
               <span style={{ color: "#0284c7", fontWeight: 700 }}>{email}</span>
             </p>
 
-            {devOtp && (
-              <div style={{
-                background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
-                borderRadius: 12, padding: 16, marginBottom: 20, textAlign: "center"
-              }}>
-                <div style={{ color: "#38bdf8", fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>
-                  ⚡ Demo Mode OTP Code
-                </div>
-                <div style={{ color: "#ffffff", fontSize: "2rem", fontWeight: 800, letterSpacing: "6px", fontFamily: "monospace" }}>
-                  {devOtp}
-                </div>
-              </div>
-            )}
-
             <div style={{
               background: "#f0f9ff", borderRadius: 12, padding: 20,
               border: "1px solid #bae6fd", marginBottom: 24, textAlign: "left"
@@ -84,7 +66,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             <a
-              href={resetToken ? `/auth/reset-password?token=${encodeURIComponent(resetToken)}` : `/auth/reset-password?email=${encodeURIComponent(email)}`}
+              href={`/auth/reset-password?email=${encodeURIComponent(email)}`}
               style={{
                 display: "inline-block", width: "100%", padding: "14px 0",
                 background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
@@ -94,7 +76,7 @@ export default function ForgotPasswordPage() {
                 textAlign: "center",
               }}
             >
-              🔑 {resetToken ? "One-Click Reset Password" : "Enter OTP & Reset Password"}
+              🔑 Enter OTP & Reset Password
             </a>
 
             <p style={{ marginTop: 20, fontSize: "0.82rem", color: "#94a3b8" }}>
