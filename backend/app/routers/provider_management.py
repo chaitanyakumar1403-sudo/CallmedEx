@@ -1054,15 +1054,15 @@ async def search_organizations(
         query = (
             supabase.table("organizations")
             .select("*, users!inner(id, full_name, city, district, state, address)")
-            .eq("verification_status", "verified")
+            .in_("verification_status", ["verified", "pending"])
         )
 
         if org_type:
             query = query.eq("organization_type", org_type)
         if city:
-            query = query.ilike("users.city", f"*{city}*")
+            query = query.ilike("users.city", f"%{city}%")
         if q:
-            query = query.ilike("organization_name", f"*{q}*")
+            query = query.ilike("organization_name", f"%{q}%")
 
         result = query.limit(limit).execute()
         orgs = result.data or []

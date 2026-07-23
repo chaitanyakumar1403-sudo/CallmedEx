@@ -625,6 +625,14 @@ async def get_org_services_for_booking(org_id: str):
         except Exception as e:
             logger.error(f"Error fetching doctors: {e}")
             
+        # Fetch organization operating hours (timings)
+        timings = []
+        try:
+            timings_res = supabase.table("organization_timings").select("*").eq("organization_id", org_id).order("day_of_week").execute()
+            timings = timings_res.data or []
+        except Exception:
+            pass
+
         return APIResponse(
             success=True,
             message="Organization services fetched",
@@ -632,6 +640,7 @@ async def get_org_services_for_booking(org_id: str):
                 "services": services,
                 "packages": packages,
                 "doctors": doctors,
+                "timings": timings,
             }
         )
     except Exception as e:

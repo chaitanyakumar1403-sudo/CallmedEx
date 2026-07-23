@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function PharmacyPage() {
@@ -9,12 +9,30 @@ export default function PharmacyPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState(0); // 0=idle, 1=uploading, 2=analyzing, 3=done
 
-  const pharmacies = [
-    { name: "MedPlus Pharmacy", address: "Dwaraka Nagar, Vizag", delivery: true, is24x7: false, radius: 5, rating: 4.5 },
-    { name: "Apollo Pharmacy", address: "MVP Colony, Vizag", delivery: true, is24x7: true, radius: 8, rating: 4.7 },
-    { name: "Netmeds Partner Store", address: "RK Beach Road, Vizag", delivery: true, is24x7: false, radius: 10, rating: 4.3 },
-    { name: "Care & Cure Pharmacy", address: "Seethammadhara, Vizag", delivery: false, is24x7: false, radius: 3, rating: 4.6 },
-  ];
+  const [pharmacies, setPharmacies] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations?org_type=pharmacy`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.organizations?.length > 0) {
+          setPharmacies(
+            data.organizations.map((org: any) => ({
+              id: org.id,
+              name: org.organization_name || org.name,
+              address: [org.address, org.city].filter(Boolean).join(", "),
+              delivery: true,
+              is24x7: true,
+              radius: 5,
+              rating: 4.8,
+            }))
+          );
+        } else {
+          setPharmacies([]);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
