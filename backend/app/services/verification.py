@@ -309,10 +309,11 @@ class VerificationService:
 
         # Update the role table
         rules = VerificationService.VERIFICATION_RULES[role]
+        db_status = "verified" if new_status == "verified" else ("flagged" if new_status.startswith("flagged") else ("pending" if new_status == "pending" else "rejected"))
         if supabase:
             now = datetime.now(timezone.utc).isoformat()
             supabase.table(rules["table"]).update({
-                "verification_status": new_status,
+                "verification_status": db_status,
             }).eq("user_id", user_id).execute()
 
             supabase.table("documents").insert({
@@ -328,7 +329,7 @@ class VerificationService:
                     "verified_at": now,
                     "pipeline": "structural_only",
                 },
-                "verification_status": new_status,
+                "verification_status": db_status,
                 "created_at": now,
             }).execute()
 
@@ -444,13 +445,16 @@ class VerificationService:
         rules = VerificationService.VERIFICATION_RULES[role]
         now = datetime.now(timezone.utc).isoformat()
 
+        # Map internal detailed status to Supabase DB constraint allowed values: ('pending', 'verified', 'flagged', 'rejected')
+        db_status = "verified" if status == "verified" else ("flagged" if status.startswith("flagged") else ("pending" if status == "pending" else "rejected"))
+
         if supabase:
-            # Update role table status
+            # Update role table status with DB-compliant status
             supabase.table(rules["table"]).update({
-                "verification_status": status,
+                "verification_status": db_status,
             }).eq("user_id", user_id).execute()
 
-            # Create immutable audit document
+            # Create immutable audit document (stores db_status in column, full status in metadata)
             supabase.table("documents").insert({
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
@@ -465,7 +469,7 @@ class VerificationService:
                     "result_status": status,
                     "verified_at": now,
                 },
-                "verification_status": status,
+                "verification_status": db_status,
                 "created_at": now,
             }).execute()
 
