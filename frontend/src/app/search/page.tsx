@@ -165,13 +165,15 @@ export default function SearchPage() {
         {/* Results */}
         <div>
           <h2 style={{ fontSize: "1.2rem", color: "#334155", marginBottom: "20px" }}>
-            {results.length} {results.length === 1 ? "Result" : "Results"} Found
+            {results.filter((org) => (org.organization_name || org.name || "").trim() !== "").length} {results.filter((org) => (org.organization_name || org.name || "").trim() !== "").length === 1 ? "Result" : "Results"} Found
           </h2>
 
           <div style={{ display: "grid", gap: "20px" }}>
-            {results.map((org) => {
-              const orgName = org.organization_name || org.name || "Healthcare Facility";
-              const orgType = org.organization_type || org.type || "Facility";
+            {results
+              .filter((org) => (org.organization_name || org.name || "").trim() !== "")
+              .map((org) => {
+              const orgName = org.organization_name || org.name || "Unnamed Facility";
+              const orgType = (org.organization_type || org.type || "facility").replace(/_/g, " ");
               const fullLoc = [org.address, org.city, org.district || org.state].filter(Boolean).join(", ");
               const docsCount = org.doctors_count ?? org.total_doctors ?? 0;
               const svcsCount = org.services_count ?? 0;
@@ -199,7 +201,7 @@ export default function SearchPage() {
                       </span>
                     </div>
                     <div style={{ color: "#64748b", fontSize: "0.95rem", marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>📍</span> {fullLoc || org.city || "Visakhapatnam"}
+                      <span>📍</span> {fullLoc || "Location not set"}
                     </div>
                     <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem", color: "#475569", flexWrap: "wrap" }}>
                       {docsCount > 0 && (

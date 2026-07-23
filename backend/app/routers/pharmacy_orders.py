@@ -1,7 +1,7 @@
 """
 Pharmacy Orders Router (Phase 3)
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -10,8 +10,63 @@ from app.database import supabase
 from app.services.pharmacy import PharmacyService
 from app.models.schemas import PharmacyInventoryCreate, PharmacyInventoryUpdate
 import uuid
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/pharmacy", tags=["Pharmacy Phase 3"])
+
+
+@router.get("/search")
+async def search_pharmacies(
+    city: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = Query(20, le=50),
+):
+    """Public endpoint: search for registered pharmacies."""
+    if not supabase:
+        return {"success": True, "pharmacies": []}
+
+    try:
+        query = (
+            supabase.table("pharmacies")
+            .select("*, users!inner(id, full_name, city, district, state, address)")
+            .in_("verification_status", ["verified", "pending"])
+        )
+
+        if city:
+            query = query.ilike("users.city", f"%{city}%")
+        if q:
+            query = query.ilike("pharmacy_name", f"%{q}%")
+
+        result = query.limit(limit).execute()
+        pharmacies_raw = result.data or []
+
+        enriched = []
+        for p in pharmacies_raw:
+            user = p.get("users", {}) or {}
+            enriched.append({
+                "id": p.get("id", ""),
+                "user_id": user.get("id", ""),
+                "name": p.get("pharmacy_name", ""),
+                "pharmacy_name": p.get("pharmacy_name", ""),
+                "pharmacy_type": p.get("pharmacy_type", "retail"),
+                "address": user.get("address", ""),
+                "city": user.get("city", ""),
+                "district": user.get("district", ""),
+                "state": user.get("state", ""),
+                "operating_hours": p.get("operating_hours", ""),
+                "home_delivery": p.get("home_delivery", False),
+                "available_24x7": p.get("available_24x7", False),
+                "service_radius_km": p.get("service_radius_km", 5),
+                "drug_license_number": p.get("drug_license_number", ""),
+                "verification_status": p.get("verification_status", "pending"),
+            })
+
+        return {"success": True, "pharmacies": enriched}
+    except Exception as e:
+        logger.error(f"Error searching pharmacies: {e}")
+        return {"success": True, "pharmacies": []}
+
 
 class OrderItem(BaseModel):
     name: str

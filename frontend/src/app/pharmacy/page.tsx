@@ -12,18 +12,18 @@ export default function PharmacyPage() {
   const [pharmacies, setPharmacies] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations?org_type=pharmacy`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/pharmacy/search`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.organizations?.length > 0) {
+        if (data.success && data.pharmacies?.length > 0) {
           setPharmacies(
-            data.organizations.map((org: any) => ({
-              id: org.id,
-              name: org.organization_name || org.name,
-              address: [org.address, org.city].filter(Boolean).join(", "),
-              delivery: true,
-              is24x7: true,
-              radius: 5,
+            data.pharmacies.map((p: any) => ({
+              id: p.id,
+              name: p.pharmacy_name || p.name || "Pharmacy",
+              address: [p.address, p.city].filter(Boolean).join(", "),
+              delivery: p.home_delivery ?? true,
+              is24x7: p.available_24x7 ?? false,
+              radius: p.service_radius_km ?? 5,
               rating: 4.8,
             }))
           );
@@ -154,10 +154,11 @@ Extracted Medicines:
         </div>
 
         {/* Pharmacy List */}
-        <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.15rem", marginBottom: 16 }}>Pharmacies Near You</h3>
+        <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.15rem", marginBottom: 16 }}>Registered Pharmacies Near You</h3>
+        {pharmacies.length > 0 ? (
         <div className="grid-2">
           {pharmacies.map((p) => (
-            <div key={p.name} className="card" style={{ padding: 24 }}>
+            <div key={p.id || p.name} className="card" style={{ padding: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
                   <h4 style={{ fontFamily: "var(--font-body)", fontSize: "1rem", marginBottom: 4 }}>{p.name}</h4>
@@ -177,6 +178,15 @@ Extracted Medicines:
             </div>
           ))}
         </div>
+        ) : (
+          <div className="card" style={{ padding: 32, textAlign: "center" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>💊</div>
+            <h4 style={{ color: "#334155", marginBottom: 8 }}>No Registered Pharmacies Yet</h4>
+            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
+              Pharmacies registered on CallMedex will appear here. You can still upload a prescription above and we&apos;ll connect you with a nearby pharmacy via dispatch.
+            </p>
+          </div>
+        )}
 
         <div className="card" style={{ marginTop: 32, padding: 24, textAlign: "center", background: "var(--color-gray-50)" }}>
           <p style={{ fontSize: "0.85rem", color: "var(--color-gray-500)" }}>

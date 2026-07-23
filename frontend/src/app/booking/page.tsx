@@ -153,6 +153,7 @@ function BookingPageContent() {
             const svcs = data.data.services || [];
             const pkgs = data.data.packages || [];
             const docs = data.data.doctors || [];
+            const tms = data.data.timings || [];
 
             setSelectedOrg((prev: any) => ({
               ...prev,
@@ -161,6 +162,7 @@ function BookingPageContent() {
               tests: svcs.length > 0 ? svcs : DEFAULT_DIAGNOSTIC_TESTS,
               packages: pkgs.length > 0 ? pkgs : DEFAULT_DIAGNOSTIC_PACKAGES,
               doctors: docs,
+              timings: tms,
             }));
           } else {
             setSelectedOrg((prev: any) => ({
@@ -169,6 +171,7 @@ function BookingPageContent() {
               tests: DEFAULT_DIAGNOSTIC_TESTS,
               packages: DEFAULT_DIAGNOSTIC_PACKAGES,
               doctors: [],
+              timings: [],
             }));
           }
         })
@@ -179,10 +182,52 @@ function BookingPageContent() {
             tests: DEFAULT_DIAGNOSTIC_TESTS,
             packages: DEFAULT_DIAGNOSTIC_PACKAGES,
             doctors: [],
+            timings: [],
           }));
         });
     }
   }, [selectedOrg]);
+
+  // Generate dynamic time slots based on organization's configured operating hours
+  const getDynamicSlots = (dateStr: string): string[] => {
+    const orgTimings = selectedOrg?.timings || [];
+    if (!dateStr || orgTimings.length === 0) return TIME_SLOTS; // fallback to static
+
+    const dateObj = new Date(dateStr + "T00:00:00");
+    const dayOfWeek = dateObj.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+
+    // Find timing for this day
+    const dayTiming = orgTimings.find((t: any) => t.day_of_week === dayOfWeek);
+    if (!dayTiming || !dayTiming.is_open) return []; // Org closed on this day
+
+    const openTime = dayTiming.open_time || "08:00";
+    const closeTime = dayTiming.close_time || "20:00";
+    const openHour = parseInt(openTime.split(":")[0]);
+    const openMin = parseInt(openTime.split(":")[1] || "0");
+    const closeHour = parseInt(closeTime.split(":")[0]);
+    const closeMin = parseInt(closeTime.split(":")[1] || "0");
+
+    const slots: string[] = [];
+    let h = openHour;
+    let m = openMin >= 30 ? 30 : 0;
+    if (openMin > 0 && openMin <= 30) m = 30;
+
+    while (h < closeHour || (h === closeHour && m <= closeMin)) {
+      slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
+      m += 30;
+      if (m >= 60) { m = 0; h += 1; }
+    }
+    return slots;
+  };
+
+  const isDayClosed = (dateStr: string): boolean => {
+    const orgTimings = selectedOrg?.timings || [];
+    if (orgTimings.length === 0) return false; // No timings configured = assume open
+    const dateObj = new Date(dateStr + "T00:00:00");
+    const dayOfWeek = dateObj.getDay();
+    const dayTiming = orgTimings.find((t: any) => t.day_of_week === dayOfWeek);
+    return !dayTiming || !dayTiming.is_open;
+  };
 
   const dates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -871,83 +916,119 @@ function BookingPageContent() {
             </div>
 
             {/* Time Slot Picker for ALL booking types */}
-            {selectedDate && (
-              <>
-                <h4 style={{ fontSize: "0.9rem", marginBottom: 12, color: "#4a5568" }}>Available Time Slots</h4>
-                
-                {/* Morning slots */}
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                    {TIME_SLOTS.filter((t) => parseInt(t.split(":")[0]) < 12).map((t) => {
-                      const booked = isSlotBooked(t);
-                      const isSelected = selectedSlot === t;
-                      return (
-                        <div
-                          key={t}
-                          style={{
-                            padding: "8px 4px",
-                            borderRadius: 8,
-                            textAlign: "center",
-                            cursor: booked ? "not-allowed" : "pointer",
-                            fontSize: "0.82rem",
-                            fontWeight: 600,
-                            border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                            backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
-                            color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
-                            transition: "all 0.15s ease",
-                          }}
-                          onClick={() => {
-                            if (!booked) {
-                              setSelectedSlot(t);
-                              setError("");
-                            }
-                          }}
-                        >
-                          {formatSlotLabel(t)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+            {selectedDate && (() => {
+              const dynamicSlots = getDynamicSlots(selectedDate);
+              const closed = isDayClosed(selectedDate);
+              const morningSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) < 12);
+              const afternoonSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) >= 12);
 
-                {/* Afternoon/Evening slots */}
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>🌇 Afternoon & Evening Slots</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                    {TIME_SLOTS.filter((t) => parseInt(t.split(":")[0]) >= 12).map((t) => {
-                      const booked = isSlotBooked(t);
-                      const isSelected = selectedSlot === t;
-                      return (
-                        <div
-                          key={t}
-                          style={{
-                            padding: "8px 4px",
-                            borderRadius: 8,
-                            textAlign: "center",
-                            cursor: booked ? "not-allowed" : "pointer",
-                            fontSize: "0.82rem",
-                            fontWeight: 600,
-                            border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                            backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
-                            color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
-                            transition: "all 0.15s ease",
-                          }}
-                          onClick={() => {
-                            if (!booked) {
-                              setSelectedSlot(t);
-                              setError("");
-                            }
-                          }}
-                        >
-                          {formatSlotLabel(t)}
-                        </div>
-                      );
-                    })}
+              if (closed) {
+                return (
+                  <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
+                    <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Center Closed on This Day</h4>
+                    <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>The diagnostic center is not open on this day. Please select a different date.</p>
                   </div>
-                </div>
-              </>
-            )}
+                );
+              }
+
+              if (dynamicSlots.length === 0) {
+                return (
+                  <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 12, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏰</div>
+                    <h4 style={{ color: "#92400e", marginBottom: 4 }}>No Time Slots Available</h4>
+                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. The center may not have set their operating hours yet.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  <h4 style={{ fontSize: "0.9rem", marginBottom: 12, color: "#4a5568" }}>Available Time Slots</h4>
+                  {selectedOrg?.timings?.length > 0 && (
+                    <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: 12, padding: "6px 12px", backgroundColor: "#ecfdf5", borderRadius: 8, display: "inline-block" }}>
+                      ⏰ Operating Hours: {selectedOrg.timings.find((t: any) => t.day_of_week === new Date(selectedDate + "T00:00:00").getDay())?.open_time || "N/A"} – {selectedOrg.timings.find((t: any) => t.day_of_week === new Date(selectedDate + "T00:00:00").getDay())?.close_time || "N/A"}
+                    </div>
+                  )}
+                  
+                  {/* Morning slots */}
+                  {morningSlots.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+                        {morningSlots.map((t) => {
+                          const booked = isSlotBooked(t);
+                          const isSelected = selectedSlot === t;
+                          return (
+                            <div
+                              key={t}
+                              style={{
+                                padding: "8px 4px",
+                                borderRadius: 8,
+                                textAlign: "center",
+                                cursor: booked ? "not-allowed" : "pointer",
+                                fontSize: "0.82rem",
+                                fontWeight: 600,
+                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
+                                backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
+                                color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
+                                transition: "all 0.15s ease",
+                              }}
+                              onClick={() => {
+                                if (!booked) {
+                                  setSelectedSlot(t);
+                                  setError("");
+                                }
+                              }}
+                            >
+                              {formatSlotLabel(t)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Afternoon/Evening slots */}
+                  {afternoonSlots.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>🌇 Afternoon & Evening Slots</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+                        {afternoonSlots.map((t) => {
+                          const booked = isSlotBooked(t);
+                          const isSelected = selectedSlot === t;
+                          return (
+                            <div
+                              key={t}
+                              style={{
+                                padding: "8px 4px",
+                                borderRadius: 8,
+                                textAlign: "center",
+                                cursor: booked ? "not-allowed" : "pointer",
+                                fontSize: "0.82rem",
+                                fontWeight: 600,
+                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
+                                backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
+                                color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
+                                transition: "all 0.15s ease",
+                              }}
+                              onClick={() => {
+                                if (!booked) {
+                                  setSelectedSlot(t);
+                                  setError("");
+                                }
+                              }}
+                            >
+                              {formatSlotLabel(t)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Total Fee & Summary */}
             {selectedDate && selectedSlot && (
