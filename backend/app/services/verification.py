@@ -18,6 +18,7 @@ Status flow:
                          → flagged_api_down (gov API unreachable — not user's fault)
 """
 import uuid
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
