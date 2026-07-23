@@ -1044,33 +1044,52 @@ async def search_organizations(
     org_type: Optional[str] = None,
     city: Optional[str] = None,
     q: Optional[str] = None,
-    limit: int = Query(20, le=50),
+    limit: int = 50,
 ):
     """Public endpoint: search for organizations (hospitals, clinics, labs)."""
     if not supabase:
         return {"success": True, "organizations": []}
 
     try:
-        query = (
-            supabase.table("organizations")
-            .select("*, users!inner(id, full_name, city, district, state, address)")
-            .in_("verification_status", ["verified", "pending"])
-        )
+        # Fetch organizations with joined user profiles
+        query = supabase.table("organizations").select("*, users(id, full_name, city, district, state, address)")
 
         if org_type:
-            query = query.eq("organization_type", org_type)
-        if city:
-            query = query.ilike("users.city", f"%{city}%")
-        if q:
-            query = query.ilike("organization_name", f"%{q}%")
+            # Handle common alias mismatches (lab vs diagnostic_center, etc.)
+            type_filter = "diagnostic_center" if org_type in ("lab", "diagnostic") else org_type
+            query = query.eq("organization_type", type_filter)
 
-        result = query.limit(limit).execute()
+        result = query.limit(100).execute()
         orgs = result.data or []
 
         enriched = []
         for org in orgs:
-            user = org.get("users", {})
+            user = org.get("users") or {}
             org_id = org.get("id", "")
+            org_name = (org.get("organization_name") or user.get("full_name") or "").strip()
+
+            # Skip empty entries with no name
+            if not org_name:
+                continue
+
+            org_city = (user.get("city") or "").strip()
+            org_district = (user.get("district") or "").strip()
+            org_address = (user.get("address") or "").strip()
+            org_type_val = org.get("organization_type") or "clinic"
+
+            # In-memory case-insensitive location filter if requested
+            if city and city.strip():
+                c_clean = city.strip().lower()
+                loc_text = f"{org_city} {org_district} {org_address}".lower()
+                if c_clean not in loc_text:
+                    continue
+
+            # In-memory case-insensitive query filter (name, type, location) if requested
+            if q and q.strip():
+                q_clean = q.strip().lower()
+                searchable_text = f"{org_name} {org_type_val} {org_city} {org_district} {org_address}".lower()
+                if q_clean not in searchable_text:
+                    continue
 
             # Get linked doctors count
             doc_count = 0
@@ -1100,8 +1119,6 @@ async def search_organizations(
             except Exception:
                 pass
 
-            org_name = org.get("organization_name", "")
-            org_type_val = org.get("organization_type", "clinic")
             enriched.append({
                 "id": org_id,
                 "user_id": user.get("id", ""),
@@ -1109,17 +1126,21 @@ async def search_organizations(
                 "organization_name": org_name,
                 "type": org_type_val,
                 "organization_type": org_type_val,
-                "address": user.get("address", "") or org.get("address", ""),
-                "city": user.get("city", "") or org.get("city", ""),
-                "district": user.get("district", "") or org.get("district", ""),
-                "state": user.get("state", "") or org.get("state", ""),
+                "address": org_address,
+                "city": org_city,
+                "district": org_district,
+                "state": user.get("state", ""),
                 "doctors_count": doc_count,
                 "total_doctors": doc_count,
                 "services_count": svc_count,
                 "total_services": svc_count,
                 "license_number": org.get("license_number", ""),
                 "operating_hours": org.get("operating_hours", ""),
+                "verification_status": org.get("verification_status", "pending"),
             })
+
+            if len(enriched) >= limit:
+                break
 
         return {"success": True, "organizations": enriched}
     except Exception as e:

@@ -165,14 +165,12 @@ export default function SearchPage() {
         {/* Results */}
         <div>
           <h2 style={{ fontSize: "1.2rem", color: "#334155", marginBottom: "20px" }}>
-            {results.filter((org) => (org.organization_name || org.name || "").trim() !== "").length} {results.filter((org) => (org.organization_name || org.name || "").trim() !== "").length === 1 ? "Result" : "Results"} Found
+            {results.length} {results.length === 1 ? "Result" : "Results"} Found
           </h2>
 
           <div style={{ display: "grid", gap: "20px" }}>
-            {results
-              .filter((org) => (org.organization_name || org.name || "").trim() !== "")
-              .map((org) => {
-              const orgName = org.organization_name || org.name || "Unnamed Facility";
+            {results.map((org) => {
+              const orgName = (org.organization_name || org.name || "").trim() || `${(org.organization_type || org.type || "Healthcare").replace(/_/g, " ").toUpperCase()} Facility`;
               const orgType = (org.organization_type || org.type || "facility").replace(/_/g, " ");
               const fullLoc = [org.address, org.city, org.district || org.state].filter(Boolean).join(", ");
               const docsCount = org.doctors_count ?? org.total_doctors ?? 0;
