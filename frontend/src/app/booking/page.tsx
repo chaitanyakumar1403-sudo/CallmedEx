@@ -105,7 +105,7 @@ function BookingPageContent() {
     if (step === 2) {
       setFetchingOrgs(true);
       if (bookingType === "doctor" || bookingType === "lab") {
-        const orgTypeFilter = bookingType === "lab" ? "diagnostic" : "";
+        const orgTypeFilter = bookingType === "lab" ? "diagnostic_center" : "";
         const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations${orgTypeFilter ? `?org_type=${orgTypeFilter}` : ""}`;
         
         fetch(url)
@@ -262,7 +262,7 @@ function BookingPageContent() {
           ? "nurse_visit"
           : "lab_test";
 
-      const slotKey = `${providerId}|${selectedDate}|${selectedSlot || "09:00"}`;
+      const slotKey = `${providerId}|${selectedDate}|${selectedSlot || "TBD"}`;
 
       // Build notes with all selected tests if multi-select
       const testNotes =
@@ -427,7 +427,7 @@ function BookingPageContent() {
     if (isOnDemand) return ["Select Service", "Choose Item", "Enter Address"];
     if (bookingType === "video_consult") return ["Select Service", "Choose Doctor", "Date & Time"];
     if (bookingType === "doctor") return ["Select Service", "Find Provider", "Choose Doctor", "Date & Time"];
-    if (bookingType === "lab") return ["Select Service", "Find Center", "Choose Tests", "Select Date & Time"];
+    if (bookingType === "lab") return ["Select Service", "Find Center", "Choose Tests", "Select Preferred Date"];
     return [];
   };
   const currentStepIdx = step === 10 ? -1 : isOnDemand ? (step <= 2 ? step - 1 : 2) : Math.min(step - 1, getSteps().length - 1);
@@ -866,16 +866,33 @@ function BookingPageContent() {
             <div style={{ display: "flex", gap: 12 }}>
               <button className="btn btn-secondary" onClick={() => { setStep(2); setSelectedTests([]); }}>← Back</button>
               <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={selectedTests.length === 0} onClick={() => setStep(4)}>
-                Select Date & Time Slot →
+                Select Preferred Date →
               </button>
             </div>
           </div>
         )}
 
-        {/* ─── STEP 4: Select Preferred Date AND Time Slot ─── */}
+        {/* ─── STEP 4: Select Preferred Date (+ Time Slot for doctor bookings) ─── */}
         {step === 4 && (
           <div className="card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>Select Preferred Date & Time Slot</h3>
+            <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
+              {bookingType === "lab" ? "Select Your Preferred Date" : "Select Preferred Date & Time Slot"}
+            </h3>
+
+            {/* Info banner for lab bookings */}
+            {bookingType === "lab" && (
+              <div style={{ padding: 16, backgroundColor: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe", marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ fontSize: "1.3rem" }}>🏥</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "#1e40af", fontSize: "0.9rem", marginBottom: 4 }}>Time Slot Assigned by Center</div>
+                    <p style={{ color: "#3b82f6", fontSize: "0.82rem", margin: 0, lineHeight: 1.5 }}>
+                      Select your preferred date below. The diagnostic center will assign you a specific time slot and notify you via SMS/notification after reviewing your booking request.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Date picker */}
             <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
@@ -886,6 +903,7 @@ function BookingPageContent() {
                 const month = parts.length >= 3 ? parts[1]?.replace(",", "") : "";
                 const isToday = d.value === dates[0].value;
                 const isSelected = selectedDate === d.value;
+                const closed = isDayClosed(d.value);
                 return (
                   <div
                     key={d.value}
@@ -893,30 +911,59 @@ function BookingPageContent() {
                       padding: "10px 14px",
                       borderRadius: 12,
                       textAlign: "center",
-                      cursor: "pointer",
+                      cursor: closed ? "not-allowed" : "pointer",
                       minWidth: 72,
-                      border: isSelected ? "2px solid #0284c7" : "2px solid #e2e8f0",
-                      background: isSelected ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "white",
-                      color: isSelected ? "#fff" : "inherit",
+                      border: isSelected ? "2px solid #0284c7" : closed ? "2px solid #fecaca" : "2px solid #e2e8f0",
+                      background: isSelected ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : closed ? "#fef2f2" : "white",
+                      color: isSelected ? "#fff" : closed ? "#dc2626" : "inherit",
+                      opacity: closed ? 0.6 : 1,
                       transition: "all 0.2s ease",
                       boxShadow: isSelected ? "0 4px 12px rgba(2, 132, 199, 0.3)" : "none",
                     }}
                     onClick={() => {
-                      setSelectedDate(d.value);
-                      setSelectedSlot("");
-                      setError("");
+                      if (!closed) {
+                        setSelectedDate(d.value);
+                        setSelectedSlot("");
+                        setError("");
+                      }
                     }}
                   >
                     <div style={{ fontSize: "0.7rem", opacity: 0.8, fontWeight: 600, textTransform: "uppercase" }}>{dayOfWeek}</div>
                     <div style={{ fontWeight: 800, fontSize: "1.2rem", margin: "2px 0" }}>{dayNum}</div>
-                    <div style={{ fontSize: "0.65rem", opacity: 0.7 }}>{isToday ? "Today" : month}</div>
+                    <div style={{ fontSize: "0.65rem", opacity: 0.7 }}>{closed ? "Closed" : isToday ? "Today" : month}</div>
                   </div>
                 );
               })}
             </div>
 
-            {/* Time Slot Picker for ALL booking types */}
-            {selectedDate && (() => {
+            {/* For LAB bookings: no time slot picker — center assigns slot */}
+            {bookingType === "lab" && selectedDate && !isDayClosed(selectedDate) && (
+              <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "#166534" }}>
+                      📅 Preferred Date: {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
+                      {selectedTests.length} Lab Test(s) Selected · Time slot will be assigned by the center
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
+                </div>
+              </div>
+            )}
+
+            {/* For LAB bookings: show closed message if date is closed */}
+            {bookingType === "lab" && selectedDate && isDayClosed(selectedDate) && (
+              <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
+                <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Center Closed on This Day</h4>
+                <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>This diagnostic center is not open on this day. Please select a different date.</p>
+              </div>
+            )}
+
+            {/* For DOCTOR bookings: show time slot picker */}
+            {bookingType !== "lab" && selectedDate && (() => {
               const dynamicSlots = getDynamicSlots(selectedDate);
               const closed = isDayClosed(selectedDate);
               const morningSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) < 12);
@@ -926,8 +973,8 @@ function BookingPageContent() {
                 return (
                   <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
-                    <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Center Closed on This Day</h4>
-                    <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>The diagnostic center is not open on this day. Please select a different date.</p>
+                    <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Facility Closed on This Day</h4>
+                    <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>This facility is not open on this day. Please select a different date.</p>
                   </div>
                 );
               }
@@ -937,7 +984,7 @@ function BookingPageContent() {
                   <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 12, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏰</div>
                     <h4 style={{ color: "#92400e", marginBottom: 4 }}>No Time Slots Available</h4>
-                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. The center may not have set their operating hours yet.</p>
+                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. The facility may not have set their operating hours yet.</p>
                   </div>
                 );
               }
@@ -1030,8 +1077,8 @@ function BookingPageContent() {
               );
             })()}
 
-            {/* Total Fee & Summary */}
-            {selectedDate && selectedSlot && (
+            {/* Total Fee & Summary for doctor bookings */}
+            {bookingType !== "lab" && selectedDate && selectedSlot && (
               <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
@@ -1039,7 +1086,7 @@ function BookingPageContent() {
                       📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
                     </div>
                     <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
-                      {bookingType === "lab" ? `${selectedTests.length} Lab Test(s) Selected` : selectedDoctor ? selectedDoctor.name : "Appointment"}
+                      {selectedDoctor ? selectedDoctor.name : "Appointment"}
                     </div>
                   </div>
                   <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
@@ -1052,10 +1099,10 @@ function BookingPageContent() {
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}
-                disabled={!selectedDate || !selectedSlot || loading}
+                disabled={!selectedDate || (bookingType !== "lab" && !selectedSlot) || isDayClosed(selectedDate) || loading}
                 onClick={handleConfirm}
               >
-                {loading ? "Confirming Appointment..." : `Confirm Booking & Pay ₹${fee}`}
+                {loading ? "Confirming..." : bookingType === "lab" ? `Submit Booking Request · ₹${fee}` : `Confirm Booking & Pay ₹${fee}`}
               </button>
             </div>
           </div>
