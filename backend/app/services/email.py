@@ -235,12 +235,11 @@ class EmailService:
                 import urllib.error
 
                 url = "https://api.resend.com/emails"
-                # If custom domain is unverified, onboarding@resend.dev guarantees delivery
                 configured_from = settings.SMTP_FROM_EMAIL or "onboarding@resend.dev"
-                if "callmedex.com" in configured_from:
-                    from_email = f"CallMedex <onboarding@resend.dev>"
-                else:
+                if "<" in configured_from:
                     from_email = configured_from
+                else:
+                    from_email = f"CallMedex <{configured_from}>"
 
                 payload = {
                     "from": from_email,
