@@ -373,3 +373,82 @@ DECLINE: {decline_link}
             print(text_content)
             print("=" * 70 + "\n")
 
+    @staticmethod
+    def send_password_reset_email(to_email: str, otp_code: str, reset_link: str, user_name: str = "User"):
+        """
+        Sends password reset email with 6-digit OTP code and magic link.
+        Falls back to console output when no SMTP/Resend is configured.
+        """
+        subject = "🔐 CallMedex Password Reset — Your Verification Code"
+
+        html_content = f"""
+        <html>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f4f8; padding: 20px; margin: 0;">
+            <div style="max-width: 520px; margin: 0 auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <div style="font-size: 2.5rem; margin-bottom: 8px;">🔐</div>
+                    <h2 style="color: #1e293b; margin: 0 0 4px 0; font-size: 22px;">Password Reset Request</h2>
+                    <p style="color: #64748b; font-size: 14px; margin: 0;">CallMedex Healthcare Platform</p>
+                </div>
+
+                <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+                    Hello <strong>{user_name}</strong>,
+                </p>
+                <p style="color: #374151; font-size: 15px; line-height: 1.6;">
+                    We received a request to reset the password for your CallMedex account. Use the verification code below or click the reset button.
+                </p>
+
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                    <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px;">Your Verification Code</div>
+                    <div style="color: #ffffff; font-size: 36px; font-weight: 800; letter-spacing: 8px; font-family: 'Courier New', monospace;">{otp_code}</div>
+                    <div style="color: #94a3b8; font-size: 12px; margin-top: 8px;">Valid for 15 minutes</div>
+                </div>
+
+                <div style="text-align: center; margin: 28px 0;">
+                    <span style="color: #9ca3af; font-size: 13px;">— or —</span>
+                </div>
+
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="{reset_link}" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 700; display: inline-block; font-size: 15px; box-shadow: 0 4px 12px rgba(2,132,199,0.3);">
+                        🔑 Reset My Password
+                    </a>
+                </div>
+
+                <div style="background: #fef3c7; border-radius: 8px; padding: 14px; margin-top: 24px;">
+                    <p style="color: #92400e; font-size: 13px; margin: 0; line-height: 1.5;">
+                        ⚠️ <strong>Security Notice:</strong> If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
+                    </p>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+                <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
+                    This is an automated message from CallMedex. Please do not reply.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_content = f"""
+Hello {user_name},
+
+We received a request to reset your CallMedex password.
+
+Your Verification Code: {otp_code}
+(Valid for 15 minutes)
+
+Or click this link to reset: {reset_link}
+
+If you didn't request this, please ignore this email.
+"""
+
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            print("\n" + "=" * 70)
+            print(f"[PASSWORD RESET EMAIL TO] {to_email}")
+            print(f"[SUBJECT] {subject}")
+            print("=" * 70)
+            print(f"  User: {user_name}")
+            print(f"  OTP Code: {otp_code}")
+            print(f"  Reset Link: {reset_link}")
+            print("=" * 70 + "\n")
+

@@ -78,7 +78,7 @@ export default function LoginPage() {
             <label className="form-checkbox">
               <input type="checkbox" /> Remember me
             </label>
-            <a href="#" style={{ color: "var(--color-teal)" }}>Forgot Password?</a>
+            <a href="/auth/forgot-password" style={{ color: "var(--color-teal)" }}>Forgot Password?</a>
           </div>
           <button type="button" onClick={handleSubmit} className="btn btn-primary btn-full btn-lg" disabled={loading}>
             {loading ? "Logging in..." : "Login"}

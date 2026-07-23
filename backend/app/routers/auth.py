@@ -4,18 +4,24 @@ Universal signup with role-specific MOU workflow for ALL non-patient roles.
 MOU acceptance via secure email link with full audit trail.
 """
 import uuid
-from datetime import datetime, timezone
+import random
+import logging
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from app.models.schemas import (
-    UserSignup, UserLogin, TokenResponse, UserResponse, APIResponse, UserRole
+    UserSignup, UserLogin, TokenResponse, UserResponse, APIResponse, UserRole,
+    ForgotPasswordRequest, VerifyResetOTPRequest, ResetPasswordRequest
 )
 from app.utils.security import hash_password, verify_password, create_access_token
 from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.email import EmailService, EMAIL_TOKEN_SECRET, ALGORITHM
 from app.services.legal import LegalService
+from app.config import settings
 from jose import jwt, JWTError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -608,4 +614,261 @@ async def create_abha(req: CreateAbhaRequest, current_user: dict = Depends(get_c
         success=True,
         message="ABHA number created and linked successfully",
         data={"abha_number": new_abha},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PASSWORD RESET WORKFLOW (OTP + Magic Link)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# In-memory store for password resets (local dev fallback)
+_local_password_resets = []
+
+
+@router.post("/forgot-password", response_model=APIResponse)
+async def forgot_password(req: ForgotPasswordRequest):
+    """
+    Request a password reset. Sends a 6-digit OTP code and magic link
+    to the user's registered email. Always returns success to prevent
+    email enumeration attacks.
+    """
+    email = req.email.lower().strip()
+
+    # Look up the user
+    user = _get_user_by_email(email)
+
+    if not user:
+        # Return success anyway (security: don't reveal if email exists)
+        return APIResponse(
+            success=True,
+            message="If an account with that email exists, a password reset code has been sent.",
+            data={}
+        )
+
+    user_id = user.get("id", "")
+    user_name = user.get("full_name", "User")
+
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+
+    # Generate secure JWT reset token (15 min expiry)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    token_payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "password_reset",
+        "otp": otp_code,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    reset_token = jwt.encode(token_payload, EMAIL_TOKEN_SECRET, algorithm=ALGORITHM)
+
+    # Build reset link
+    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+    reset_link = f"{frontend_url}/auth/reset-password?token={reset_token}"
+
+    # Save to password_resets table
+    reset_record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "email": email,
+        "otp_code": otp_code,
+        "reset_token": reset_token,
+        "used": False,
+        "expires_at": expire.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    if supabase:
+        try:
+            # Invalidate any previous unused resets for this user
+            supabase.table("password_resets").update({"used": True}).eq("user_id", user_id).eq("used", False).execute()
+            # Insert new reset record
+            supabase.table("password_resets").insert(reset_record).execute()
+        except Exception as e:
+            logger.error(f"Failed to save password reset record: {e}")
+            # Continue anyway — use local fallback
+
+    _local_password_resets.append(reset_record)
+
+    # Send email (falls back to console print in dev)
+    try:
+        EmailService.send_password_reset_email(
+            to_email=email,
+            otp_code=otp_code,
+            reset_link=reset_link,
+            user_name=user_name,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+
+    return APIResponse(
+        success=True,
+        message="If an account with that email exists, a password reset code has been sent.",
+        data={}
+    )
+
+
+@router.post("/verify-reset-otp", response_model=APIResponse)
+async def verify_reset_otp(req: VerifyResetOTPRequest):
+    """
+    Verify the 6-digit OTP code and reset the password.
+    This is the form-based OTP entry method.
+    """
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    email = req.email.lower().strip()
+    otp = req.otp_code.strip()
+    now = datetime.now(timezone.utc)
+
+    # Look up the reset record
+    reset_record = None
+
+    if supabase:
+        try:
+            result = (
+                supabase.table("password_resets")
+                .select("*")
+                .eq("email", email)
+                .eq("otp_code", otp)
+                .eq("used", False)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                reset_record = result.data[0]
+        except Exception as e:
+            logger.error(f"Error looking up OTP: {e}")
+
+    # Fallback to local store
+    if not reset_record:
+        for r in reversed(_local_password_resets):
+            if r["email"] == email and r["otp_code"] == otp and not r["used"]:
+                reset_record = r
+                break
+
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP code. Please request a new one.")
+
+    # Check expiration
+    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace("Z", "+00:00"))
+    if now > expires_at:
+        raise HTTPException(status_code=400, detail="This OTP has expired. Please request a new password reset.")
+
+    # Update password
+    user_id = reset_record["user_id"]
+    new_hash = hash_password(req.new_password)
+
+    if supabase:
+        try:
+            supabase.table("users").update({
+                "password_hash": new_hash,
+                "updated_at": now.isoformat()
+            }).eq("id", user_id).execute()
+
+            # Mark reset as used
+            supabase.table("password_resets").update({"used": True}).eq("id", reset_record["id"]).execute()
+        except Exception as e:
+            logger.error(f"Failed to update password: {e}")
+            raise HTTPException(status_code=500, detail="Failed to update password. Please try again.")
+    else:
+        # Local fallback
+        if email in _local_users:
+            _local_users[email]["password_hash"] = new_hash
+        reset_record["used"] = True
+
+    return APIResponse(
+        success=True,
+        message="Password has been reset successfully! You can now login with your new password.",
+        data={}
+    )
+
+
+@router.post("/reset-password", response_model=APIResponse)
+async def reset_password_via_token(req: ResetPasswordRequest):
+    """
+    Reset password using the magic link JWT token from email.
+    This is the one-click magic link method.
+    """
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    # Decode and verify the JWT token
+    try:
+        payload = jwt.decode(req.token, EMAIL_TOKEN_SECRET, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+
+    if payload.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid token type")
+
+    user_id = payload.get("sub")
+    email = payload.get("email", "")
+    token_otp = payload.get("otp", "")
+    now = datetime.now(timezone.utc)
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+
+    # Verify the token hasn't been used
+    token_used = False
+    reset_id = None
+
+    if supabase:
+        try:
+            result = (
+                supabase.table("password_resets")
+                .select("id, used")
+                .eq("user_id", user_id)
+                .eq("otp_code", token_otp)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                token_used = result.data[0].get("used", False)
+                reset_id = result.data[0]["id"]
+        except Exception as e:
+            logger.error(f"Error checking reset token: {e}")
+
+    # Fallback to local
+    if not reset_id:
+        for r in reversed(_local_password_resets):
+            if r["user_id"] == user_id and r["otp_code"] == token_otp:
+                token_used = r["used"]
+                reset_id = r["id"]
+                break
+
+    if token_used:
+        raise HTTPException(status_code=400, detail="This reset link has already been used. Please request a new one.")
+
+    # Update password
+    new_hash = hash_password(req.new_password)
+
+    if supabase:
+        try:
+            supabase.table("users").update({
+                "password_hash": new_hash,
+                "updated_at": now.isoformat()
+            }).eq("id", user_id).execute()
+
+            if reset_id:
+                supabase.table("password_resets").update({"used": True}).eq("id", reset_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to update password via token: {e}")
+            raise HTTPException(status_code=500, detail="Failed to update password. Please try again.")
+    else:
+        if email in _local_users:
+            _local_users[email]["password_hash"] = new_hash
+        for r in _local_password_resets:
+            if r["id"] == reset_id:
+                r["used"] = True
+                break
+
+    return APIResponse(
+        success=True,
+        message="Password has been reset successfully! You can now login with your new password.",
+        data={}
     )
