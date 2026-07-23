@@ -442,7 +442,16 @@ async def get_org_bookings(
         if not staff_profile or staff_profile.get("linked_organization_id") != org_id:
             raise HTTPException(status_code=403, detail="You are not linked to this organization")
     elif role == "organization":
-        if current_user["sub"] != org_id:
+        # Look up the org record to verify this user owns the org
+        owns_org = False
+        if supabase:
+            try:
+                org_check = supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).eq("id", org_id).execute()
+                if org_check.data:
+                    owns_org = True
+            except Exception:
+                pass
+        if not owns_org:
             raise HTTPException(status_code=403, detail="You can only view your own organization's bookings")
     elif role != "admin":
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -658,13 +667,33 @@ async def get_pending_review_bookings(current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=403, detail="Only organization staff can view pending reviews")
 
     user_id = current_user["sub"]
-    org_id = user_id  # For org admins, their user_id IS the org_id
+    org_id = None
 
     if role == "staff":
         staff_profile = _get_staff_profile(user_id)
         if not staff_profile:
             raise HTTPException(status_code=404, detail="Staff profile not found")
-        org_id = staff_profile.get("linked_organization_id", user_id)
+        org_id = staff_profile.get("linked_organization_id")
+    elif role == "organization":
+        # Look up the actual organization ID from the organizations table
+        if supabase:
+            try:
+                org_result = supabase.table("organizations").select("id").eq("user_id", user_id).execute()
+                if org_result.data:
+                    org_id = org_result.data[0]["id"]
+                else:
+                    logger.warning(f"No organization found for user_id={user_id}")
+            except Exception as e:
+                logger.error(f"Error looking up org for user {user_id}: {e}")
+    elif role == "admin":
+        org_id = user_id  # Admin can see all — handled separately if needed
+
+    if not org_id:
+        return APIResponse(
+            success=True,
+            message="No organization linked to this account",
+            data={"bookings": [], "total": 0}
+        )
 
     pending_bookings = []
     if supabase:

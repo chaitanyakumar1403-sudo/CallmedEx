@@ -918,7 +918,7 @@ async def get_org_stats(current_user: dict = Depends(get_current_user)):
         org_id = org_result.data[0]["id"]
 
         # Fetch bookings
-        bookings_result = supabase.table("bookings").select("id, total_price, patient_id").eq("organization_id", org_id).execute()
+        bookings_result = supabase.table("bookings").select("id, total_price, patient_id").eq("provider_id", org_id).execute()
         bookings = bookings_result.data or []
         
         # Calculate stats
