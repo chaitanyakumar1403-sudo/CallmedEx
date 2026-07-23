@@ -146,6 +146,9 @@ const formatSlotLabel = (t: string) => {
 function BookingPageContent() {
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
+  const orgParam = searchParams.get("org");
+  const serviceParam = searchParams.get("service");
+  const packageParam = searchParams.get("package");
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
@@ -177,16 +180,22 @@ function BookingPageContent() {
   // Multi-test total price
   const multiTestTotal = selectedTests.reduce((sum, t) => sum + (t.price || 0), 0);
 
-  // Pre-select booking type from URL param
+  // Pre-select booking type & organization from URL params
   useEffect(() => {
-    if (typeParam && !bookingType) {
+    const targetType = typeParam || (orgParam ? "lab" : "");
+    if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];
-      if (validTypes.includes(typeParam)) {
-        setBookingType(typeParam);
-        setStep(2);
+      if (validTypes.includes(targetType)) {
+        setBookingType(targetType);
+        if (orgParam) {
+          setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Provider" });
+          setStep(3);
+        } else {
+          setStep(2);
+        }
       }
     }
-  }, [typeParam, bookingType]);
+  }, [typeParam, orgParam, bookingType]);
 
   const dates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();

@@ -1100,16 +1100,25 @@ async def search_organizations(
             except Exception:
                 pass
 
+            org_name = org.get("organization_name", "")
+            org_type_val = org.get("organization_type", "clinic")
             enriched.append({
                 "id": org_id,
                 "user_id": user.get("id", ""),
-                "name": org.get("organization_name", ""),
-                "type": org.get("organization_type", ""),
-                "address": user.get("address", ""),
-                "city": user.get("city", ""),
+                "name": org_name,
+                "organization_name": org_name,
+                "type": org_type_val,
+                "organization_type": org_type_val,
+                "address": user.get("address", "") or org.get("address", ""),
+                "city": user.get("city", "") or org.get("city", ""),
+                "district": user.get("district", "") or org.get("district", ""),
+                "state": user.get("state", "") or org.get("state", ""),
                 "doctors_count": doc_count,
+                "total_doctors": doc_count,
                 "services_count": svc_count,
+                "total_services": svc_count,
                 "license_number": org.get("license_number", ""),
+                "operating_hours": org.get("operating_hours", ""),
             })
 
         return {"success": True, "organizations": enriched}

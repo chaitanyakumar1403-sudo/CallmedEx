@@ -663,7 +663,7 @@ export default function OrganizationDashboard() {
                 <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Total Gross Revenue</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "white", marginTop: 4 }}>
-                    ₹{orgStats?.total_revenue || "45,890.00"}
+                    ₹{(orgStats?.total_revenue ?? 0).toFixed(2)}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>Gross patient payments</div>
                 </div>
@@ -671,7 +671,7 @@ export default function OrganizationDashboard() {
                 <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Net Diagnostic Payout (85%)</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#4ade80", marginTop: 4 }}>
-                    ₹{orgStats?.total_revenue ? (orgStats.total_revenue * 0.85).toFixed(2) : "39,006.50"}
+                    ₹{((orgStats?.total_revenue ?? 0) * 0.85).toFixed(2)}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "#86efac", marginTop: 2 }}>Direct bank transfer share</div>
                 </div>
@@ -679,7 +679,7 @@ export default function OrganizationDashboard() {
                 <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Platform Tech Commission (15%)</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#f472b6", marginTop: 4 }}>
-                    ₹{orgStats?.total_revenue ? (orgStats.total_revenue * 0.15).toFixed(2) : "6,883.50"}
+                    ₹{((orgStats?.total_revenue ?? 0) * 0.15).toFixed(2)}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "#fbcfe8", marginTop: 2 }}>Auto-deducted platform fee</div>
                 </div>

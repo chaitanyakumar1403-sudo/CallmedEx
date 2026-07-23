@@ -6,14 +6,20 @@ interface Organization {
   id: string;
   name?: string;
   organization_name?: string;
-  organization_type: string;
-  city: string;
+  organization_type?: string;
+  type?: string;
+  city?: string;
   district?: string;
   state?: string;
-  total_doctors?: number;
-  total_departments?: number;
-  operating_hours?: string;
+  pincode?: string;
   address?: string;
+  total_doctors?: number;
+  doctors_count?: number;
+  total_departments?: number;
+  total_services?: number;
+  services_count?: number;
+  operating_hours?: string;
+  is_verified?: boolean;
 }
 
 export default function SearchPage() {
@@ -163,53 +169,66 @@ export default function SearchPage() {
           </h2>
 
           <div style={{ display: "grid", gap: "20px" }}>
-            {results.map((org) => (
-              <div key={org.id} style={{ 
-                backgroundColor: "white", 
-                borderRadius: "12px", 
-                padding: "24px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                border: "1px solid #e2e8f0",
-                boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
-              }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                    <h3 style={{ margin: 0, fontSize: "1.4rem", color: "#0f172a" }}>{org.organization_name}</h3>
-                    <span style={{ 
-                      backgroundColor: "#e0e7ff", color: "#3730a3", 
-                      padding: "2px 8px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
-                      textTransform: "capitalize"
-                    }}>
-                      {org.organization_type}
-                    </span>
-                  </div>
-                  <div style={{ color: "#64748b", fontSize: "0.95rem", marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>📍</span> {org.city}, {org.state}
-                  </div>
-                  <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem", color: "#475569" }}>
-                    {org.total_doctors && org.total_doctors > 0 ? (
+            {results.map((org) => {
+              const orgName = org.organization_name || org.name || "Healthcare Facility";
+              const orgType = org.organization_type || org.type || "Facility";
+              const fullLoc = [org.address, org.city, org.district || org.state].filter(Boolean).join(", ");
+              const docsCount = org.doctors_count ?? org.total_doctors ?? 0;
+              const svcsCount = org.services_count ?? 0;
+
+              return (
+                <div key={org.id} style={{ 
+                  backgroundColor: "white", 
+                  borderRadius: "12px", 
+                  padding: "24px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  border: "1px solid #e2e8f0",
+                  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
+                }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                      <h3 style={{ margin: 0, fontSize: "1.4rem", color: "#0f172a" }}>{orgName}</h3>
+                      <span style={{ 
+                        backgroundColor: "#e0e7ff", color: "#3730a3", 
+                        padding: "2px 8px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
+                        textTransform: "capitalize"
+                      }}>
+                        {orgType}
+                      </span>
+                    </div>
+                    <div style={{ color: "#64748b", fontSize: "0.95rem", marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>📍</span> {fullLoc || org.city || "Visakhapatnam"}
+                    </div>
+                    <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem", color: "#475569", flexWrap: "wrap" }}>
+                      {docsCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span>👨‍⚕️</span> {docsCount} Doctors
+                        </div>
+                      )}
+                      {svcsCount > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span>🧪</span> {svcsCount} Services
+                        </div>
+                      )}
                       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span>👨‍⚕️</span> {org.total_doctors} Doctors
+                        <span>✅</span> Verified Facility
                       </div>
-                    ) : null}
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span>✅</span> Verified Facility
                     </div>
                   </div>
+                  <div>
+                    <button onClick={() => openProviderModal(org)} style={{ 
+                      padding: "10px 24px", backgroundColor: "#0284c7", color: "white", 
+                      border: "none", borderRadius: "8px", fontWeight: 700,
+                      cursor: "pointer", transition: "all 0.2s"
+                    }}>
+                      View Services
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <button onClick={() => openProviderModal(org)} style={{ 
-                    padding: "10px 24px", backgroundColor: "#0284c7", color: "white", 
-                    border: "none", borderRadius: "8px", fontWeight: 700,
-                    cursor: "pointer", transition: "all 0.2s"
-                  }}>
-                    View Services
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             
             {!loading && hasSearched && results.length === 0 && (
               <div style={{ textAlign: "center", padding: "60px 20px", backgroundColor: "white", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
@@ -233,7 +252,7 @@ export default function SearchPage() {
               <span style={{ color: "#16a34a", fontSize: "1.2rem", background: "#dcfce7", padding: "2px 8px", borderRadius: 12 }}>✅ Verified</span>
             </div>
             <p style={{ color: "#64748b", margin: "0 0 24px 0", textTransform: "capitalize" }}>
-              {selectedProvider.organization_type} • {selectedProvider.address ? `${selectedProvider.address}, ` : ''}{selectedProvider.city}
+              {selectedProvider.organization_type || selectedProvider.type} • {selectedProvider.address ? `${selectedProvider.address}, ` : ''}{selectedProvider.city}
             </p>
 
             {loadingProviderData ? (
@@ -254,7 +273,7 @@ export default function SearchPage() {
                           </div>
                           <button onClick={() => {
                             setSelectedProvider(null);
-                            window.location.href = `/booking/hospital?org=${selectedProvider.id}&service=${svc.id}`;
+                            window.location.href = `/booking?type=lab&org=${selectedProvider.id}&service=${svc.id}`;
                           }} style={{ padding: "8px 16px", backgroundColor: "#0284c7", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
                             Book Now
                           </button>
@@ -277,7 +296,7 @@ export default function SearchPage() {
                           </div>
                           <button onClick={() => {
                             setSelectedProvider(null);
-                            window.location.href = `/booking/hospital?org=${selectedProvider.id}&package=${pkg.id}`;
+                            window.location.href = `/booking?type=lab&org=${selectedProvider.id}&package=${pkg.id}`;
                           }} style={{ padding: "8px 16px", backgroundColor: "#0284c7", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
                             Book Package
                           </button>
