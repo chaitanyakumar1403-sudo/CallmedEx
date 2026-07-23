@@ -316,21 +316,22 @@ class VerificationService:
                 "verification_status": db_status,
             }).eq("user_id", user_id).execute()
 
+            audit_report = {
+                "role": role,
+                "checks": verification_result["checks"],
+                "source": verification_result["source"],
+                "result_status": new_status,
+                "verified_at": now,
+                "pipeline": "structural_only",
+            }
             supabase.table("documents").insert({
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
                 "document_type": "verification_report",
                 "file_url": "",
-                "metadata": {
-                    "role": role,
-                    "checks": verification_result["checks"],
-                    "source": verification_result["source"],
-                    "result_status": new_status,
-                    "verified_at": now,
-                    "pipeline": "structural_only",
-                },
+                "file_name": "verification_report.json",
                 "verification_status": db_status,
-                "verification_notes": f"Status: {new_status}",
+                "verification_notes": json.dumps(audit_report),
                 "uploaded_at": now,
             }).execute()
 
@@ -469,23 +470,24 @@ class VerificationService:
                 "verification_status": db_status,
             }).eq("user_id", user_id).execute()
 
-            # Create immutable audit document (stores db_status in column, full status in metadata)
+            # Create immutable audit document (stores db_status in column, report details in verification_notes)
+            audit_report = {
+                "role": role,
+                "pipeline": "ai_ocr_gov_api",
+                "checks": checks,
+                "ocr_extraction": ocr_data,
+                "gov_api_response": gov_data,
+                "result_status": status,
+                "verified_at": now,
+            }
             supabase.table("documents").insert({
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
                 "document_type": "ai_verification_report",
                 "file_url": "",
-                "metadata": {
-                    "role": role,
-                    "pipeline": "ai_ocr_gov_api",
-                    "checks": checks,
-                    "ocr_extraction": ocr_data,
-                    "gov_api_response": gov_data,
-                    "result_status": status,
-                    "verified_at": now,
-                },
+                "file_name": "ai_verification_report.json",
                 "verification_status": db_status,
-                "verification_notes": f"Pipeline status: {status}",
+                "verification_notes": json.dumps(audit_report),
                 "uploaded_at": now,
             }).execute()
 
