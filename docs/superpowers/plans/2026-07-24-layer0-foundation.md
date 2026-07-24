@@ -71,20 +71,16 @@
 
 ```sql
 -- ============================================================================
--- Layer 0 Foundation Migration — unified marketplace model
--- Canonical provider identity = users.id. No real data (demo only) → clean drop/rebuild.
--- Idempotent.
+-- Layer 0 Foundation Migration — unified marketplace model (ADDITIVE)
+-- Canonical provider identity = users.id.
+-- ADDITIVE: CREATE new marketplace tables + provider_directory view only.
+-- DROPS no legacy tables and adds NO bookings FK (both deferred to the later
+-- layer that migrates their code — see spec §4.3). Idempotent — safe to re-run.
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ── Drop superseded / drifted tables (demo data only) ──────────────────────
+-- Refresh the view only (not data) so column changes re-apply cleanly.
 DROP VIEW IF EXISTS provider_directory;
-DROP TABLE IF EXISTS slots CASCADE;
-DROP TABLE IF EXISTS health_packages CASCADE;
-DROP TABLE IF EXISTS organization_services CASCADE;
-DROP TABLE IF EXISTS doctor_availability CASCADE;
-DROP TABLE IF EXISTS doctor_blocked_dates CASCADE;
--- organization_packages / organization_timings never existed; nothing to drop.
 
 -- ── provider_settings ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS provider_settings (
@@ -204,11 +200,9 @@ CREATE TABLE IF NOT EXISTS verification_reviews (
 CREATE INDEX IF NOT EXISTS idx_verification_reviews_status ON verification_reviews(final_status);
 CREATE INDEX IF NOT EXISTS idx_verification_reviews_provider ON verification_reviews(provider_user_id);
 
--- ── Normalize bookings.provider_id → real FK on users(id) ──────────────────
-ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_provider_id_fkey;
-ALTER TABLE bookings
-  ADD CONSTRAINT bookings_provider_id_fkey
-  FOREIGN KEY (provider_id) REFERENCES users(id) ON DELETE SET NULL;
+-- ── bookings.provider_id FK → DEFERRED to Layer 3 (kept additive/non-breaking)
+-- The org-booking convention still keys on organizations.id; Layer 3 migrates it
+-- to users.id and adds the FK then.
 
 -- ── provider_directory view (single search surface) ────────────────────────
 CREATE OR REPLACE VIEW provider_directory AS
@@ -1348,17 +1342,20 @@ git commit -m "fix: documents columns (fhir), live-tracking crash, dispatch uuid
 
 ---
 
-## Task 13: Reconcile legacy scripts + final integration pass
+## Task 13: Final integration pass (additive — verification only)
 
-**Files:**
-- Modify: legacy `test_*.py` scripts referencing dropped tables (`slots`, `health_packages`, `organization_services`); `backend/app/routers/bookings.py` (`get_org_services_for_booking` uses `organization_services`/`organization_packages`).
+**Additive note:** Layer 0 retains all legacy tables, so there is **no legacy-table
+refactor in this task** — `get_org_services_for_booking` keeps reading
+`organization_services` (still exists, still has data), and there is no drop to chase
+with a grep. This task is verification + the runbook e2e; expect **no code changes**.
 
-- [ ] **Step 1: Update `bookings.py::get_org_services_for_booking`** — point at new tables: `provider_services` (filter `provider_user_id`), `provider_packages` (filter `provider_user_id`, `status='approved'`), and `provider_availability` for timings. Keep the graceful try/except structure; only the table names + filter columns change (`organization_id` → `provider_user_id`).
+- [ ] **Step 1: Confirm no legacy endpoint was accidentally broken**
 
-- [ ] **Step 2: Grep for any remaining references to dropped tables**
+Run: `grep -rn "health_packages\|organization_services\|table('slots')\|doctor_availability" backend/app`
+Expected: references still present and unchanged (legacy tables are retained on purpose).
+This step only confirms Layer 0 did NOT touch them — do not "fix" these hits.
 
-Run: `grep -rn "health_packages\|organization_services\|\"slots\"\|table('slots')\|doctor_availability" backend/app`
-Expected: no results (or only in comments). Fix any hits by mapping to the new tables per Section 4.3 of the spec.
+- [ ] **Step 2: (removed — no legacy migration in additive Layer 0)**
 
 - [ ] **Step 3: Full backend import + unit suite + migration verify**
 
@@ -1372,12 +1369,11 @@ Expected: all unit tests pass; verify script prints all-OK.
 3. Sign up an org, leave it pending → it is **absent** from search; it appears in `GET /api/admin/verifications?status=under_review`; admin approves → it now appears in search.
 Expected: all three behave as described.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: No commit expected**
 
-```bash
-git add backend/app/routers/bookings.py
-git commit -m "refactor(bookings): point org service/package/timing reads at new provider_* tables"
-```
+Additive Layer 0 changes no legacy code here. If Steps 1/3/4 revealed a genuine
+Layer-0-introduced regression, fix it and commit; otherwise there is nothing to commit
+for Task 13 (it is a verification gate + runbook e2e).
 
 ---
 

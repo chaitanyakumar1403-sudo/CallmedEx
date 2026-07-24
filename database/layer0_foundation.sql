@@ -1,18 +1,20 @@
 -- ============================================================================
--- Layer 0 Foundation Migration — unified marketplace model
--- Canonical provider identity = users.id. No real data (demo only) → clean drop/rebuild.
--- Idempotent.
+-- Layer 0 Foundation Migration — unified marketplace model (ADDITIVE)
+-- Canonical provider identity = users.id.
+-- ADDITIVE posture: this migration only CREATES new marketplace tables + the
+-- provider_directory view. It DROPS no existing tables and adds NO bookings FK.
+-- The legacy tables (slots, health_packages, organization_services,
+-- doctor_availability, doctor_blocked_dates) are intentionally RETAINED so the
+-- existing (Layer 2/3/6) endpoints keep working; they are superseded by the new
+-- provider_* tables and get dropped in the layer that migrates their code.
+-- The bookings.provider_id → users(id) FK is likewise deferred to Layer 3
+-- (booking-flow rebuild), where the org-booking provider_id convention is
+-- migrated to users.id. Idempotent — safe to re-run.
 -- ============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ── Drop superseded / drifted tables (demo data only) ──────────────────────
+-- Refresh the view only (not data) so column changes re-apply cleanly.
 DROP VIEW IF EXISTS provider_directory;
-DROP TABLE IF EXISTS slots CASCADE;
-DROP TABLE IF EXISTS health_packages CASCADE;
-DROP TABLE IF EXISTS organization_services CASCADE;
-DROP TABLE IF EXISTS doctor_availability CASCADE;
-DROP TABLE IF EXISTS doctor_blocked_dates CASCADE;
--- organization_packages / organization_timings never existed; nothing to drop.
 
 -- ── provider_settings ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS provider_settings (
@@ -132,11 +134,10 @@ CREATE TABLE IF NOT EXISTS verification_reviews (
 CREATE INDEX IF NOT EXISTS idx_verification_reviews_status ON verification_reviews(final_status);
 CREATE INDEX IF NOT EXISTS idx_verification_reviews_provider ON verification_reviews(provider_user_id);
 
--- ── Normalize bookings.provider_id → real FK on users(id) ──────────────────
-ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_provider_id_fkey;
-ALTER TABLE bookings
-  ADD CONSTRAINT bookings_provider_id_fkey
-  FOREIGN KEY (provider_id) REFERENCES users(id) ON DELETE SET NULL;
+-- ── bookings.provider_id FK → DEFERRED to Layer 3 ─────────────────────────
+-- Not added here: the org-booking convention still keys on organizations.id.
+-- Layer 3 (booking-flow rebuild) migrates that convention to users.id and adds
+-- the FK then, so Layer 0 stays additive and non-breaking.
 
 -- ── provider_directory view (single search surface) ────────────────────────
 CREATE OR REPLACE VIEW provider_directory AS

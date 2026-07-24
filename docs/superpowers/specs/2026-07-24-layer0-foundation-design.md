@@ -115,27 +115,32 @@ verification_status, is_listed, home_service_enabled`.
 - Joins `provider_settings` for `is_listed` / `home_service_enabled`.
 - **All search reads go through this view**, filtered `verification_status='verified' AND is_listed=true`.
 
-### 4.3 Reconciliation — old → new (dropped; no real data)
+### 4.3 Reconciliation — old → new (ADDITIVE: legacy retained, superseded)
 
-| Old | New |
-|---|---|
-| `slots` | `provider_slots` |
-| `doctor_availability` + `organization_timings` (never existed) | `provider_availability` |
-| `doctor_blocked_dates` | `provider_blocked_dates` |
-| `organization_services` | `provider_services` |
-| `health_packages` + `organization_packages` (never existed) | `provider_packages` |
-| scattered home flags (`pharmacies.home_delivery`, `nurses.service_radius_km`, etc.) | `provider_settings` |
-| `bookings.provider_id` (bare UUID, no FK) | `bookings.provider_id UUID REFERENCES users(id)` |
+Layer 0 is **additive**. The legacy tables are **retained** so existing (Layer 2/3/6)
+endpoints keep working; the new `provider_*` tables supersede them and become canonical.
+Each legacy table is dropped in the later layer that migrates its code (noted below).
 
-Code referencing the old tables is refactored to the new ones as part of the plan
-(`bookings.py`, `provider_management.py`, dashboards, existing tests).
+| Legacy (retained in Layer 0) | New canonical | Dropped in |
+|---|---|---|
+| `slots` | `provider_slots` | Layer 2/3 |
+| `doctor_availability` (+ `organization_timings`, never existed) | `provider_availability` | Layer 2 |
+| `doctor_blocked_dates` | `provider_blocked_dates` | Layer 2 |
+| `organization_services` | `provider_services` | Layer 6 |
+| `health_packages` (+ `organization_packages`, never existed) | `provider_packages` | Layer 5/6 |
+| scattered home flags (`pharmacies.home_delivery`, `nurses.service_radius_km`, etc.) | `provider_settings` | Layer 6 |
+| `bookings.provider_id` (bare UUID, no FK) | `bookings.provider_id UUID REFERENCES users(id)` | **Layer 3** (FK + org-convention migration) |
 
-### 4.4 Migration posture
+Layer 0 does **not** refactor the legacy-table call sites; that happens in the owning
+layer. Only the new search surface (§6) and verification (§5) read the new tables.
 
-One idempotent migration file (`database/layer0_foundation.sql`): create new tables +
-indexes, add the `bookings.provider_id` FK, drop superseded/drifted tables, create the
-`provider_directory` view. Plus a `database/layer0_seed.sql` producing demo providers
-(verified + pending + a home-service one) for tests and manual QA.
+### 4.4 Migration posture (ADDITIVE)
+
+One idempotent migration file (`database/layer0_foundation.sql`): create the new
+`provider_*` + `verification_reviews` tables + indexes and the `provider_directory`
+view. It **drops no legacy tables** and **adds no `bookings` FK** — both deferred to the
+owning later layer (see §4.3) so Layer 0 is non-breaking. Plus `database/layer0_seed.sql`
+producing demo providers (verified + pending + a home-service one) for QA.
 
 ---
 
