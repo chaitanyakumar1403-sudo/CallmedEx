@@ -33,6 +33,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def is_origin_allowed(origin: str, allowlist: list) -> bool:
+    return bool(origin) and origin in allowlist
+
+
 # ─── Graceful Shutdown ───────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -102,27 +106,10 @@ app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = [
-    settings.FRONTEND_URL,
-    "http://localhost:3000",
-    "http://localhost:3001",
-]
-# Add production domains
-if settings.FRONTEND_URL not in ("http://localhost:3000", ""):
-    ALLOWED_ORIGINS.append(settings.FRONTEND_URL)
-
-# Add Vercel deployment
-ALLOWED_ORIGINS.append("https://callmedex-v1.vercel.app")
-ALLOWED_ORIGINS.append("https://callmedex-frontend.vercel.app")
-ALLOWED_ORIGINS.append("https://callmedex-frontend-omyj2rbhs-xylarc-ai.vercel.app")
-
-# Allow Jitsi Meet for video consultation
-ALLOWED_ORIGINS.append("https://meet.jit.si")
-
+ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
@@ -147,27 +134,10 @@ from fastapi.exceptions import RequestValidationError
 # ─── Global Exception Handlers ──────────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # Check if it's a Supabase/PostgREST error (PGRST)
-    exc_str = str(exc)
-    if "postgrest" in exc.__class__.__module__ or "PGRST" in exc_str:
-        logger.error(f"Supabase DB Error on {request.url.path}: {exc}")
-        return JSONResponse(
-            status_code=200, # Degrade gracefully for the frontend
-            content={
-                "success": False,
-                "message": "A database relationship or constraint error occurred. Please try again later or contact support.",
-                "details": str(exc)
-            },
-        )
-    
-    logger.exception(f"Unhandled Exception on {request.url.path}")
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "message": "An unexpected system error occurred."
-        },
-    )
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.exception(f"[{request_id}] Unhandled exception on {request.url.path}")
+    return JSONResponse(status_code=500, content={
+        "success": False, "message": "An unexpected error occurred.", "request_id": request_id})
 
 # ─── Routers ──────────────────────────────────────────────────────────────
 app.include_router(auth.router)
