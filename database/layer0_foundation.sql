@@ -140,7 +140,9 @@ CREATE INDEX IF NOT EXISTS idx_verification_reviews_provider ON verification_rev
 -- the FK then, so Layer 0 stays additive and non-breaking.
 
 -- ── provider_directory view (single search surface) ────────────────────────
-CREATE OR REPLACE VIEW provider_directory AS
+-- security_invoker=on → the view runs with the QUERYING role's permissions/RLS,
+-- not the creator's (clears Supabase linter 0010 security_definer_view). Postgres 15+.
+CREATE OR REPLACE VIEW provider_directory WITH (security_invoker = on) AS
 SELECT
     u.id AS provider_user_id,
     'organization' AS provider_type,
