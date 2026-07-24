@@ -33,6 +33,24 @@ def _get_razorpay_client():
 class PaymentService:
 
     @staticmethod
+    def signature_is_valid(order_id, payment_id, signature, secret) -> bool:
+        if not (order_id and payment_id and signature and secret):
+            return False
+        expected = hmac.new(
+            secret.encode("utf-8"),
+            f"{order_id}|{payment_id}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+    @staticmethod
+    def amounts_match(order_amount, paid_amount) -> bool:
+        try:
+            return abs(float(order_amount) - float(paid_amount)) < 0.01
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
     def create_order(
         amount: float,
         booking_id: str,
@@ -125,24 +143,30 @@ class PaymentService:
         """
         client = _get_razorpay_client()
 
-        if client:
-            try:
-                # Verify signature
-                body = f"{razorpay_order_id}|{razorpay_payment_id}"
-                expected_signature = hmac.new(
-                    settings.RAZORPAY_KEY_SECRET.encode("utf-8"),
-                    body.encode("utf-8"),
-                    hashlib.sha256,
-                ).hexdigest()
+        # Fail closed: no configured secret or an invalid signature means unverified.
+        if not settings.RAZORPAY_KEY_SECRET or not PaymentService.signature_is_valid(
+            razorpay_order_id, razorpay_payment_id, razorpay_signature, settings.RAZORPAY_KEY_SECRET
+        ):
+            logger.warning(f"Payment signature invalid/missing for {razorpay_order_id}")
+            return {"verified": False, "error": "Invalid payment signature"}
 
-                if expected_signature != razorpay_signature:
-                    logger.warning(f"Payment signature mismatch for order {razorpay_order_id}")
-                    return {"verified": False, "error": "Invalid payment signature"}
-            except Exception as e:
-                logger.error(f"Signature verification error: {e}")
-                # Don't fail — continue with db update
-        else:
-            logger.warning("Razorpay not configured — skipping signature verification")
+        # Amount check: stored order amount (rupees) vs Razorpay-captured amount (paise -> rupees)
+        stored_amount = None
+        if supabase:
+            row = supabase.table("payments").select("amount").eq("razorpay_order_id", razorpay_order_id).execute()
+            if row.data:
+                stored_amount = row.data[0]["amount"]
+
+        try:
+            captured = client.payment.fetch(razorpay_payment_id)
+            captured_rupees = float(captured.get("amount", 0)) / 100.0
+        except Exception as e:
+            logger.error(f"Could not fetch payment for amount check: {e}")
+            return {"verified": False, "error": "Could not confirm payment amount"}
+
+        if stored_amount is not None and not PaymentService.amounts_match(stored_amount, captured_rupees):
+            logger.warning(f"Amount mismatch on {razorpay_order_id}: stored {stored_amount} vs captured {captured_rupees}")
+            return {"verified": False, "error": "Amount mismatch"}
 
         # Update payment status in DB
         now = datetime.now(timezone.utc).isoformat()
@@ -184,8 +208,9 @@ class PaymentService:
                     }
             except Exception as e:
                 logger.error(f"DB update after payment verification failed: {e}")
+                return {"verified": False, "error": "Could not record payment"}
 
-        return {"verified": True, "status": "captured", "razorpay_order_id": razorpay_order_id}
+        return {"verified": False, "error": "Payment record not found"}
 
     @staticmethod
     def get_patient_transactions(patient_id: str, limit: int = 20) -> list:
