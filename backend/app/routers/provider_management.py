@@ -1066,13 +1066,16 @@ async def search_providers(
                 continue
             if q and q.strip().lower() not in f"{r.get('display_name','')} {r.get('subtype','')} {r.get('city','')}".lower():
                 continue
-            # min price rollup
+            # min price rollup (per-row isolated — one bad row must not blank the whole page)
             min_price = None
-            svc = (supabase.table("provider_services").select("base_price")
-                   .eq("provider_user_id", r["provider_user_id"]).eq("is_active", True)
-                   .order("base_price").limit(1).execute()).data
-            if svc:
-                min_price = float(svc[0]["base_price"])
+            try:
+                svc = (supabase.table("provider_services").select("base_price")
+                       .eq("provider_user_id", r["provider_user_id"]).eq("is_active", True)
+                       .order("base_price").limit(1).execute()).data
+                if svc:
+                    min_price = float(svc[0]["base_price"])
+            except Exception:
+                min_price = None
             out.append({**r, "min_price": min_price})
             if len(out) >= limit:
                 break
