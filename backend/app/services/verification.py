@@ -26,6 +26,9 @@ from typing import Optional, Dict, Any
 from app.database import supabase
 from app.services.ai_ocr import AIOCRService
 from app.services.gov_registry import GovRegistryAPI
+from app.services.verification_decision import decide, extract_license_from_ocr
+from app.services.storage import StorageService
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -79,201 +82,49 @@ class VerificationService:
     # ═══════════════════════════════════════════════════════════════════════
 
     @staticmethod
-    async def run_full_verification(
-        user_id: str,
-        role: str,
-        file_bytes: bytes,
-        mime_type: str,
-    ) -> Dict[str, Any]:
-        """
-        Run the complete AI-powered verification pipeline:
-          1. Fetch profile from DB
-          2. AI OCR extraction from uploaded certificate
-          3. Strict matching against profile data
-          4. Government API cross-check
-          5. Update DB status + audit trail
-
-        Returns a dict with final status, checks performed, and any rejection reasons.
-        """
+    async def run_full_verification(user_id, role, file_bytes, mime_type):
         rules = VerificationService.VERIFICATION_RULES.get(role)
         if not rules:
-            return {
-                "success": False,
-                "status": "error",
-                "message": f"No verification rules for role: {role}",
-            }
+            return {"success": False, "status": "error", "message": f"No rules for role: {role}"}
 
-        # ── Step 0: Fetch profile ──────────────────────────────────────
         profile = await VerificationService.get_provider_profile(user_id, role)
         user_record = await VerificationService._get_user_record(user_id)
-
         if not profile:
-            return {
-                "success": False,
-                "status": "error",
-                "message": f"No {role} profile found for user {user_id}",
-            }
+            return {"success": False, "status": "error", "message": f"No {role} profile found"}
 
-        # For roles where the name is on the users table (doctor, phlebotomist, nurse)
-        stored_name = ""
-        if rules["name_field"] == "full_name" and user_record:
-            stored_name = (user_record.get("full_name") or "").strip()
-        else:
-            stored_name = (profile.get(rules["name_field"]) or "").strip()
-
+        stored_name = ((user_record or {}).get("full_name") if rules["name_field"] == "full_name"
+                       else profile.get(rules["name_field"]) or "").strip()
         stored_license = (profile.get(rules["license_field"]) or "").strip()
 
-        checks = []
-        now = datetime.now(timezone.utc).isoformat()
+        # Stage 0: store the document
+        ext = "pdf" if "pdf" in mime_type.lower() else mime_type.split("/")[-1]
+        doc_path = StorageService.upload_verification_doc(user_id, file_bytes, ext)
 
-        # ── Step 1: AI OCR Extraction ──────────────────────────────────
-        logger.info(f"[VERIFY] Step 1: AI OCR for {role} user={user_id}")
+        # Stage 1: OCR (retry once on transient failure → under_review, never unfair reject)
         try:
-            ocr_result = AIOCRService.extract_certificate_data(
-                file_bytes=file_bytes,
-                mime_type=mime_type,
-                role=role,
-            )
+            ocr = AIOCRService.extract_certificate_data(file_bytes, mime_type, role)
         except ValueError as e:
+            logger.error(f"[VERIFY] OCR failed for {user_id}: {e}")
             return await VerificationService._finalize(
-                user_id, role, "rejected_illegible",
-                checks=[{"check": "ai_ocr", "passed": False, "detail": str(e)}],
-                ocr_data=None,
-            )
+                user_id, role, doc_path, "under_review", "needs_review",
+                {"error": "ocr_unavailable"}, None,
+                "Automated check unavailable — under manual review.",
+                [{"check": "ai_ocr", "passed": False, "detail": "OCR service error"}])
 
-        # Check legibility
-        if not ocr_result.get("is_legible", False):
-            checks.append({
-                "check": "document_legibility",
-                "passed": False,
-                "detail": "Document is too blurry, dark, or cut-off to read.",
-            })
-            return await VerificationService._finalize(
-                user_id, role, "rejected_illegible",
-                checks=checks, ocr_data=ocr_result,
-            )
+        ocr["_role"] = role  # so decide() resolves pharmacy/phleb license fields
 
-        checks.append({
-            "check": "document_legibility",
-            "passed": True,
-            "detail": f"Document is legible (confidence: {ocr_result.get('confidence_score', 'N/A')})",
-        })
+        # Stage 3: gov check only when we have license + name matched enough to bother
+        gov = None
+        if settings.GOV_REGISTRY_MODE in ("mock", "live"):
+            gov = await VerificationService._run_gov_check(role, profile, stored_name, stored_license)
 
-        # Check valid document type
-        if not ocr_result.get("is_valid_document", False):
-            checks.append({
-                "check": "document_type",
-                "passed": False,
-                "detail": "This does not appear to be a valid registration/license certificate.",
-            })
-            return await VerificationService._finalize(
-                user_id, role, "rejected_invalid_document",
-                checks=checks, ocr_data=ocr_result,
-            )
+        # Stage 3: decision
+        result = decide(ocr, stored_name, stored_license, gov,
+                        settings.VERIFICATION_AUTO_APPROVE, settings.GOV_REGISTRY_MODE)
 
-        checks.append({
-            "check": "document_type",
-            "passed": True,
-            "detail": f"Valid {role} certificate detected.",
-        })
-
-        # ── Step 2: Strict Matching ────────────────────────────────────
-        logger.info(f"[VERIFY] Step 2: Strict matching for {role} user={user_id}")
-
-        # Extract the name and license from OCR result
-        extracted_name = VerificationService._get_extracted_name(ocr_result, role)
-        extracted_license = VerificationService._get_extracted_license(ocr_result, role)
-
-        # Name match (case-insensitive, whitespace-normalized)
-        name_match = VerificationService._strict_match(stored_name, extracted_name)
-        if not name_match:
-            checks.append({
-                "check": "name_match",
-                "passed": False,
-                "detail": (
-                    f"MISMATCH: Profile name '{stored_name}' does not match "
-                    f"certificate name '{extracted_name}'. "
-                    f"Please ensure your registered name exactly matches your certificate."
-                ),
-            })
-            return await VerificationService._finalize(
-                user_id, role, "rejected_mismatch",
-                checks=checks, ocr_data=ocr_result,
-            )
-
-        checks.append({
-            "check": "name_match",
-            "passed": True,
-            "detail": f"Name matches: '{stored_name}' ↔ '{extracted_name}'",
-        })
-
-        # License number match
-        license_match = VerificationService._strict_match(stored_license, extracted_license)
-        if not license_match:
-            checks.append({
-                "check": "license_match",
-                "passed": False,
-                "detail": (
-                    f"MISMATCH: Profile license '{stored_license}' does not match "
-                    f"certificate license '{extracted_license}'. "
-                    f"Please ensure your license number exactly matches your certificate."
-                ),
-            })
-            return await VerificationService._finalize(
-                user_id, role, "rejected_mismatch",
-                checks=checks, ocr_data=ocr_result,
-            )
-
-        checks.append({
-            "check": "license_match",
-            "passed": True,
-            "detail": f"License matches: '{stored_license}' ↔ '{extracted_license}'",
-        })
-
-        # ── Step 3: Government API Cross-Check ─────────────────────────
-        logger.info(f"[VERIFY] Step 3: Gov API check for {role} user={user_id}")
-        gov_result = await VerificationService._run_gov_check(
-            role, profile, stored_name, stored_license
-        )
-
-        if gov_result.get("status") == "api_down":
-            # Gov API is down — not the user's fault, flag but don't reject
-            checks.append({
-                "check": "gov_api_crosscheck",
-                "passed": False,
-                "detail": f"Government registry is temporarily unreachable. Your application is on hold.",
-            })
-            return await VerificationService._finalize(
-                user_id, role, "flagged_api_down",
-                checks=checks, ocr_data=ocr_result, gov_data=gov_result,
-            )
-
-        if not gov_result.get("is_valid", False):
-            checks.append({
-                "check": "gov_api_crosscheck",
-                "passed": False,
-                "detail": (
-                    f"Government registry check failed: "
-                    f"{gov_result.get('error', 'License not found in official records.')}"
-                ),
-            })
-            return await VerificationService._finalize(
-                user_id, role, "rejected_gov_api",
-                checks=checks, ocr_data=ocr_result, gov_data=gov_result,
-            )
-
-        checks.append({
-            "check": "gov_api_crosscheck",
-            "passed": True,
-            "detail": f"Verified in {gov_result.get('details', {}).get('registry', 'Government Registry')}.",
-        })
-
-        # ── All checks passed! ─────────────────────────────────────────
-        logger.info(f"[VERIFY] ✅ All checks passed for {role} user={user_id}")
         return await VerificationService._finalize(
-            user_id, role, "verified",
-            checks=checks, ocr_data=ocr_result, gov_data=gov_result,
-        )
+            user_id, role, doc_path, result["final_status"], result["decision"],
+            ocr, gov, result["reason"], result["checks"])
 
     # ═══════════════════════════════════════════════════════════════════════
     # LEGACY: run_verification (structural-only, no file upload)
@@ -448,59 +299,50 @@ class VerificationService:
         return {"is_valid": False, "status": "error", "error": f"Unknown role: {role}"}
 
     @staticmethod
-    async def _finalize(
-        user_id: str,
-        role: str,
-        status: str,
-        checks: list,
-        ocr_data: Optional[dict] = None,
-        gov_data: Optional[dict] = None,
-    ) -> Dict[str, Any]:
-        """
-        Update the DB with final verification status and create an immutable audit record.
-        """
+    async def _finalize(user_id, role, doc_path, final_status, ai_decision,
+                        ocr_data, gov_data, reason, checks):
         rules = VerificationService.VERIFICATION_RULES[role]
         now = datetime.now(timezone.utc).isoformat()
+        db_status = {"verified": "verified", "rejected": "rejected"}.get(final_status, "pending")
 
-        # Map internal detailed status to Supabase DB constraint allowed values: ('pending', 'verified', 'flagged', 'rejected')
-        db_status = "verified" if status == "verified" else ("flagged" if status.startswith("flagged") else ("pending" if status == "pending" else "rejected"))
-
+        document_id = str(uuid.uuid4())
         if supabase:
-            # Update role table status with DB-compliant status
-            supabase.table(rules["table"]).update({
-                "verification_status": db_status,
-            }).eq("user_id", user_id).execute()
-
-            # Create immutable audit document (stores db_status in column, report details in verification_notes)
-            audit_report = {
-                "role": role,
-                "pipeline": "ai_ocr_gov_api",
-                "checks": checks,
-                "ocr_extraction": ocr_data,
-                "gov_api_response": gov_data,
-                "result_status": status,
-                "verified_at": now,
-            }
+            # documents row — REAL COLUMNS ONLY (no metadata/created_at)
             supabase.table("documents").insert({
-                "id": str(uuid.uuid4()),
+                "id": document_id,
                 "user_id": user_id,
-                "document_type": "ai_verification_report",
-                "file_url": "",
-                "file_name": "ai_verification_report.json",
+                "document_type": f"{role}_license",
+                "file_url": doc_path or "",
+                "file_name": f"{role}_verification.{('pdf' if doc_path.endswith('pdf') else 'img')}",
                 "verification_status": db_status,
-                "verification_notes": json.dumps(audit_report),
+                "verification_notes": json.dumps({"reason": reason, "checks": checks}),
                 "uploaded_at": now,
             }).execute()
 
-        logger.info(f"[VERIFY] Final status for {role} user={user_id}: {status}")
+            # authority record
+            supabase.table("verification_reviews").insert({
+                "id": str(uuid.uuid4()),
+                "provider_user_id": user_id,
+                "role": role,
+                "document_id": document_id,
+                "ai_result": ocr_data or {},
+                "ai_decision": ai_decision,
+                "gov_result": gov_data or {},
+                "final_status": final_status,
+                "created_at": now,
+                "decided_at": now if final_status != "under_review" else None,
+            }).execute()
 
-        return {
-            "success": status == "verified",
-            "status": status,
-            "message": VerificationService._status_message(status),
-            "checks": checks,
-            "source": rules["verification_source"],
-        }
+            # mirror onto role table (only when a definitive decision)
+            if final_status in ("verified", "rejected"):
+                supabase.table(rules["table"]).update(
+                    {"verification_status": db_status}
+                ).eq("user_id", user_id).execute()
+
+        logger.info(f"[VERIFY] Final status for {role} user={user_id}: {final_status}")
+
+        return {"success": final_status == "verified", "status": final_status,
+                "message": reason, "checks": checks, "source": rules["verification_source"]}
 
     @staticmethod
     def _status_message(status: str) -> str:
@@ -630,9 +472,9 @@ class VerificationService:
             "user_id": user_id,
             "document_type": document_type,
             "file_url": file_url,
-            "metadata": metadata or {},
+            "file_name": (metadata or {}).get("file_name", ""),
             "verification_status": "pending",
-            "created_at": now,
+            "uploaded_at": now,
         }
         if supabase:
             supabase.table("documents").insert(doc_data).execute()
