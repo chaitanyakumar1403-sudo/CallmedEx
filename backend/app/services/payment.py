@@ -164,9 +164,9 @@ class PaymentService:
             logger.error(f"Could not fetch payment for amount check: {e}")
             return {"verified": False, "error": "Could not confirm payment amount"}
 
-        if stored_amount is not None and not PaymentService.amounts_match(stored_amount, captured_rupees):
-            logger.warning(f"Amount mismatch on {razorpay_order_id}: stored {stored_amount} vs captured {captured_rupees}")
-            return {"verified": False, "error": "Amount mismatch"}
+        if stored_amount is None or not PaymentService.amounts_match(stored_amount, captured_rupees):
+            logger.warning(f"Amount check failed on {razorpay_order_id}: stored={stored_amount} captured={captured_rupees}")
+            return {"verified": False, "error": "Amount could not be confirmed"}
 
         # Update payment status in DB
         now = datetime.now(timezone.utc).isoformat()
