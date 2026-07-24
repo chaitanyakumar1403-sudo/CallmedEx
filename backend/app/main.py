@@ -185,6 +185,8 @@ app.include_router(ai_reports.router)
 app.include_router(communications.router)
 app.include_router(admin_analytics.router)
 app.include_router(provider_management.router)
+from app.routers import admin_verification
+app.include_router(admin_verification.router)
 app.include_router(payments.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
