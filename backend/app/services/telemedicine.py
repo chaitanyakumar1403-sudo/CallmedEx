@@ -556,7 +556,7 @@ class TelemedicineService:
         consultation = await TelemedicineService.get_consultation(consultation_id) or {}
 
         now = datetime.now(timezone.utc).isoformat()
-        dispatch_id = f"disp_{str(uuid.uuid4())[:8]}"
+        dispatch_id = str(uuid.uuid4())
 
         if action_type == "pharmacy":
             medicines = consultation.get("ai_medicines", [])

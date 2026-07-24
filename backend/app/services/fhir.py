@@ -9,6 +9,7 @@ ABDM Milestone M2: HIP (Health Information Provider) role.
 - Handle consent requests from other facilities
 """
 import uuid
+import json
 from datetime import datetime, timezone
 from typing import Optional
 from app.database import supabase
@@ -328,12 +329,13 @@ class FHIRService:
         if supabase:
             supabase.table("documents").insert({
                 "id": push_id,
-                "user_id": "",  # Will be populated from patient lookup
+                "user_id": push_record.get("patient_user_id", "") or "",
                 "document_type": "abdm_fhir_push",
                 "file_url": "",
-                "metadata": push_record,
+                "file_name": "fhir_push.json",
                 "verification_status": "verified",
-                "created_at": now,
+                "verification_notes": json.dumps(push_record),
+                "uploaded_at": now,
             }).execute()
 
         return push_record

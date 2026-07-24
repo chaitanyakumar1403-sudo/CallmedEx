@@ -7,7 +7,6 @@ Enterprise-grade security for CallMedex:
 - Request ID tracking for log correlation
 """
 import uuid
-import re
 import time
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,26 +14,6 @@ from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 
 logger = logging.getLogger(__name__)
-
-# ─── Dangerous patterns to sanitize ──────────────────────────────────────
-SQL_INJECTION_PATTERNS = [
-    r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|UNION|TRUNCATE)\b.*\b(FROM|INTO|TABLE|SET|WHERE|ALL)\b)",
-    r"(--|;|/\*|\*/|@@|@)",
-    r"(\b(OR|AND)\b\s+\d+\s*=\s*\d+)",
-]
-
-XSS_PATTERNS = [
-    r"<script[^>]*>",
-    r"javascript:",
-    r"on\w+\s*=",
-    r"<iframe",
-    r"<object",
-    r"<embed",
-    r"<form",
-    r"eval\(",
-    r"document\.cookie",
-    r"document\.location",
-]
 
 # Max request body size: 10 MB
 MAX_REQUEST_SIZE = 10 * 1024 * 1024
@@ -111,30 +90,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
 def sanitize_input(value: str) -> str:
     """
-    Sanitize a string input by stripping dangerous SQL and XSS patterns.
+    Sanitize a string input by stripping null bytes and trimming whitespace.
     Use this on all user-provided text fields before processing.
     """
     if not isinstance(value, str):
         return value
-
-    cleaned = value.strip()
-
-    # Check for SQL injection patterns
-    for pattern in SQL_INJECTION_PATTERNS:
-        if re.search(pattern, cleaned, re.IGNORECASE):
-            logger.warning(f"SQL injection pattern detected and stripped: {cleaned[:100]}")
-            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
-
-    # Check for XSS patterns
-    for pattern in XSS_PATTERNS:
-        if re.search(pattern, cleaned, re.IGNORECASE):
-            logger.warning(f"XSS pattern detected and stripped: {cleaned[:100]}")
-            cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
-
-    # Strip null bytes
-    cleaned = cleaned.replace("\x00", "")
-
-    return cleaned.strip()
+    return value.replace("\x00", "").strip()
 
 
 def sanitize_dict(data: dict) -> dict:

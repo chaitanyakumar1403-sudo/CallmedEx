@@ -623,7 +623,6 @@ class UniversalDispatchEngine:
         if not dispatch:
             return {"dispatch_id": dispatch_id, "status": "not_found"}
 
-        dispatch = result.data[0]
         provider_location = None
 
         if dispatch.get("assigned_provider_id"):

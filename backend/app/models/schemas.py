@@ -326,7 +326,7 @@ class SlotAllotment(BaseModel):
     message: Optional[str] = None  # Optional message to patient
 
 
-class SlotResponse(BaseModel):
+class SlotAllotmentResponse(BaseModel):
     """Patient responds to an allotted slot."""
     accepted: bool
     reason: Optional[str] = None  # If rejected, optional reason

@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from app.models.schemas import (
     BookingCreate, BookingResponse, APIResponse,
     BookingStatus, ServiceType,
-    SlotAllotment, SlotResponse as SlotResponseSchema
+    SlotAllotment, SlotAllotmentResponse as SlotResponseSchema
 )
 from app.middleware.auth import get_current_user
 from app.database import supabase
