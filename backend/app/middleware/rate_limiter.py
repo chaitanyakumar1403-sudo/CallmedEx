@@ -101,15 +101,31 @@ def _memory_cleanup():
         logger.debug(f"Rate limiter cleanup: removed {len(keys_to_remove)} expired keys")
 
 
+def resolve_client_ip(xff, direct_ip: str, trusted_proxy_count: int) -> str:
+    """
+    Resolve client IP from X-Forwarded-For header with proxy count awareness.
+
+    Args:
+        xff: X-Forwarded-For header value (comma-separated IPs) or None
+        direct_ip: Direct socket IP (fallback)
+        trusted_proxy_count: Number of proxies between client and server
+                            If <= 0, ignores xff entirely (security default)
+
+    Returns:
+        The resolved client IP address
+    """
+    if trusted_proxy_count <= 0 or not xff:
+        return direct_ip
+    parts = [p.strip() for p in xff.split(",") if p.strip()]
+    idx = len(parts) - trusted_proxy_count
+    return parts[idx - 1] if 0 < idx <= len(parts) else direct_ip
+
+
 def _get_client_ip(request: Request) -> str:
     """Extract client IP, handling proxy headers."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip
-    return request.client.host if request.client else "unknown"
+    from app.config import settings
+    direct = request.client.host if request.client else "unknown"
+    return resolve_client_ip(request.headers.get("x-forwarded-for"), direct, settings.TRUSTED_PROXY_COUNT)
 
 
 def _get_rate_limit(method: str, path: str) -> Tuple[int, int]:
