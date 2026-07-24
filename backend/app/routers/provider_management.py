@@ -1085,6 +1085,33 @@ async def search_providers(
         return {"success": True, "providers": []}
 
 
+@router.get("/{provider_user_id}/catalog")
+async def provider_catalog(provider_user_id: str):
+    """Public: a provider's bookable services + packages from the canonical
+    marketplace tables (provider_services / provider_packages), keyed by users.id —
+    the id the marketplace search returns."""
+    if not supabase:
+        return {"success": True, "services": [], "packages": []}
+    services, packages = [], []
+    try:
+        services = (
+            supabase.table("provider_services").select("*")
+            .eq("provider_user_id", provider_user_id).eq("is_active", True)
+            .order("base_price").execute()
+        ).data or []
+    except Exception as e:
+        logger.error(f"provider_catalog services error: {e}")
+    try:
+        packages = (
+            supabase.table("provider_packages").select("*")
+            .eq("provider_user_id", provider_user_id).eq("is_active", True)
+            .eq("status", "approved").execute()
+        ).data or []
+    except Exception as e:
+        logger.error(f"provider_catalog packages error: {e}")
+    return {"success": True, "services": services, "packages": packages}
+
+
 @router.get("/search/organizations")
 async def search_organizations(org_type: Optional[str] = None, city: Optional[str] = None,
                                q: Optional[str] = None, limit: int = 50):

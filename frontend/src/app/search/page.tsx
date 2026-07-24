@@ -1,314 +1,302 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
-interface Organization {
-  id: string;
-  name?: string;
-  organization_name?: string;
-  organization_type?: string;
-  type?: string;
+interface Provider {
+  provider_user_id: string;
+  provider_type: string;      // organization | doctor | pharmacy
+  display_name: string;
+  subtype?: string;           // diagnostic_center | polyclinic | hospital | specialization | ...
   city?: string;
-  district?: string;
   state?: string;
-  pincode?: string;
-  address?: string;
-  total_doctors?: number;
-  doctors_count?: number;
-  total_departments?: number;
-  total_services?: number;
-  services_count?: number;
-  operating_hours?: string;
-  is_verified?: boolean;
+  rating?: number;
+  home_service_enabled?: boolean;
+  min_price?: number | null;
+  verification_status?: string;
 }
+
+interface CatalogItem {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  base_price?: number;
+  price?: number;
+  home_available?: boolean;
+}
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// Provider-type visual language — icon + accent tint, derived from the subject.
+function visualFor(p: Provider): { icon: string; accent: string; tint: string; label: string } {
+  const t = (p.subtype || "").toLowerCase();
+  const pt = (p.provider_type || "").toLowerCase();
+  if (pt === "doctor") return { icon: "🩺", accent: "#7c3aed", tint: "#f3ecfe", label: p.subtype || "Doctor" };
+  if (pt === "pharmacy") return { icon: "💊", accent: "#16a34a", tint: "#e8f7ee", label: "Pharmacy" };
+  if (t.includes("diagnostic") || t.includes("lab")) return { icon: "🧪", accent: "#0891b2", tint: "#e2f6fb", label: "Diagnostic Center" };
+  if (t.includes("hospital")) return { icon: "🏥", accent: "#4f46e5", tint: "#ecebfe", label: "Hospital" };
+  if (t.includes("clinic")) return { icon: "🏩", accent: "#0284c7", tint: "#e4f1fb", label: "Polyclinic" };
+  return { icon: "🏥", accent: "#1a2b4a", tint: "#e8edf5", label: p.subtype || "Facility" };
+}
+
+const FILTERS: { key: string; label: string; match: (p: Provider) => boolean }[] = [
+  { key: "all", label: "All", match: () => true },
+  { key: "hospital", label: "Hospitals", match: (p) => (p.subtype || "").toLowerCase().includes("hospital") },
+  { key: "diagnostic", label: "Diagnostics", match: (p) => (p.subtype || "").toLowerCase().includes("diagnostic") || (p.subtype || "").toLowerCase().includes("lab") },
+  { key: "clinic", label: "Clinics", match: (p) => (p.subtype || "").toLowerCase().includes("clinic") },
+  { key: "doctor", label: "Doctors", match: (p) => p.provider_type === "doctor" },
+  { key: "pharmacy", label: "Pharmacy", match: (p) => p.provider_type === "pharmacy" },
+];
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
-  const [results, setResults] = useState<Organization[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [all, setAll] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
   const [hasSearched, setHasSearched] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("all");
 
-  // Selected Provider Modal State
-  const [selectedProvider, setSelectedProvider] = useState<Organization | null>(null);
-  const [providerServices, setProviderServices] = useState<any[]>([]);
-  const [providerPackages, setProviderPackages] = useState<any[]>([]);
-  const [loadingProviderData, setLoadingProviderData] = useState(false);
+  const [selected, setSelected] = useState<Provider | null>(null);
+  const [services, setServices] = useState<CatalogItem[]>([]);
+  const [packages, setPackages] = useState<CatalogItem[]>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
 
-  useEffect(() => {
-    handleSearch();
-  }, []);
+  useEffect(() => { fetchProviders(); }, []);
 
-  const handleSearch = async (e?: React.FormEvent) => {
+  const fetchProviders = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoading(true);
     setHasSearched(true);
-    
     try {
-      const url = new URL(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations`);
+      const url = new URL(`${API}/api/providers/search/providers`);
       if (searchQuery) url.searchParams.append("q", searchQuery);
       if (locationQuery) url.searchParams.append("city", locationQuery);
-      
       const res = await fetch(url.toString());
       const data = await res.json();
-      if (data.success) {
-        setResults(data.organizations || []);
-      } else {
-        setResults([]);
-      }
-    } catch (e) {
-      console.error(e);
-      setResults([]);
+      setAll(data.success ? (data.providers || []) : []);
+    } catch {
+      setAll([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchProviderDetails = async (orgId: string) => {
-    setLoadingProviderData(true);
+  const openProvider = async (p: Provider) => {
+    setSelected(p);
+    setServices([]); setPackages([]);
+    setLoadingCatalog(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/org-services/${orgId}`);
+      const res = await fetch(`${API}/api/providers/${p.provider_user_id}/catalog`);
       const data = await res.json();
-      if (data.success) {
-        setProviderServices(data.data.services || []);
-        setProviderPackages(data.data.packages || []);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingProviderData(false);
-    }
+      if (data.success) { setServices(data.services || []); setPackages(data.packages || []); }
+    } catch { /* keep empty */ } finally { setLoadingCatalog(false); }
   };
 
-  const openProviderModal = (org: Organization) => {
-    setSelectedProvider(org);
-    fetchProviderDetails(org.id);
-  };
+  const results = useMemo(() => {
+    const f = FILTERS.find((x) => x.key === activeFilter) || FILTERS[0];
+    return all.filter(f.match);
+  }, [all, activeFilter]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const f of FILTERS) c[f.key] = all.filter(f.match).length;
+    return c;
+  }, [all]);
+
+  const priceLabel = (n?: number | null) =>
+    n === null || n === undefined ? null : `₹${Number(n).toLocaleString("en-IN")}`;
 
   return (
-    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-        
-        {/* Search Header */}
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          <h1 style={{ color: "#1e293b", fontSize: "2.5rem", marginBottom: "12px", fontWeight: 800 }}>
-            Find Hospitals, Clinics & Diagnostics
-          </h1>
-          <p style={{ color: "#64748b", fontSize: "1.1rem" }}>
-            Search top-rated healthcare organizations, diagnostic centers, and clinics by name and location.
+    <div className="mkt">
+      <style>{CSS}</style>
+
+      <div className="mkt-wrap">
+        {/* Header */}
+        <header className="mkt-head">
+          <p className="mkt-eyebrow">Verified providers only</p>
+          <h1 className="mkt-title">Find Hospitals, Labs &amp; Clinics</h1>
+          <p className="mkt-sub">
+            Every facility below is verified against government registries. Compare price, ratings,
+            and home-collection availability, then book in a tap.
           </p>
+        </header>
+
+        {/* Search */}
+        <form className="mkt-search" onSubmit={fetchProviders}>
+          <div className="mkt-field">
+            <span className="mkt-ic" aria-hidden>🔍</span>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name or specialty"
+              aria-label="Search by name or specialty"
+            />
+          </div>
+          <div className="mkt-field">
+            <span className="mkt-ic" aria-hidden>📍</span>
+            <input
+              value={locationQuery}
+              onChange={(e) => setLocationQuery(e.target.value)}
+              placeholder="City, district or pincode"
+              aria-label="Location"
+            />
+          </div>
+          <button className="mkt-go" type="submit" disabled={loading}>
+            {loading ? "Searching…" : "Search"}
+          </button>
+        </form>
+
+        {/* Filter chips */}
+        <div className="mkt-chips" role="tablist" aria-label="Filter by type">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              role="tab"
+              aria-selected={activeFilter === f.key}
+              className={`mkt-chip ${activeFilter === f.key ? "is-active" : ""}`}
+              onClick={() => setActiveFilter(f.key)}
+              disabled={!loading && counts[f.key] === 0 && f.key !== "all"}
+            >
+              {f.label}
+              {!loading && <span className="mkt-chip-n">{counts[f.key] ?? 0}</span>}
+            </button>
+          ))}
         </div>
 
-        {/* Search Box */}
-        <div style={{ 
-          backgroundColor: "white", 
-          padding: "24px", 
-          borderRadius: "16px", 
-          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-          marginBottom: "40px"
-        }}>
-          <form onSubmit={handleSearch} style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 300px" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#475569", marginBottom: "8px" }}>
-                Search by Name or Specialty
-              </label>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "12px", top: "12px", fontSize: "1.2rem" }}>🔍</span>
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="e.g. Apollo Hospitals" 
-                  style={{ 
-                    width: "100%", padding: "12px 12px 12px 40px", 
-                    borderRadius: "8px", border: "1px solid #cbd5e1",
-                    fontSize: "1rem"
-                  }} 
-                />
-              </div>
-            </div>
-            <div style={{ flex: "1 1 300px" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#475569", marginBottom: "8px" }}>
-                Location
-              </label>
-              <div style={{ position: "relative" }}>
-                <span style={{ position: "absolute", left: "12px", top: "12px", fontSize: "1.2rem" }}>📍</span>
-                <input 
-                  type="text" 
-                  value={locationQuery}
-                  onChange={(e) => setLocationQuery(e.target.value)}
-                  placeholder="City, District, or Pincode" 
-                  style={{ 
-                    width: "100%", padding: "12px 12px 12px 40px", 
-                    borderRadius: "8px", border: "1px solid #cbd5e1",
-                    fontSize: "1rem"
-                  }} 
-                />
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button 
-                type="submit" 
-                disabled={loading}
-                style={{ 
-                  padding: "12px 32px", backgroundColor: "#0f4c81", color: "white", 
-                  border: "none", borderRadius: "8px", fontWeight: 700, fontSize: "1rem",
-                  cursor: loading ? "wait" : "pointer", height: "46px"
-                }}
-              >
-                {loading ? "Searching..." : "Search"}
-              </button>
-            </div>
-          </form>
-        </div>
+        {/* Result count */}
+        {!loading && (
+          <p className="mkt-count">
+            <strong>{results.length}</strong> verified {results.length === 1 ? "provider" : "providers"}
+          </p>
+        )}
 
-        {/* Results */}
-        <div>
-          <h2 style={{ fontSize: "1.2rem", color: "#334155", marginBottom: "20px" }}>
-            {results.length} {results.length === 1 ? "Result" : "Results"} Found
-          </h2>
+        {/* Cards / skeletons / empty */}
+        <div className="mkt-list">
+          {loading &&
+            [0, 1, 2].map((i) => <div key={i} className="mkt-card mkt-skel" aria-hidden />)}
 
-          <div style={{ display: "grid", gap: "20px" }}>
-            {results.map((org) => {
-              const orgName = (org.organization_name || org.name || "").trim() || `${(org.organization_type || org.type || "Healthcare").replace(/_/g, " ").toUpperCase()} Facility`;
-              const orgType = (org.organization_type || org.type || "facility").replace(/_/g, " ");
-              const fullLoc = [org.address, org.city, org.district || org.state].filter(Boolean).join(", ");
-              const docsCount = org.doctors_count ?? org.total_doctors ?? 0;
-              const svcsCount = org.services_count ?? 0;
-
+          {!loading &&
+            results.map((p) => {
+              const v = visualFor(p);
+              const loc = [p.city, p.state].filter(Boolean).join(", ");
+              const price = priceLabel(p.min_price);
               return (
-                <div key={org.id} style={{ 
-                  backgroundColor: "white", 
-                  borderRadius: "12px", 
-                  padding: "24px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  border: "1px solid #e2e8f0",
-                  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1)"
-                }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                      <h3 style={{ margin: 0, fontSize: "1.4rem", color: "#0f172a" }}>{orgName}</h3>
-                      <span style={{ 
-                        backgroundColor: "#e0e7ff", color: "#3730a3", 
-                        padding: "2px 8px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
-                        textTransform: "capitalize"
-                      }}>
-                        {orgType}
-                      </span>
+                <article key={p.provider_user_id} className="mkt-card">
+                  <div className="mkt-avatar" style={{ background: v.tint, color: v.accent }}>
+                    <span aria-hidden>{v.icon}</span>
+                  </div>
+
+                  <div className="mkt-body">
+                    <div className="mkt-namerow">
+                      <h3 className="mkt-name">{p.display_name}</h3>
+                      <span className="mkt-verified" title="Verified against government registry">✓ Verified</span>
                     </div>
-                    <div style={{ color: "#64748b", fontSize: "0.95rem", marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span>📍</span> {fullLoc || "Location not set"}
+                    <div className="mkt-meta">
+                      <span className="mkt-type" style={{ color: v.accent, background: v.tint }}>{v.label}</span>
+                      <span className="mkt-rate">★ {(p.rating ?? 5).toFixed(1)}</span>
+                      {loc && <span className="mkt-loc">📍 {loc}</span>}
                     </div>
-                    <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem", color: "#475569", flexWrap: "wrap" }}>
-                      {docsCount > 0 && (
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span>👨‍⚕️</span> {docsCount} Doctors
-                        </div>
-                      )}
-                      {svcsCount > 0 && (
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <span>🧪</span> {svcsCount} Services
-                        </div>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <span>✅</span> Verified Facility
+                    {p.home_service_enabled && (
+                      <span className="mkt-home">🏠 Home collection available</span>
+                    )}
+                  </div>
+
+                  <div className="mkt-rail">
+                    {price ? (
+                      <div className="mkt-price">
+                        <span className="mkt-price-from">from</span>
+                        <span className="mkt-price-val">{price}</span>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mkt-price mkt-price-req">Price on request</div>
+                    )}
+                    <button className="mkt-view" onClick={() => openProvider(p)}>View services</button>
                   </div>
-                  <div>
-                    <button onClick={() => openProviderModal(org)} style={{ 
-                      padding: "10px 24px", backgroundColor: "#0284c7", color: "white", 
-                      border: "none", borderRadius: "8px", fontWeight: 700,
-                      cursor: "pointer", transition: "all 0.2s"
-                    }}>
-                      View Services
-                    </button>
-                  </div>
-                </div>
+                </article>
               );
             })}
-            
-            {!loading && hasSearched && results.length === 0 && (
-              <div style={{ textAlign: "center", padding: "60px 20px", backgroundColor: "white", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
-                <span style={{ fontSize: "3rem", display: "block", marginBottom: "16px" }}>🏥</span>
-                <h3 style={{ color: "#334155", margin: "0 0 8px 0" }}>No providers found</h3>
-                <p style={{ color: "#64748b", margin: 0 }}>Try adjusting your search terms or location.</p>
-              </div>
-            )}
-          </div>
+
+          {!loading && hasSearched && results.length === 0 && (
+            <div className="mkt-empty">
+              <span aria-hidden>🔎</span>
+              <h3>No verified providers match</h3>
+              <p>Try a different name, clear the location, or switch the filter above.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Selected Provider Modal */}
-      {selectedProvider && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
-          <div style={{ backgroundColor: "white", borderRadius: 12, padding: 32, width: "100%", maxWidth: 700, maxHeight: "85vh", overflowY: "auto", position: "relative" }}>
-            <button onClick={() => setSelectedProvider(null)} style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#94a3b8" }}>✕</button>
-            
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <h2 style={{ margin: 0, fontSize: "1.5rem", color: "#0f172a" }}>{selectedProvider.name || selectedProvider.organization_name}</h2>
-              <span style={{ color: "#16a34a", fontSize: "1.2rem", background: "#dcfce7", padding: "2px 8px", borderRadius: 12 }}>✅ Verified</span>
+      {/* Detail modal */}
+      {selected && (
+        <div className="mkt-overlay" onClick={() => setSelected(null)}>
+          <div className="mkt-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="mkt-close" onClick={() => setSelected(null)} aria-label="Close">✕</button>
+
+            <div className="mkt-modal-head">
+              <div className="mkt-avatar mkt-avatar-lg" style={{ background: visualFor(selected).tint, color: visualFor(selected).accent }}>
+                <span aria-hidden>{visualFor(selected).icon}</span>
+              </div>
+              <div>
+                <div className="mkt-namerow">
+                  <h2 className="mkt-name">{selected.display_name}</h2>
+                  <span className="mkt-verified">✓ Verified</span>
+                </div>
+                <div className="mkt-meta">
+                  <span className="mkt-type" style={{ color: visualFor(selected).accent, background: visualFor(selected).tint }}>{visualFor(selected).label}</span>
+                  <span className="mkt-rate">★ {(selected.rating ?? 5).toFixed(1)}</span>
+                  {[selected.city, selected.state].filter(Boolean).length > 0 && (
+                    <span className="mkt-loc">📍 {[selected.city, selected.state].filter(Boolean).join(", ")}</span>
+                  )}
+                </div>
+              </div>
             </div>
-            <p style={{ color: "#64748b", margin: "0 0 24px 0", textTransform: "capitalize" }}>
-              {selectedProvider.organization_type || selectedProvider.type} • {selectedProvider.address ? `${selectedProvider.address}, ` : ''}{selectedProvider.city}
-            </p>
 
-            {loadingProviderData ? (
-              <div style={{ textAlign: "center", padding: 40, color: "#64748b" }}>Loading services and packages...</div>
+            {loadingCatalog ? (
+              <div className="mkt-modal-loading">Loading services…</div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                
-                {providerServices.length > 0 && (
-                  <div>
-                    <h3 style={{ margin: "0 0 12px 0", fontSize: "1.1rem", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>Available Services</h3>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {providerServices.map(svc => (
-                        <div key={svc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16, border: "1px solid #e2e8f0", borderRadius: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 600, color: "#0f172a" }}>{svc.name}</div>
-                            <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>{svc.description}</div>
-                            <div style={{ color: "#16a34a", fontWeight: 600, marginTop: 8 }}>₹{svc.price}</div>
+              <div className="mkt-catalog">
+                {services.length > 0 && (
+                  <section>
+                    <h4 className="mkt-sec">Tests &amp; services</h4>
+                    {services.map((s) => (
+                      <div key={s.id} className="mkt-item">
+                        <div>
+                          <div className="mkt-item-name">{s.name}</div>
+                          <div className="mkt-item-sub">
+                            {s.category && <span className="mkt-tag">{s.category.replace(/_/g, " ")}</span>}
+                            {s.home_available && <span className="mkt-tag mkt-tag-home">🏠 home</span>}
                           </div>
-                          <button onClick={() => {
-                            setSelectedProvider(null);
-                            window.location.href = `/booking?type=lab&org=${selectedProvider.id}&service=${svc.id}`;
-                          }} style={{ padding: "8px 16px", backgroundColor: "#0284c7", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
-                            Book Now
-                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="mkt-item-buy">
+                          <span className="mkt-item-price">₹{Number(s.base_price ?? 0).toLocaleString("en-IN")}</span>
+                          <a className="mkt-book" href={`/booking?type=lab&org=${selected.provider_user_id}&service=${s.id}`}>Book</a>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
                 )}
 
-                {providerPackages.length > 0 && (
-                  <div>
-                    <h3 style={{ margin: "0 0 12px 0", fontSize: "1.1rem", color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>Health Packages</h3>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {providerPackages.map(pkg => (
-                        <div key={pkg.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16, border: "1px solid #e2e8f0", borderRadius: 8, backgroundColor: "#f8fafc" }}>
-                          <div>
-                            <div style={{ fontWeight: 600, color: "#0f172a" }}>{pkg.name}</div>
-                            <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>{pkg.description}</div>
-                            <div style={{ color: "#16a34a", fontWeight: 600, marginTop: 8 }}>₹{pkg.price}</div>
-                          </div>
-                          <button onClick={() => {
-                            setSelectedProvider(null);
-                            window.location.href = `/booking?type=lab&org=${selectedProvider.id}&package=${pkg.id}`;
-                          }} style={{ padding: "8px 16px", backgroundColor: "#0284c7", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
-                            Book Package
-                          </button>
+                {packages.length > 0 && (
+                  <section>
+                    <h4 className="mkt-sec">Health packages</h4>
+                    {packages.map((pk) => (
+                      <div key={pk.id} className="mkt-item mkt-item-pkg">
+                        <div>
+                          <div className="mkt-item-name">{pk.name}</div>
+                          {pk.description && <div className="mkt-item-desc">{pk.description}</div>}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="mkt-item-buy">
+                          <span className="mkt-item-price">₹{Number(pk.price ?? 0).toLocaleString("en-IN")}</span>
+                          <a className="mkt-book" href={`/booking?type=lab&org=${selected.provider_user_id}&package=${pk.id}`}>Book</a>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
                 )}
 
-                {providerServices.length === 0 && providerPackages.length === 0 && (
-                  <div style={{ textAlign: "center", padding: 20, color: "#64748b", backgroundColor: "#f8fafc", borderRadius: 8 }}>
-                    No active services or packages found for this provider.
+                {services.length === 0 && packages.length === 0 && (
+                  <div className="mkt-modal-empty">
+                    This provider hasn’t published a service catalog yet. Reach out directly to book.
                   </div>
                 )}
               </div>
@@ -319,3 +307,131 @@ export default function SearchPage() {
     </div>
   );
 }
+
+const CSS = `
+.mkt { background:
+  radial-gradient(1100px 380px at 50% -140px, #eaf1fb 0%, rgba(234,241,251,0) 70%),
+  var(--color-gray-50, #f8fafc);
+  min-height: 100vh; padding: 40px 20px 72px; font-family: var(--font-body, 'Inter', sans-serif); }
+.mkt-wrap { max-width: 940px; margin: 0 auto; }
+
+.mkt-head { text-align: center; margin-bottom: 28px; }
+.mkt-eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; font-weight: 700;
+  color: var(--color-teal, #0891b2); margin: 0 0 10px; }
+.mkt-title { font-family: var(--font-display, 'Playfair Display', serif); font-weight: 800;
+  color: var(--color-navy, #1a2b4a); font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.08; margin: 0 0 12px; }
+.mkt-sub { color: var(--color-gray-500, #64748b); font-size: 1.02rem; max-width: 560px; margin: 0 auto; line-height: 1.5; }
+
+.mkt-search { display: flex; gap: 10px; background: #fff; padding: 10px; border-radius: 16px;
+  border: 1px solid var(--color-gray-200, #e2e8f0); box-shadow: 0 12px 30px -18px rgba(26,43,74,.35);
+  margin-bottom: 20px; flex-wrap: wrap; }
+.mkt-field { flex: 1 1 240px; position: relative; display: flex; align-items: center; }
+.mkt-ic { position: absolute; left: 14px; font-size: 1rem; opacity: .7; pointer-events: none; }
+.mkt-field input { width: 100%; padding: 13px 14px 13px 40px; border: 1px solid transparent;
+  background: var(--color-gray-50, #f8fafc); border-radius: 11px; font-size: .98rem; color: var(--color-gray-900, #0f172a); }
+.mkt-field input:focus { outline: none; border-color: var(--color-teal, #0891b2); background: #fff;
+  box-shadow: 0 0 0 3px rgba(8,145,178,.14); }
+.mkt-go { padding: 0 30px; background: var(--color-navy, #1a2b4a); color: #fff; border: none;
+  border-radius: 11px; font-weight: 700; font-size: .98rem; cursor: pointer; transition: background .15s, transform .1s; }
+.mkt-go:hover:not(:disabled) { background: var(--color-navy-hover, #2a3d5e); }
+.mkt-go:active { transform: translateY(1px); }
+.mkt-go:disabled { opacity: .7; cursor: wait; }
+
+.mkt-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+.mkt-chip { display: inline-flex; align-items: center; gap: 7px; padding: 8px 15px; border-radius: 999px;
+  border: 1px solid var(--color-gray-200, #e2e8f0); background: #fff; color: var(--color-gray-600, #475569);
+  font-size: .88rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+.mkt-chip:hover:not(:disabled) { border-color: var(--color-navy, #1a2b4a); color: var(--color-navy, #1a2b4a); }
+.mkt-chip.is-active { background: var(--color-navy, #1a2b4a); border-color: var(--color-navy, #1a2b4a); color: #fff; }
+.mkt-chip:disabled { opacity: .45; cursor: default; }
+.mkt-chip-n { font-size: .74rem; background: rgba(0,0,0,.07); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
+.mkt-chip.is-active .mkt-chip-n { background: rgba(255,255,255,.22); }
+
+.mkt-count { color: var(--color-gray-500, #64748b); font-size: .92rem; margin: 0 0 14px; }
+.mkt-count strong { color: var(--color-navy, #1a2b4a); }
+
+.mkt-list { display: flex; flex-direction: column; gap: 14px; }
+
+.mkt-card { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: center;
+  background: #fff; border: 1px solid var(--color-gray-200, #e2e8f0); border-radius: 16px; padding: 20px 22px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.mkt-card:hover { transform: translateY(-2px); box-shadow: 0 18px 40px -24px rgba(26,43,74,.45); border-color: #d4deea; }
+
+.mkt-avatar { width: 58px; height: 58px; border-radius: 14px; display: flex; align-items: center;
+  justify-content: center; font-size: 1.7rem; flex-shrink: 0; }
+.mkt-avatar-lg { width: 64px; height: 64px; font-size: 1.9rem; }
+
+.mkt-body { min-width: 0; }
+.mkt-namerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 7px; }
+.mkt-name { font-family: var(--font-display, 'Playfair Display', serif); font-weight: 700;
+  color: var(--color-gray-900, #0f172a); font-size: 1.32rem; margin: 0; line-height: 1.15; }
+.mkt-verified { display: inline-flex; align-items: center; gap: 3px; font-size: .74rem; font-weight: 700;
+  color: var(--color-green, #16a34a); background: #e8f7ee; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.mkt-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--color-gray-500, #64748b); font-size: .9rem; }
+.mkt-type { font-size: .74rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: capitalize; }
+.mkt-rate { color: var(--color-amber, #f59e0b); font-weight: 700; }
+.mkt-loc { color: var(--color-gray-500, #64748b); }
+.mkt-home { display: inline-block; margin-top: 10px; font-size: .8rem; font-weight: 600; color: var(--color-teal-dark, #0e7490);
+  background: #e2f6fb; border: 1px solid #c3e9f1; padding: 4px 10px; border-radius: 8px; }
+
+.mkt-rail { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; text-align: right; }
+.mkt-price { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.mkt-price-from { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--color-gray-400, #94a3b8); font-weight: 700; }
+.mkt-price-val { font-family: var(--font-display, 'Playfair Display', serif); font-size: 1.5rem; font-weight: 800; color: var(--color-navy, #1a2b4a); }
+.mkt-price-req { font-size: .82rem; color: var(--color-gray-400, #94a3b8); font-weight: 600; }
+.mkt-view { padding: 10px 20px; background: var(--color-teal, #0891b2); color: #fff; border: none; border-radius: 10px;
+  font-weight: 700; font-size: .9rem; cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
+.mkt-view:hover { background: var(--color-teal-dark, #0e7490); }
+.mkt-view:active { transform: translateY(1px); }
+
+.mkt-skel { height: 100px; border: 1px solid var(--color-gray-200, #e2e8f0);
+  background: linear-gradient(100deg, #fff 30%, #f1f5f9 50%, #fff 70%); background-size: 220% 100%;
+  animation: mkt-sh 1.25s infinite linear; }
+@keyframes mkt-sh { from { background-position: 180% 0 } to { background-position: -60% 0 } }
+
+.mkt-empty { text-align: center; background: #fff; border: 1px dashed var(--color-gray-300, #cbd5e1);
+  border-radius: 16px; padding: 56px 24px; }
+.mkt-empty span { font-size: 2.6rem; display: block; margin-bottom: 12px; }
+.mkt-empty h3 { margin: 0 0 6px; color: var(--color-gray-700, #334155); }
+.mkt-empty p { margin: 0; color: var(--color-gray-500, #64748b); }
+
+.mkt-overlay { position: fixed; inset: 0; background: rgba(15,29,51,.55); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 1000; }
+.mkt-modal { background: #fff; border-radius: 18px; width: 100%; max-width: 620px; max-height: 86vh; overflow-y: auto;
+  padding: 28px; position: relative; box-shadow: 0 30px 80px -20px rgba(15,29,51,.5); }
+.mkt-close { position: absolute; top: 20px; right: 20px; background: var(--color-gray-100, #f1f5f9); border: none;
+  width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; cursor: pointer; color: var(--color-gray-500, #64748b); }
+.mkt-close:hover { background: var(--color-gray-200, #e2e8f0); }
+.mkt-modal-head { display: flex; gap: 16px; align-items: center; margin-bottom: 22px; padding-right: 30px; }
+.mkt-modal-loading, .mkt-modal-empty { text-align: center; padding: 34px; color: var(--color-gray-500, #64748b);
+  background: var(--color-gray-50, #f8fafc); border-radius: 12px; }
+.mkt-catalog { display: flex; flex-direction: column; gap: 22px; }
+.mkt-sec { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--color-gray-400, #94a3b8);
+  font-weight: 700; margin: 0 0 12px; }
+.mkt-item { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 16px;
+  border: 1px solid var(--color-gray-200, #e2e8f0); border-radius: 12px; margin-bottom: 10px; }
+.mkt-item-pkg { background: var(--color-gray-50, #f8fafc); }
+.mkt-item-name { font-weight: 700; color: var(--color-gray-900, #0f172a); }
+.mkt-item-sub { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.mkt-item-desc { font-size: .85rem; color: var(--color-gray-500, #64748b); margin-top: 4px; max-width: 340px; }
+.mkt-tag { font-size: .7rem; font-weight: 600; text-transform: capitalize; color: var(--color-gray-600, #475569);
+  background: var(--color-gray-100, #f1f5f9); padding: 2px 8px; border-radius: 6px; }
+.mkt-tag-home { color: var(--color-teal-dark, #0e7490); background: #e2f6fb; }
+.mkt-item-buy { display: flex; align-items: center; gap: 12px; }
+.mkt-item-price { font-weight: 800; color: var(--color-navy, #1a2b4a); }
+.mkt-book { padding: 8px 16px; background: var(--color-navy, #1a2b4a); color: #fff; border-radius: 8px;
+  font-weight: 700; font-size: .85rem; text-decoration: none; white-space: nowrap; }
+.mkt-book:hover { background: var(--color-navy-hover, #2a3d5e); }
+
+@media (max-width: 620px) {
+  .mkt-card { grid-template-columns: auto 1fr; }
+  .mkt-rail { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--color-gray-100, #f1f5f9); padding-top: 14px; }
+  .mkt-price { flex-direction: row; align-items: baseline; gap: 6px; }
+  .mkt-go { flex: 1 1 100%; padding: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mkt-card, .mkt-go, .mkt-view, .mkt-book { transition: none; }
+  .mkt-skel { animation: none; }
+}
+`;
