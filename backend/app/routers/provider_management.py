@@ -1039,137 +1039,72 @@ async def search_doctors(
         return {"success": True, "doctors": []}
 
 
-@router.get("/search/organizations")
-async def search_organizations(
-    org_type: Optional[str] = None,
+@router.get("/search/providers")
+async def search_providers(
+    type: Optional[str] = None,
     city: Optional[str] = None,
+    home_service: Optional[bool] = None,
     q: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(50, le=100),
 ):
-    """Public endpoint: search for organizations (hospitals, clinics, labs)."""
+    """Marketplace search — verified + listed providers only, from provider_directory."""
     if not supabase:
-        return {"success": True, "organizations": []}
-
+        return {"success": True, "providers": []}
     try:
-        # Fetch organizations with joined user profiles
-        query = supabase.table("organizations").select("*, users(id, full_name, city, district, state, address)")
+        query = (supabase.table("provider_directory").select("*")
+                 .eq("verification_status", "verified").eq("is_listed", True))
+        if type:
+            t = "diagnostic_center" if type in ("lab", "diagnostic") else type
+            query = query.eq("subtype", t) if t in ("diagnostic_center", "hospital", "clinic", "poly_clinic") else query.eq("provider_type", t)
+        if home_service is True:
+            query = query.eq("home_service_enabled", True)
+        rows = query.limit(100).execute().data or []
 
-        if org_type:
-            # Handle common alias mismatches (lab vs diagnostic_center, etc.)
-            type_filter = "diagnostic_center" if org_type in ("lab", "diagnostic") else org_type
-            query = query.eq("organization_type", type_filter)
-
-        result = query.limit(100).execute()
-        orgs = result.data or []
-
-        enriched = []
-        for org in orgs:
-            user = org.get("users") or {}
-            org_id = org.get("id", "")
-            org_name = (org.get("organization_name") or user.get("full_name") or "").strip()
-
-            # Skip empty entries with no name
-            if not org_name:
+        out = []
+        for r in rows:
+            if city and city.strip().lower() not in f"{r.get('city','')} {r.get('state','')}".lower():
                 continue
-
-            org_city = (user.get("city") or "").strip()
-            org_district = (user.get("district") or "").strip()
-            org_address = (user.get("address") or "").strip()
-            org_type_val = org.get("organization_type") or "clinic"
-
-            # In-memory case-insensitive location filter if requested
-            if city and city.strip():
-                c_clean = city.strip().lower()
-                loc_text = f"{org_city} {org_district} {org_address}".lower()
-                if c_clean not in loc_text:
-                    continue
-
-            # In-memory case-insensitive query filter (name, type, location) if requested
-            if q and q.strip():
-                q_clean = q.strip().lower()
-                searchable_text = f"{org_name} {org_type_val} {org_city} {org_district} {org_address}".lower()
-                if q_clean not in searchable_text:
-                    continue
-
-            # Get linked doctors count
-            doc_count = 0
-            try:
-                doc_result = (
-                    supabase.table("organization_doctors")
-                    .select("id", count="exact")
-                    .eq("organization_id", org_id)
-                    .eq("is_active", True)
-                    .execute()
-                )
-                doc_count = doc_result.count or 0
-            except Exception:
-                pass
-
-            # Get services count
-            svc_count = 0
-            try:
-                svc_result = (
-                    supabase.table("organization_services")
-                    .select("id", count="exact")
-                    .eq("organization_id", org_id)
-                    .eq("is_active", True)
-                    .execute()
-                )
-                svc_count = svc_result.count or 0
-            except Exception:
-                pass
-
-            enriched.append({
-                "id": org_id,
-                "user_id": user.get("id", ""),
-                "name": org_name,
-                "organization_name": org_name,
-                "type": org_type_val,
-                "organization_type": org_type_val,
-                "address": org_address,
-                "city": org_city,
-                "district": org_district,
-                "state": user.get("state", ""),
-                "doctors_count": doc_count,
-                "total_doctors": doc_count,
-                "services_count": svc_count,
-                "total_services": svc_count,
-                "license_number": org.get("license_number", ""),
-                "operating_hours": org.get("operating_hours", ""),
-                "verification_status": org.get("verification_status", "pending"),
-            })
-
-            if len(enriched) >= limit:
+            if q and q.strip().lower() not in f"{r.get('display_name','')} {r.get('subtype','')} {r.get('city','')}".lower():
+                continue
+            # min price rollup
+            min_price = None
+            svc = (supabase.table("provider_services").select("base_price")
+                   .eq("provider_user_id", r["provider_user_id"]).eq("is_active", True)
+                   .order("base_price").limit(1).execute()).data
+            if svc:
+                min_price = float(svc[0]["base_price"])
+            out.append({**r, "min_price": min_price})
+            if len(out) >= limit:
                 break
-
-        return {"success": True, "organizations": enriched}
+        return {"success": True, "providers": out}
     except Exception as e:
-        logger.error(f"Error searching orgs: {e}")
-        return {"success": True, "organizations": []}
+        logger.error(f"search_providers error: {e}")
+        return {"success": True, "providers": []}
+
+
+@router.get("/search/organizations")
+async def search_organizations(org_type: Optional[str] = None, city: Optional[str] = None,
+                               q: Optional[str] = None, limit: int = 50):
+    """Back-compat wrapper → verified orgs from provider_directory."""
+    res = await search_providers(type=org_type or "organization", city=city, q=q, limit=limit)
+    orgs = [{
+        "id": p["provider_user_id"], "user_id": p["provider_user_id"],
+        "name": p["display_name"], "organization_name": p["display_name"],
+        "type": p["subtype"], "organization_type": p["subtype"],
+        "city": p.get("city", ""), "state": p.get("state", ""),
+        "verification_status": p["verification_status"], "min_price": p.get("min_price"),
+    } for p in res["providers"] if p["provider_type"] == "organization" or (org_type and org_type != "doctor")]
+    return {"success": True, "organizations": orgs}
 
 
 @router.get("/search/packages")
 async def search_packages(limit: int = Query(50, le=100)):
-    """
-    Public endpoint: retrieve active health packages created by organizations.
-    Used by the patient health packages page.
-    """
     if not supabase:
         return {"success": True, "packages": []}
-
     try:
-        # Fetch active packages
-        result = (
-            supabase.table("organization_packages")
-            .select("*")
-            .eq("is_active", True)
-            .limit(limit)
-            .execute()
-        )
-        packages = result.data or []
-        
-        # We can enrich the packages with tests info if needed, but for now just return them
-        return {"success": True, "packages": packages}
+        result = (supabase.table("provider_packages").select("*")
+                  .eq("is_active", True).eq("status", "approved").limit(limit).execute())
+        return {"success": True, "packages": result.data or []}
     except Exception as e:
-        logger.error(f"Error fetching public org packages: {e}")
+        logger.error(f"Error fetching packages: {e}")
         return {"success": True, "packages": []}
