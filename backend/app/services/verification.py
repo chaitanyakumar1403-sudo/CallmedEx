@@ -26,7 +26,7 @@ from typing import Optional, Dict, Any
 from app.database import supabase
 from app.services.ai_ocr import AIOCRService
 from app.services.gov_registry import GovRegistryAPI
-from app.services.verification_decision import decide, extract_license_from_ocr
+from app.services.verification_decision import decide
 from app.services.storage import StorageService
 from app.config import settings
 
@@ -92,8 +92,10 @@ class VerificationService:
         if not profile:
             return {"success": False, "status": "error", "message": f"No {role} profile found"}
 
-        stored_name = ((user_record or {}).get("full_name") if rules["name_field"] == "full_name"
-                       else profile.get(rules["name_field"]) or "").strip()
+        if rules["name_field"] == "full_name":
+            stored_name = ((user_record or {}).get("full_name") or "").strip()
+        else:
+            stored_name = (profile.get(rules["name_field"]) or "").strip()
         stored_license = (profile.get(rules["license_field"]) or "").strip()
 
         # Stage 0: store the document
@@ -317,6 +319,7 @@ class VerificationService:
                 "verification_status": db_status,
                 "verification_notes": json.dumps({"reason": reason, "checks": checks}),
                 "uploaded_at": now,
+                "verified_at": now if final_status in ("verified", "rejected") else None,
             }).execute()
 
             # authority record
@@ -496,7 +499,7 @@ class VerificationService:
                 supabase.table("documents")
                 .select("*")
                 .eq("user_id", user_id)
-                .order("created_at", desc=True)
+                .order("uploaded_at", desc=True)
                 .execute()
             )
             documents = result.data or []
