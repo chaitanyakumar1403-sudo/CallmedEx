@@ -9,7 +9,7 @@ import os
 # Add backend directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.models.schemas import BookingCreate, ServiceType, SlotAllotment, SlotResponse, UserSignup, UserRole, Gender
+from app.models.schemas import BookingCreate, ServiceType, SlotAllotment, SlotAllotmentResponse, UserSignup, UserRole, Gender
 from app.routers.bookings import _local_bookings
 from app.routers.auth import _build_user_data
 from datetime import date
@@ -78,7 +78,7 @@ def test_diagnostic_booking_workflow():
     print("[SUCCESS] Organization Slot Allotment Test Passed: time slot allotted (10:30 - 11:30), status is 'slot_allotted'.")
 
     # Step C: Patient responds (Accept)
-    patient_response = SlotResponse(accepted=True)
+    patient_response = SlotAllotmentResponse(accepted=True)
     if patient_response.accepted:
         booking_data["status"] = "confirmed"
     assert booking_data["status"] == "confirmed", "Status after patient acceptance must be confirmed!"

@@ -129,8 +129,6 @@ app.add_middleware(
     ],
 )
 
-from fastapi.exceptions import RequestValidationError
-
 # ─── Global Exception Handlers ──────────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

@@ -115,7 +115,7 @@ class VerificationService:
 
         ocr["_role"] = role  # so decide() resolves pharmacy/phleb license fields
 
-        # Stage 3: gov check only when we have license + name matched enough to bother
+        # Gov registry lookup (advisory only in mock mode; decision engine decides how to use it)
         gov = None
         if settings.GOV_REGISTRY_MODE in ("mock", "live"):
             gov = await VerificationService._run_gov_check(role, profile, stored_name, stored_license)
