@@ -6,6 +6,7 @@ import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 
 import NurseToolsModal from "../../components/NurseToolsModal";
+import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -40,85 +41,46 @@ export default function NurseDashboard() {
     fetchProfile();
   }, [router]);
 
+  const TABS = [
+    { id: "dispatch", label: "Live Dispatch", icon: "📍" },
+    { id: "profile", label: "Profile", icon: "👤" },
+  ];
+
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>👩‍⚕️</div>
-          <h2 style={{ color: '#1a2b4a' }}>Loading Nurse Command Station...</h2>
-        </div>
-      </div>
+      <DashboardShell role="nurse" title="Home Nursing" subtitle="Loading your visits…"
+        tabs={[]} activeTab="" onTabChange={() => {}}>
+        <SkeletonRows rows={3} />
+      </DashboardShell>
     );
   }
 
   return (
-    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
-      {/* ─── Hero Header ─── */}
-      <div className="dashboard-hero-header" style={{ background: "linear-gradient(135deg, #831843 0%, #be185d 50%, #db2777 100%)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 2 }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-              <h1 style={{ margin: 0, fontSize: "1.8rem", fontWeight: 800, color: "#ffffff" }}>
-                👩‍⚕️ Urgent Nurse Care Hub
-              </h1>
-              <span className="badge-ai">Field Nursing Dispatch</span>
-            </div>
-            <p style={{ margin: 0, color: "rgba(255,255,255,0.85)", fontSize: "0.92rem" }}>
-              Welcome, {profile?.full_name || "Nurse"} • Home Wound Care, IV Infusions & Critical Nursing Requests
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <button
-              onClick={() => setShowToolsModal(true)}
-              style={{
-                padding: "8px 16px",
-                background: "linear-gradient(135deg, #db2777 0%, #e11d48 100%)",
-                color: "white",
-                border: "none",
-                borderRadius: 20,
-                fontWeight: 700,
-                fontSize: "0.82rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6
-              }}
-            >
-              💧 IV Drip & Vitals Calculator
-            </button>
-            <span style={{ background: "rgba(255,255,255,0.15)", color: "#fbcfe8", padding: "8px 16px", borderRadius: 20, fontSize: "0.85rem", fontWeight: 700, backdropFilter: "blur(4px)", display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 8, height: 8, background: "#f43f5e", borderRadius: "50%", boxShadow: "0 0 10px #f43f5e" }}></div>
-              Emergency Priority Ready
-            </span>
-          </div>
-        </div>
+    <DashboardShell
+      role="nurse"
+      title="Home Nursing"
+      subtitle={`${profile?.full_name || "Nurse"} — home visits, wound care and nursing dispatch`}
+      tabs={TABS}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      aside={
+        <button
+          onClick={() => setShowToolsModal(true)}
+          style={{
+            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            border: "1px solid rgba(255,255,255,0.35)",
+            background: "rgba(255,255,255,0.12)", color: "#fff",
+            fontWeight: 700, fontSize: "0.85rem",
+          }}
+        >
+          🩺 Care guide
+        </button>
+      }
+    >
+      <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
-        <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
-      </div>
-
-      {/* ─── Tabs ─── */}
-      <div style={{ padding: "20px 40px 0 40px" }}>
-        <div className="tab-nav-bar" style={{ maxWidth: 400 }}>
-          {[
-            { id: "dispatch", label: "Live Visit Radar", icon: "📍" },
-            { id: "profile", label: "Nurse Credentials", icon: "👤" },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`tab-pill-btn ${activeTab === tab.id ? "tab-pill-btn--active" : ""}`}
-              style={{ flex: 1 }}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ─── Content ─── */}
-      <div style={{ padding: "24px 40px" }}>
         {activeTab === "dispatch" && (
-          <div style={{ margin: "-24px -40px" }}>
+          <div>
             <ProviderDispatchTracker
               title="Nurse Care Station"
               icon="👩‍⚕️"
@@ -128,10 +90,9 @@ export default function NurseDashboard() {
           </div>
         )}
 
-        {activeTab === "profile" && (
-          <DashboardProfile profile={profile} role="nurse" />
-        )}
-      </div>
-    </div>
+      {activeTab === "profile" && (
+        <DashboardProfile profile={profile} role="nurse" />
+      )}
+    </DashboardShell>
   );
 }

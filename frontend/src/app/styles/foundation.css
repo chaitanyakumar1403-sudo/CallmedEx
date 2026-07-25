@@ -301,3 +301,152 @@ input[type="radio"] {
   }
   .cm-pill { border-width: 2px; }
 }
+
+/* ============================================================================
+   Dashboard shell
+   ----------------------------------------------------------------------------
+   Sixteen dashboards each invented their own header gradient inline — crimson
+   for phlebotomy, purple for organizations, teal for others — so they read as
+   sixteen products rather than one. The shell keeps a single structure and
+   spends the difference on ONE accent token per role.
+
+   No role accent is red. Red is reserved for urgency (see the top of this
+   file), and a permanently red phlebotomy header would have burned the one
+   colour that has to mean "act now".
+   ============================================================================ */
+
+.cm-dash {
+  --cm-accent:      var(--cm-navy);
+  --cm-accent-deep: var(--cm-navy-deep);
+  min-height: 100vh;
+  background: var(--cm-surface-2);
+}
+
+.cm-dash[data-role="patient"]      { --cm-accent: #1a2b4a; --cm-accent-deep: #0f1d33; }
+.cm-dash[data-role="doctor"]       { --cm-accent: #1e3a8a; --cm-accent-deep: #172554; }
+.cm-dash[data-role="phlebotomist"] { --cm-accent: #0f766e; --cm-accent-deep: #134e4a; }
+.cm-dash[data-role="nurse"]        { --cm-accent: #6d28d9; --cm-accent-deep: #4c1d95; }
+.cm-dash[data-role="organization"] { --cm-accent: #334155; --cm-accent-deep: #1e293b; }
+.cm-dash[data-role="pharmacy"]     { --cm-accent: #15803d; --cm-accent-deep: #14532d; }
+.cm-dash[data-role="admin"]        { --cm-accent: #0f172a; --cm-accent-deep: #020617; }
+.cm-dash[data-role="staff"]        { --cm-accent: #0369a1; --cm-accent-deep: #075985; }
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.cm-dash__head {
+  background: linear-gradient(135deg, var(--cm-accent-deep) 0%, var(--cm-accent) 100%);
+  color: #fff;
+  padding: var(--cm-6) var(--cm-8) var(--cm-8);
+}
+.cm-dash__head-inner {
+  max-width: 1280px; margin: 0 auto;
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: var(--cm-5); flex-wrap: wrap;
+}
+.cm-dash__title {
+  margin: 0; color: #fff;
+  font-size: var(--cm-text-2xl); font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1.15;
+}
+.cm-dash__sub {
+  margin: var(--cm-2) 0 0; font-size: var(--cm-text-sm);
+  color: rgba(255, 255, 255, 0.82); max-width: 62ch;
+}
+.cm-dash__aside { display: flex; gap: var(--cm-2); align-items: center; flex-wrap: wrap; }
+
+/* ── Tabs — a real tablist, arrow-navigable ───────────────────────────── */
+.cm-dash__tabs {
+  max-width: 1280px; margin: calc(var(--cm-5) * -1) auto 0;
+  padding: 0 var(--cm-8);
+  display: flex; gap: var(--cm-1);
+  overflow-x: auto; scrollbar-width: none;
+}
+.cm-dash__tabs::-webkit-scrollbar { display: none; }
+
+.cm-tab {
+  flex: none;
+  padding: var(--cm-3) var(--cm-5);
+  min-height: var(--cm-tap);
+  border: 1px solid var(--cm-line);
+  border-bottom: none;
+  border-radius: var(--cm-radius) var(--cm-radius) 0 0;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--cm-ink-3);
+  font-weight: 600; font-size: var(--cm-text-sm);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--cm-fast) var(--cm-ease),
+              color var(--cm-fast) var(--cm-ease);
+}
+.cm-tab:hover { background: #fff; color: var(--cm-ink); }
+.cm-tab[aria-selected="true"] {
+  background: var(--cm-surface);
+  color: var(--cm-accent);
+  font-weight: 800;
+  box-shadow: inset 0 3px 0 var(--cm-accent);
+}
+/* A count that changes is worth noticing; it should not be a decoration. */
+.cm-tab__count {
+  display: inline-block; margin-left: 6px;
+  padding: 1px 7px; border-radius: var(--cm-radius-pill);
+  background: var(--cm-surface-3); color: var(--cm-ink-2);
+  font-size: var(--cm-text-xs); font-weight: 800;
+}
+.cm-tab[aria-selected="true"] .cm-tab__count { background: var(--cm-accent); color: #fff; }
+.cm-tab__count--alert { background: var(--cm-urgent); color: #fff; }
+
+.cm-dash__body {
+  max-width: 1280px; margin: 0 auto;
+  padding: var(--cm-6) var(--cm-8) var(--cm-12);
+}
+
+/* ── Panels + stats ───────────────────────────────────────────────────── */
+.cm-panel {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-6);
+  box-shadow: var(--cm-shadow-1);
+}
+.cm-panel__title {
+  margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg);
+  font-weight: 800; color: var(--cm-ink); letter-spacing: -0.01em;
+}
+.cm-panel__note { margin: 0 0 var(--cm-5); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
+
+.cm-stats {
+  display: grid; gap: var(--cm-4);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: var(--cm-6);
+}
+.cm-stat {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-left: 4px solid var(--cm-accent);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-5);
+}
+.cm-stat__label { font-size: var(--cm-text-xs); color: var(--cm-ink-3); font-weight: 700;
+                  text-transform: uppercase; letter-spacing: 0.06em; }
+/* Tabular figures stop the number jittering as it updates. */
+.cm-stat__value { font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
+                  margin-top: var(--cm-1); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.cm-stat__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-faint); margin-top: var(--cm-1); }
+.cm-stat--urgent { border-left-color: var(--cm-urgent); }
+.cm-stat--urgent .cm-stat__value { color: var(--cm-urgent); }
+
+/* ── Empty state — an invitation to act, not an apology ───────────────── */
+.cm-empty {
+  text-align: center; padding: var(--cm-12) var(--cm-6);
+  border: 1px dashed var(--cm-line-strong);
+  border-radius: var(--cm-radius-lg);
+  background: var(--cm-surface);
+}
+.cm-empty__icon  { font-size: 2rem; margin-bottom: var(--cm-3); }
+.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); }
+.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0 auto; max-width: 46ch; }
+
+@media (max-width: 640px) {
+  .cm-dash__head  { padding: var(--cm-5) var(--cm-4) var(--cm-6); }
+  .cm-dash__tabs  { padding: 0 var(--cm-4); }
+  .cm-dash__body  { padding: var(--cm-5) var(--cm-4) var(--cm-10); }
+  .cm-dash__title { font-size: var(--cm-text-xl); }
+}
