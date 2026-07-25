@@ -8,6 +8,7 @@ Production-ready: GZip compression, request timeouts, graceful shutdown.
 import signal
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,8 +34,54 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _normalise_origin(origin: str) -> str:
+    """Strip whitespace and any trailing slash.
+
+    A browser sends `Origin: https://site.app` with no trailing slash, so a
+    configured value of `https://site.app/` would never match and every preflight
+    would fail with an opaque 400.
+    """
+    return (origin or "").strip().rstrip("/")
+
+
+def build_allowed_origins() -> list:
+    """
+    The effective CORS allowlist.
+
+    FRONTEND_URL is always included. Previously the allowlist came only from
+    ALLOWED_ORIGINS, so the app could know its own frontend URL and still reject
+    it — which is exactly how every dashboard call started failing preflight
+    with a 400 while /api/health kept returning 200.
+    """
+    origins = [_normalise_origin(o) for o in settings.ALLOWED_ORIGINS]
+    frontend = _normalise_origin(settings.FRONTEND_URL)
+    if frontend and frontend not in origins:
+        origins.append(frontend)
+    return [o for o in origins if o]
+
+
+def vercel_preview_regex(frontend_url: str) -> str:
+    """
+    Allow this project's Vercel preview deployments.
+
+    Preview URLs are generated per branch and commit, so they can never appear in
+    a static allowlist. The pattern is scoped to THIS project's prefix rather
+    than all of *.vercel.app — with allow_credentials=True, a blanket Vercel
+    wildcard would let anyone's deployment call this API with a user's cookies.
+    """
+    host = _normalise_origin(frontend_url).split("://")[-1]
+    project = host.split(".")[0].split("-git-")[0]
+    if not project:
+        return ""
+    return rf"^https://{re.escape(project)}(-[a-z0-9\-]+)?\.vercel\.app$"
+
+
 def is_origin_allowed(origin: str, allowlist: list) -> bool:
-    return bool(origin) and origin in allowlist
+    """Exact match against the allowlist, ignoring trailing-slash differences."""
+    if not origin:
+        return False
+    normalised = _normalise_origin(origin)
+    return normalised in [_normalise_origin(a) for a in allowlist]
 
 
 # ─── Graceful Shutdown ───────────────────────────────────────────────────
@@ -106,10 +153,19 @@ app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = settings.ALLOWED_ORIGINS
+ALLOWED_ORIGINS = build_allowed_origins()
+_PREVIEW_REGEX = vercel_preview_regex(settings.FRONTEND_URL)
+
+# Logged at import so a CORS rejection is diagnosable straight from the deploy
+# logs, instead of showing up only as an unexplained 400 on every preflight.
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
+if _PREVIEW_REGEX:
+    logger.info(f"CORS preview pattern: {_PREVIEW_REGEX}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=_PREVIEW_REGEX or None,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[

@@ -20,6 +20,7 @@ Urgent bookings add a platform-wide surcharge on top, configured in
 platform_settings so operations can tune it without a deploy.
 """
 import logging
+import time
 from typing import List, Optional
 
 from app.database import supabase
@@ -167,6 +168,60 @@ class PricingService:
 class MarketplaceService:
     """Test-first discovery across partner centres."""
 
+    # Catalogue is platform-owned reference data: ~900 rows that change when a
+    # master sheet is loaded, not per request. Caching it turns a per-keystroke
+    # query into one fetch per TTL, and — more importantly — lets the search scan
+    # the WHOLE catalogue. A bounded .limit() silently hid every dental and
+    # physiotherapy service, because they sort after the 487 lab tests.
+    _catalog_cache: List[dict] = []
+    _catalog_cached_at: float = 0.0
+    _CATALOG_TTL_SECONDS = 300
+
+    @staticmethod
+    def invalidate_catalog() -> None:
+        """
+        Drop the cached catalogue.
+
+        Needed after a master-data load so new services appear immediately
+        rather than up to the TTL later, and so tests do not leak one fixture's
+        catalogue into the next.
+        """
+        MarketplaceService._catalog_cache = []
+        MarketplaceService._catalog_cached_at = 0.0
+
+    @staticmethod
+    def _load_catalog(force: bool = False) -> List[dict]:
+        now = time.time()
+        if (not force and MarketplaceService._catalog_cache
+                and now - MarketplaceService._catalog_cached_at < MarketplaceService._CATALOG_TTL_SECONDS):
+            return MarketplaceService._catalog_cache
+        if not supabase:
+            return []
+
+        rows: List[dict] = []
+        page, size = 0, 1000
+        try:
+            # Paged so the catalogue can outgrow PostgREST's default cap without
+            # quietly truncating results again.
+            while True:
+                batch = _rows(
+                    supabase.table("service_catalog")
+                    .select("*").eq("is_active", True)
+                    .range(page * size, page * size + size - 1)
+                    .execute()
+                )
+                rows.extend(batch)
+                if len(batch) < size:
+                    break
+                page += 1
+        except Exception as e:
+            logger.error(f"catalog load failed: {e}")
+            return MarketplaceService._catalog_cache or []
+
+        MarketplaceService._catalog_cache = rows
+        MarketplaceService._catalog_cached_at = now
+        return rows
+
     # ── Catalogue search ──────────────────────────────────────────────────
 
     @staticmethod
@@ -181,14 +236,7 @@ class MarketplaceService:
         if not supabase:
             return []
         q = (query or "").strip().lower()
-        try:
-            catalog = _rows(
-                supabase.table("service_catalog")
-                .select("*").eq("is_active", True).limit(300).execute()
-            )
-        except Exception as e:
-            logger.error(f"search_catalog failed: {e}")
-            return []
+        catalog = MarketplaceService._load_catalog()
 
         if not q:
             return catalog[:limit]
@@ -370,14 +418,11 @@ class MarketplaceService:
         """
         if not supabase:
             return []
+        catalog = [dict(c) for c in MarketplaceService._load_catalog()]
         try:
-            catalog = _rows(
-                supabase.table("service_catalog")
-                .select("*").eq("is_active", True).limit(200).execute()
-            )
             services = _rows(
                 supabase.table("provider_services")
-                .select("catalog_id").eq("is_active", True).limit(500).execute()
+                .select("catalog_id").eq("is_active", True).limit(2000).execute()
             )
         except Exception as e:
             logger.error(f"popular_tests failed: {e}")

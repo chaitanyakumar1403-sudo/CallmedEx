@@ -35,6 +35,7 @@ class FakeQuery:
         self._op = "select"
         self._payload = None
         self._negate_next = False
+        self.range_from = self.range_to = None
 
     # -- builders --
     def select(self, *_a, **_k):
@@ -81,6 +82,11 @@ class FakeQuery:
 
     def limit(self, n):
         self.limit_n = n
+        return self
+
+    def range(self, start, end):
+        """PostgREST-style inclusive range, used for paged catalogue loads."""
+        self.range_from, self.range_to = start, end
         return self
 
     # -- execution --
@@ -131,6 +137,8 @@ class FakeQuery:
             self.db[self.table_name] = [r for r in rows if not self._matches(r)]
             return FakeResult(removed)
 
+        if self.range_from is not None:
+            matched = matched[self.range_from : (self.range_to or 0) + 1]
         if self.limit_n is not None:
             matched = matched[: self.limit_n]
         return FakeResult([dict(r) for r in matched])

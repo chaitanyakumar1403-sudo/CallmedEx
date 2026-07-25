@@ -22,7 +22,11 @@ from tests.test_sample_lifecycle import FakeSupabase
 def fake_db(monkeypatch):
     fake = FakeSupabase()
     monkeypatch.setattr(marketplace_mod, "supabase", fake)
-    return fake
+    # The catalogue cache is class-level, so it must be cleared between tests or
+    # one fixture's seeded catalogue leaks into the next.
+    MarketplaceService.invalidate_catalog()
+    yield fake
+    MarketplaceService.invalidate_catalog()
 
 
 def _seed_catalog(fake, name, slug, synonyms, category="lab_test", turnaround=6):
