@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { bookingsAPI } from "@/lib/api";
+import DashboardShell from "../../components/DashboardShell";
 
 export default function BookingsHistoryPage() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -48,11 +49,27 @@ export default function BookingsHistoryPage() {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 20px" }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24, gap: 16 }}>
-        <a href="/dashboard/patient" style={{ textDecoration: 'none', color: 'var(--color-gray-500)', fontSize: '1.5rem' }}>←</a>
-        <h1 style={{ fontSize: "2rem", fontFamily: "var(--font-heading)", margin: 0 }}>My Bookings History</h1>
-      </div>
+    <DashboardShell
+      role="patient"
+      title="My Bookings"
+      subtitle="Everything you have booked, newest first."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+      aside={
+        <a
+          href="/dashboard/patient"
+          style={{
+            padding: '10px 18px', borderRadius: 999, textDecoration: 'none',
+            border: '1px solid rgba(255,255,255,0.35)',
+            background: 'rgba(255,255,255,0.12)', color: '#fff',
+            fontWeight: 700, fontSize: '0.85rem',
+          }}
+        >
+          ← Dashboard
+        </a>
+      }
+    >
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {loading ? (
@@ -107,6 +124,6 @@ export default function BookingsHistoryPage() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

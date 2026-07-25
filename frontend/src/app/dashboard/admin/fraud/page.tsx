@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import DashboardShell from '../../components/DashboardShell';
 
 export default function FraudAndQualityDashboard() {
   const [providers, setProviders] = useState<any[]>([]);
@@ -36,21 +37,29 @@ export default function FraudAndQualityDashboard() {
   }, []);
 
   return (
-    <div style={{ backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '40px' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '30px' }}>
-          <div>
-            <h1 style={{ color: '#1a2b4a', margin: '0 0 10px 0' }}>AI Fraud & Quality Monitor</h1>
-            <p style={{ color: '#4a5568', margin: '0' }}>Gemini AI continuously audits billing records to flag suspicious patterns.</p>
-          </div>
-          <button 
-            onClick={runAIScan}
-            disabled={loading}
-            style={{ padding: '10px 20px', backgroundColor: loading ? '#a0aec0' : '#1a2b4a', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer' }}
-          >
-            {loading ? '🤖 Scanning Patterns...' : '↻ Run AI Audit Now'}
-          </button>
-        </div>
+    <DashboardShell
+      role="admin"
+      title="Fraud & Quality Monitor"
+      subtitle="Billing records are audited continuously to flag suspicious patterns."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+      aside={
+        <button
+          onClick={runAIScan}
+          disabled={loading}
+          style={{
+            padding: '10px 18px', borderRadius: 999,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            border: '1px solid rgba(255,255,255,0.35)',
+            background: 'rgba(255,255,255,0.12)', color: '#fff',
+            fontWeight: 700, fontSize: '0.85rem', opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading ? 'Scanning…' : '↻ Run audit now'}
+        </button>
+      }
+    >
 
         {error && (
           <div style={{ backgroundColor: '#fed7d7', color: '#c53030', padding: '15px', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold' }}>
@@ -113,7 +122,6 @@ export default function FraudAndQualityDashboard() {
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import DashboardShell from '../../components/DashboardShell';
 
 export default function PharmacyDelivery() {
   const router = useRouter();
@@ -152,10 +153,15 @@ export default function PharmacyDelivery() {
   };
 
   return (
-    <div style={{ backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '40px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto', backgroundColor: 'white', padding: '30px', borderRadius: '12px' }}>
-        <h1 style={{ color: '#1a2b4a' }}>Pharmacy Dark-Store Delivery</h1>
-        <p style={{ color: '#4a5568', marginBottom: '30px' }}>Upload your prescription or manually enter medicines. Our AI will route it to the nearest verified pharmacy.</p>
+    <DashboardShell
+      role="patient"
+      title="Medicine Delivery"
+      subtitle="Upload a prescription or list your medicines — we route it to the nearest verified pharmacy."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+    >
+      <div style={{ maxWidth: '800px', margin: '0 auto', backgroundColor: 'white', padding: '30px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
         
         <form onSubmit={handlePlaceOrder} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
@@ -226,6 +232,6 @@ export default function PharmacyDelivery() {
 
         {orderId && renderTracking()}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

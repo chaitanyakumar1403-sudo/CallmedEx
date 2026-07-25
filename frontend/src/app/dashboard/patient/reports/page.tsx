@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import DashboardShell from "../../components/DashboardShell";
 
 export default function AIReportInterpreter() {
   const router = useRouter();
@@ -49,8 +50,15 @@ export default function AIReportInterpreter() {
   };
 
   return (
-    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+    <DashboardShell
+      role="patient"
+      title="Health Reports"
+      subtitle="Your lab reports, explained in plain language."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+    >
+      <div>
         
         {/* Header */}
         <div style={{ marginBottom: 32, textAlign: "center" }}>
@@ -216,6 +224,6 @@ export default function AIReportInterpreter() {
         )}
 
       </div>
-    </div>
+    </DashboardShell>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import DashboardShell from '../../components/DashboardShell';
 
 export default function PMJAYBooking() {
   const [abha, setAbha] = useState('');
@@ -27,12 +28,19 @@ export default function PMJAYBooking() {
   };
 
   return (
-    <div style={{ backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '40px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: 'white', padding: '40px', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}>
-        
+    <DashboardShell
+      role="patient"
+      title="Ayushman Bharat"
+      subtitle="Cashless diagnostics and consultations with your AB-PMJAY card."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+    >
+      <div style={{ maxWidth: '600px', margin: '0 auto', backgroundColor: 'white', padding: '40px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏥</div>
-          <h1 style={{ color: '#1a2b4a', margin: '0 0 10px 0' }}>Ayushman Bharat Booking</h1>
+          <h1 style={{ color: '#1a2b4a', margin: '0 0 10px 0', fontSize: '1.25rem' }}>Check your card</h1>
           <p style={{ color: '#4a5568', margin: '0' }}>Get 100% cashless diagnostics and consultations using your AB-PMJAY card.</p>
         </div>
 
@@ -101,6 +109,6 @@ export default function PMJAYBooking() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

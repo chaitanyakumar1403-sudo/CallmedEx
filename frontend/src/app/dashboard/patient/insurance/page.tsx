@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import DashboardShell from '../../components/DashboardShell';
 
 export default function NHCXInsuranceDashboard() {
   const [abha, setAbha] = useState('');
@@ -31,10 +32,14 @@ export default function NHCXInsuranceDashboard() {
   };
 
   return (
-    <div style={{ backgroundColor: '#f7fafc', minHeight: '100vh', padding: '40px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <h1 style={{ color: '#1a2b4a', marginBottom: '10px' }}>NHCX Insurance Hub</h1>
-        <p style={{ color: '#4a5568', marginBottom: '30px' }}>Verify your active health insurance policies securely via the National Health Claims Exchange (NHCX).</p>
+    <DashboardShell
+      role="patient"
+      title="Insurance"
+      subtitle="Check your active cover through the National Health Claims Exchange before you book."
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+    >
 
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <h2 style={{ color: '#2d3748', margin: '0 0 20px 0' }}>Pre-Consultation Eligibility Check</h2>
@@ -83,7 +88,6 @@ export default function NHCXInsuranceDashboard() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }
