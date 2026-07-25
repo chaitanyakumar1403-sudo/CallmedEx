@@ -50,7 +50,6 @@ export default function RootLayout({
                   <li><a href="/diagnostics">Diagnostics</a></li>
                   <li><a href="/consultation">Video Consultation</a></li>
                   <li><a href="/pharmacy">Pharmacy</a></li>
-                  <li><a href="/health-packages">Health Packages</a></li>
                 </ul>
               </div>
               <div className="footer__column">

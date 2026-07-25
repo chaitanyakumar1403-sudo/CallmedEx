@@ -51,7 +51,21 @@ class PricingService:
 
     @staticmethod
     def urgent_surcharge_config() -> dict:
-        default = {"mode": "flat", "flat_inr": 200, "percent": 0, "min_inr": 0, "max_inr": 1000}
+        """
+        Urgent pricing config.
+
+        The owner has confirmed that priority booking carries an extra charge and
+        ranks first in dispatch, but the AMOUNT is not yet agreed. `confirmed` is
+        therefore false by default and no rupee figure is invented: quoting a
+        made-up surcharge to a patient would be a price we cannot stand behind.
+        Setting a real amount and flipping `confirmed` turns it on with no code
+        change. Priority ordering is unaffected either way — urgent still sorts
+        first whether or not it is priced.
+        """
+        default = {
+            "mode": "flat", "flat_inr": 0, "percent": 0,
+            "min_inr": 0, "max_inr": 0, "confirmed": False,
+        }
         if not supabase:
             return default
         try:
@@ -65,8 +79,11 @@ class PricingService:
 
     @staticmethod
     def urgent_surcharge_for(base_price: float) -> float:
-        """Rupee surcharge for a priority booking at this price point."""
+        """Rupee surcharge for a priority booking, or 0 until the rate is agreed."""
         cfg = PricingService.urgent_surcharge_config()
+        if not cfg.get("confirmed"):
+            return 0.0
+
         if cfg.get("mode") == "percent":
             amount = base_price * _num(cfg.get("percent")) / 100.0
         else:
@@ -78,30 +95,70 @@ class PricingService:
         return round(max(amount, lo), 2)
 
     @staticmethod
-    def quote(mrp: float, discount_pct: float, urgent: bool = False) -> dict:
+    def platform_fee_pct() -> float:
+        """The platform fee every partner MOU fixes at 20%."""
+        if not supabase:
+            return 20.0
+        try:
+            row = _first(
+                supabase.table("platform_settings")
+                .select("value").eq("key", "default_platform_fee_pct").limit(1).execute()
+            )
+            value = row.get("value") or {}
+            return _num(value.get("percent"), 20.0)
+        except Exception:
+            return 20.0
+
+    @staticmethod
+    def quote(
+        mrp: float,
+        discount_pct: float,
+        urgent: bool = False,
+        platform_fee_pct: Optional[float] = None,
+    ) -> dict:
         """
         Price one service.
 
-        MRP is what the partner charges at their own counter. A missing or
-        nonsensical discount is treated as zero rather than guessed at — showing
-        a saving that was never negotiated would be a false claim to the patient
-        and an unfunded liability for the partner.
+        The partner MOUs fix the commercial split precisely (dental MOU §3, and
+        the same 20%/80% table in the doctor, physio and nursing agreements):
+
+            CallMedex collects a 20% platform fee from the patient.
+            The partner collects the remaining 80% directly.
+            Any patient discount is funded ENTIRELY from CallMedex's 20% —
+            "The Dental Clinic/Hospital shall not be required to bear any
+            additional discount beyond the agreed commercial arrangement."
+
+        Two consequences are enforced here. The partner's payout is always 80%
+        of MRP no matter what discount the patient sees, and the discount cannot
+        exceed the platform fee, because there is nothing else to fund it from.
+        A larger discount would silently come out of the partner's share — the
+        exact thing the MOU forbids.
         """
         mrp = round(max(_num(mrp), 0.0), 2)
+        fee_pct = _num(platform_fee_pct, PricingService.platform_fee_pct())
+
         pct = _num(discount_pct)
         if pct < 0 or pct >= 100:
             pct = 0.0
+        # Capped at the platform fee: the discount is funded from it.
+        capped = min(pct, fee_pct)
 
-        price = round(mrp * (1 - pct / 100.0), 2)
+        price = round(mrp * (1 - capped / 100.0), 2)
         savings = round(mrp - price, 2)
+        provider_payout = round(mrp * (1 - fee_pct / 100.0), 2)
+        platform_retained = round(price - provider_payout, 2)
 
         surcharge = PricingService.urgent_surcharge_for(price) if urgent else 0.0
 
         return {
             "mrp": mrp,
-            "discount_pct": round(pct, 2),
+            "discount_pct": round(capped, 2),
+            "requested_discount_pct": round(pct, 2),
             "price": price,
             "savings": savings,
+            "platform_fee_pct": round(fee_pct, 2),
+            "provider_payout": provider_payout,
+            "platform_retained": platform_retained,
             "urgent_surcharge": surcharge,
             "payable": round(price + surcharge, 2),
         }

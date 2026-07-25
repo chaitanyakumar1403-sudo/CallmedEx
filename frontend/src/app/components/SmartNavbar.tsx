@@ -55,7 +55,6 @@ export default function SmartNavbar() {
                   not have to guess which lab to open first. /search remains
                   reachable for hospital and doctor discovery. */}
               <li><a href="/diagnostics">Book a Test</a></li>
-              <li><a href="/health-packages">Health Packages</a></li>
               <li><a href="/consultation">Consultation</a></li>
               <li><a href="/pharmacy">Pharmacy</a></li>
             </>

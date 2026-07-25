@@ -67,18 +67,21 @@ def _seed_urgent_config(fake, **cfg):
     fake.db.setdefault("platform_settings", []).append({
         "key": "urgent_surcharge",
         "value": {"mode": "flat", "flat_inr": 200, "percent": 0,
-                  "min_inr": 0, "max_inr": 1000, **cfg},
+                  "min_inr": 0, "max_inr": 1000, "confirmed": True, **cfg},
     })
 
 
 # ── Pricing ──────────────────────────────────────────────────────────────────
 
 def test_discount_produces_a_real_saving(fake_db):
-    q = PricingService.quote(mrp=1000, discount_pct=25)
+    q = PricingService.quote(mrp=1000, discount_pct=15)
     assert q["mrp"] == 1000.0
-    assert q["price"] == 750.0
-    assert q["savings"] == 250.0
-    assert q["payable"] == 750.0
+    assert q["price"] == 850.0
+    assert q["savings"] == 150.0
+    assert q["payable"] == 850.0
+    # The partner is unaffected: they still take 80%.
+    assert q["provider_payout"] == 800.0
+    assert q["platform_retained"] == 50.0
 
 
 def test_zero_discount_shows_no_saving(fake_db):
@@ -116,6 +119,50 @@ def test_non_urgent_carries_no_surcharge(fake_db):
     assert PricingService.quote(mrp=500, discount_pct=10)["urgent_surcharge"] == 0.0
 
 
+def test_unconfirmed_urgent_rate_quotes_nothing(fake_db):
+    """The charge is agreed in principle but not priced; never invent a figure."""
+    _seed_urgent_config(fake_db, flat_inr=200, confirmed=False)
+    q = PricingService.quote(mrp=1000, discount_pct=0, urgent=True)
+    assert q["urgent_surcharge"] == 0.0
+    assert q["payable"] == 1000.0
+
+
+def test_urgent_is_unpriced_by_default(fake_db):
+    """With no config row at all, no surcharge is quoted."""
+    q = PricingService.quote(mrp=1000, discount_pct=0, urgent=True)
+    assert q["urgent_surcharge"] == 0.0
+
+
+# ── MOU commercial split ─────────────────────────────────────────────────────
+
+def test_partner_payout_is_always_80_percent(fake_db):
+    """
+    Dental MOU §3.4 and §7: the partner collects 80% regardless of what the
+    patient was charged, because the discount comes out of CallMedex's 20%.
+    """
+    full = PricingService.quote(mrp=1000, discount_pct=0)
+    discounted = PricingService.quote(mrp=1000, discount_pct=20)
+
+    assert full["provider_payout"] == 800.0
+    assert discounted["provider_payout"] == 800.0      # unchanged by the discount
+    assert discounted["price"] == 800.0
+    assert full["platform_retained"] == 200.0
+    assert discounted["platform_retained"] == 0.0      # the fee funded the discount
+
+
+def test_discount_cannot_exceed_the_platform_fee(fake_db):
+    """
+    A 40% discount would come out of the partner's share — "shall not be
+    required to bear any additional discount". It is capped at the fee.
+    """
+    q = PricingService.quote(mrp=1000, discount_pct=40)
+    assert q["requested_discount_pct"] == 40.0
+    assert q["discount_pct"] == 20.0
+    assert q["price"] == 800.0
+    assert q["provider_payout"] == 800.0
+    assert q["platform_retained"] == 0.0
+
+
 # ── Catalogue search ─────────────────────────────────────────────────────────
 
 def test_synonym_search_finds_the_canonical_test(fake_db):
@@ -149,7 +196,7 @@ def test_unmatched_search_returns_nothing(fake_db):
 
 def test_offers_are_priced_and_sorted_cheapest_first(fake_db):
     cid = _seed_catalog(fake_db, "MRI", "mri", ["Magnetic Resonance Imaging"], "imaging", 24)
-    cheap = _seed_provider(fake_db, "Vizag Scans", discount=30)
+    cheap = _seed_provider(fake_db, "Vizag Scans", discount=20)
     dear = _seed_provider(fake_db, "Metro Imaging", discount=0)
     _seed_service(fake_db, cheap, cid, "MRI Brain", mrp=8000)
     _seed_service(fake_db, dear, cid, "MRI Brain", mrp=7000)
@@ -158,7 +205,7 @@ def test_offers_are_priced_and_sorted_cheapest_first(fake_db):
     offers = result["offers"]
 
     assert [o["provider_name"] for o in offers] == ["Vizag Scans", "Metro Imaging"]
-    assert offers[0]["price"] == 5600.0 and offers[0]["savings"] == 2400.0
+    assert offers[0]["price"] == 6400.0 and offers[0]["savings"] == 1600.0
     assert offers[1]["price"] == 7000.0 and offers[1]["savings"] == 0.0
 
 
@@ -238,12 +285,12 @@ def test_partner_without_mrp_falls_back_to_base_price(fake_db):
 
 def test_search_by_query_resolves_the_test(fake_db):
     cid = _seed_catalog(fake_db, "MRI", "mri", ["Magnetic Resonance Imaging"], "imaging")
-    p = _seed_provider(fake_db, "Vizag Scans", discount=25)
+    p = _seed_provider(fake_db, "Vizag Scans", discount=20)
     _seed_service(fake_db, p, cid, "MRI Brain", mrp=8000)
 
     result = MarketplaceService.find_offers(query="magnetic resonance")
     assert result["test"]["slug"] == "mri"
-    assert result["offers"][0]["payable"] == 6000.0
+    assert result["offers"][0]["payable"] == 6400.0
 
 
 def test_offers_without_a_query_return_nothing(fake_db):

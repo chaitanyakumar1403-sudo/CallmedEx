@@ -31,3 +31,6 @@ npm-debug.log*
 
 # Partner MOU source documents — kept local, not version-controlled
 mous/
+
+# Commercial pricing source sheets — kept local, not version-controlled
+pricing_details/
