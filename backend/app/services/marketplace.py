@@ -409,6 +409,130 @@ class MarketplaceService:
             "urgent": urgent,
         }
 
+    # ── Offers feed ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def offers_feed(city: Optional[str] = None, limit: int = 12) -> dict:
+        """
+        What partners are actively offering right now: health packages, and any
+        service carrying a real negotiated discount.
+
+        Only verified, listed partners appear, and every price runs through
+        PricingService so a package is quoted on the same terms as anything else
+        — the partner still takes their 80% and the discount still comes out of
+        the platform fee. A package that quietly used different arithmetic would
+        be the easiest place for the MOU split to drift.
+        """
+        if not supabase:
+            return {"packages": [], "discounted": []}
+
+        packages, discounted = [], []
+
+        try:
+            rows = _rows(
+                supabase.table("provider_packages")
+                .select("*")
+                .eq("is_active", True).eq("status", "approved")
+                .limit(200).execute()
+            )
+        except Exception as e:
+            logger.error(f"offers_feed packages read failed: {e}")
+            rows = []
+
+        # Legacy organization_packages predates provider_packages; include it so
+        # partners who entered packages on the older screen are not invisible.
+        try:
+            for r in _rows(
+                supabase.table("organization_packages")
+                .select("*").eq("is_active", True).limit(200).execute()
+            ):
+                rows.append({
+                    "id": r.get("id"),
+                    "provider_user_id": r.get("organization_id"),
+                    "name": r.get("name"),
+                    "description": r.get("description"),
+                    "price": r.get("price"),
+                    "included_service_ids": [],
+                })
+        except Exception:
+            pass
+
+        index = MarketplaceService._provider_index(
+            list({r["provider_user_id"] for r in rows if r.get("provider_user_id")})
+        )
+
+        for pkg in rows:
+            provider = index.get(pkg.get("provider_user_id")) or {}
+            if provider.get("verification_status") != "verified":
+                continue
+            if provider.get("is_listed") is False:
+                continue
+            if city and city.strip().lower() not in (
+                f"{provider.get('city', '')} {provider.get('state', '')}".lower()
+            ):
+                continue
+
+            pricing = PricingService.quote(
+                _num(pkg.get("price")), _num(provider.get("partner_discount_pct"))
+            )
+            packages.append({
+                "id": pkg.get("id"),
+                "name": pkg.get("name"),
+                "description": pkg.get("description") or "",
+                "provider_user_id": pkg.get("provider_user_id"),
+                "provider_name": provider.get("display_name") or "Partner centre",
+                "city": provider.get("city", ""),
+                "test_count": len(pkg.get("included_service_ids") or []),
+                **pricing,
+            })
+
+        # Individual services a partner is genuinely discounting.
+        try:
+            discount_rows = _rows(
+                supabase.table("provider_settings")
+                .select("provider_user_id, partner_discount_pct")
+                .gt("partner_discount_pct", 0).limit(100).execute()
+            )
+        except Exception:
+            discount_rows = []
+
+        if discount_rows:
+            by_provider = {d["provider_user_id"]: _num(d.get("partner_discount_pct"))
+                           for d in discount_rows}
+            svc_index = MarketplaceService._provider_index(list(by_provider))
+            try:
+                svcs = _rows(
+                    supabase.table("provider_services")
+                    .select("*").eq("is_active", True)
+                    .in_("provider_user_id", list(by_provider))
+                    .limit(200).execute()
+                )
+            except Exception:
+                svcs = []
+            for svc in svcs:
+                provider = svc_index.get(svc["provider_user_id"]) or {}
+                if provider.get("verification_status") != "verified":
+                    continue
+                if provider.get("is_listed") is False:
+                    continue
+                mrp = _num(svc.get("mrp")) or _num(svc.get("base_price"))
+                pricing = PricingService.quote(mrp, by_provider[svc["provider_user_id"]])
+                if pricing["savings"] <= 0:
+                    continue
+                discounted.append({
+                    "service_id": svc["id"],
+                    "name": svc.get("name"),
+                    "provider_user_id": svc["provider_user_id"],
+                    "provider_name": provider.get("display_name") or "Partner centre",
+                    "city": provider.get("city", ""),
+                    "home_available": bool(svc.get("home_available")),
+                    **pricing,
+                })
+
+        packages.sort(key=lambda p: -p["savings"])
+        discounted.sort(key=lambda d: -d["savings"])
+        return {"packages": packages[:limit], "discounted": discounted[:limit]}
+
     # ── Popular / browse ──────────────────────────────────────────────────
 
     @staticmethod

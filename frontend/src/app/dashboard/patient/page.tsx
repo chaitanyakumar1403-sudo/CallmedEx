@@ -4,6 +4,7 @@ import DashboardProfile from "../components/DashboardProfile";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
+import OffersStrip from "../components/OffersStrip";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
 
@@ -530,6 +531,8 @@ export default function PatientDashboard() {
         </>
       }
     >
+
+        <OffersStrip city={profile?.city} />
 
         {/* Industry-First Features Quick-Action Bar */}
         <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>

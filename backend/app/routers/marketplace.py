@@ -69,6 +69,21 @@ async def find_offers(
     return {"success": True, **result}
 
 
+@router.get("/offers/featured")
+async def featured_offers(
+    city: Optional[str] = None,
+    limit: int = Query(12, le=40),
+):
+    """
+    Health packages and discounted services from verified partners.
+
+    Public: a patient should be able to see what is on offer before creating an
+    account. Returns empty lists rather than an error when no partner has
+    published anything, so the caller can render an honest empty state.
+    """
+    return {"success": True, **MarketplaceService.offers_feed(city=city, limit=limit)}
+
+
 @router.get("/pricing/urgent")
 async def urgent_pricing(base_price: float = Query(0, ge=0)):
     """What a priority booking adds at this price point — shown before committing."""
