@@ -130,10 +130,36 @@ def _seed_phlebo(fake, user_id, rate, phleb_type="part_time", home_lab=None):
     })
 
 
-def _seed_org(fake, user_id, name):
+def _seed_org(fake, user_id, name, verification_status="verified"):
     fake.db.setdefault("organizations", []).append({
-        "user_id": user_id, "organization_name": name,
+        "user_id": user_id,
+        "organization_name": name,
+        "organization_type": "diagnostic_center",
+        "verification_status": verification_status,
     })
+
+
+def _seed_dispatch(fake, phlebo_user_id, patient_id):
+    """A run assigned to this collector — the ticket that authorises a tube."""
+    did = str(uuid.uuid4())
+    fake.db.setdefault("dispatch_requests", []).append({
+        "id": did,
+        "patient_id": patient_id,
+        "assigned_provider_id": phlebo_user_id,
+        "status": "arrived",
+    })
+    return did
+
+
+async def _collect(fake, phlebo, patient, **kwargs):
+    """Collect against a freshly-seeded run assigned to this phlebotomist."""
+    did = kwargs.pop("dispatch_request_id", None) or _seed_dispatch(fake, phlebo, patient)
+    return await SampleService.collect(
+        phlebotomist_user_id=phlebo,
+        patient_id=patient,
+        dispatch_request_id=did,
+        **kwargs,
+    )
 
 
 # ── Barcode ──────────────────────────────────────────────────────────────────
@@ -187,9 +213,7 @@ async def test_collect_registers_sample_and_custody_event(fake_db):
     phlebo, patient, lab = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
 
-    res = await SampleService.collect(
-        phlebotomist_user_id=phlebo, patient_id=patient, lat=17.7, lng=83.3,
-    )
+    res = await _collect(fake_db, phlebo, patient, lat=17.7, lng=83.3)
     assert res["success"]
     # Destination defaults to the phlebotomist's home lab.
     assert res["destination_org_user_id"] == lab
@@ -199,13 +223,121 @@ async def test_collect_registers_sample_and_custody_event(fake_db):
     assert events[0]["lat"] == 17.7
 
 
+# ── Collection authorisation ─────────────────────────────────────────────────
+# A tube filed against the wrong patient becomes a lab report on the wrong
+# ABHA-linked record, so the patient is derived from the run, never trusted
+# from the request body.
+
+@pytest.mark.asyncio
+async def test_collect_requires_a_linked_run(fake_db):
+    phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+
+    res = await SampleService.collect(phlebotomist_user_id=phlebo, patient_id=patient)
+    assert not res["success"]
+    assert "Select the run" in res["message"]
+    assert fake_db.db.get("samples", []) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_rejects_another_phlebotomists_run(fake_db):
+    mine, theirs, patient = (str(uuid.uuid4()) for _ in range(3))
+    _seed_phlebo(fake_db, mine, 150)
+    _seed_phlebo(fake_db, theirs, 150)
+    their_run = _seed_dispatch(fake_db, theirs, patient)
+
+    res = await SampleService.collect(
+        phlebotomist_user_id=mine, patient_id=patient, dispatch_request_id=their_run
+    )
+    assert not res["success"]
+    assert "not assigned to you" in res["message"]
+    assert fake_db.db.get("samples", []) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_rejects_patient_mismatch(fake_db):
+    """The core protection: a tampered patient_id must not attach to someone else."""
+    phlebo, real_patient, other_patient = (str(uuid.uuid4()) for _ in range(3))
+    _seed_phlebo(fake_db, phlebo, 150)
+    run = _seed_dispatch(fake_db, phlebo, real_patient)
+
+    res = await SampleService.collect(
+        phlebotomist_user_id=phlebo,
+        patient_id=other_patient,          # not the patient on the run
+        dispatch_request_id=run,
+    )
+    assert not res["success"]
+    assert "does not match that run" in res["message"]
+    assert fake_db.db.get("samples", []) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_derives_patient_from_run(fake_db):
+    """With no patient_id supplied, the run's patient is used."""
+    phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+    run = _seed_dispatch(fake_db, phlebo, patient)
+
+    res = await SampleService.collect(
+        phlebotomist_user_id=phlebo, dispatch_request_id=run, barcode="CMX-DERIVE"
+    )
+    assert res["success"]
+    stored = next(s for s in fake_db.db["samples"] if s["barcode"] == "CMX-DERIVE")
+    assert stored["patient_id"] == patient
+
+
+@pytest.mark.asyncio
+async def test_admin_may_file_an_unlinked_sample(fake_db):
+    """Back-office corrections and walk-ins still need a way through."""
+    admin, patient = str(uuid.uuid4()), str(uuid.uuid4())
+    res = await SampleService.collect(
+        phlebotomist_user_id=admin, patient_id=patient,
+        barcode="CMX-ADMIN", allow_unlinked=True,
+    )
+    assert res["success"]
+
+
+# ── Home lab ─────────────────────────────────────────────────────────────────
+
+def test_set_home_lab_links_a_verified_centre(fake_db):
+    phlebo, lab = str(uuid.uuid4()), str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+    _seed_org(fake_db, lab, "Vizag Diagnostics")
+
+    res = SampleService.set_home_lab(phlebo, lab)
+    assert res["success"]
+    assert res["home_lab_org_user_id"] == lab
+    assert res["home_lab_name"] == "Vizag Diagnostics"
+    assert SampleService.get_home_lab(phlebo)["home_lab_name"] == "Vizag Diagnostics"
+
+
+def test_set_home_lab_refuses_unverified_centre(fake_db):
+    """A pending lab would silently swallow every handover sent to it."""
+    phlebo, lab = str(uuid.uuid4()), str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+    _seed_org(fake_db, lab, "Pending Labs", verification_status="pending")
+
+    res = SampleService.set_home_lab(phlebo, lab)
+    assert not res["success"]
+    assert "not verified" in res["message"]
+
+
+def test_set_home_lab_refuses_unknown_centre(fake_db):
+    phlebo = str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+
+    res = SampleService.set_home_lab(phlebo, str(uuid.uuid4()))
+    assert not res["success"]
+    assert "not found" in res["message"]
+
+
 @pytest.mark.asyncio
 async def test_duplicate_barcode_is_rejected(fake_db):
     phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150)
 
-    await SampleService.collect(phlebo, patient, barcode="CMX-DUP-001")
-    again = await SampleService.collect(phlebo, patient, barcode="CMX-DUP-001")
+    await _collect(fake_db, phlebo, patient, barcode="CMX-DUP-001")
+    again = await _collect(fake_db, phlebo, patient, barcode="CMX-DUP-001")
     assert not again["success"]
     assert "already registered" in again["message"]
 
@@ -218,8 +350,8 @@ async def test_partial_acceptance_pays_only_accepted_tubes(fake_db):
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
     _seed_org(fake_db, lab, "Vizag Diagnostics")
 
-    good = await SampleService.collect(phlebo, patient, barcode="CMX-A")
-    bad = await SampleService.collect(phlebo, patient, barcode="CMX-B")
+    good = await _collect(fake_db, phlebo, patient, barcode="CMX-A")
+    bad = await _collect(fake_db, phlebo, patient, barcode="CMX-B")
 
     handover = await SampleService.request_handover(
         phlebo, [good["sample_id"], bad["sample_id"]]
@@ -253,7 +385,7 @@ async def test_full_time_phlebotomist_accrues_no_per_collection_credit(fake_db):
     _seed_phlebo(fake_db, phlebo, 0, phleb_type="full_time", home_lab=lab)
     _seed_org(fake_db, lab, "KIMS Lab")
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-FT")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-FT")
     h = await SampleService.request_handover(phlebo, [s["sample_id"]])
     result = await SampleService.respond_to_handover(h["handover_id"], lab, [s["sample_id"]])
 
@@ -268,7 +400,7 @@ async def test_handover_rejected_by_wrong_centre(fake_db):
     phlebo, patient, lab, other = (str(uuid.uuid4()) for _ in range(4))
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-SEC")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-SEC")
     h = await SampleService.request_handover(phlebo, [s["sample_id"]])
 
     result = await SampleService.respond_to_handover(h["handover_id"], other, [s["sample_id"]])
@@ -281,7 +413,7 @@ async def test_handover_cannot_be_answered_twice(fake_db):
     phlebo, patient, lab = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-ONCE")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-ONCE")
     h = await SampleService.request_handover(phlebo, [s["sample_id"]])
 
     first = await SampleService.respond_to_handover(h["handover_id"], lab, [s["sample_id"]])
@@ -299,8 +431,8 @@ async def test_unaddressed_tubes_default_to_accepted(fake_db):
     phlebo, patient, lab = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
 
-    a = await SampleService.collect(phlebo, patient, barcode="CMX-U1")
-    b = await SampleService.collect(phlebo, patient, barcode="CMX-U2")
+    a = await _collect(fake_db, phlebo, patient, barcode="CMX-U1")
+    b = await _collect(fake_db, phlebo, patient, barcode="CMX-U2")
     h = await SampleService.request_handover(phlebo, [a["sample_id"], b["sample_id"]])
 
     result = await SampleService.respond_to_handover(
@@ -315,7 +447,7 @@ async def test_handover_requires_a_destination(fake_db):
     phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150, home_lab=None)
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-NODEST")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-NODEST")
     result = await SampleService.request_handover(phlebo, [s["sample_id"]])
     assert not result["success"]
     assert "No destination diagnostic centre" in result["message"]
@@ -327,7 +459,7 @@ async def test_cannot_hand_over_another_phlebotomists_sample(fake_db):
     _seed_phlebo(fake_db, mine, 150, home_lab=lab)
     _seed_phlebo(fake_db, theirs, 150, home_lab=lab)
 
-    s = await SampleService.collect(theirs, patient, barcode="CMX-OTHER")
+    s = await _collect(fake_db, theirs, patient, barcode="CMX-OTHER")
     result = await SampleService.request_handover(mine, [s["sample_id"]])
     assert not result["success"]
 
@@ -339,7 +471,7 @@ async def test_report_publishes_only_after_receipt(fake_db):
     phlebo, patient, lab = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-REP")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-REP")
 
     early = await SampleService.upload_report(s["sample_id"], lab, "http://x/r.pdf")
     assert not early["success"], "must not publish a report before the lab receives the tube"
@@ -361,7 +493,7 @@ async def test_custody_trail_is_ordered_and_complete(fake_db):
     _seed_phlebo(fake_db, phlebo, 150, home_lab=lab)
     _seed_org(fake_db, lab, "Apollo Diagnostics")
 
-    s = await SampleService.collect(phlebo, patient, barcode="CMX-TRAIL")
+    s = await _collect(fake_db, phlebo, patient, barcode="CMX-TRAIL")
     h = await SampleService.request_handover(phlebo, [s["sample_id"]])
     await SampleService.respond_to_handover(h["handover_id"], lab, [s["sample_id"]])
     await SampleService.upload_report(s["sample_id"], lab, "http://x/r.pdf")

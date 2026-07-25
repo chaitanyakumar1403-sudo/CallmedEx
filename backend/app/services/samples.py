@@ -174,12 +174,127 @@ class SampleService:
             pass
         return "the diagnostic centre"
 
+    # ── Home lab ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_home_lab(phlebotomist_user_id: str) -> dict:
+        """The centre this collector hands samples to by default."""
+        profile = SampleService._phlebo_profile(phlebotomist_user_id)
+        lab_id = profile.get("home_lab_org_user_id")
+        if not lab_id:
+            return {"home_lab_org_user_id": None, "home_lab_name": None}
+        return {
+            "home_lab_org_user_id": lab_id,
+            "home_lab_name": SampleService._org_display_name(lab_id),
+        }
+
+    @staticmethod
+    def set_home_lab(phlebotomist_user_id: str, org_user_id: Optional[str]) -> dict:
+        """
+        Link this collector to a diagnostic centre, or clear the link.
+
+        The centre must be a real, verified organisation — otherwise a typo would
+        silently send every subsequent handover into a dead end that only shows
+        up when the collector is standing at the wrong lab.
+        """
+        if not supabase:
+            return {"success": False, "message": "Database not configured"}
+
+        if org_user_id:
+            org = _first(
+                supabase.table("organizations")
+                .select("user_id, organization_name, organization_type, verification_status")
+                .eq("user_id", org_user_id)
+                .limit(1)
+                .execute()
+            )
+            if not org:
+                return {"success": False, "message": "That diagnostic centre was not found."}
+            if org.get("verification_status") != "verified":
+                return {
+                    "success": False,
+                    "message": f"{org.get('organization_name')} is not verified yet.",
+                }
+
+        try:
+            updated = _rows(
+                supabase.table("phlebotomists")
+                .update({"home_lab_org_user_id": org_user_id})
+                .eq("user_id", phlebotomist_user_id)
+                .execute()
+            )
+        except Exception as e:
+            logger.error(f"set_home_lab failed for {phlebotomist_user_id}: {e}")
+            return {"success": False, "message": f"Could not save your lab: {e}"}
+
+        if not updated:
+            return {"success": False, "message": "No phlebotomist profile found for you."}
+
+        return {
+            "success": True,
+            "message": (
+                f"Linked to {SampleService._org_display_name(org_user_id)}."
+                if org_user_id else "Lab link cleared."
+            ),
+            **SampleService.get_home_lab(phlebotomist_user_id),
+        }
+
+    @staticmethod
+    def _authorise_collection(
+        phlebotomist_user_id: str,
+        claimed_patient_id: Optional[str],
+        dispatch_request_id: Optional[str],
+        allow_unlinked: bool = False,
+    ) -> tuple:
+        """
+        Decide whether this collector may file a tube, and for which patient.
+
+        Returns (allowed, patient_id, reason).
+
+        The patient is taken from the dispatch record, never from the request
+        body, so a tampered or mistaken patient_id cannot attach a specimen to
+        someone else's health record. `allow_unlinked` is the admin escape hatch
+        for back-office corrections and walk-ins.
+        """
+        if dispatch_request_id:
+            dispatch = _first(
+                supabase.table("dispatch_requests")
+                .select("id, patient_id, assigned_provider_id, status")
+                .eq("id", dispatch_request_id)
+                .limit(1)
+                .execute()
+            )
+            if not dispatch:
+                return False, None, "That dispatch does not exist."
+            if dispatch.get("assigned_provider_id") != phlebotomist_user_id:
+                return False, None, "That run is not assigned to you."
+
+            true_patient = dispatch.get("patient_id")
+            if claimed_patient_id and claimed_patient_id != true_patient:
+                # Surface the mismatch rather than silently overriding it: a
+                # disagreement here means the app sent the wrong run or the wrong
+                # patient, and either way the collector should re-check.
+                return False, None, (
+                    "Patient does not match that run. Re-select the run and try again."
+                )
+            return True, true_patient, ""
+
+        if allow_unlinked:
+            if not claimed_patient_id:
+                return False, None, "A patient is required."
+            return True, claimed_patient_id, ""
+
+        return False, None, (
+            "Select the run this tube belongs to. Samples must be linked to a "
+            "dispatch assigned to you."
+        )
+
     # ── 1. Collection ─────────────────────────────────────────────────────
 
     @staticmethod
     async def collect(
         phlebotomist_user_id: str,
-        patient_id: str,
+        patient_id: Optional[str] = None,
         booking_id: Optional[str] = None,
         dispatch_request_id: Optional[str] = None,
         barcode: Optional[str] = None,
@@ -191,6 +306,7 @@ class SampleService:
         photo_url: str = "",
         destination_org_user_id: Optional[str] = None,
         notes: str = "",
+        allow_unlinked: bool = False,
     ) -> dict:
         """
         Register a tube collected at the patient's side.
@@ -198,9 +314,20 @@ class SampleService:
         `barcode` may be supplied by a scanner; when absent one is minted. The
         destination defaults to the phlebotomist's home lab and may be overridden
         when the booking belongs to a different partner centre.
+
+        The caller must reference a dispatch assigned to them, and the patient is
+        derived from that dispatch rather than trusted from the request body.
+        Without this, a collector could file a specimen — and in turn a lab report
+        — against an arbitrary patient's ABHA-linked record.
         """
         if not supabase:
             return {"success": False, "message": "Database not configured"}
+
+        allowed, patient_id, why = SampleService._authorise_collection(
+            phlebotomist_user_id, patient_id, dispatch_request_id, allow_unlinked
+        )
+        if not allowed:
+            return {"success": False, "message": why}
 
         profile = SampleService._phlebo_profile(phlebotomist_user_id)
         destination = destination_org_user_id or profile.get("home_lab_org_user_id")

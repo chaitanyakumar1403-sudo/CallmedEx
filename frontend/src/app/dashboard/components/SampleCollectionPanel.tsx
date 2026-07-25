@@ -68,6 +68,14 @@ export default function SampleCollectionPanel() {
   const [destination, setDestination] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Linked lab
+  const [labs, setLabs] = useState<any[]>([]);
+  const [homeLab, setHomeLab] = useState<{ id: string | null; name: string | null }>({
+    id: null,
+    name: null,
+  });
+  const [savingLab, setSavingLab] = useState(false);
+
   const authHeaders = useCallback(() => {
     const token = getToken();
     return {
@@ -78,12 +86,24 @@ export default function SampleCollectionPanel() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [taskRes, sampleRes] = await Promise.all([
+      const [taskRes, sampleRes, labRes, myLabRes] = await Promise.all([
         fetch(`${apiBase}/api/dispatch/my-tasks`, { headers: authHeaders() }),
         fetch(`${apiBase}/api/samples/mine`, { headers: authHeaders() }),
+        fetch(`${apiBase}/api/providers/search/organizations?org_type=diagnostic_center`, {
+          headers: authHeaders(),
+        }),
+        fetch(`${apiBase}/api/samples/my-lab`, { headers: authHeaders() }),
       ]);
       const taskData = await taskRes.json().catch(() => ({}));
       const sampleData = await sampleRes.json().catch(() => ({}));
+      const labData = await labRes.json().catch(() => ({}));
+      const myLab = await myLabRes.json().catch(() => ({}));
+
+      setLabs(labData.organizations || []);
+      setHomeLab({
+        id: myLab.home_lab_org_user_id || null,
+        name: myLab.home_lab_name || null,
+      });
 
       // Urgent first, then oldest — the red ones are the first priority.
       const list: any[] = taskData.tasks || [];
@@ -155,6 +175,29 @@ export default function SampleCollectionPanel() {
     }
   }
 
+  async function saveHomeLab(orgUserId: string) {
+    setSavingLab(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/samples/my-lab`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ org_user_id: orgUserId || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ kind: "err", text: data.detail || "Could not save your lab." });
+        return;
+      }
+      setHomeLab({ id: data.home_lab_org_user_id, name: data.home_lab_name });
+      setMsg({ kind: "ok", text: data.message });
+    } catch {
+      setMsg({ kind: "err", text: "Network error saving your lab." });
+    } finally {
+      setSavingLab(false);
+    }
+  }
+
   async function submitHandover() {
     if (selectedIds.length === 0) return;
     setSubmitting(true);
@@ -203,6 +246,55 @@ export default function SampleCollectionPanel() {
           {msg.text}
         </div>
       )}
+
+      {/* ── Linked lab ───────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 20 }}>
+        <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem" }}>🏥 Your linked lab</h3>
+        <p style={{ margin: "0 0 12px 0", fontSize: "0.85rem", color: "#64748b" }}>
+          Where your samples go by default. You can still send a batch elsewhere when a
+          booking belongs to another partner centre.
+        </p>
+
+        {!homeLab.id && (
+          <div
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              color: "#92400e",
+              fontSize: "0.85rem",
+              marginBottom: 12,
+            }}
+          >
+            No lab linked yet — pick one below so handovers work in one tap.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            value={homeLab.id || ""}
+            onChange={(e) => saveHomeLab(e.target.value)}
+            disabled={savingLab}
+            style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+          >
+            <option value="">— Select a diagnostic centre —</option>
+            {labs.map((l) => (
+              <option key={l.user_id} value={l.user_id}>
+                {l.organization_name || l.name}
+                {l.city ? ` — ${l.city}` : ""}
+              </option>
+            ))}
+          </select>
+          {savingLab && <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Saving…</span>}
+        </div>
+
+        {labs.length === 0 && (
+          <p style={{ margin: "10px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
+            No verified diagnostic centres are listed yet.
+          </p>
+        )}
+      </div>
 
       {/* ── Today's runs ─────────────────────────────────────────────── */}
       <div className="card" style={{ padding: 20 }}>
@@ -365,17 +457,39 @@ export default function SampleCollectionPanel() {
             </div>
 
             <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <input
+              <select
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                placeholder="Destination lab ID (blank = your linked lab)"
-                style={{ ...inputStyle, flex: 1, minWidth: 260 }}
-              />
+                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+              >
+                <option value="">
+                  {homeLab.name ? `Your lab — ${homeLab.name}` : "Choose a destination lab"}
+                </option>
+                {labs
+                  .filter((l) => l.user_id !== homeLab.id)
+                  .map((l) => (
+                    <option key={l.user_id} value={l.user_id}>
+                      {l.organization_name || l.name}
+                      {l.city ? ` — ${l.city}` : ""}
+                    </option>
+                  ))}
+              </select>
               <button
                 onClick={submitHandover}
-                disabled={submitting || selectedIds.length === 0}
+                // Without a destination there is nowhere to send the batch, so
+                // block it here rather than round-tripping to a 400.
+                disabled={
+                  submitting ||
+                  selectedIds.length === 0 ||
+                  (!destination && !homeLab.id)
+                }
                 className="btn btn-primary"
-                style={{ opacity: submitting || selectedIds.length === 0 ? 0.6 : 1 }}
+                style={{
+                  opacity:
+                    submitting || selectedIds.length === 0 || (!destination && !homeLab.id)
+                      ? 0.6
+                      : 1,
+                }}
               >
                 {submitting ? "Submitting…" : `Submit ${selectedIds.length || ""} to lab`}
               </button>
