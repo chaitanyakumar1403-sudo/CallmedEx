@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import DashboardProfile from "../components/DashboardProfile";
 import SampleIntakeQueue from "../components/SampleIntakeQueue";
 import LabTeamPanel from "../components/LabTeamPanel";
+import DashboardShell from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -484,36 +485,19 @@ export default function OrganizationDashboard() {
   };
 
   return (
-    <div style={{ backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
-      {/* ─── Header ─── */}
-      <div style={{
-        background: "linear-gradient(135deg, #581c87 0%, #7e22ce 50%, #581c87 100%)",
-        padding: "24px 40px",
-        color: "#ffffff",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#ffffff" }}>
-            🏥 {profile?.organization_name || "Organization"} Dashboard
-          </h1>
-          <p style={{ margin: "4px 0 0 0", color: "rgba(255,255,255,0.75)", fontSize: "0.85rem" }}>
-            Manage doctors, services, pricing, and bookings
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          {isPending ? (
-            <span style={{ backgroundColor: "rgba(239,68,68,0.2)", color: "#fca5a5", padding: "6px 14px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600 }}>
-              Verification Pending
-            </span>
-          ) : (
-            <span style={{ backgroundColor: "rgba(34,197,94,0.2)", color: "#86efac", padding: "6px 14px", borderRadius: 20, fontSize: "0.8rem", fontWeight: 600 }}>
-              ✅ Verified
-            </span>
-          )}
-        </div>
-      </div>
+    <DashboardShell
+      role="organization"
+      title={`${profile?.organization_name || "Organization"}`}
+      subtitle="Doctors, services, pricing and bookings"
+      tabs={tabs}
+      activeTab={currentTab}
+      onTabChange={setActiveTab}
+      aside={
+        <span className={`cm-pill cm-pill--${isPending ? "waiting" : "done"}`}>
+          {isPending ? "Verification pending" : "Verified"}
+        </span>
+      }
+    >
 
       {/* ─── Verification Banner ─── */}
       {isPending && (
@@ -580,29 +564,8 @@ export default function OrganizationDashboard() {
         ))}
       </div>
 
-      {/* ─── Tabs ─── */}
-      <div style={{ padding: "0 40px", display: "flex", gap: 4, borderBottom: "1px solid #e2e8f0" }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "12px 20px", border: "none",
-              backgroundColor: currentTab === tab.id ? "white" : "transparent",
-              color: currentTab === tab.id ? "#581c87" : "#64748b",
-              fontWeight: currentTab === tab.id ? 700 : 500,
-              fontSize: "0.9rem", cursor: "pointer",
-              borderBottom: currentTab === tab.id ? "3px solid #7e22ce" : "3px solid transparent",
-              borderRadius: "8px 8px 0 0", transition: "all 0.2s",
-            }}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* ─── Content ─── */}
-      <div style={{ padding: "24px 40px" }}>
+      <div>
         {statusMsg && (
           <div style={{
             padding: "12px 20px",
@@ -1414,6 +1377,6 @@ export default function OrganizationDashboard() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }

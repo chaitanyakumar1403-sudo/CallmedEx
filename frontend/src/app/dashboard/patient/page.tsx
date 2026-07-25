@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import DashboardProfile from "../components/DashboardProfile";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
+import DashboardShell from "../components/DashboardShell";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
 
@@ -488,27 +489,47 @@ export default function PatientDashboard() {
   );
 
   return (
-    <div className="dashboard">
-      <div className="container">
-        {/* Header */}
-        <div className="dashboard__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h1>{t.welcome}, {name} 👋</h1>
-            <p className="dashboard__greeting">{t.greeting}</p>
-          </div>
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            <select
-              value={lang}
-              onChange={(e) => setLang(e.target.value as any)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e0', backgroundColor: 'white', cursor: 'pointer' }}
-            >
-              <option value="en">English</option>
-              <option value="te">తెలుగు (Telugu)</option>
-              <option value="hi">हिंदी (Hindi)</option>
-            </select>
-            <a href="/booking" className="btn btn-primary">{t.bookTest}</a>
-          </div>
-        </div>
+    // lang drives the :lang(te) rule that switches to Noto Sans Telugu and its
+    // looser leading. Without it the selector changed strings but left Telugu
+    // rendering in a Latin face that has no Telugu glyphs.
+    <div lang={lang}>
+    <DashboardShell
+      role="patient"
+      title={`${t.welcome}, ${name}`}
+      subtitle={t.greeting}
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+      aside={
+        <>
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value as any)}
+            aria-label="Language"
+            style={{
+              padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+              border: "1px solid rgba(255,255,255,0.35)",
+              background: "rgba(255,255,255,0.12)", color: "#fff",
+              fontWeight: 600, fontSize: "0.85rem",
+            }}
+          >
+            <option value="en" style={{ color: "#0f172a" }}>English</option>
+            <option value="te" style={{ color: "#0f172a" }}>తెలుగు</option>
+            <option value="hi" style={{ color: "#0f172a" }}>हिंदी</option>
+          </select>
+          <a
+            href="/booking"
+            style={{
+              padding: "10px 18px", borderRadius: 999, textDecoration: "none",
+              background: "#fff", color: "var(--cm-accent)", fontWeight: 800,
+              fontSize: "0.85rem",
+            }}
+          >
+            {t.bookTest}
+          </a>
+        </>
+      }
+    >
 
         {/* Industry-First Features Quick-Action Bar */}
         <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
@@ -850,7 +871,7 @@ export default function PatientDashboard() {
 
         {/* ─── Profile Details ─── */}
         <DashboardProfile profile={profile} role="patient" />
-      </div>
+    </DashboardShell>
 
       {showAbhaModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>

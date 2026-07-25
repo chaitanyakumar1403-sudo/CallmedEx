@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
+import DashboardShell from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -365,56 +366,27 @@ export default function DoctorDashboard() {
   ];
 
   return (
-    <div style={{ backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
-      {/* ─── Header ─── */}
-      <div style={{
-        background: "linear-gradient(135deg, #0f4c81 0%, #1a6fb5 50%, #0f4c81 100%)",
-        padding: "24px 40px",
-        color: "#ffffff",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#ffffff" }}>
-            👨‍⚕️ Doctor Command Center
-          </h1>
-          <p style={{ margin: "4px 0 0 0", color: "rgba(255,255,255,0.75)", fontSize: "0.85rem" }}>
-            Welcome, {profile?.full_name || "Doctor"} • Manage your schedule, fees, and appointments
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button
-            onClick={() => router.push("/dashboard/doctor/consult/instant")}
-            style={{
-              padding: "8px 16px",
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: 20,
-              fontWeight: 700,
-              fontSize: "0.82rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
-            }}
-          >
-            📹 Launch Live Consultation Room
-          </button>
-          <span style={{
-            backgroundColor: availability.length > 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
-            color: availability.length > 0 ? "#86efac" : "#fca5a5",
-            padding: "6px 14px",
-            borderRadius: 20,
-            fontSize: "0.8rem",
-            fontWeight: 600,
-          }}>
-            {availability.length > 0 ? `${availability.length} Slots Active` : "No Slots Set"}
-          </span>
-        </div>
-      </div>
+    <DashboardShell
+      role="doctor"
+      title="Doctor Command Center"
+      subtitle={`${profile?.full_name || "Doctor"} — schedule, fees and appointments`}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      aside={
+        <button
+          onClick={() => router.push("/dashboard/doctor/consult/instant")}
+          style={{
+            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            border: "1px solid rgba(255,255,255,0.35)",
+            background: "rgba(255,255,255,0.12)", color: "#fff",
+            fontWeight: 700, fontSize: "0.85rem",
+          }}
+        >
+          🎥 Start instant consult
+        </button>
+      }
+    >
 
       {/* ─── Stats Bar ─── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, padding: "20px 40px" }}>
@@ -452,32 +424,8 @@ export default function DoctorDashboard() {
         ))}
       </div>
 
-      {/* ─── Tabs ─── */}
-      <div style={{ padding: "0 40px", display: "flex", gap: 4, borderBottom: "1px solid #e2e8f0" }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "12px 20px",
-              border: "none",
-              backgroundColor: activeTab === tab.id ? "white" : "transparent",
-              color: activeTab === tab.id ? "#0f4c81" : "#64748b",
-              fontWeight: activeTab === tab.id ? 700 : 500,
-              fontSize: "0.9rem",
-              cursor: "pointer",
-              borderBottom: activeTab === tab.id ? "3px solid #0f4c81" : "3px solid transparent",
-              borderRadius: "8px 8px 0 0",
-              transition: "all 0.2s",
-            }}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* ─── Content ─── */}
-      <div style={{ padding: "24px 40px" }}>
+      <div>
         {statusMsg && (
           <div style={{
             padding: "12px 20px",
@@ -1179,6 +1127,6 @@ export default function DoctorDashboard() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }
