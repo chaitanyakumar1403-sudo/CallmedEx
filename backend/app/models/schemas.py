@@ -38,6 +38,9 @@ class OrgType(str, Enum):
     POLYCLINIC = "polyclinic"
     HOSPITAL = "hospital"
     DIAGNOSTIC_CENTER = "diagnostic_center"
+    DENTAL_CLINIC = "dental_clinic"
+    PHYSIOTHERAPY_CENTER = "physiotherapy_center"
+    NURSING_HOME = "nursing_home"
 
 
 class OwnershipType(str, Enum):

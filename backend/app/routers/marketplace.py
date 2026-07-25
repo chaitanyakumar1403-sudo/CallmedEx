@@ -19,14 +19,22 @@ router = APIRouter(prefix="/api/marketplace", tags=["Marketplace"])
 
 @router.get("/tests/search")
 async def search_tests(
-    q: Optional[str] = Query(None, description="Test name or common synonym"),
-    limit: int = Query(20, le=50),
+    q: Optional[str] = Query(None, description="Service name or common synonym"),
+    category: Optional[str] = Query(None, description="lab_test | imaging | dental | physiotherapy | procedure"),
+    limit: int = Query(20, le=250),
 ):
-    """Match a search term against canonical test names and their synonyms."""
+    """
+    Match a search term against canonical service names and their synonyms.
+
+    With `category` and no query this returns the whole category alphabetically,
+    which is how a patient browses dental or physiotherapy without knowing the
+    exact name of the procedure they need.
+    """
     return {
         "success": True,
         "query": q or "",
-        "tests": MarketplaceService.search_catalog(q or "", limit=limit),
+        "category": category or "",
+        "tests": MarketplaceService.search_catalog(q or "", limit=limit, category=category),
     }
 
 

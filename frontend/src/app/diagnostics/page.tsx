@@ -26,6 +26,7 @@ type Test = {
   provider_count?: number;
   typical_turnaround_hours?: number;
   preparation?: string;
+  sub_category?: string;
 };
 
 type Offer = {
@@ -46,9 +47,18 @@ type Offer = {
   turnaround_hours?: number | null;
 };
 
+const CATEGORIES = [
+  { id: "lab_test", label: "Lab Tests", icon: "🧪" },
+  { id: "imaging", label: "Imaging", icon: "📷" },
+  { id: "dental", label: "Dental", icon: "🦷" },
+  { id: "physiotherapy", label: "Physiotherapy", icon: "🧘" },
+];
+
 const CATEGORY_ICON: Record<string, string> = {
   lab_test: "🧪",
   imaging: "📷",
+  dental: "🦷",
+  physiotherapy: "🧘",
   procedure: "🔬",
   health_package: "📦",
   consultation: "🩺",
@@ -69,6 +79,9 @@ export default function DiagnosticsPage() {
   const [city, setCity] = useState("");
   const [homeOnly, setHomeOnly] = useState(false);
   const [urgent, setUrgent] = useState(false);
+  const [category, setCategory] = useState("");
+  const [browse, setBrowse] = useState<Test[]>([]);
+  const [loadingBrowse, setLoadingBrowse] = useState(false);
 
   // Browse grid for an empty search box.
   useEffect(() => {
@@ -93,6 +106,21 @@ export default function DiagnosticsPage() {
     }, 250);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // Browsing a category lists what CallMedex actually carries for it, so a
+  // patient can pick "Root Canal Treatment" without knowing to type it.
+  useEffect(() => {
+    if (!category) {
+      setBrowse([]);
+      return;
+    }
+    setLoadingBrowse(true);
+    fetch(`${API}/api/marketplace/tests/search?category=${encodeURIComponent(category)}&limit=200`)
+      .then((r) => r.json())
+      .then((d) => setBrowse(d.tests || []))
+      .catch(() => setBrowse([]))
+      .finally(() => setLoadingBrowse(false));
+  }, [category]);
 
   const loadOffers = useCallback(
     async (test: Test) => {
@@ -134,10 +162,10 @@ export default function DiagnosticsPage() {
     <div className="section">
       <div className="container">
         <div className="section-title">
-          <h1>Book a diagnostic test</h1>
+          <h1>Book a test, treatment or therapy</h1>
           <p>
-            Search a test, compare verified partner centres, and pay the CallMedex
-            rate instead of the walk-in price.
+            Search across lab tests, imaging, dental and physiotherapy. Compare
+            verified partner centres and pay the CallMedex rate, not the walk-in price.
           </p>
         </div>
 
@@ -240,8 +268,65 @@ export default function DiagnosticsPage() {
           </div>
         </div>
 
-        {/* ── Popular grid ───────────────────────────────────────────── */}
+        {/* ── Browse by category ─────────────────────────────────────── */}
         {!selected && (
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 24 }}>
+            {CATEGORIES.map((c) => {
+              const on = category === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setCategory(on ? "" : c.id)}
+                  style={{
+                    padding: "8px 16px", borderRadius: 999, cursor: "pointer",
+                    border: on ? "2px solid #1a2b4a" : "1px solid #cbd5e1",
+                    background: on ? "#1a2b4a" : "#fff",
+                    color: on ? "#fff" : "#475569",
+                    fontWeight: 600, fontSize: "0.85rem",
+                  }}
+                >
+                  {c.icon} {c.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Category listing ───────────────────────────────────────── */}
+        {!selected && category && (
+          <div style={{ marginBottom: 28 }}>
+            {loadingBrowse ? (
+              <p style={{ textAlign: "center", color: "#64748b" }}>Loading services…</p>
+            ) : (
+              <>
+                <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 14 }}>
+                  {browse.length} {CATEGORIES.find((c) => c.id === category)?.label} service
+                  {browse.length === 1 ? "" : "s"}
+                </h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 8 }}>
+                  {browse.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => pick(t)}
+                      style={{
+                        textAlign: "left", cursor: "pointer", padding: "10px 14px",
+                        borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff",
+                      }}
+                    >
+                      <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "#0f172a" }}>{t.name}</div>
+                      {t.sub_category && (
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{t.sub_category}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Popular grid ───────────────────────────────────────────── */}
+        {!selected && !category && (
           <>
             <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
               Frequently booked

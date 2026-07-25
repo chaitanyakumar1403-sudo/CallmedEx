@@ -225,7 +225,7 @@ class MarketplaceService:
     # ── Catalogue search ──────────────────────────────────────────────────
 
     @staticmethod
-    def search_catalog(query: str, limit: int = 20) -> list:
+    def search_catalog(query: str, limit: int = 20, category: Optional[str] = None) -> list:
         """
         Match a search term against canonical test names AND their synonyms.
 
@@ -237,9 +237,12 @@ class MarketplaceService:
             return []
         q = (query or "").strip().lower()
         catalog = MarketplaceService._load_catalog()
+        if category:
+            catalog = [c for c in catalog if c.get("category") == category]
 
         if not q:
-            return catalog[:limit]
+            # Browsing a category: alphabetical is what a patient can scan.
+            return sorted(catalog, key=lambda c: str(c.get("name", "")).lower())[:limit]
 
         scored = []
         for entry in catalog:

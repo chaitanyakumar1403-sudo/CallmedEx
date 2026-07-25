@@ -29,6 +29,10 @@ const NURSING_SERVICES = [
 
 export default function SignupPage() {
   const [role, setRole] = useState("patient");
+  // Facility registrations are made BY a person ON BEHALF of an organization, so
+  // the personal block asks who is registering rather than treating the facility
+  // itself as a person with a gender and a date of birth.
+  const isOrgLike = role === "organization" || role === "pharmacy";
   const [medicalHistory, setMedicalHistory] = useState<string[]>([]);
   const [nursingSpecs, setNursingSpecs] = useState<string[]>([]);
   const [orgType, setOrgType] = useState("hospital");
@@ -277,28 +281,58 @@ export default function SignupPage() {
         <form onSubmit={handleSubmit}>
           {/* ─── Common Fields ─── */}
           <div className="card-section">
-            <h4>Personal Information</h4>
+            <h4>{isOrgLike ? "Authorised Contact Person" : "Personal Information"}</h4>
+            {isOrgLike && (
+              <p style={{ margin: "0 0 12px 0", fontSize: "0.83rem", color: "#64748b" }}>
+                Details of the person registering on behalf of the organization. Facility
+                details are captured below.
+              </p>
+            )}
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">Full Name *</label>
-                <input name="full_name" className="form-input" placeholder="Enter full name" required />
+                <label className="form-label">{isOrgLike ? "Contact Person Name *" : "Full Name *"}</label>
+                <input name="full_name" className="form-input" placeholder={isOrgLike ? "Person registering this facility" : "Enter full name"} required />
               </div>
-              <div className="form-group">
-                <label className="form-label">Gender *</label>
-                <select name="gender" className="form-select" required>
-                  <option value="">Select</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
+              {isOrgLike ? (
+                <div className="form-group">
+                  <label className="form-label">Designation *</label>
+                  <select name="registrant_role" className="form-select" required defaultValue="">
+                    <option value="">Select</option>
+                    <option value="owner">Owner / Proprietor</option>
+                    <option value="general_manager">General Manager</option>
+                    <option value="front_desk_manager">Front Desk Manager</option>
+                    <option value="admin_staff">Administrative Staff</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label className="form-label">Gender *</label>
+                  <select name="gender" className="form-select" required>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              )}
             </div>
             <div className="form-row">
-              <div className="form-group">
-                <DateOfBirthPicker value={dob} onChange={setDob} />
-                {/* Hidden input for form compatibility */}
-                <input type="hidden" name="date_of_birth" value={dob} />
-              </div>
+              {isOrgLike ? (
+                <div className="form-group">
+                  <label className="form-label">Official Email *</label>
+                  <input name="official_email" type="email" className="form-input" placeholder="reception@yourfacility.com" />
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                    Used for booking notifications and reports.
+                  </span>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <DateOfBirthPicker value={dob} onChange={setDob} />
+                  {/* Hidden input for form compatibility */}
+                  <input type="hidden" name="date_of_birth" value={dob} />
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Mobile Number *</label>
                 <input name="mobile" type="tel" className="form-input" placeholder="+91 XXXXXXXXXX" required />
@@ -656,6 +690,9 @@ export default function SignupPage() {
                       <option value="polyclinic">Polyclinic (Multiple Branches/Specialties)</option>
                       <option value="hospital">Hospital</option>
                       <option value="diagnostic_center">Diagnostic Center / Lab</option>
+                      <option value="dental_clinic">Dental Clinic / Dental Hospital</option>
+                      <option value="physiotherapy_center">Physiotherapy Center</option>
+                      <option value="nursing_home">Nursing Home</option>
                     </select>
                   </div>
                 </div>

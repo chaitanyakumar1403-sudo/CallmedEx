@@ -1213,7 +1213,10 @@ async def search_providers(
                  .eq("verification_status", "verified").eq("is_listed", True))
         if type:
             t = "diagnostic_center" if type in ("lab", "diagnostic") else type
-            query = query.eq("subtype", t) if t in ("diagnostic_center", "hospital", "clinic", "poly_clinic") else query.eq("provider_type", t)
+            query = query.eq("subtype", t) if t in (
+            "diagnostic_center", "hospital", "clinic", "poly_clinic", "polyclinic",
+            "dental_clinic", "physiotherapy_center", "nursing_home",
+        ) else query.eq("provider_type", t)
         if home_service is True:
             query = query.eq("home_service_enabled", True)
         rows = query.limit(100).execute().data or []
