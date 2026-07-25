@@ -28,9 +28,46 @@ VALID_PROVIDER_TYPES = {
     "nurse", "phlebotomist", "doctor", "ambulance", "pharmacy_delivery",
 }
 
-OFFER_EXPIRY_SECONDS = 30  # Each provider has 30 seconds to accept
+# The phlebotomist MOUs give a collector 10 minutes to accept or reject
+# ("Accept the orders within 10 minutes"). The previous 30-second value
+# contradicted that, was never enforced anywhere, and disagreed with both the
+# 5-minute magic-link token and the "You have 5 minutes" line in the email.
+# The contractual window is the one that governs; it is read from
+# platform_settings so operations can change it without a deploy.
+DEFAULT_OFFER_WINDOW_MINUTES = 10
+OFFER_EXPIRY_SECONDS = DEFAULT_OFFER_WINDOW_MINUTES * 60  # kept for callers
+
 MAX_SEARCH_ROUNDS = 3      # Number of rounds to search for providers
+
+# Urgent work is sped up by casting a WIDER net, not by shortening the accept
+# window. Cutting a provider's deadline below the agreed 10 minutes would
+# breach the signed MOU; notifying more providers over a larger radius gets the
+# patient seen sooner without changing anyone's terms.
+URGENT_RADIUS_MULTIPLIER = 2.0
+URGENT_MAX_OFFERS = 12
+NORMAL_MAX_OFFERS = 5
+
 _local_dispatches: List[dict] = []
+
+
+def offer_window_minutes() -> int:
+    """Accept/reject window, from platform_settings, defaulting to the MOU's 10."""
+    if not supabase:
+        return DEFAULT_OFFER_WINDOW_MINUTES
+    try:
+        rows = (
+            supabase.table("platform_settings")
+            .select("value").eq("key", "phlebo_offer_window_minutes").limit(1).execute()
+        ).data or []
+        if rows and isinstance(rows[0], dict):
+            value = rows[0].get("value")
+            if isinstance(value, dict):
+                minutes = value.get("minutes")
+                if isinstance(minutes, (int, float)) and minutes > 0:
+                    return int(minutes)
+    except Exception:
+        pass
+    return DEFAULT_OFFER_WINDOW_MINUTES
 
 
 class UniversalDispatchEngine:
@@ -211,19 +248,28 @@ class UniversalDispatchEngine:
         booking_id: str = None,
         address_details: dict = None,
         search_radius_km: float = 10.0,
+        priority: str = "normal",
     ) -> dict:
         """
-        Create a universal dispatch request and attempt auto-assignment.
-        1. Find nearest providers
-        2. Create dispatch_offers for top candidates
-        3. Auto-assign closest if available, or queue for acceptance
+        Create a universal dispatch request and offer it to nearby providers.
+
+        Urgent requests widen the search radius and notify more providers in
+        parallel. They do NOT shorten the individual accept window, which is a
+        contractual term in the provider MOUs.
         """
         dispatch_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
+        urgent = priority == "urgent"
+
+        effective_radius = (
+            search_radius_km * URGENT_RADIUS_MULTIPLIER if urgent else search_radius_km
+        )
+        max_offers = URGENT_MAX_OFFERS if urgent else NORMAL_MAX_OFFERS
 
         # Find candidates
         candidates = await UniversalDispatchEngine.find_nearby_providers(
-            patient_lat, patient_lng, provider_type, radius_km=search_radius_km
+            patient_lat, patient_lng, provider_type,
+            radius_km=effective_radius, limit=max_offers,
         )
 
         assigned_provider = None
@@ -261,7 +307,8 @@ class UniversalDispatchEngine:
             "patient_address": patient_address,
             "patient_address_details": address_details or {},
             "assigned_provider_id": assigned_provider["user_id"] if assigned_provider else None,
-            "search_radius_km": search_radius_km,
+            "search_radius_km": effective_radius,
+            "priority": priority,
             "notes": notes,
             "estimated_distance_km": assigned_provider["distance_km"] if assigned_provider else None,
             "estimated_eta_minutes": assigned_provider["eta_minutes"] if assigned_provider else None,
@@ -288,7 +335,8 @@ class UniversalDispatchEngine:
                         "offered_at": now,
                         "responded_at": None,
                         "expires_at": (
-                            datetime.now(timezone.utc) + timedelta(seconds=OFFER_EXPIRY_SECONDS)
+                            datetime.now(timezone.utc)
+                            + timedelta(minutes=offer_window_minutes())
                         ).isoformat(),
                     }
                     supabase.table("dispatch_offers").insert(offer).execute()
@@ -303,7 +351,9 @@ class UniversalDispatchEngine:
                                 "service_subtype": service_subtype,
                                 "patient_address": patient_address,
                                 "distance_km": candidate["distance_km"],
-                                "notes": notes
+                                "notes": notes,
+                                "priority": priority,
+                                "window_minutes": offer_window_minutes(),
                             },
                             offer_id=offer["id"],
                             provider_id=candidate["user_id"]
@@ -315,6 +365,7 @@ class UniversalDispatchEngine:
         return {
             "dispatch_id": dispatch_id,
             "status": status,
+            "priority": priority,
             "provider_type": provider_type,
             "service_subtype": service_subtype,
             "assigned_provider": assigned_provider,
@@ -358,6 +409,32 @@ class UniversalDispatchEngine:
 
         offer = offer_result.data[0]
         dispatch_id = offer["dispatch_request_id"]
+
+        # expires_at was written on every offer but never checked, so a provider
+        # could accept a long-dead request and be dispatched to a patient who had
+        # already been served or had given up and gone elsewhere.
+        if offer.get("status") != "pending":
+            return {
+                "success": False,
+                "message": f"This request was already {offer.get('status')}.",
+            }
+        expires_at = offer.get("expires_at")
+        if expires_at:
+            try:
+                deadline = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > deadline:
+                    supabase.table("dispatch_offers").update(
+                        {"status": "expired", "responded_at": now}
+                    ).eq("id", offer_id).execute()
+                    return {
+                        "success": False,
+                        "message": "This request has expired and is no longer available.",
+                    }
+            except (ValueError, TypeError):
+                # An unparseable timestamp must not block a legitimate provider.
+                logger.warning(f"Unparseable expires_at on offer {offer_id}: {expires_at}")
 
         if accepted:
             # Accept this offer

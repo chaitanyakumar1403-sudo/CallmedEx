@@ -38,6 +38,8 @@ class UniversalDispatchRequest(BaseModel):
     patient_lat: float
     patient_lng: float
     patient_address: str
+    priority: str = "normal"          # 'normal' | 'urgent'
+
     patient_address_details: Optional[dict] = None  # {house_number, landmark, floor}
     notes: str = ""
     booking_id: Optional[str] = None
@@ -116,6 +118,7 @@ async def request_dispatch(
         booking_id=req.booking_id,
         address_details=req.patient_address_details,
         search_radius_km=req.search_radius_km,
+        priority="urgent" if req.priority == "urgent" else "normal",
     )
     return {"success": True, **result}
 
@@ -257,7 +260,7 @@ async def get_pending_offers(
     try:
         result = (
             supabase.table("dispatch_offers")
-            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng)")
+            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority)")
             .eq("provider_id", current_user["sub"])
             .eq("status", "pending")
             .order("offered_at", desc=True)
@@ -274,7 +277,14 @@ async def get_pending_offers(
                 "provider_type": dr.get("provider_type", ""),
                 "distance_km": o.get("distance_km", 0),
                 "expires_at": o.get("expires_at", ""),
+                "priority": dr.get("priority", "normal"),
             })
+        # Urgent first, then nearest. A provider scanning their inbox must not
+        # have to hunt for the emergency among routine work.
+        offers.sort(key=lambda x: (
+            0 if x["priority"] == "urgent" else 1,
+            x.get("distance_km") or 0,
+        ))
         return {"offers": offers}
     except Exception:
         return {"offers": []}

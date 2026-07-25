@@ -34,6 +34,7 @@ class FakeQuery:
         self.filters, self.limit_n = [], None
         self._op = "select"
         self._payload = None
+        self._negate_next = False
 
     # -- builders --
     def select(self, *_a, **_k):
@@ -52,8 +53,23 @@ class FakeQuery:
         self.filters.append(("eq", col, val))
         return self
 
+    def neq(self, col, val):
+        self.filters.append(("neq", col, val))
+        return self
+
     def in_(self, col, vals):
         self.filters.append(("in", col, list(vals)))
+        return self
+
+    def is_(self, col, val):
+        self.filters.append(("negated_is" if self._negate_next else "is", col, val))
+        self._negate_next = False
+        return self
+
+    @property
+    def not_(self):
+        """Supports the PostgREST `.not_.is_(col, "null")` form the engine uses."""
+        self._negate_next = True
         return self
 
     def order(self, *_a, **_k):
@@ -68,7 +84,13 @@ class FakeQuery:
         for kind, col, val in self.filters:
             if kind == "eq" and row.get(col) != val:
                 return False
+            if kind == "neq" and row.get(col) == val:
+                return False
             if kind == "in" and row.get(col) not in val:
+                return False
+            if kind == "is" and val == "null" and row.get(col) is not None:
+                return False
+            if kind == "negated_is" and val == "null" and row.get(col) is None:
                 return False
         return True
 
