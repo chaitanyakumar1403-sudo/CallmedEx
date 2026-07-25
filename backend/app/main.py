@@ -60,20 +60,32 @@ def build_allowed_origins() -> list:
     return [o for o in origins if o]
 
 
-def vercel_preview_regex(frontend_url: str) -> str:
+def _vercel_project(origin: str) -> str:
+    """Project prefix of a *.vercel.app origin, or '' if it is not one."""
+    host = _normalise_origin(origin).split("://")[-1]
+    if not host.endswith(".vercel.app"):
+        return ""
+    return host.split(".")[0].split("-git-")[0]
+
+
+def vercel_preview_regex(*origins: str) -> str:
     """
-    Allow this project's Vercel preview deployments.
+    Allow Vercel preview deployments of the known projects.
 
     Preview URLs are generated per branch and commit, so they can never appear in
-    a static allowlist. The pattern is scoped to THIS project's prefix rather
-    than all of *.vercel.app — with allow_credentials=True, a blanket Vercel
-    wildcard would let anyone's deployment call this API with a user's cookies.
+    a static allowlist. Every configured *.vercel.app origin contributes its
+    project prefix, because the frontend may be deployed under more than one
+    project name (callmedex-v1 and callmedex-frontend both exist here).
+
+    Deliberately scoped to those prefixes rather than all of *.vercel.app: with
+    allow_credentials=True, a blanket wildcard would let anyone's Vercel
+    deployment call this API with a logged-in user's session.
     """
-    host = _normalise_origin(frontend_url).split("://")[-1]
-    project = host.split(".")[0].split("-git-")[0]
-    if not project:
+    projects = sorted({p for o in origins if (p := _vercel_project(o))})
+    if not projects:
         return ""
-    return rf"^https://{re.escape(project)}(-[a-z0-9\-]+)?\.vercel\.app$"
+    alternation = "|".join(re.escape(p) for p in projects)
+    return rf"^https://({alternation})(-[a-z0-9\-]+)?\.vercel\.app$"
 
 
 def is_origin_allowed(origin: str, allowlist: list) -> bool:
@@ -154,7 +166,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # ─── CORS ─────────────────────────────────────────────────────────────────
 ALLOWED_ORIGINS = build_allowed_origins()
-_PREVIEW_REGEX = vercel_preview_regex(settings.FRONTEND_URL)
+_PREVIEW_REGEX = vercel_preview_regex(settings.FRONTEND_URL, *ALLOWED_ORIGINS)
 
 # Logged at import so a CORS rejection is diagnosable straight from the deploy
 # logs, instead of showing up only as an unexplained 400 on every preflight.
@@ -184,6 +196,32 @@ app.add_middleware(
         "Retry-After",
     ],
 )
+
+class CORSDiagnosticMiddleware(BaseHTTPMiddleware):
+    """
+    Log the Origin of every preflight, and flag rejected ones.
+
+    CORSMiddleware answers preflights itself and returns a bare
+    "Disallowed CORS origin" with no indication of WHICH origin, which makes a
+    misconfigured allowlist almost undiagnosable from logs alone. Registered
+    after CORSMiddleware so it sits outside it and sees the response.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.method == "OPTIONS":
+            origin = request.headers.get("origin", "")
+            if response.status_code == 400:
+                logger.warning(
+                    f"CORS REJECTED origin={origin!r} path={request.url.path} — "
+                    f"add it to ALLOWED_ORIGINS or FRONTEND_URL. "
+                    f"Currently allowed: {ALLOWED_ORIGINS}"
+                )
+        return response
+
+
+app.add_middleware(CORSDiagnosticMiddleware)
+
 
 # ─── Global Exception Handlers ──────────────────────────────────────────
 @app.exception_handler(Exception)
