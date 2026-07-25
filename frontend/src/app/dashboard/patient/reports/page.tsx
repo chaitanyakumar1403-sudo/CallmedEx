@@ -62,9 +62,9 @@ export default function AIReportInterpreter() {
         
         {/* Header */}
         <div style={{ marginBottom: 32, textAlign: "center" }}>
-          <h1 style={{ color: "#0f172a", fontSize: "2.2rem", fontWeight: 800, margin: "0 0 10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-            🔬 AI Medical Lab Report Interpreter <span className="badge-ai">NMC 2026 AI Engine</span>
-          </h1>
+          <p style={{ margin: "0 0 10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+            <span className="badge-ai">NMC 2026 AI Engine</span>
+          </p>
           <p style={{ color: "#64748b", fontSize: "1.05rem", maxWidth: 700, margin: "0 auto" }}>
             Upload your raw medical lab PDF. CallMedex AI translates medical jargon into a plain-language health story, flags abnormal values, and provides tailored diet & doctor recommendations.
           </p>

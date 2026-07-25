@@ -40,7 +40,7 @@ export default function PMJAYBooking() {
 
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏥</div>
-          <h1 style={{ color: '#1a2b4a', margin: '0 0 10px 0', fontSize: '1.25rem' }}>Check your card</h1>
+          <h2 style={{ color: '#1a2b4a', margin: '0 0 10px 0', fontSize: '1.25rem' }}>Check your card</h2>
           <p style={{ color: '#4a5568', margin: '0' }}>Get 100% cashless diagnostics and consultations using your AB-PMJAY card.</p>
         </div>
 

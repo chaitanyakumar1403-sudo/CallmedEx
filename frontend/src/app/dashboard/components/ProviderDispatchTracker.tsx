@@ -31,11 +31,19 @@ const STATUS_COLORS: Record<string, string> = {
 interface ProviderDispatchTrackerProps {
   title: string;
   icon: string;
+  /**
+   * Set when the tracker is rendered inside DashboardShell. The shell already
+   * supplies the page title, name and background, so repeating them here
+   * produced two stacked headers on the nurse and phlebotomist dashboards.
+   * Embedded mode keeps what only this component has — the duty toggle, the GPS
+   * indicator and the day's stats — and drops the duplicated chrome.
+   */
+  embedded?: boolean;
   providerType: string;
   earningsRate: number;
 }
 
-export default function ProviderDispatchTracker({ title, icon, providerType, earningsRate }: ProviderDispatchTrackerProps) {
+export default function ProviderDispatchTracker({ title, icon, providerType, earningsRate, embedded = false }: ProviderDispatchTrackerProps) {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [onDuty, setOnDuty] = useState(false);
@@ -362,7 +370,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#f8fafc" }}>
+      <div style={{ minHeight: embedded ? 240 : "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: embedded ? "transparent" : "#f8fafc" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: "3rem", marginBottom: 12 }}>🩸</div>
           <h2 style={{ color: "#1a2b4a" }}>Loading Dashboard...</h2>
@@ -379,24 +387,30 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   };
 
   return (
-    <div style={{ backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
-      {/* ─── Header ─── */}
+    <div style={embedded ? undefined : { backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
+      {/* ─── Duty bar ─── */}
       <div style={{
         background: onDuty
           ? "linear-gradient(135deg, #064e3b 0%, #059669 100%)"
           : "linear-gradient(135deg, #1e293b 0%, #475569 100%)",
-        padding: "24px 20px",
+        padding: embedded ? "18px 20px" : "24px 20px",
         color: "white",
         transition: "all 0.5s",
+        borderRadius: embedded ? "var(--cm-radius-lg)" : undefined,
+        marginBottom: embedded ? 16 : undefined,
       }}>
-        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <div style={{ maxWidth: embedded ? "none" : 600, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <h1 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800, color: "white" }}>
-                {icon} {title}
-              </h1>
-              <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,0.75)", fontSize: "0.8rem" }}>
-                {profile?.full_name || "Welcome"} • {onDuty ? "On Duty 🟢" : "Off Duty 🔴"}
+              {!embedded && (
+                <h1 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800, color: "white" }}>
+                  {icon} {title}
+                </h1>
+              )}
+              <p style={{ margin: embedded ? 0 : "4px 0 0", color: "rgba(255,255,255,0.85)", fontSize: embedded ? "0.9rem" : "0.8rem", fontWeight: embedded ? 700 : 400 }}>
+                {embedded
+                  ? (onDuty ? "You are On Duty" : "You are Off Duty")
+                  : `${profile?.full_name || "Welcome"} • ${onDuty ? "On Duty 🟢" : "Off Duty 🔴"}`}
               </p>
             </div>
 
@@ -460,7 +474,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         </div>
       </div>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px" }}>
+      <div style={embedded ? undefined : { maxWidth: 600, margin: "0 auto", padding: "16px" }}>
 
         {/* Status message */}
         {statusMsg && (

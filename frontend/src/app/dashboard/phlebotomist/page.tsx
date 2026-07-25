@@ -96,6 +96,7 @@ export default function PhlebotomistDashboard() {
               title="Phlebotomist Hub"
               icon="🩸"
               providerType="phlebotomist"
+              embedded
               earningsRate={200}
             />
           </div>

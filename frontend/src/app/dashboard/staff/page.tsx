@@ -197,23 +197,31 @@ export default function StaffDashboard() {
     return { value: d.toISOString().split("T")[0], label: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }), isToday: i === 1 };
   });
 
+  // The error state is a full replacement for the dashboard, so it takes the
+  // same shell rather than falling back to the old page chrome — an error screen
+  // that looks like a different product is its own small alarm.
   if (error) {
     return (
-      <div className="dashboard">
-        <div className="container">
-          <div className="dashboard__header">
-            <div><h1>Staff Dashboard 👤</h1></div>
-          </div>
-          <div className="card" style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ fontSize: "3rem", marginBottom: 16 }}>⚠️</div>
-            <h3 style={{ fontFamily: "var(--font-body)", marginBottom: 8 }}>{error}</h3>
-            <p style={{ color: "var(--color-gray-500)", fontSize: "0.9rem" }}>
-              Make sure you are logged in as a <strong>Staff</strong> or <strong>Organization</strong> user.
-            </p>
-            <a href="/auth/login" className="btn btn-primary" style={{ marginTop: 16 }}>Go to Login</a>
+      <DashboardShell
+        role="staff"
+        title="Staff Desk"
+        subtitle="We could not open this dashboard."
+        tabs={[]}
+        activeTab=""
+        onTabChange={() => {}}
+      >
+        <div className="cm-empty">
+          <div className="cm-empty__icon" aria-hidden="true">⚠️</div>
+          <p className="cm-empty__title">{error}</p>
+          <p className="cm-empty__body">
+            This dashboard is for <strong>Staff</strong> and <strong>Organization</strong> accounts.
+            Sign in with one of those to continue.
+          </p>
+          <div style={{ marginTop: 16 }}>
+            <a href="/auth/login" className="btn btn-primary">Go to login</a>
           </div>
         </div>
-      </div>
+      </DashboardShell>
     );
   }
 
