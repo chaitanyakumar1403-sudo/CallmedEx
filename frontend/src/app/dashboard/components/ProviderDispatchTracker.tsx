@@ -453,21 +453,26 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
           </div>
 
           {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--cm-3)", marginTop: "var(--cm-5)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--cm-4)", marginTop: "var(--cm-5)" }}>
             {[
               { label: "Active Tasks", value: tasks.length, icon: "📋", onClick: () => setShowAllTasks(true) },
               { label: "Done Today", value: completedToday, icon: "✅" },
               { label: "Today's Earnings", value: `₹${earnings}`, icon: "💰" },
             ].map((stat, i) => (
               <div key={i} onClick={stat.onClick} style={{
-                backgroundColor: "rgba(255,255,255,0.15)",
-                borderRadius: 10, padding: "12px 10px", textAlign: "center",
+                backgroundColor: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: "var(--cm-radius)",
+                padding: "14px 12px", textAlign: "center",
                 cursor: stat.onClick ? "pointer" : "default",
-                transition: "background-color 0.2s"
-              }}>
+                transition: "background-color 0.2s, transform 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.22)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.transform = "translateY(0)"; }}
+              >
                 <div style={{ fontSize: "1.2rem" }}>{stat.icon}</div>
-                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "white", marginTop: 2 }}>{stat.value}</div>
-                <div style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.7)", marginTop: 1 }}>{stat.label}</div>
+                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "white", marginTop: 4 }}>{stat.value}</div>
+                <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.75)", marginTop: 2, fontWeight: 600 }}>{stat.label}</div>
               </div>
             ))}
           </div>
