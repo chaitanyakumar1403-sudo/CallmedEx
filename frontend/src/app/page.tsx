@@ -17,8 +17,8 @@ export default function Home() {
               <a href="/auth/signup" className="btn btn-teal btn-lg">
                 Get Started Free
               </a>
-              <a href="/health-packages" className="btn btn-secondary btn-lg" style={{ borderColor: '#fff', color: '#fff' }}>
-                View Health Packages
+              <a href="/diagnostics" className="btn btn-secondary btn-lg" style={{ borderColor: '#fff', color: '#fff' }}>
+                Book a Test
               </a>
             </div>
             <div className="hero__stats">
@@ -83,76 +83,6 @@ export default function Home() {
               <p>Phlebotomist at your doorstep. Live GPS tracking. Chain-of-custody for every sample.</p>
               <a href="/booking?type=home_collection" className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>Book Now</a>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Health Packages Section ──────────────────────────────── */}
-      <section className="section">
-        <div className="container">
-          <div className="section-title">
-            <h2>Popular Health Packages</h2>
-            <p>Comprehensive screening packages designed for Indian health profiles — starting from ₹799</p>
-          </div>
-          <div className="grid-3">
-            <div className="card package-card">
-              <div className="package-card__header">
-                <h3>Basic Health Checkup</h3>
-                <div className="package-card__price">₹799 <span>/ package</span></div>
-              </div>
-              <div className="package-card__body">
-                <ul className="package-card__tests">
-                  <li>Complete Blood Count (CBC)</li>
-                  <li>Fasting Blood Sugar</li>
-                  <li>Lipid Profile</li>
-                  <li>Thyroid Profile (T3, T4, TSH)</li>
-                  <li>Liver Function Test</li>
-                  <li>Kidney Function Test</li>
-                  <li>Urine Routine</li>
-                </ul>
-                <a href="/booking?type=lab" className="btn btn-primary btn-full">Book Now</a>
-              </div>
-            </div>
-            <div className="card package-card" style={{ border: '2px solid var(--color-navy)' }}>
-              <div className="package-card__header" style={{ position: 'relative' }}>
-                <span className="badge badge-warning" style={{ position: 'absolute', top: 12, right: 16 }}>Most Popular</span>
-                <h3>Comprehensive Wellness</h3>
-                <div className="package-card__price">₹1,999 <span>/ package</span></div>
-              </div>
-              <div className="package-card__body">
-                <ul className="package-card__tests">
-                  <li>All Basic Checkup Tests</li>
-                  <li>HbA1c (Diabetes Marker)</li>
-                  <li>Vitamin D & B12</li>
-                  <li>Iron Studies</li>
-                  <li>Uric Acid & Calcium</li>
-                  <li>ECG</li>
-                  <li>60+ Parameters Total</li>
-                </ul>
-                <a href="/booking?type=lab" className="btn btn-primary btn-full">Book Now</a>
-              </div>
-            </div>
-            <div className="card package-card">
-              <div className="package-card__header">
-                <h3>Cardiac Risk Assessment</h3>
-                <div className="package-card__price">₹2,499 <span>/ package</span></div>
-              </div>
-              <div className="package-card__body">
-                <ul className="package-card__tests">
-                  <li>Advanced Lipid Profile</li>
-                  <li>hs-CRP (Inflammation)</li>
-                  <li>Homocysteine</li>
-                  <li>ECG</li>
-                  <li>Troponin T</li>
-                  <li>BNP (Heart Failure Marker)</li>
-                  <li>Cardiac Risk Score</li>
-                </ul>
-                <a href="/booking?type=lab" className="btn btn-primary btn-full">Book Now</a>
-              </div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center', marginTop: 32 }}>
-            <a href="/health-packages" className="btn btn-secondary">View All Packages →</a>
           </div>
         </div>
       </section>

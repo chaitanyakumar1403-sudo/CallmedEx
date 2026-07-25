@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
+import SampleCollectionPanel from "../components/SampleCollectionPanel";
+import PhleboWalletPanel from "../components/PhleboWalletPanel";
+import AttendanceCard from "../components/AttendanceCard";
 import { useRouter } from "next/navigation";
 
 import PhlebotomistToolsModal from "../../components/PhlebotomistToolsModal";
@@ -98,9 +101,11 @@ export default function PhlebotomistDashboard() {
 
       {/* ─── Tabs ─── */}
       <div style={{ padding: "20px 40px 0 40px" }}>
-        <div className="tab-nav-bar" style={{ maxWidth: 400 }}>
+        <div className="tab-nav-bar" style={{ maxWidth: 780 }}>
           {[
             { id: "dispatch", label: "Live Dispatch Radar", icon: "📍" },
+            { id: "samples", label: "Samples & Handover", icon: "🧪" },
+            { id: "wallet", label: "Wallet", icon: "💰" },
             { id: "profile", label: "Agent Profile", icon: "👤" },
           ].map(tab => (
             <button
@@ -127,6 +132,15 @@ export default function PhlebotomistDashboard() {
             />
           </div>
         )}
+
+        {activeTab === "samples" && (
+          <div style={{ display: "grid", gap: 20 }}>
+            <AttendanceCard />
+            <SampleCollectionPanel />
+          </div>
+        )}
+
+        {activeTab === "wallet" && <PhleboWalletPanel />}
 
         {activeTab === "profile" && (
           <DashboardProfile profile={profile} role="phlebotomist" />

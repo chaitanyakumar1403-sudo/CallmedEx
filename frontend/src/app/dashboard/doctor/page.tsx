@@ -27,6 +27,7 @@ interface Availability {
   is_active: boolean;
   location_name: string;
   location_address: string;
+  template_group_id?: string | null;
 }
 
 interface Fee {
@@ -53,6 +54,8 @@ export default function DoctorDashboard() {
     max_patients_per_slot: 1,
     location_name: "",
     location_address: "",
+    apply_to_all_days: false,
+    replace_existing: false,
   });
 
   // Fees state
@@ -184,14 +187,31 @@ export default function DoctorDashboard() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success) {
-        setStatusMsg("✅ Availability added!");
+      if (res.ok && data.success) {
+        setStatusMsg(`✅ ${data.message || "Availability added"}`);
         setShowAddForm(false);
+        setFormData({ ...formData, apply_to_all_days: false, replace_existing: false });
         fetchAvailability();
       } else {
         setStatusMsg(`❌ ${data.detail || "Failed"}`);
       }
     } catch (e) {
+      setStatusMsg("❌ Network error");
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!confirm("Remove this schedule from every day it was applied to?")) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/providers/availability/group/${groupId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setStatusMsg(res.ok ? `✅ ${data.message}` : `❌ ${data.detail || "Failed"}`);
+      fetchAvailability();
+    } catch {
       setStatusMsg("❌ Network error");
     }
   };
@@ -623,6 +643,24 @@ export default function DoctorDashboard() {
                       >
                         {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
                       </select>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: "0.82rem", color: "#475569", cursor: "pointer", fontWeight: 600 }}>
+                        <input
+                          type="checkbox"
+                          checked={formData.apply_to_all_days}
+                          onChange={e => setFormData({ ...formData, apply_to_all_days: e.target.checked })}
+                        />
+                        Apply to all 7 days
+                      </label>
+                      {formData.apply_to_all_days && (
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: "0.78rem", color: "#b45309", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={formData.replace_existing}
+                            onChange={e => setFormData({ ...formData, replace_existing: e.target.checked })}
+                          />
+                          Replace my current weekly hours
+                        </label>
+                      )}
                     </div>
                     <div>
                       <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>Start Time</label>
@@ -737,6 +775,35 @@ export default function DoctorDashboard() {
                 </p>
               </div>
             ) : (
+              <>
+              {/* A schedule applied across the week can be removed as one unit,
+                  rather than deleting the same block seven times. */}
+              {Array.from(new Set(availability.map(a => a.template_group_id).filter(Boolean))).map(gid => {
+                const inGroup = availability.filter(a => a.template_group_id === gid);
+                const sample = inGroup[0];
+                return (
+                  <div key={gid as string} style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    flexWrap: "wrap", gap: 10, marginBottom: 12, padding: "12px 16px",
+                    borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe",
+                  }}>
+                    <div style={{ fontSize: "0.86rem", color: "#1e40af" }}>
+                      <strong>Weekly schedule</strong> — {sample.start_time?.slice(0, 5)}–{sample.end_time?.slice(0, 5)} across {inGroup.length} day{inGroup.length === 1 ? "" : "s"}.
+                      <span style={{ color: "#3b82f6" }}> Editing a single day below detaches it from this schedule.</span>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteGroup(gid as string)}
+                      style={{
+                        padding: "6px 14px", borderRadius: 8, border: "1px solid #fca5a5",
+                        background: "white", color: "#b91c1c", fontWeight: 700,
+                        fontSize: "0.78rem", cursor: "pointer",
+                      }}
+                    >
+                      Remove all {inGroup.length} days
+                    </button>
+                  </div>
+                );
+              })}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
                 {DAYS.map((day, dayIndex) => {
                   const daySlots = availability.filter(a => a.day_of_week === dayIndex);
@@ -818,6 +885,7 @@ export default function DoctorDashboard() {
                   );
                 })}
               </div>
+              </>
             )}
           </div>
         )}

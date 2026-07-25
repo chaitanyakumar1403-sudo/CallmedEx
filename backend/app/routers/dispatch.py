@@ -38,6 +38,8 @@ class UniversalDispatchRequest(BaseModel):
     patient_lat: float
     patient_lng: float
     patient_address: str
+    priority: str = "normal"          # 'normal' | 'urgent'
+
     patient_address_details: Optional[dict] = None  # {house_number, landmark, floor}
     notes: str = ""
     booking_id: Optional[str] = None
@@ -116,6 +118,7 @@ async def request_dispatch(
         booking_id=req.booking_id,
         address_details=req.patient_address_details,
         search_radius_km=req.search_radius_km,
+        priority="urgent" if req.priority == "urgent" else "normal",
     )
     return {"success": True, **result}
 
@@ -257,7 +260,7 @@ async def get_pending_offers(
     try:
         result = (
             supabase.table("dispatch_offers")
-            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng)")
+            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority)")
             .eq("provider_id", current_user["sub"])
             .eq("status", "pending")
             .order("offered_at", desc=True)
@@ -274,7 +277,14 @@ async def get_pending_offers(
                 "provider_type": dr.get("provider_type", ""),
                 "distance_km": o.get("distance_km", 0),
                 "expires_at": o.get("expires_at", ""),
+                "priority": dr.get("priority", "normal"),
             })
+        # Urgent first, then nearest. A provider scanning their inbox must not
+        # have to hunt for the emergency among routine work.
+        offers.sort(key=lambda x: (
+            0 if x["priority"] == "urgent" else 1,
+            x.get("distance_km") or 0,
+        ))
         return {"offers": offers}
     except Exception:
         return {"offers": []}
@@ -432,21 +442,16 @@ async def toggle_duty_simple(
     current_user: dict = Depends(get_current_user),
 ):
     """Simplified duty toggle for phlebotomist dashboard."""
-    from app.database import supabase
-    result = await UniversalDispatchEngine.toggle_online(
+    # toggle_online already mirrors the flag into provider_locations AND into the
+    # legacy role table using each table's real column — phlebotomists.on_duty /
+    # nurses.is_online. Duplicating that here wrote a non-existent
+    # phlebotomists.is_online column, so the phlebotomist toggle silently no-op'd
+    # while dispatch matching kept reading on_duty.
+    await UniversalDispatchEngine.toggle_online(
         user_id=current_user["sub"],
         provider_type=current_user.get("role", "phlebotomist"),
         is_online=body.is_online,
     )
-    # Also update users table is_online column
-    if supabase:
-        try:
-            supabase.table("phlebotomists").update({"is_online": body.is_online}).eq("user_id", current_user["sub"]).execute()
-        except Exception:
-            try:
-                supabase.table("nurses").update({"is_online": body.is_online}).eq("user_id", current_user["sub"]).execute()
-            except Exception:
-                pass
     return {"success": True, "is_online": body.is_online}
 
 

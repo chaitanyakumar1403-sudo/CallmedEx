@@ -19,6 +19,9 @@ router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
 
 # ─── Request Models ───────────────────────────────────────────────────────
 
+DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
 class AvailabilityCreate(BaseModel):
     day_of_week: int = Field(..., ge=0, le=6, description="0=Sunday, 6=Saturday")
     start_time: str = Field(..., description="HH:MM format, e.g. '09:00'")
@@ -29,6 +32,13 @@ class AvailabilityCreate(BaseModel):
     location_name: Optional[str] = ""
     location_address: Optional[str] = ""
     organization_id: Optional[str] = None
+    # Write the same block to all seven days, linked by one template_group_id so
+    # it can later be edited or removed as a unit. Doctors keep the same clinic
+    # hours most days; entering them seven times is pure friction.
+    apply_to_all_days: bool = False
+    # With apply_to_all_days, replace any existing blocks on the days covered
+    # instead of stacking a second one on top.
+    replace_existing: bool = False
 
 
 class AvailabilityUpdate(BaseModel):
@@ -146,12 +156,80 @@ async def create_availability(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    days = list(range(7)) if body.apply_to_all_days else [body.day_of_week]
+    group_id = str(uuid.uuid4()) if body.apply_to_all_days else None
+
     try:
-        supabase.table("doctor_availability").insert(record).execute()
-        return {"success": True, "message": "Availability created", "availability": record}
+        existing = (
+            supabase.table("doctor_availability")
+            .select("id, day_of_week, start_time, end_time")
+            .eq("doctor_id", current_user["sub"])
+            .eq("is_active", True)
+            .execute()
+        ).data or []
+    except Exception as e:
+        logger.error(f"Error reading existing availability: {e}")
+        existing = []
+
+    if body.replace_existing and body.apply_to_all_days:
+        # Wholesale reset of the week. Without this, "apply to all days" on a
+        # doctor who already has hours would stack a second block on every day
+        # and silently double their slot capacity.
+        try:
+            supabase.table("doctor_availability").delete().eq(
+                "doctor_id", current_user["sub"]
+            ).execute()
+        except Exception as e:
+            logger.error(f"Error clearing availability: {e}")
+        existing = []
+
+    def overlaps(day: int) -> bool:
+        """Two blocks on the same day overlap if each starts before the other ends."""
+        for row in existing:
+            if row.get("day_of_week") != day:
+                continue
+            if str(row.get("start_time", ""))[:5] < body.end_time and \
+               body.start_time < str(row.get("end_time", ""))[:5]:
+                return True
+        return False
+
+    records, skipped = [], []
+    for day in days:
+        if overlaps(day):
+            # Overlapping availability produces double-booked slots, so a clash
+            # is reported rather than written. Skipping only the clashing day
+            # keeps the rest of an "apply to all" usable.
+            skipped.append(day)
+            continue
+        records.append({**record, "id": str(uuid.uuid4()), "day_of_week": day,
+                        "template_group_id": group_id})
+
+    if not records:
+        raise HTTPException(
+            409,
+            "That time already overlaps an existing block on "
+            + ("every day" if body.apply_to_all_days else "that day"),
+        )
+
+    try:
+        supabase.table("doctor_availability").insert(records).execute()
     except Exception as e:
         logger.error(f"Error creating availability: {e}")
         raise HTTPException(500, "Failed to create availability")
+
+    message = f"Availability added for {len(records)} day(s)"
+    if skipped:
+        names = ", ".join(DAY_NAMES[d] for d in skipped)
+        message += f". Skipped {names} — an existing block already covers that time."
+
+    return {
+        "success": True,
+        "message": message,
+        "created": len(records),
+        "skipped_days": skipped,
+        "template_group_id": group_id,
+        "availability": records,
+    }
 
 
 @router.put("/availability/{availability_id}")
@@ -170,6 +248,11 @@ async def update_availability(
 
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+    # Editing a single day of an "all days" template detaches that day from the
+    # group. Otherwise a later group-wide edit would silently overwrite the
+    # exception the doctor deliberately made — the classic recurring-event trap.
+    updates["template_group_id"] = None
+
     try:
         result = (
             supabase.table("doctor_availability")
@@ -180,12 +263,87 @@ async def update_availability(
         )
         if not result.data:
             raise HTTPException(404, "Availability not found or not yours")
-        return {"success": True, "message": "Availability updated"}
+        return {
+            "success": True,
+            "message": "Availability updated for this day only",
+            "detached_from_group": True,
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating availability: {e}")
         raise HTTPException(500, "Failed to update availability")
+
+
+@router.put("/availability/group/{group_id}")
+async def update_availability_group(
+    group_id: str,
+    body: AvailabilityUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Edit every day of an "apply to all days" template at once.
+
+    Days the doctor has since edited individually are already detached from the
+    group, so they keep their exception rather than being pulled back in.
+    """
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+    try:
+        result = (
+            supabase.table("doctor_availability")
+            .update(updates)
+            .eq("template_group_id", group_id)
+            .eq("doctor_id", current_user["sub"])
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            raise HTTPException(404, "No availability found for that schedule")
+        return {
+            "success": True,
+            "message": f"Updated {len(rows)} day(s)",
+            "updated": len(rows),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating availability group: {e}")
+        raise HTTPException(500, "Failed to update schedule")
+
+
+@router.delete("/availability/group/{group_id}")
+async def delete_availability_group(
+    group_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove every day of an "apply to all days" template in one action."""
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    try:
+        result = (
+            supabase.table("doctor_availability")
+            .delete()
+            .eq("template_group_id", group_id)
+            .eq("doctor_id", current_user["sub"])
+            .execute()
+        )
+        removed = len(result.data or [])
+        return {
+            "success": True,
+            "message": f"Removed {removed} day(s)",
+            "removed": removed,
+        }
+    except Exception as e:
+        logger.error(f"Error deleting availability group: {e}")
+        raise HTTPException(500, "Failed to remove schedule")
 
 
 @router.delete("/availability/{availability_id}")

@@ -311,14 +311,26 @@ class EmailService:
         Sends an interactive magic link email allowing the provider to accept/decline
         the dispatch directly from their email inbox without logging in.
         """
-        # Generate 5-minute magic links
-        accept_token = MagicLinkService.generate_token(offer_id, provider_id, expiration_minutes=5)
-        decline_token = MagicLinkService.generate_token(offer_id, provider_id, expiration_minutes=5)
+        # The magic link must live as long as the offer itself. It was fixed at
+        # 5 minutes while the accept window is 10, so a provider clicking at
+        # minute 6 of a valid offer was told the link had expired.
+        window = int(task_details.get("window_minutes") or 10)
+        accept_token = MagicLinkService.generate_token(offer_id, provider_id, expiration_minutes=window)
+        decline_token = MagicLinkService.generate_token(offer_id, provider_id, expiration_minutes=window)
         
         accept_link = f"{settings.FRONTEND_URL}/dispatch/respond?action=accept&token={accept_token}"
         decline_link = f"{settings.FRONTEND_URL}/dispatch/respond?action=decline&token={decline_token}"
         
-        subject = f"🚨 Urgent: New {task_details.get('service_subtype', 'Service').replace('_', ' ').title()} Request Nearby!"
+        # Only genuinely urgent work gets the red treatment. Shouting "URGENT" at
+        # every dispatch trains providers to ignore the word, so when a real
+        # emergency arrives it reads like all the others.
+        is_urgent = task_details.get("priority") == "urgent"
+        service_label = task_details.get("service_subtype", "Service").replace("_", " ").title()
+        subject = (
+            f"🔴 URGENT: {service_label} needed now — {task_details.get('distance_km', '?')} km away"
+            if is_urgent
+            else f"New {service_label} request nearby"
+        )
         
         text_content = f"""
 Hello {provider_name},
@@ -332,7 +344,7 @@ Distance: {task_details.get('distance_km', '?')} km away
 Notes: {task_details.get('notes', 'None')}
 --------------------
 
-You have 5 minutes to respond. Click a link below:
+You have {window} minutes to respond. Click a link below:
 ACCEPT: {accept_link}
 DECLINE: {decline_link}
 """
@@ -352,7 +364,9 @@ DECLINE: {decline_link}
                     {f'<p style="margin: 5px 0; white-space: pre-wrap;"><strong>Notes:</strong><br/>{task_details.get("notes")}</p>' if task_details.get('notes') else ''}
                 </div>
                 
-                <p style="color: #ef4444; font-weight: bold; font-size: 14px;">⏱️ This offer expires in 5 minutes.</p>
+                {'<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:8px;padding:14px;margin:16px 0;"><strong style="color:#dc2626;font-size:16px;">🔴 URGENT REQUEST — PRIORITY DISPATCH</strong><div style="color:#991b1b;font-size:13px;margin-top:4px;">This patient needs attention now. Please respond immediately if you can attend.</div></div>' if is_urgent else ''}
+
+                <p style="color: #ef4444; font-weight: bold; font-size: 14px;">⏱️ This offer expires in {window} minutes.</p>
                 
                 <div style="margin-top: 30px;">
                     <a href="{accept_link}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-right: 15px;">✅ Accept Request</a>

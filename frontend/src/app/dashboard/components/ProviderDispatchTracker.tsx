@@ -15,6 +15,7 @@ interface DispatchTask {
   estimated_distance_km: number;
   notes?: string;
   created_at: string;
+  priority?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -674,23 +675,30 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
             </h3>
             {tasks
               .filter(t => t.status === "pending")
-              .map(task => (
+              .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1))
+              .map(task => {
+                const isUrgent = task.priority === "urgent";
+                return (
                 <div
                   key={task.id}
                   style={{
                     backgroundColor: "white", borderRadius: 16, padding: 18,
-                    marginBottom: 10, boxShadow: "0 2px 8px rgba(245,158,11,0.2)",
-                    border: "2px solid #fde68a",
+                    marginBottom: 10,
+                    boxShadow: isUrgent
+                      ? "0 2px 12px rgba(220,38,38,0.28)"
+                      : "0 2px 8px rgba(245,158,11,0.2)",
+                    border: isUrgent ? "2px solid #dc2626" : "2px solid #fde68a",
                     animation: "pulse 2s infinite",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                     <span style={{
-                      backgroundColor: "#fef3c7", color: "#92400e",
+                      backgroundColor: isUrgent ? "#fee2e2" : "#fef3c7",
+                      color: isUrgent ? "#991b1b" : "#92400e",
                       padding: "3px 10px", borderRadius: 20,
                       fontSize: "0.72rem", fontWeight: 700,
                     }}>
-                      🔔 New Request
+                      {isUrgent ? "🔴 URGENT — respond now" : "🔔 New Request"}
                     </span>
                     <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
                       {task.estimated_distance_km?.toFixed(1)} km away
@@ -748,7 +756,8 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
           </div>
         )}
 

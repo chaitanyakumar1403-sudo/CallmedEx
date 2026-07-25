@@ -228,6 +228,7 @@ export default function PatientDashboard() {
               service_type: dispatchServiceType,
               slot_id: `on_demand|${yyyymmdd}|${hhmm}`,
               notes: `Urgent ${dispatchLabel} Request: ${dispatchSpecificReason.join(", ")}${dispatchOtherText ? ' - ' + dispatchOtherText : ''}`,
+              priority: "urgent",
               total_price: 0
             })
           });
@@ -246,6 +247,9 @@ export default function PatientDashboard() {
             "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
+            // These entry points are presented to the patient as "Urgent"; the
+            // request must actually carry that priority or the label is a lie.
+            priority: "urgent",
             patient_lat: lat,
             patient_lng: lng,
             patient_address: address,
