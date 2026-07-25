@@ -2,27 +2,33 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import GeoapifyMap from "@/components/GeoapifyMap";
+import StatusSpine, { dispatchSteps } from "@/app/components/StatusSpine";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+// The keys here must match dispatch_requests.status exactly. They did not:
+// "pending" and "assigned" are not statuses the backend ever sends, so
+// findIndex returned -1 for a real dispatch and the whole timeline rendered
+// inert. Worse, getStatusInfo then fell back to the first entry, so a patient
+// whose provider had ACCEPTED was still told "Searching nearby providers".
 const STATUS_FLOW = [
-  { key: "pending", label: "Searching nearby providers", icon: "🔍", color: "#f59e0b" },
-  { key: "assigned", label: "Provider assigned", icon: "✅", color: "#3b82f6" },
+  { key: "searching", label: "Searching nearby providers", icon: "🔍", color: "#f59e0b" },
+  { key: "provider_notified", label: "Providers notified", icon: "📨", color: "#f59e0b" },
+  { key: "provider_accepted", label: "Provider assigned", icon: "✅", color: "#3b82f6" },
   { key: "en_route", label: "Provider is on the way", icon: "🚗", color: "#8b5cf6" },
   { key: "arrived", label: "Provider has arrived", icon: "📍", color: "#10b981" },
   { key: "in_progress", label: "Service in progress", icon: "⚗️", color: "#0f4c81" },
+  { key: "samples_delivered_to_lab", label: "Samples delivered to the lab", icon: "🧪", color: "#0f766e" },
   { key: "completed", label: "Service completed", icon: "🎉", color: "#16a34a" },
   { key: "cancelled", label: "Cancelled", icon: "❌", color: "#dc2626" },
+  { key: "no_provider", label: "No provider available", icon: "😕", color: "#57534e" },
 ];
 
 function getStatusInfo(status: string) {
   return STATUS_FLOW.find(s => s.key === status) || STATUS_FLOW[0];
 }
 
-function getStatusIndex(status: string) {
-  return STATUS_FLOW.findIndex(s => s.key === status);
-}
 
 export default function LiveTrackingPage() {
   const params = useParams();
@@ -169,12 +175,15 @@ export default function LiveTrackingPage() {
     );
   }
 
-  const statusInfo = getStatusInfo(dispatch?.status || "pending");
-  const statusIdx = getStatusIndex(dispatch?.status || "pending");
-  const activeSteps = STATUS_FLOW.filter(s => s.key !== "cancelled");
+  const statusInfo = getStatusInfo(dispatch?.status || "searching");
   const isCancelled = dispatch?.status === "cancelled";
   const isCompleted = dispatch?.status === "completed";
-  const canCancel = ["pending", "assigned"].includes(dispatch?.status || "");
+  // Also gated on statuses the backend never sends, so the cancel button never
+  // rendered at all. A patient could not call off a request from the very screen
+  // they were watching it on. Allowed while the provider has not yet started
+  // work; the backend applies its own late-cancellation policy.
+  const canCancel = ["searching", "provider_notified", "provider_accepted", "en_route"]
+    .includes(dispatch?.status || "");
 
   const serviceLabel: Record<string, string> = {
     home_collection: "🩸 Home Sample Collection",
@@ -253,50 +262,20 @@ export default function LiveTrackingPage() {
             <h3 style={{ margin: "0 0 20px", color: "#1e293b", fontSize: "0.95rem", fontWeight: 700 }}>
               Live Status Updates
             </h3>
-            <div style={{ position: "relative" }}>
-              {/* Vertical line */}
-              <div style={{
-                position: "absolute",
-                left: 15, top: 0, bottom: 0,
-                width: 2,
-                backgroundColor: "#e2e8f0",
-                zIndex: 0,
-              }} />
-
-              {activeSteps.map((step, i) => {
-                const isDone = i < statusIdx;
-                const isActive = i === statusIdx;
-                const isFuture = i > statusIdx;
-                return (
-                  <div key={step.key} style={{ display: "flex", gap: 16, marginBottom: 20, position: "relative", zIndex: 1 }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      backgroundColor: isDone ? "#16a34a" : isActive ? statusInfo.color : "#e2e8f0",
-                      fontSize: isDone ? "0.9rem" : "0.8rem",
-                      boxShadow: isActive ? `0 0 0 4px ${statusInfo.color}30` : "none",
-                      transition: "all 0.3s",
-                    }}>
-                      {isDone ? "✓" : step.icon}
-                    </div>
-                    <div style={{ paddingTop: 6 }}>
-                      <div style={{
-                        fontWeight: isActive ? 700 : 500,
-                        color: isFuture ? "#94a3b8" : "#1e293b",
-                        fontSize: "0.9rem",
-                      }}>
-                        {step.label}
-                      </div>
-                      {isActive && (
-                        <div style={{ color: statusInfo.color, fontSize: "0.75rem", marginTop: 2, fontWeight: 600 }}>
-                          Current status • Updating every 10s
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <StatusSpine
+              steps={dispatchSteps(
+                dispatch?.status || "searching",
+                // Only attach a note where there is one to give — an empty
+                // sub-line under a step reads as missing data.
+                Object.fromEntries(
+                  [
+                    dispatch?.provider_name && ["provider_accepted", `${dispatch.provider_name} accepted`],
+                    dispatch?.estimated_eta_minutes && ["en_route", `Arriving in about ${dispatch.estimated_eta_minutes} min`],
+                  ].filter(Boolean) as [string, string][]
+                )
+              )}
+              urgent={dispatch?.priority === "urgent"}
+            />
           </div>
         )}
 
