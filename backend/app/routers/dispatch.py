@@ -432,21 +432,16 @@ async def toggle_duty_simple(
     current_user: dict = Depends(get_current_user),
 ):
     """Simplified duty toggle for phlebotomist dashboard."""
-    from app.database import supabase
-    result = await UniversalDispatchEngine.toggle_online(
+    # toggle_online already mirrors the flag into provider_locations AND into the
+    # legacy role table using each table's real column — phlebotomists.on_duty /
+    # nurses.is_online. Duplicating that here wrote a non-existent
+    # phlebotomists.is_online column, so the phlebotomist toggle silently no-op'd
+    # while dispatch matching kept reading on_duty.
+    await UniversalDispatchEngine.toggle_online(
         user_id=current_user["sub"],
         provider_type=current_user.get("role", "phlebotomist"),
         is_online=body.is_online,
     )
-    # Also update users table is_online column
-    if supabase:
-        try:
-            supabase.table("phlebotomists").update({"is_online": body.is_online}).eq("user_id", current_user["sub"]).execute()
-        except Exception:
-            try:
-                supabase.table("nurses").update({"is_online": body.is_online}).eq("user_id", current_user["sub"]).execute()
-            except Exception:
-                pass
     return {"success": True, "is_online": body.is_online}
 
 
