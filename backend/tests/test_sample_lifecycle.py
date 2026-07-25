@@ -49,6 +49,10 @@ class FakeQuery:
         self._op, self._payload = "update", payload
         return self
 
+    def delete(self):
+        self._op = "delete"
+        return self
+
     def eq(self, col, val):
         self.filters.append(("eq", col, val))
         return self
@@ -121,6 +125,11 @@ class FakeQuery:
             for r in matched:
                 r.update(self._payload)
             return FakeResult(matched)
+
+        if self._op == "delete":
+            removed = [dict(r) for r in matched]
+            self.db[self.table_name] = [r for r in rows if not self._matches(r)]
+            return FakeResult(removed)
 
         if self.limit_n is not None:
             matched = matched[: self.limit_n]
