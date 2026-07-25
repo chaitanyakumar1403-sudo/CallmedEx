@@ -156,6 +156,8 @@ app.include_router(provider_management.router)
 from app.routers import admin_verification
 app.include_router(admin_verification.router)
 app.include_router(payments.router)
+from app.routers import samples
+app.include_router(samples.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")
