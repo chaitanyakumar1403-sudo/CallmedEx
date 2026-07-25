@@ -50,9 +50,12 @@ export default function SmartNavbar() {
           <li><a href="/about">About</a></li>
           {(!user || user.role === "patient") && (
             <>
-              <li><a href="/search">Find Hospitals</a></li>
+              {/* "Find a centre" is deliberately not a top-level destination.
+                  The test is the entry point: a patient who needs an MRI should
+                  not have to guess which lab to open first. /search remains
+                  reachable for hospital and doctor discovery. */}
+              <li><a href="/diagnostics">Book a Test</a></li>
               <li><a href="/health-packages">Health Packages</a></li>
-              <li><a href="/diagnostics">Diagnostics</a></li>
               <li><a href="/consultation">Consultation</a></li>
               <li><a href="/pharmacy">Pharmacy</a></li>
             </>
