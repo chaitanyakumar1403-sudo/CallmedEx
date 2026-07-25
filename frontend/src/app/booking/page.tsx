@@ -2,6 +2,20 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import LocationPicker from "../../components/LocationPicker";
+
+// Nursing care types a nurse can be dispatched for. Mirrors nurses.specializations
+// and the dedicated /booking/nurse flow.
+const NURSING_SERVICES = [
+  { id: "wound_dressing", name: "Wound Dressing", icon: "🩹", desc: "Post-surgical or injury wound care", duration: "30-60 min" },
+  { id: "injection", name: "Injection", icon: "💉", desc: "IM, IV or subcutaneous injections", duration: "15-30 min" },
+  { id: "iv_infusion", name: "IV Infusion", icon: "💧", desc: "IV drip setup and monitoring", duration: "1-3 hours" },
+  { id: "post_operative", name: "Post-Op Care", icon: "🏥", desc: "Post-surgery recovery assistance", duration: "2-4 hours" },
+  { id: "catheter_care", name: "Catheter Care", icon: "🧴", desc: "Urinary catheter management", duration: "30-60 min" },
+  { id: "elderly_care", name: "Elderly Care", icon: "👵", desc: "Companion care, medication management", duration: "4-8 hours" },
+  { id: "pediatric", name: "Pediatric Care", icon: "👶", desc: "Infant and child healthcare", duration: "1-4 hours" },
+  { id: "general", name: "General Nursing", icon: "👩‍⚕️", desc: "Vitals, basic care, assessments", duration: "1-2 hours" },
+];
 
 // Standard fallback diagnostic tests if an organization hasn't listed custom items yet
 const DEFAULT_DIAGNOSTIC_TESTS = [
@@ -49,6 +63,11 @@ function BookingPageContent() {
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
+  // Real patient coordinates from the location picker. Dispatch ranks providers
+  // by distance from these, so a hardcoded value matched every patient to the
+  // same point on the map regardless of where they actually were.
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [nursingService, setNursingService] = useState<string>("");
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
@@ -323,11 +342,20 @@ function BookingPageContent() {
         return;
       }
 
-      const lat = 17.7231;
-      const lng = 83.3013;
+      if (!coords) {
+        setError("Please set your location — tap “Detect my location” or enter your address above.");
+        setLoading(false);
+        return;
+      }
+      const { lat, lng } = coords;
 
       const providerTypeStr = bookingType === "home_collection" ? "phlebotomist" : bookingType === "nurse_visit" ? "nurse" : "doctor";
-      const serviceTypeStr = bookingType === "home_collection" ? "home_collection" : bookingType === "nurse_visit" ? "nurse_visit" : "doctor_appointment";
+      const serviceTypeStr =
+        bookingType === "home_collection"
+          ? "home_collection"
+          : bookingType === "nurse_visit"
+          ? nursingService || "general"
+          : "doctor_appointment";
       const dispatchNotes =
         selectedTests.length > 0
           ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal}`
@@ -675,6 +703,35 @@ function BookingPageContent() {
               {bookingType === "home_collection" ? "Select Blood Tests for Home Sample Collection" : "Enter Patient Location for Nurse Home Visit"}
             </h3>
 
+            {bookingType === "nurse_visit" && (
+              <>
+                <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>
+                  What care does the patient need? This decides which nurses are notified.
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 22 }}>
+                  {NURSING_SERVICES.map((svc) => {
+                    const on = nursingService === svc.id;
+                    return (
+                      <button
+                        key={svc.id}
+                        onClick={() => setNursingService(svc.id)}
+                        style={{
+                          textAlign: "left", cursor: "pointer", padding: 14, borderRadius: 10,
+                          border: on ? "2px solid #2563eb" : "1px solid #e2e8f0",
+                          background: on ? "#eff6ff" : "#fff",
+                        }}
+                      >
+                        <div style={{ fontSize: "1.4rem" }}>{svc.icon}</div>
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1a2b4a", marginTop: 4 }}>{svc.name}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>{svc.desc}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4 }}>⏱ {svc.duration}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             {bookingType === "home_collection" && (
               <>
                 <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>Select one or multiple tests for instant phlebotomist dispatch to your address.</p>
@@ -712,14 +769,14 @@ function BookingPageContent() {
             )}
 
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontWeight: 700, display: "block", marginBottom: 8, color: "#0f172a" }}>🏡 Complete Home Address</label>
-              <textarea
-                className="input-field"
-                rows={3}
-                placeholder="Enter house no, street, landmark, area & pincode..."
-                value={dispatchAddress}
-                onChange={(e) => setDispatchAddress(e.target.value)}
-                style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #cbd5e1" }}
+              <LocationPicker
+                label="🏡 Complete Home Address"
+                required
+                initialAddress={dispatchAddress}
+                onLocationSelect={(loc) => {
+                  setDispatchAddress(loc.address);
+                  setCoords({ lat: loc.lat, lng: loc.lng });
+                }}
               />
             </div>
 
@@ -728,7 +785,12 @@ function BookingPageContent() {
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}
-                disabled={!dispatchAddress.trim() || (bookingType === "home_collection" && selectedTests.length === 0)}
+                disabled={
+                  !dispatchAddress.trim() ||
+                  !coords ||
+                  (bookingType === "home_collection" && selectedTests.length === 0) ||
+                  (bookingType === "nurse_visit" && !nursingService)
+                }
                 onClick={() => setStep(5)}
               >
                 Proceed to Instant Dispatch →

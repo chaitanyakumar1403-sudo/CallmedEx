@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import LocationPicker from '../../../components/LocationPicker';
 
 const NURSING_SERVICES = [
   { id: 'wound_dressing', name: 'Wound Dressing', icon: '🩹', desc: 'Post-surgical or injury wound care', duration: '30-60 min' },
@@ -27,15 +28,6 @@ export default function NurseBookingPage() {
 
   // Get location
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setLocation({ lat: 17.7231, lng: 83.3013 }) // Vizag fallback
-      );
-    }
-  }, []);
-
   const handleBook = async () => {
     if (!selectedService || !address || !location) return;
     setLoading(true);
@@ -148,13 +140,14 @@ export default function NurseBookingPage() {
           <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#1a2b4a' }}>📍 Your Location</h3>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>Full Address *</label>
-              <textarea
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-                placeholder="Enter your full address"
+              <LocationPicker
+                label="Full Address"
                 required
-                style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #d1d5db', minHeight: 80, fontSize: '0.9rem' }}
+                initialAddress={address}
+                onLocationSelect={(loc) => {
+                  setAddress(loc.address);
+                  setLocation({ lat: loc.lat, lng: loc.lng });
+                }}
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
