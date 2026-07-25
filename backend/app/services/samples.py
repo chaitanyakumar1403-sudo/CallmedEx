@@ -189,57 +189,6 @@ class SampleService:
         }
 
     @staticmethod
-    def set_home_lab(phlebotomist_user_id: str, org_user_id: Optional[str]) -> dict:
-        """
-        Link this collector to a diagnostic centre, or clear the link.
-
-        The centre must be a real, verified organisation — otherwise a typo would
-        silently send every subsequent handover into a dead end that only shows
-        up when the collector is standing at the wrong lab.
-        """
-        if not supabase:
-            return {"success": False, "message": "Database not configured"}
-
-        if org_user_id:
-            org = _first(
-                supabase.table("organizations")
-                .select("user_id, organization_name, organization_type, verification_status")
-                .eq("user_id", org_user_id)
-                .limit(1)
-                .execute()
-            )
-            if not org:
-                return {"success": False, "message": "That diagnostic centre was not found."}
-            if org.get("verification_status") != "verified":
-                return {
-                    "success": False,
-                    "message": f"{org.get('organization_name')} is not verified yet.",
-                }
-
-        try:
-            updated = _rows(
-                supabase.table("phlebotomists")
-                .update({"home_lab_org_user_id": org_user_id})
-                .eq("user_id", phlebotomist_user_id)
-                .execute()
-            )
-        except Exception as e:
-            logger.error(f"set_home_lab failed for {phlebotomist_user_id}: {e}")
-            return {"success": False, "message": f"Could not save your lab: {e}"}
-
-        if not updated:
-            return {"success": False, "message": "No phlebotomist profile found for you."}
-
-        return {
-            "success": True,
-            "message": (
-                f"Linked to {SampleService._org_display_name(org_user_id)}."
-                if org_user_id else "Lab link cleared."
-            ),
-            **SampleService.get_home_lab(phlebotomist_user_id),
-        }
-
-    @staticmethod
     def _authorise_collection(
         phlebotomist_user_id: str,
         claimed_patient_id: Optional[str],

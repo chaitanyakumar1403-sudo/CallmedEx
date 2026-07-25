@@ -74,5 +74,11 @@ celery_app.conf.update(
             "task": "app.workers.tasks.cleanup.cleanup_expired_mou_tokens",
             "schedule": crontab(hour=3, minute=0),  # 3:00 AM IST daily
         },
+        # Runs 15 minutes past the 05:15 IST selfie deadline, so a collector
+        # submitting right on the cut-off is not swept in a race.
+        "sweep-missed-attendance": {
+            "task": "app.workers.tasks.attendance.sweep_missed_attendance",
+            "schedule": crontab(hour=5, minute=30),
+        },
     },
 )

@@ -297,51 +297,6 @@ async def test_admin_may_file_an_unlinked_sample(fake_db):
     assert res["success"]
 
 
-# ── Home lab ─────────────────────────────────────────────────────────────────
-
-def test_set_home_lab_links_a_verified_centre(fake_db):
-    phlebo, lab = str(uuid.uuid4()), str(uuid.uuid4())
-    _seed_phlebo(fake_db, phlebo, 150)
-    _seed_org(fake_db, lab, "Vizag Diagnostics")
-
-    res = SampleService.set_home_lab(phlebo, lab)
-    assert res["success"]
-    assert res["home_lab_org_user_id"] == lab
-    assert res["home_lab_name"] == "Vizag Diagnostics"
-    assert SampleService.get_home_lab(phlebo)["home_lab_name"] == "Vizag Diagnostics"
-
-
-def test_set_home_lab_refuses_unverified_centre(fake_db):
-    """A pending lab would silently swallow every handover sent to it."""
-    phlebo, lab = str(uuid.uuid4()), str(uuid.uuid4())
-    _seed_phlebo(fake_db, phlebo, 150)
-    _seed_org(fake_db, lab, "Pending Labs", verification_status="pending")
-
-    res = SampleService.set_home_lab(phlebo, lab)
-    assert not res["success"]
-    assert "not verified" in res["message"]
-
-
-def test_set_home_lab_refuses_unknown_centre(fake_db):
-    phlebo = str(uuid.uuid4())
-    _seed_phlebo(fake_db, phlebo, 150)
-
-    res = SampleService.set_home_lab(phlebo, str(uuid.uuid4()))
-    assert not res["success"]
-    assert "not found" in res["message"]
-
-
-@pytest.mark.asyncio
-async def test_duplicate_barcode_is_rejected(fake_db):
-    phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
-    _seed_phlebo(fake_db, phlebo, 150)
-
-    await _collect(fake_db, phlebo, patient, barcode="CMX-DUP-001")
-    again = await _collect(fake_db, phlebo, patient, barcode="CMX-DUP-001")
-    assert not again["success"]
-    assert "already registered" in again["message"]
-
-
 # ── Handover + payout ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

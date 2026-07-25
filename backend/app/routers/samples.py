@@ -70,10 +70,6 @@ class ReportRequest(BaseModel):
     notes: str = ""
 
 
-class HomeLabRequest(BaseModel):
-    # null clears the link
-    org_user_id: Optional[str] = None
-
 
 # ─── Phlebotomist ─────────────────────────────────────────────────────────
 
@@ -182,29 +178,6 @@ async def get_my_lab(current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in COLLECTOR_ROLES:
         raise HTTPException(403, "Only field collectors have a linked lab")
     return {"success": True, **SampleService.get_home_lab(current_user["sub"])}
-
-
-@router.post("/my-lab")
-async def set_my_lab(
-    body: HomeLabRequest,
-    request: Request,
-    current_user: dict = Depends(get_current_user),
-):
-    """Link this collector to a verified diagnostic centre, or clear the link."""
-    if current_user.get("role") not in COLLECTOR_ROLES:
-        raise HTTPException(403, "Only field collectors have a linked lab")
-
-    result = SampleService.set_home_lab(current_user["sub"], body.org_user_id)
-    if not result.get("success"):
-        raise HTTPException(400, result.get("message", "Could not save your lab"))
-
-    AuditService.log_from_request(
-        action="phlebotomist.home_lab_set", entity_type="phlebotomist",
-        entity_id=current_user["sub"], actor_id=current_user["sub"],
-        details={"org_user_id": body.org_user_id},
-        request=request,
-    )
-    return result
 
 
 @router.get("/wallet")

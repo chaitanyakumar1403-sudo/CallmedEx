@@ -5,6 +5,7 @@ import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import SampleCollectionPanel from "../components/SampleCollectionPanel";
 import PhleboWalletPanel from "../components/PhleboWalletPanel";
+import AttendanceCard from "../components/AttendanceCard";
 import { useRouter } from "next/navigation";
 
 import PhlebotomistToolsModal from "../../components/PhlebotomistToolsModal";
@@ -132,7 +133,12 @@ export default function PhlebotomistDashboard() {
           </div>
         )}
 
-        {activeTab === "samples" && <SampleCollectionPanel />}
+        {activeTab === "samples" && (
+          <div style={{ display: "grid", gap: 20 }}>
+            <AttendanceCard />
+            <SampleCollectionPanel />
+          </div>
+        )}
 
         {activeTab === "wallet" && <PhleboWalletPanel />}
 

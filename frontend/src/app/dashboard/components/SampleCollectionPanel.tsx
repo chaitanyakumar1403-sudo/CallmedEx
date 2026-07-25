@@ -75,6 +75,8 @@ export default function SampleCollectionPanel() {
     name: null,
   });
   const [savingLab, setSavingLab] = useState(false);
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [pendingApplications, setPendingApplications] = useState<any[]>([]);
 
   const authHeaders = useCallback(() => {
     const token = getToken();
@@ -92,7 +94,7 @@ export default function SampleCollectionPanel() {
         fetch(`${apiBase}/api/providers/search/organizations?org_type=diagnostic_center`, {
           headers: authHeaders(),
         }),
-        fetch(`${apiBase}/api/samples/my-lab`, { headers: authHeaders() }),
+        fetch(`${apiBase}/api/lab-team/mine`, { headers: authHeaders() }),
       ]);
       const taskData = await taskRes.json().catch(() => ({}));
       const sampleData = await sampleRes.json().catch(() => ({}));
@@ -101,9 +103,11 @@ export default function SampleCollectionPanel() {
 
       setLabs(labData.organizations || []);
       setHomeLab({
-        id: myLab.home_lab_org_user_id || null,
-        name: myLab.home_lab_name || null,
+        id: myLab.current?.org_user_id || null,
+        name: myLab.current?.org_name || null,
       });
+      setInvitations(myLab.incoming || []);
+      setPendingApplications(myLab.sent || []);
 
       // Urgent first, then oldest — the red ones are the first priority.
       const list: any[] = taskData.tasks || [];
@@ -175,24 +179,50 @@ export default function SampleCollectionPanel() {
     }
   }
 
-  async function saveHomeLab(orgUserId: string) {
+  /** Ask a centre to take you on. They must accept before the link is real. */
+  async function requestToJoin(orgUserId: string) {
+    if (!orgUserId) return;
     setSavingLab(true);
     setMsg(null);
     try {
-      const res = await fetch(`${apiBase}/api/samples/my-lab`, {
+      const res = await fetch(`${apiBase}/api/lab-team/join`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ org_user_id: orgUserId || null }),
+        body: JSON.stringify({ org_user_id: orgUserId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMsg({ kind: "err", text: data.detail || "Could not save your lab." });
+        setMsg({ kind: "err", text: data.detail || "Could not send the request." });
         return;
       }
-      setHomeLab({ id: data.home_lab_org_user_id, name: data.home_lab_name });
       setMsg({ kind: "ok", text: data.message });
+      await loadAll();
     } catch {
-      setMsg({ kind: "err", text: "Network error saving your lab." });
+      setMsg({ kind: "err", text: "Network error sending the request." });
+    } finally {
+      setSavingLab(false);
+    }
+  }
+
+  /** Accept or decline a centre's invitation. */
+  async function respondToInvite(linkId: string, accept: boolean) {
+    setSavingLab(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${apiBase}/api/lab-team/${linkId}/respond`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ accept }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ kind: "err", text: data.detail || "Could not record your response." });
+        return;
+      }
+      setMsg({ kind: "ok", text: data.message });
+      await loadAll();
+    } catch {
+      setMsg({ kind: "err", text: "Network error recording your response." });
     } finally {
       setSavingLab(false);
     }
@@ -255,44 +285,119 @@ export default function SampleCollectionPanel() {
           booking belongs to another partner centre.
         </p>
 
-        {!homeLab.id && (
+        {/* Invitations need answering before anything else on this card. */}
+        {invitations.map((inv) => (
           <div
+            key={inv.id}
             style={{
-              padding: "10px 14px",
-              borderRadius: 8,
-              background: "#fffbeb",
-              border: "1px solid #fcd34d",
-              color: "#92400e",
-              fontSize: "0.85rem",
+              padding: 14,
+              borderRadius: 10,
+              background: "#eff6ff",
+              border: "1px solid #93c5fd",
               marginBottom: 12,
             }}
           >
-            No lab linked yet — pick one below so handovers work in one tap.
+            <div style={{ fontWeight: 700, color: "#1e3a8a" }}>
+              {inv.org_name} invited you to join their team
+            </div>
+            {inv.message && (
+              <div style={{ fontSize: "0.85rem", color: "#1e40af", marginTop: 4 }}>
+                “{inv.message}”
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button
+                onClick={() => respondToInvite(inv.id, true)}
+                disabled={savingLab}
+                className="btn btn-primary"
+                style={{ padding: "6px 16px", fontSize: "0.83rem" }}
+              >
+                Accept
+              </button>
+              <button
+                onClick={() => respondToInvite(inv.id, false)}
+                disabled={savingLab}
+                style={{
+                  padding: "6px 16px",
+                  fontSize: "0.83rem",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Decline
+              </button>
+            </div>
           </div>
-        )}
+        ))}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <select
-            value={homeLab.id || ""}
-            onChange={(e) => saveHomeLab(e.target.value)}
-            disabled={savingLab}
-            style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+        {homeLab.id ? (
+          <div
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              color: "#166534",
+              fontWeight: 700,
+            }}
           >
-            <option value="">— Select a diagnostic centre —</option>
-            {labs.map((l) => (
-              <option key={l.user_id} value={l.user_id}>
-                {l.organization_name || l.name}
-                {l.city ? ` — ${l.city}` : ""}
-              </option>
-            ))}
-          </select>
-          {savingLab && <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Saving…</span>}
-        </div>
-
-        {labs.length === 0 && (
-          <p style={{ margin: "10px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
-            No verified diagnostic centres are listed yet.
-          </p>
+            ✓ Teamed up with {homeLab.name}
+          </div>
+        ) : pendingApplications.length > 0 ? (
+          <div
+            style={{
+              padding: "12px 16px",
+              borderRadius: 10,
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              color: "#92400e",
+              fontSize: "0.88rem",
+            }}
+          >
+            ⏳ Waiting on {pendingApplications[0].org_name} to approve your request.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                background: "#fffbeb",
+                border: "1px solid #fcd34d",
+                color: "#92400e",
+                fontSize: "0.85rem",
+                marginBottom: 12,
+              }}
+            >
+              Not on a team yet. Ask a centre to take you on — they confirm before
+              it takes effect.
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <select
+                onChange={(e) => requestToJoin(e.target.value)}
+                disabled={savingLab || labs.length === 0}
+                defaultValue=""
+                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+              >
+                <option value="">— Request to join a diagnostic centre —</option>
+                {labs.map((l) => (
+                  <option key={l.user_id} value={l.user_id}>
+                    {l.organization_name || l.name}
+                    {l.city ? ` — ${l.city}` : ""}
+                  </option>
+                ))}
+              </select>
+              {savingLab && <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Sending…</span>}
+            </div>
+            {labs.length === 0 && (
+              <p style={{ margin: "10px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
+                No verified diagnostic centres are listed yet.
+              </p>
+            )}
+          </>
         )}
       </div>
 

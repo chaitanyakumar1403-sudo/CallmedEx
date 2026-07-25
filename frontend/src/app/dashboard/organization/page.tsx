@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import DashboardProfile from "../components/DashboardProfile";
 import SampleIntakeQueue from "../components/SampleIntakeQueue";
+import LabTeamPanel from "../components/LabTeamPanel";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -396,7 +397,7 @@ export default function OrganizationDashboard() {
   // clinic has neither packages nor a sample workflow. Each type therefore gets
   // its own tab set and its own vocabulary.
   const TAB_MATRIX: Record<string, string[]> = {
-    diagnostic_center: ["overview", "intake", "pending", "services", "packages", "timings", "bookings", "profile"],
+    diagnostic_center: ["overview", "intake", "collectors", "pending", "services", "packages", "timings", "bookings", "profile"],
     hospital:          ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
     polyclinic:        ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
     clinic:            ["overview", "pending", "doctors", "services", "timings", "bookings", "profile"],
@@ -407,6 +408,7 @@ export default function OrganizationDashboard() {
   const allTabs = [
     { id: "overview", label: "Overview", icon: "📊" },
     { id: "intake", label: "Sample Intake", icon: "📥" },
+    { id: "collectors", label: "Phlebotomy Team", icon: "🧑‍🔬" },
     { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: "🔔" },
     { id: "doctors", label: `Doctors (${orgDoctors.length})`, icon: "👨‍⚕️" },
     { id: "services", label: `${servicesLabel} (${orgServices.length})`, icon: "🧪" },
@@ -610,6 +612,22 @@ export default function OrganizationDashboard() {
           }}>
             {statusMsg}
             <button onClick={() => setStatusMsg("")} style={{ float: "right", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>✕</button>
+          </div>
+        )}
+
+        {/* ═══ PHLEBOTOMY TEAM TAB (diagnostic centres only) ═══ */}
+        {currentTab === "collectors" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <h2 style={{ margin: "0 0 4px 0", fontSize: "1.3rem", color: "#0f172a" }}>
+                Phlebotomy Team
+              </h2>
+              <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
+                Collectors affiliated to this centre. Both sides confirm — an invitation
+                counts only once the collector accepts.
+              </p>
+            </div>
+            <LabTeamPanel />
           </div>
         )}
 
