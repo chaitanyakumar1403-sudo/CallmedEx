@@ -1,6 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+// Web Speech API is vendor-prefixed in Chromium and absent in some browsers.
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: any) => void) | null;
+  onerror: ((e: any) => void) | null;
+  onend: (() => void) | null;
+};
+
+function getRecognition(): SpeechRecognitionLike | null {
+  if (typeof window === "undefined") return null;
+  const Ctor =
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  return Ctor ? (new Ctor() as SpeechRecognitionLike) : null;
+}
+
+// Indian locales: generic "hi"/"te" often fall back to a poorer acoustic model.
+const SPEECH_LOCALE: Record<string, string> = {
+  en: "en-IN",
+  te: "te-IN",
+  hi: "hi-IN",
+};
 
 interface AIVoiceIntakeModalProps {
   isOpen: boolean;
@@ -14,23 +40,84 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
   const [transcript, setTranscript] = useState("");
   const [loading, setLoading] = useState(false);
   const [triageResult, setTriageResult] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [supported, setSupported] = useState(true);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+
+  useEffect(() => {
+    setSupported(getRecognition() !== null);
+  }, []);
+
+  // Stop the microphone if the modal closes mid-recording, otherwise the browser
+  // keeps the mic indicator on after the dialog has gone.
+  useEffect(() => {
+    if (!isOpen && recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
+      recognitionRef.current = null;
+      setIsRecording(false);
+    }
+  }, [isOpen]);
+
+  const stopRecording = useCallback(() => {
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+    setIsRecording(false);
+  }, []);
+
+  const handleStartRecording = useCallback(() => {
+    setError("");
+    setTriageResult(null);
+
+    const recognition = getRecognition();
+    if (!recognition) {
+      // Firefox and some mobile browsers have no Web Speech API. Typing is a
+      // real fallback, not a dead end — the triage runs on the text either way.
+      setSupported(false);
+      setError("Speech input isn't available in this browser. Please type your symptoms below.");
+      setTranscript((t) => t || " ");
+      return;
+    }
+
+    recognition.lang = SPEECH_LOCALE[lang] || "en-IN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    let finalText = "";
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const chunk = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += chunk;
+        else interim += chunk;
+      }
+      setTranscript((finalText + interim).trim());
+    };
+
+    recognition.onerror = (event: any) => {
+      const kind = event?.error;
+      setError(
+        kind === "not-allowed" || kind === "service-not-allowed"
+          ? "Microphone permission was denied. Allow it in your browser, or type your symptoms below."
+          : kind === "no-speech"
+          ? "I didn't catch anything. Tap the mic and speak, or type below."
+          : "Speech recognition failed. Please type your symptoms below."
+      );
+      stopRecording();
+    };
+
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setIsRecording(true);
+    } catch {
+      setError("Could not start the microphone. Please type your symptoms below.");
+      setIsRecording(false);
+    }
+  }, [lang, stopRecording]);
 
   if (!isOpen) return null;
-
-  const handleStartRecording = () => {
-    setIsRecording(true);
-    setTriageResult(null);
-    // Simulate web speech recording
-    setTimeout(() => {
-      setIsRecording(false);
-      const sampleTranscripts = {
-        en: "I have high fever 102F and a severe cough since 2 days.",
-        te: "నాకు రెండు రోజుల నుండి తీవ్రమైన జ్వరం మరియు దగ్గు ఉంది.",
-        hi: "मुझे दो दिनों से तेज़ बुखार और खांसी है।"
-      };
-      setTranscript(sampleTranscripts[lang]);
-    }, 3000);
-  };
 
   const handleAnalyzeTriage = async () => {
     if (!transcript) return;
@@ -43,11 +130,13 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
         body: JSON.stringify({ transcript, language: lang })
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setTriageResult(data);
+      } else {
+        setError(data.detail || "Could not analyse that. Try rephrasing your symptoms.");
       }
-    } catch (e) {
-      alert("Failed to analyze voice triage. Please try again.");
+    } catch {
+      setError("Network error contacting the triage service. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -100,7 +189,17 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
               <div className="voice-wave" style={{ marginBottom: 12 }}>
                 <span /><span /><span /><span /><span />
               </div>
-              <p style={{ color: "#ef4444", fontWeight: 700, margin: 0 }}>🔴 Listening... Speak clearly now</p>
+              <p style={{ color: "#ef4444", fontWeight: 700, margin: "0 0 12px 0" }}>🔴 Listening… speak clearly</p>
+              <button
+                onClick={stopRecording}
+                style={{
+                  padding: "8px 22px", borderRadius: 20, border: "none",
+                  background: "#ef4444", color: "white", fontWeight: 700,
+                  cursor: "pointer", fontSize: "0.85rem",
+                }}
+              >
+                ⏹ Stop &amp; use this
+              </button>
             </div>
           ) : (
             <button
@@ -122,8 +221,35 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
               🎙️
             </button>
           )}
-          {!isRecording && <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Tap mic to speak symptoms</span>}
+          {!isRecording && (
+            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+              {supported ? "Tap the mic and describe your symptoms" : "Type your symptoms below"}
+            </span>
+          )}
         </div>
+
+        {error && (
+          <div style={{
+            padding: "10px 14px", borderRadius: 10, marginBottom: 16,
+            background: "#fef2f2", border: "1px solid #fca5a5",
+            color: "#991b1b", fontSize: "0.83rem",
+          }}>
+            {error}
+          </div>
+        )}
+
+        {!transcript && !isRecording && (
+          <button
+            onClick={() => setTranscript(" ")}
+            style={{
+              background: "none", border: "none", color: "#0d9488",
+              cursor: "pointer", fontWeight: 600, fontSize: "0.82rem",
+              display: "block", margin: "0 auto 16px auto",
+            }}
+          >
+            ⌨️ Prefer to type instead?
+          </button>
+        )}
 
         {/* Transcript Input */}
         {transcript && (

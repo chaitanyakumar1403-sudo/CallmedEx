@@ -8,17 +8,9 @@ interface PhlebotomistToolsModalProps {
 }
 
 export default function PhlebotomistToolsModal({ isOpen, onClose }: PhlebotomistToolsModalProps) {
-  const [scannedBarcode, setScannedBarcode] = useState("");
-  const [scanSuccess, setScanSuccess] = useState(false);
   const [selectedTube, setSelectedTube] = useState<string | null>(null);
 
   if (!isOpen) return null;
-
-  const handleSimulateScan = () => {
-    const randomBarcode = "VAM-" + Math.floor(100000 + Math.random() * 900000);
-    setScannedBarcode(randomBarcode);
-    setScanSuccess(true);
-  };
 
   const tubes = [
     { color: "#8b5cf6", name: "EDTA Purple Tube", tests: "CBC, HbA1c, ESR, Blood Grouping", additive: "K2 EDTA Anticoagulant" },
@@ -52,28 +44,18 @@ export default function PhlebotomistToolsModal({ isOpen, onClose }: Phlebotomist
           </span>
         </div>
 
-        {/* Barcode Scanner Simulator */}
-        <div style={{ background: "#f8fafc", padding: 20, borderRadius: 16, border: "1px solid #e2e8f0", marginBottom: 20 }}>
-          <h4 style={{ margin: "0 0 10px 0", color: "#0f172a", fontSize: "1rem" }}>📷 Specimen Tube Barcode Scanner</h4>
-          <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "0 0 14px 0" }}>
-            Scan or generate barcode tag for collected blood sample tubes to attach directly to patient order.
+        {/* The barcode "scanner" that lived here generated a throwaway VAM-###### and
+            persisted nothing, sitting next to the real one in Samples & Handover.
+            Two scanners where one is fake is worse than one: a collector could
+            reasonably tag a tube here and believe it was recorded. Removed, with a
+            pointer to the tab that actually registers a tube. */}
+        <div style={{ background: "#eff6ff", padding: 16, borderRadius: 12, border: "1px solid #bfdbfe", marginBottom: 20 }}>
+          <h4 style={{ margin: "0 0 6px 0", color: "#1e40af", fontSize: "0.95rem" }}>📷 Registering a tube?</h4>
+          <p style={{ fontSize: "0.84rem", color: "#1e40af", margin: 0 }}>
+            Use <strong>Samples &amp; Handover</strong> to scan or mint a barcode. That
+            records the tube against the patient&apos;s run and starts its custody trail —
+            this guide is reference only.
           </p>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <input
-              type="text"
-              readOnly
-              value={scannedBarcode || "No barcode scanned yet"}
-              style={{ flex: 1, padding: "10px 14px", borderRadius: 10, border: "1px solid #cbd5e1", background: "white", fontWeight: 700, color: scannedBarcode ? "#0f172a" : "#94a3b8" }}
-            />
-            <button className="btn btn-teal" onClick={handleSimulateScan}>
-              ⚡ Scan Sample Tube
-            </button>
-          </div>
-          {scanSuccess && (
-            <div style={{ marginTop: 10, color: "#16a34a", fontSize: "0.82rem", fontWeight: 700 }}>
-              ✅ Sample Tube Tagged & Verified: {scannedBarcode}
-            </div>
-          )}
         </div>
 
         {/* Blood Tube Color Guide */}
