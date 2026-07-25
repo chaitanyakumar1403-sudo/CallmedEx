@@ -4,8 +4,9 @@
    ============================================================================ */
 
 /* ─── Google Fonts & Design System ───────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
+/* Fonts are loaded by next/font in layout.tsx — self-hosted, non-blocking. */
 @import './styles/design-system.css';
+@import './styles/foundation.css';
 
 /* ─── CSS Variables / Design Tokens ──────────────────────────────────────── */
 :root {
@@ -34,8 +35,12 @@
   --color-gray-700: #334155;
   --color-gray-800: #1e293b;
   --color-gray-900: #0f172a;
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* One family, weight does the work — the way transit and hospital wayfinding
+     handle hierarchy. Playfair Display was dropped deliberately: a high-contrast
+     didone loses its thin strokes on a low-end LCD in sunlight and is the wrong
+     face for low-vision and Telugu-first readers this product serves. */
+  --font-display: var(--font-ui, 'Inter', system-ui, sans-serif);
+  --font-body: var(--font-ui, 'Inter', system-ui, sans-serif);
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 16px;
@@ -66,7 +71,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 body { font-family: var(--font-body); color: var(--color-gray-800); background: var(--color-gray-50); line-height: 1.6; min-height: 100vh; }
-h1,h2,h3,h4 { font-family: var(--font-display); color: var(--color-navy); line-height: 1.25; font-weight: 700; }
+h1,h2,h3,h4 { font-family: var(--font-display); color: var(--color-navy); line-height: 1.2; font-weight: 800; letter-spacing: -0.018em; }
 h1 { font-size: 2.75rem; } h2 { font-size: 2rem; } h3 { font-size: 1.5rem; } h4 { font-size: 1.25rem; }
 a { color: var(--color-navy); text-decoration: none; transition: color var(--transition-fast); }
 a:hover { color: var(--color-teal); }

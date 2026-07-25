@@ -1,0 +1,303 @@
+/* ============================================================================
+   CallMedex — Foundation layer
+   ============================================================================
+
+   Design thesis: CLARITY UNDER PRESSURE.
+
+   This is medical logistics, not a lifestyle brand. The people using it are a
+   phlebotomist outdoors at 05:15 on a cheap Android in direct sun, an elderly
+   patient in Visakhapatnam who may read Telugu before English, and a lab
+   technician doing high-volume intake at a desk. The nearest honest reference
+   is not healthtech marketing — it is transit and emergency wayfinding:
+   unambiguous colour, ranked information, targets you can hit without looking.
+
+   Three rules this file enforces:
+
+   1. RED MEANS ACT NOW, AND NOTHING ELSE. Urgency is the one thing that must
+      never be missed, so red is spent only on it. Anything decorative that was
+      red becomes navy or slate.
+   2. NOTHING IS COMMUNICATED BY COLOUR ALONE. Every status carries a label and
+      a shape as well as a hue — roughly 1 in 12 Indian men has a colour vision
+      deficiency, and a phlebotomist in sunlight loses hue discrimination
+      regardless of eyesight.
+   3. TOUCH TARGETS SURVIVE A MOVING AUTO-RICKSHAW. 44px minimum, always.
+
+   ============================================================================ */
+
+:root {
+  /* ── Brand ───────────────────────────────────────────────────────────── */
+  --cm-navy:        #1a2b4a;
+  --cm-navy-deep:   #0f1d33;
+  --cm-navy-soft:   #2a3d5e;
+
+  /* ── Semantic status. Ordered by escalation, not by palette. ─────────── */
+  --cm-urgent:      #d92020;   /* reserved: priority dispatch only */
+  --cm-urgent-bg:   #fef2f2;
+  --cm-urgent-line: #fca5a5;
+
+  --cm-active:      #0369a1;   /* in progress, en route */
+  --cm-active-bg:   #eff6ff;
+  --cm-active-line: #93c5fd;
+
+  --cm-done:        #15803d;   /* completed, verified, received */
+  --cm-done-bg:     #f0fdf4;
+  --cm-done-line:   #86efac;
+
+  --cm-waiting:     #b45309;   /* pending someone else's action */
+  --cm-waiting-bg:  #fffbeb;
+  --cm-waiting-line:#fcd34d;
+
+  --cm-halted:      #57534e;   /* cancelled, rejected, expired */
+  --cm-halted-bg:   #fafaf9;
+  --cm-halted-line: #d6d3d1;
+
+  /* ── Surface + ink. Deliberately cool-neutral: warm greys read as
+        "dirty" next to clinical white and undermine trust here. ────────── */
+  --cm-ink:         #0f172a;
+  --cm-ink-2:       #334155;
+  --cm-ink-3:       #64748b;
+  --cm-ink-faint:   #94a3b8;
+  --cm-line:        #e2e8f0;
+  --cm-line-strong: #cbd5e1;
+  --cm-surface:     #ffffff;
+  --cm-surface-2:   #f8fafc;
+  --cm-surface-3:   #f1f5f9;
+
+  /* ── Type. Set by next/font in layout.tsx; these are the fallbacks. ─── */
+  --cm-font-ui:     var(--font-ui, 'Inter', system-ui, sans-serif);
+  --cm-font-te:     var(--font-te, 'Noto Sans Telugu', sans-serif);
+
+  /* Type scale — 1.2 minor third. Body starts at 16px because anything
+     smaller fails for the older patients this product explicitly serves. */
+  --cm-text-xs:   0.75rem;
+  --cm-text-sm:   0.875rem;
+  --cm-text-base: 1rem;
+  --cm-text-lg:   1.125rem;
+  --cm-text-xl:   1.375rem;
+  --cm-text-2xl:  1.75rem;
+  --cm-text-3xl:  2.25rem;
+
+  /* ── Space — 4px base ────────────────────────────────────────────────── */
+  --cm-1: 4px;  --cm-2: 8px;  --cm-3: 12px; --cm-4: 16px;
+  --cm-5: 20px; --cm-6: 24px; --cm-8: 32px; --cm-10: 40px; --cm-12: 48px;
+
+  --cm-radius:    10px;
+  --cm-radius-lg: 16px;
+  --cm-radius-pill: 999px;
+
+  /* Elevation stays restrained: heavy shadows on a low-end LCD in sunlight
+     read as smudges, not depth. */
+  --cm-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --cm-shadow-2: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --cm-shadow-3: 0 8px 24px rgba(15, 23, 42, 0.12);
+
+  --cm-tap: 44px;                 /* WCAG 2.5.5 target minimum */
+  --cm-ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --cm-fast: 120ms;
+  --cm-slow: 240ms;
+}
+
+/* ============================================================================
+   Accessibility floor — the part that makes this "suitable for all users"
+   ============================================================================ */
+
+/* Keyboard focus was invisible before this. A two-tone ring stays visible on
+   both light cards and navy headers without needing a per-component override. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--cm-active);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Dispatch cards animate with `pulse 2s infinite`. For a vestibular-disorder
+   user that is not a nice touch, it is a reason to close the app. Honour the
+   OS setting rather than asking them to tolerate it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Anything tappable clears the target minimum. Inline links are excluded —
+   padding them out breaks running text. */
+button,
+[role="button"],
+input[type="checkbox"],
+input[type="radio"],
+select {
+  min-height: var(--cm-tap);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  min-width: 20px;
+  min-height: 20px;   /* the control itself; its label carries the tap area */
+  accent-color: var(--cm-navy);
+}
+
+/* Telugu needs a slightly larger optical size and looser leading than Latin at
+   the same nominal px, or the vowel signs collide. */
+:lang(te) {
+  font-family: var(--cm-font-te), var(--cm-font-ui);
+  font-size: 1.06em;
+  line-height: 1.75;
+}
+
+/* Screen-reader-only text, for the labels that pair with every status colour. */
+.cm-sr {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Skip link — the navbar plus utility bar is ~14 tab stops before content. */
+.cm-skip {
+  position: absolute; left: -9999px; top: 0; z-index: 10000;
+  background: var(--cm-navy); color: #fff;
+  padding: var(--cm-3) var(--cm-5);
+  border-radius: 0 0 var(--cm-radius) 0;
+  font-weight: 700;
+}
+.cm-skip:focus { left: 0; }
+
+/* ============================================================================
+   Status system — the signature element
+   ----------------------------------------------------------------------------
+   Every request in CallMedex travels the same escalating path, whether it is a
+   blood sample, a nurse visit or a lab report. The spine renders that path as
+   one consistent object so a patient, a phlebotomist and a lab tech are all
+   reading the same picture of the same job.
+
+   It encodes real state — the custody and dispatch chain — rather than
+   decorating. Colour is never the only signal: each step carries a label, and
+   the current step carries a filled marker.
+   ============================================================================ */
+
+.cm-spine {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cm-spine__step {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: var(--cm-3);
+  align-items: start;
+  position: relative;
+  padding-bottom: var(--cm-5);
+}
+
+/* The connecting rail is drawn by the step above, so the last step has none. */
+.cm-spine__step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 22px;
+  bottom: 0;
+  width: 2px;
+  background: var(--cm-line-strong);
+}
+.cm-spine__step--done:not(:last-child)::before { background: var(--cm-done); }
+
+.cm-spine__dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 800;
+  border: 2px solid var(--cm-line-strong);
+  background: var(--cm-surface);
+  color: var(--cm-ink-faint);
+  z-index: 1;
+}
+.cm-spine__step--done    .cm-spine__dot { background: var(--cm-done);   border-color: var(--cm-done);   color: #fff; }
+.cm-spine__step--current .cm-spine__dot { background: var(--cm-active); border-color: var(--cm-active); color: #fff; }
+.cm-spine__step--urgent  .cm-spine__dot { background: var(--cm-urgent); border-color: var(--cm-urgent); color: #fff; }
+.cm-spine__step--halted  .cm-spine__dot { background: var(--cm-halted); border-color: var(--cm-halted); color: #fff; }
+
+.cm-spine__label { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); }
+.cm-spine__step--pending .cm-spine__label { color: var(--cm-ink-faint); font-weight: 600; }
+.cm-spine__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
+
+/* The current step gets a soft ring so it is findable at a glance without
+   relying on hue alone. */
+.cm-spine__step--current .cm-spine__dot {
+  box-shadow: 0 0 0 4px var(--cm-active-bg);
+}
+.cm-spine__step--urgent .cm-spine__dot {
+  box-shadow: 0 0 0 4px var(--cm-urgent-bg);
+}
+
+/* ── Status pill — the inline counterpart to the spine ─────────────────── */
+.cm-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--cm-radius-pill);
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.cm-pill::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex: none;
+}
+.cm-pill--urgent  { background: var(--cm-urgent-bg);  color: var(--cm-urgent);  border-color: var(--cm-urgent-line); }
+.cm-pill--active  { background: var(--cm-active-bg);  color: var(--cm-active);  border-color: var(--cm-active-line); }
+.cm-pill--done    { background: var(--cm-done-bg);    color: var(--cm-done);    border-color: var(--cm-done-line); }
+.cm-pill--waiting { background: var(--cm-waiting-bg); color: var(--cm-waiting); border-color: var(--cm-waiting-line); }
+.cm-pill--halted  { background: var(--cm-halted-bg);  color: var(--cm-halted);  border-color: var(--cm-halted-line); }
+
+/* Urgent is the only status permitted to move, and only once on arrival —
+   a permanent pulse becomes wallpaper and stops meaning anything. */
+.cm-pill--urgent { animation: cm-arrive var(--cm-slow) var(--cm-ease); }
+@keyframes cm-arrive {
+  from { transform: scale(0.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+/* ============================================================================
+   Loading — perceived speed
+   ----------------------------------------------------------------------------
+   Skeletons that mirror the shape of the incoming content read as faster than
+   a spinner, because the layout stops jumping when data lands.
+   ============================================================================ */
+
+.cm-skeleton {
+  background: linear-gradient(90deg,
+    var(--cm-surface-3) 25%, var(--cm-surface-2) 37%, var(--cm-surface-3) 63%);
+  background-size: 400% 100%;
+  animation: cm-shimmer 1.4s ease infinite;
+  border-radius: var(--cm-radius);
+}
+@keyframes cm-shimmer {
+  from { background-position: 100% 50%; }
+  to   { background-position: 0 50%; }
+}
+.cm-skeleton--line  { height: 12px; margin-bottom: var(--cm-2); }
+.cm-skeleton--title { height: 20px; width: 45%; margin-bottom: var(--cm-3); }
+.cm-skeleton--card  { height: 96px; }
+
+/* ============================================================================
+   Density — the lab bench case
+   ----------------------------------------------------------------------------
+   A technician processing forty tubes needs rows, not cards. Opt in per region
+   rather than shrinking everything for everyone.
+   ============================================================================ */
+.cm-dense { --cm-4: 10px; --cm-5: 12px; --cm-6: 14px; }
+.cm-dense .cm-pill { padding: 2px 9px; }
+
+/* ── Sunlight mode: field staff outdoors before dawn and after ─────────── */
+@media (prefers-contrast: more) {
+  :root {
+    --cm-ink-3:     #475569;
+    --cm-ink-faint: #64748b;
+    --cm-line:      #94a3b8;
+  }
+  .cm-pill { border-width: 2px; }
+}

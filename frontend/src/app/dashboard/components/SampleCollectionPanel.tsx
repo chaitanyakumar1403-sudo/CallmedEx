@@ -13,41 +13,13 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { StatusPill } from "../../components/StatusSpine";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
   typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
 const SAMPLE_TYPES = ["blood", "urine", "stool", "swab", "sputum", "other"];
-
-const STATUS_STYLE: Record<string, { bg: string; fg: string; label: string }> = {
-  collected: { bg: "#dbeafe", fg: "#1e40af", label: "In hand" },
-  in_transit: { bg: "#fef3c7", fg: "#92400e", label: "In transit" },
-  handover_requested: { bg: "#ede9fe", fg: "#5b21b6", label: "Awaiting lab" },
-  received: { bg: "#dcfce7", fg: "#166534", label: "Received by lab" },
-  rejected: { bg: "#fee2e2", fg: "#991b1b", label: "Rejected" },
-  processing: { bg: "#e0f2fe", fg: "#075985", label: "Processing" },
-  report_ready: { bg: "#dcfce7", fg: "#166534", label: "Report ready" },
-};
-
-function StatusChip({ status }: { status: string }) {
-  const s = STATUS_STYLE[status] || { bg: "#e2e8f0", fg: "#334155", label: status };
-  return (
-    <span
-      style={{
-        background: s.bg,
-        color: s.fg,
-        padding: "3px 10px",
-        borderRadius: 999,
-        fontSize: "0.72rem",
-        fontWeight: 700,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {s.label}
-    </span>
-  );
-}
 
 export default function SampleCollectionPanel() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -439,7 +411,7 @@ export default function SampleCollectionPanel() {
                     )}
                     {(t.service_subtype || "Home collection").replace(/_/g, " ")}
                   </div>
-                  <StatusChip status={t.status} />
+                  <StatusPill status={t.status} urgent={urgent} />
                 </div>
                 <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: 6 }}>
                   {t.patient_address || "Address on the run sheet"}
@@ -556,7 +528,7 @@ export default function SampleCollectionPanel() {
                       {s.test_names?.length ? ` • ${s.test_names.join(", ")}` : ""}
                     </div>
                   </div>
-                  <StatusChip status={s.status} />
+                  <StatusPill status={s.status} />
                 </label>
               ))}
             </div>
@@ -628,7 +600,7 @@ export default function SampleCollectionPanel() {
                     {s.rejection_reason && (
                       <span style={{ fontSize: "0.78rem", color: "#991b1b" }}>{s.rejection_reason}</span>
                     )}
-                    <StatusChip status={s.status} />
+                    <StatusPill status={s.status} />
                   </div>
                 </div>
               ))}
