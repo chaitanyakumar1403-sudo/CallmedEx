@@ -73,10 +73,40 @@ class Settings:
     ALLOWED_ORIGINS: list = [
         o.strip() for o in os.getenv(
             "ALLOWED_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,https://callmedex-v1.vercel.app"
+            "http://localhost:3000,http://localhost:3001,"
+            "https://callmedex-v1.vercel.app,https://callmedex-frontend.vercel.app,"
+            "https://www.callmedex.com,https://callmedex.com"
         ).split(",") if o.strip()
     ]
     VERIFICATION_BUCKET: str = os.getenv("VERIFICATION_BUCKET", "verification-docs")
 
 
 settings = Settings()
+
+
+# ─── Startup secret hygiene ───────────────────────────────────────────────
+# The JWT secret signs every session token. If it is guessable, anyone can mint
+# a token for any user_id and role — including admin — and the API will trust it.
+# The fallback below is committed to a public repository, so falling back to it
+# in a deployed environment is equivalent to having no authentication at all.
+_WEAK_JWT_SECRETS = {
+    "callmedex-dev-secret",
+    "callmedex-dev-secret-local",
+    "callmedex-jwt-secret-change-in-production",
+    "change-me", "secret", "changeme",
+}
+
+def jwt_secret_warning() -> str:
+    """Return a warning string if the configured JWT secret is unsafe, else ''."""
+    secret = (settings.JWT_SECRET or "").strip()
+    if secret in _WEAK_JWT_SECRETS:
+        return (
+            "JWT_SECRET is a known placeholder value. Session tokens can be "
+            "forged for ANY user, including admin. Rotate it immediately."
+        )
+    if len(secret) < 32:
+        return (
+            f"JWT_SECRET is only {len(secret)} characters. Use at least 32 "
+            "random bytes, e.g. `openssl rand -hex 32`."
+        )
+    return ""

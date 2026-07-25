@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from app.config import settings
+from app.config import settings, jwt_secret_warning
 from app.routers import (
     auth, bookings, verification, dispatch, whatsapp, admin,
     pharmacy_orders, telemedicine, insurance, ai_reports,
@@ -105,6 +105,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Razorpay: {'✅ configured' if settings.RAZORPAY_KEY_ID else '❌ not configured'}")
     logger.info(f"   Gemini AI: {'✅ configured' if settings.GEMINI_API_KEY else '❌ not configured'}")
     logger.info(f"   Redis: {'✅ configured' if settings.REDIS_URL != 'redis://localhost:6379/0' else '⚠️ default (local)'}")
+    if (warning := jwt_secret_warning()):
+        logger.critical("=" * 78)
+        logger.critical(f"🔴 SECURITY: {warning}")
+        logger.critical("=" * 78)
     yield
     logger.info("🛑 CallMedex API shutting down gracefully...")
 
