@@ -433,6 +433,54 @@ input[type="radio"] {
 .cm-stat--urgent { border-left-color: var(--cm-urgent); }
 .cm-stat--urgent .cm-stat__value { color: var(--cm-urgent); }
 
+/* ── Stats grid — responsive card grid for dashboard KPIs ────────────── */
+/* Replaces the per-dashboard inline `repeat(4,1fr)` grids that collapsed
+   to unreadable micro-columns on tablet and phone. auto-fit + a 220px
+   floor keeps cards readable at every viewport. */
+.cm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--cm-4);
+  margin-bottom: var(--cm-6);
+}
+
+/* ── Stat card — the icon-beside-number tile used on overview tabs ──── */
+/* Doctor, organization, pharmacy and admin each invented their own inline
+   variant — different radii, borders, font sizes, hover effects. This one
+   class replaces all four. */
+.cm-stat-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-5);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-4);
+  box-shadow: var(--cm-shadow-1);
+  cursor: pointer;
+  transition: transform var(--cm-fast) var(--cm-ease),
+              box-shadow var(--cm-fast) var(--cm-ease);
+}
+.cm-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cm-shadow-2);
+}
+.cm-stat-card__icon {
+  width: 48px; height: 48px;
+  border-radius: var(--cm-radius);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; flex-shrink: 0;
+}
+.cm-stat-card__value {
+  font-size: var(--cm-text-2xl); font-weight: 800;
+  color: var(--cm-ink); line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.cm-stat-card__label {
+  font-size: var(--cm-text-xs); color: var(--cm-ink-3);
+  margin-top: 2px; font-weight: 600;
+}
+
 /* ── Empty state — an invitation to act, not an apology ───────────────── */
 .cm-empty {
   text-align: center; padding: var(--cm-12) var(--cm-6);
@@ -449,4 +497,5 @@ input[type="radio"] {
   .cm-dash__tabs  { padding: 0 var(--cm-4); }
   .cm-dash__body  { padding: var(--cm-5) var(--cm-4) var(--cm-10); }
   .cm-dash__title { font-size: var(--cm-text-xl); }
+  .cm-stats-grid  { grid-template-columns: 1fr; }
 }

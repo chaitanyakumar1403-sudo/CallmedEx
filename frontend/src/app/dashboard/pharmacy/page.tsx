@@ -214,43 +214,21 @@ export default function PharmacyDashboard() {
           <>
             {/* OVERVIEW TAB */}
             {activeTab === 'overview' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-                <div
-                  onClick={() => setActiveTab('orders')}
-                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "#ffffff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
-                >
-                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Active Orders</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#0f172a' }}>{orders.filter(o => o.status !== 'delivered').length}</div>
-                </div>
-                <div
-                  onClick={() => setActiveTab('orders')}
-                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(245, 158, 11, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
-                >
-                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>To Pack</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f59e0b' }}>{orders.filter(o => o.status === 'confirmed').length}</div>
-                </div>
-                <div
-                  onClick={() => setActiveTab('inventory')}
-                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(139, 92, 246, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
-                >
-                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Inventory Items</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#8b5cf6' }}>{inventory.length}</div>
-                </div>
-                <div
-                  onClick={() => setActiveTab('orders')}
-                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(56, 189, 248, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
-                >
-                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Out for Delivery</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#38bdf8' }}>{orders.filter(o => o.status === 'out_for_delivery').length}</div>
-                </div>
+              <div className="cm-stats-grid">
+                {[
+                  { label: "Active Orders", value: orders.filter(o => o.status !== 'delivered').length, icon: "📦", color: "#0f172a", action: () => setActiveTab('orders') },
+                  { label: "To Pack", value: orders.filter(o => o.status === 'confirmed').length, icon: "📋", color: "#f59e0b", action: () => setActiveTab('orders') },
+                  { label: "Inventory Items", value: inventory.length, icon: "💊", color: "#8b5cf6", action: () => setActiveTab('inventory') },
+                  { label: "Out for Delivery", value: orders.filter(o => o.status === 'out_for_delivery').length, icon: "🚚", color: "#38bdf8", action: () => setActiveTab('orders') },
+                ].map((stat, i) => (
+                  <div key={i} onClick={stat.action} className="cm-stat-card">
+                    <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
+                    <div>
+                      <div className="cm-stat-card__value" style={{ color: stat.color }}>{stat.value}</div>
+                      <div className="cm-stat-card__label">{stat.label}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

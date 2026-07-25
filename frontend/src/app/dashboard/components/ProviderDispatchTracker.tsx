@@ -397,7 +397,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         color: "white",
         transition: "all 0.5s",
         borderRadius: embedded ? "var(--cm-radius-lg)" : undefined,
-        marginBottom: embedded ? 16 : undefined,
+        marginBottom: embedded ? "var(--cm-4)" : undefined,
       }}>
         <div style={{ maxWidth: embedded ? "none" : 600, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -453,7 +453,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
           </div>
 
           {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--cm-3)", marginTop: "var(--cm-5)" }}>
             {[
               { label: "Active Tasks", value: tasks.length, icon: "📋", onClick: () => setShowAllTasks(true) },
               { label: "Done Today", value: completedToday, icon: "✅" },

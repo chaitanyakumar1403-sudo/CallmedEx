@@ -36,32 +36,13 @@ function KPICard({ icon, label, value, color, subtitle }: {
   icon: string; label: string; value: number | string; color: string; subtitle?: string;
 }) {
   return (
-    <div style={{
-      backgroundColor: 'white',
-      borderRadius: 12,
-      padding: '20px 24px',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-      borderLeft: `4px solid ${color}`,
-      transition: 'transform 0.2s, box-shadow 0.2s',
-      cursor: 'default',
-    }}
-    onMouseEnter={e => {
-      (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
-      (e.currentTarget as HTMLDivElement).style.boxShadow = '0 10px 25px rgba(0,0,0,0.08)';
-    }}
-    onMouseLeave={e => {
-      (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-      (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)';
-    }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{label}</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#111827', marginTop: 4 }}>{typeof value === 'number' ? value.toLocaleString() : value}</div>
-          {subtitle && <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>{subtitle}</div>}
-        </div>
-        <div style={{ fontSize: '2rem', opacity: 0.7 }}>{icon}</div>
+    <div className="cm-stat-card" style={{ borderLeft: `4px solid ${color}`, cursor: 'default' }}>
+      <div style={{ flex: 1 }}>
+        <div className="cm-stat-card__label">{label}</div>
+        <div className="cm-stat-card__value">{typeof value === 'number' ? value.toLocaleString() : value}</div>
+        {subtitle && <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-faint)', marginTop: 2 }}>{subtitle}</div>}
       </div>
+      <div style={{ fontSize: '2rem', opacity: 0.7 }}>{icon}</div>
     </div>
   );
 }
@@ -300,7 +281,7 @@ export default function AdminDashboard() {
       }
     >
       {/* ─── Content Area ─── */}
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 40px' }}>
+      <div>
 
         {/* ════════════════════════════════════════════════════════════ */}
         {/* EXECUTIVE OVERVIEW TAB */}
@@ -308,7 +289,7 @@ export default function AdminDashboard() {
         {activeTab === 'overview' && (
           <>
             {/* KPI Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
+            <div className="cm-stats-grid">
               <KPICard icon="👥" label="Total Users" value={m.total_users || 0} color="#2563eb" />
               <KPICard icon="🧑‍🦱" label="Patients" value={m.total_patients || 0} color="#059669" />
               <KPICard icon="👨‍⚕️" label="Doctors" value={m.total_doctors || 0} color="#7c3aed" />
@@ -361,17 +342,13 @@ export default function AdminDashboard() {
         {activeTab === 'operations' && (
           <>
             {/* Online Providers */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+            <div className="cm-stats-grid">
               {Object.entries(liveOps?.online_providers || {}).map(([type, count]) => (
-                <div key={type} style={{
-                  backgroundColor: 'white', borderRadius: 12, padding: '16px 20px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e' }} />
+                <div key={type} className="cm-stat-card" style={{ cursor: 'default' }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#22c55e', boxShadow: '0 0 8px #22c55e', flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#111827' }}>{count as number}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', textTransform: 'capitalize' }}>{type.replace('_', ' ')}s Online</div>
+                    <div className="cm-stat-card__value">{count as number}</div>
+                    <div className="cm-stat-card__label" style={{ textTransform: 'capitalize' }}>{type.replace('_', ' ')}s Online</div>
                   </div>
                 </div>
               ))}
@@ -434,7 +411,7 @@ export default function AdminDashboard() {
         {activeTab === 'analytics' && bookingAnalytics && (
           <>
             {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+            <div className="cm-stats-grid">
               <KPICard icon="📊" label="Total Bookings" value={bookingAnalytics.total} color="#2563eb" />
               <KPICard icon="✅" label="Completion Rate" value={`${bookingAnalytics.completion_rate}%`} color="#059669" />
               <KPICard icon="❌" label="Cancellation Rate" value={`${bookingAnalytics.cancellation_rate}%`} color="#dc2626" />

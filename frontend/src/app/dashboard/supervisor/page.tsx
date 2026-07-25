@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import DashboardShell from '../components/DashboardShell';
+import DashboardShell, { SkeletonRows } from '../components/DashboardShell';
 import { useRouter } from 'next/navigation';
 
 export default function SupervisorDashboard() {
@@ -55,7 +55,12 @@ export default function SupervisorDashboard() {
   }, [router]);
 
   if (loading) {
-    return <div style={{ padding: '50px', textAlign: 'center' }}>Loading Supervisor Dashboard...</div>;
+    return (
+      <DashboardShell role="admin" title="City Supervisor" subtitle="Loading territory…"
+        tabs={[]} activeTab="" onTabChange={() => {}}>
+        <SkeletonRows rows={3} />
+      </DashboardShell>
+    );
   }
 
   return (
@@ -80,10 +85,10 @@ export default function SupervisorDashboard() {
       }
     >
         {/* Verification Queue */}
-        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ color: '#1a2b4a', margin: '0' }}>Pending Verifications Queue</h2>
-            <span style={{ backgroundColor: '#fed7d7', color: '#c53030', padding: '5px 12px', borderRadius: '20px', fontSize: '14px', fontWeight: 'bold' }}>
+        <section className="cm-panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--cm-5)' }}>
+            <h2 className="cm-panel__title">Pending Verifications Queue</h2>
+            <span className="cm-pill cm-pill--urgent">
               {verifications.length} Requires Action
             </span>
           </div>
@@ -117,8 +122,8 @@ export default function SupervisorDashboard() {
               ))}
             </tbody>
           </table>
-          {verifications.length === 0 && <p style={{ textAlign: 'center', color: '#718096', marginTop: '30px' }}>No pending verifications in {supervisorCity}.</p>}
-        </div>
+          {verifications.length === 0 && <p style={{ textAlign: 'center', color: 'var(--cm-ink-3)', marginTop: 'var(--cm-6)' }}>No pending verifications in {supervisorCity}.</p>}
+        </section>
 
     </DashboardShell>
   );

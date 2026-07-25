@@ -389,36 +389,18 @@ export default function DoctorDashboard() {
     >
 
       {/* ─── Stats Bar ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, padding: "20px 40px" }}>
+      <div className="cm-stats-grid">
         {[
           { label: "Active Slots", value: availability.filter(a => a.is_active).length, icon: "📅", color: "#2563eb", action: () => setActiveTab("schedule") },
           { label: "Today's Appointments", value: todayBookings.length, icon: "🗓️", color: "#16a34a", action: () => setActiveTab("appointments") },
           { label: "Fee Types Set", value: fees.length, icon: "💰", color: "#d97706", action: () => setActiveTab("fees") },
           { label: "Blocked Dates", value: blockedDates.length, icon: "🏖️", color: "#dc2626", action: () => setActiveTab("schedule") },
         ].map((stat, i) => (
-          <div key={i} onClick={stat.action} style={{
-            backgroundColor: "white",
-            borderRadius: 12,
-            padding: 20,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            cursor: "pointer",
-            transition: "transform 0.2s, box-shadow 0.2s"
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)"; }}
-          >
-            <div style={{
-              width: 48, height: 48, borderRadius: 12,
-              backgroundColor: `${stat.color}15`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "1.4rem",
-            }}>{stat.icon}</div>
+          <div key={i} onClick={stat.action} className="cm-stat-card">
+            <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
             <div>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e293b" }}>{stat.value}</div>
-              <div style={{ fontSize: "0.8rem", color: "#64748b" }}>{stat.label}</div>
+              <div className="cm-stat-card__value">{stat.value}</div>
+              <div className="cm-stat-card__label">{stat.label}</div>
             </div>
           </div>
         ))}

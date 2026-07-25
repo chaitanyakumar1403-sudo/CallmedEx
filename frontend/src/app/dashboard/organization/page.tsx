@@ -501,7 +501,7 @@ export default function OrganizationDashboard() {
 
       {/* ─── Verification Banner ─── */}
       {isPending && (
-        <div style={{ margin: "20px 40px", padding: 24, background: "linear-gradient(to right, #fdf4ff, #fae8ff)", borderRadius: 12, border: "1px solid #f5d0fe" }}>
+        <div style={{ marginBottom: 20, padding: 24, background: "linear-gradient(to right, #fdf4ff, #fae8ff)", borderRadius: 12, border: "1px solid #f5d0fe" }}>
           <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ fontSize: "3rem", lineHeight: 1 }}>✨</div>
             <div style={{ flex: 1, minWidth: 300 }}>
@@ -534,31 +534,25 @@ export default function OrganizationDashboard() {
       )}
 
       {verificationResult?.success && (
-        <div style={{ margin: "0 40px 20px", padding: 24, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0" }}>
+        <div style={{ marginBottom: 20, padding: 24, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0" }}>
           <h3 style={{ fontSize: "1.2rem", color: "#166534", marginBottom: 8 }}>✅ Verification Successful!</h3>
           <p style={{ color: "#15803d", fontSize: "0.95rem" }}>Your organization is now live on CallMedex.</p>
         </div>
       )}
 
       {/* ─── Stats ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, padding: "0 40px 16px" }}>
+      <div className="cm-stats-grid">
         {[
           { label: "Linked Doctors", value: orgStats?.total_doctors ?? orgDoctors.length, icon: "👨‍⚕️", color: "#2563eb" },
           { label: "Active Services", value: orgStats?.total_services ?? orgServices.length, icon: "🧪", color: "#16a34a" },
           { label: "Total Bookings", value: orgStats?.total_bookings ?? "—", icon: "📋", color: "#d97706" },
           { label: "Total Revenue", value: orgStats?.total_revenue ? `₹${orgStats.total_revenue}` : "—", icon: "💰", color: "#7c3aed" },
         ].map((stat, i) => (
-          <div key={i} style={{
-            backgroundColor: "white", borderRadius: 12, padding: 20,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.08)", display: "flex", alignItems: "center", gap: 16,
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 12, backgroundColor: `${stat.color}15`,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem",
-            }}>{stat.icon}</div>
+          <div key={i} className="cm-stat-card">
+            <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
             <div>
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1e293b" }}>{stat.value}</div>
-              <div style={{ fontSize: "0.8rem", color: "#64748b" }}>{stat.label}</div>
+              <div className="cm-stat-card__value">{stat.value}</div>
+              <div className="cm-stat-card__label">{stat.label}</div>
             </div>
           </div>
         ))}
