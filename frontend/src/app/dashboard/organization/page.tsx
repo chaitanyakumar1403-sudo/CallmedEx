@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import DashboardProfile from "../components/DashboardProfile";
+import SampleIntakeQueue from "../components/SampleIntakeQueue";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -385,23 +386,42 @@ export default function OrganizationDashboard() {
 
   const isPending = profile?.verification_status !== "verified" && !verificationResult?.success;
 
-  const orgType = profile?.organization_type || "hospital";
+  // Normalise the two spellings the schema has carried over time.
+  const rawOrgType = profile?.organization_type || "hospital";
+  const orgType = rawOrgType === "poly_clinic" ? "polyclinic" : rawOrgType;
+  const isDiagnosticCentre = orgType === "diagnostic_center";
+
+  // A single universal dashboard suited none of these businesses: a diagnostic
+  // centre has no doctor roster but needs a specimen intake desk, while a solo
+  // clinic has neither packages nor a sample workflow. Each type therefore gets
+  // its own tab set and its own vocabulary.
+  const TAB_MATRIX: Record<string, string[]> = {
+    diagnostic_center: ["overview", "intake", "pending", "services", "packages", "timings", "bookings", "profile"],
+    hospital:          ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
+    polyclinic:        ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
+    clinic:            ["overview", "pending", "doctors", "services", "timings", "bookings", "profile"],
+  };
+
+  const servicesLabel = isDiagnosticCentre ? "Tests & Pricing" : "Services & Fees";
+
   const allTabs = [
     { id: "overview", label: "Overview", icon: "📊" },
+    { id: "intake", label: "Sample Intake", icon: "📥" },
     { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: "🔔" },
     { id: "doctors", label: `Doctors (${orgDoctors.length})`, icon: "👨‍⚕️" },
-    { id: "services", label: `Tests & Services (${orgServices.length})`, icon: "🧪" },
+    { id: "services", label: `${servicesLabel} (${orgServices.length})`, icon: "🧪" },
     { id: "packages", label: `Packages (${orgPackages.length})`, icon: "📦" },
     { id: "timings", label: "Timings", icon: "⏰" },
     { id: "bookings", label: "Bookings", icon: "📋" },
     { id: "profile", label: "Profile Details", icon: "👤" },
   ];
 
-  const tabs = allTabs.filter(tab => {
-    if (orgType === "diagnostic_center" && tab.id === "doctors") return false;
-    if (orgType === "clinic" && tab.id === "packages") return false;
-    return true;
-  });
+  const allowed = TAB_MATRIX[orgType] || TAB_MATRIX.hospital;
+  const tabs = allTabs.filter((tab) => allowed.includes(tab.id));
+
+  // If the active tab is not offered to this org type, fall back to Overview
+  // rather than rendering an empty pane.
+  const currentTab = allowed.includes(activeTab) ? activeTab : "overview";
 
   const svcTypeLabel: Record<string, string> = {
     lab_test: "🧪 Lab Test",
@@ -566,11 +586,11 @@ export default function OrganizationDashboard() {
             onClick={() => setActiveTab(tab.id)}
             style={{
               padding: "12px 20px", border: "none",
-              backgroundColor: activeTab === tab.id ? "white" : "transparent",
-              color: activeTab === tab.id ? "#581c87" : "#64748b",
-              fontWeight: activeTab === tab.id ? 700 : 500,
+              backgroundColor: currentTab === tab.id ? "white" : "transparent",
+              color: currentTab === tab.id ? "#581c87" : "#64748b",
+              fontWeight: currentTab === tab.id ? 700 : 500,
               fontSize: "0.9rem", cursor: "pointer",
-              borderBottom: activeTab === tab.id ? "3px solid #7e22ce" : "3px solid transparent",
+              borderBottom: currentTab === tab.id ? "3px solid #7e22ce" : "3px solid transparent",
               borderRadius: "8px 8px 0 0", transition: "all 0.2s",
             }}
           >
@@ -593,8 +613,24 @@ export default function OrganizationDashboard() {
           </div>
         )}
 
+        {/* ═══ SAMPLE INTAKE TAB (diagnostic centres only) ═══ */}
+        {currentTab === "intake" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <h2 style={{ margin: "0 0 4px 0", fontSize: "1.3rem", color: "#0f172a" }}>
+                Specimen Intake Desk
+              </h2>
+              <p style={{ margin: 0, color: "#64748b", fontSize: "0.9rem" }}>
+                Verify each tube handed over by your phlebotomists, then publish reports.
+                Accepting a tube credits the collector and notifies the patient automatically.
+              </p>
+            </div>
+            <SampleIntakeQueue />
+          </div>
+        )}
+
         {/* ═══ OVERVIEW TAB ═══ */}
-        {activeTab === "overview" && (
+        {currentTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Financial Revenue & Payout Export Card */}
             <div style={{
@@ -704,12 +740,12 @@ export default function OrganizationDashboard() {
 
 
         {/* ═══ PROFILE TAB ═══ */}
-        {activeTab === "profile" && (
+        {currentTab === "profile" && (
           <DashboardProfile profile={profile} role="organization" />
         )}
 
         {/* ═══ DOCTORS TAB ═══ */}
-        {activeTab === "doctors" && (
+        {currentTab === "doctors" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Add Doctor Form */}
@@ -803,7 +839,7 @@ export default function OrganizationDashboard() {
         )}
 
         {/* ═══ SERVICES TAB ═══ */}
-        {activeTab === "services" && (
+        {currentTab === "services" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Add Service Form */}
@@ -1043,7 +1079,7 @@ export default function OrganizationDashboard() {
         )}
 
         {/* ═══ PACKAGES TAB ═══ */}
-        {activeTab === "packages" && (
+        {currentTab === "packages" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Add Package Form */}
@@ -1159,7 +1195,7 @@ export default function OrganizationDashboard() {
         )}
 
         {/* ═══ TIMINGS TAB ═══ */}
-        {activeTab === "timings" && (
+        {currentTab === "timings" && (
           <div style={{ backgroundColor: "white", borderRadius: 12, padding: 32, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
             <h3 style={{ margin: "0 0 24px 0", color: "#1e293b", fontSize: "1.2rem", display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: "1.5rem" }}>⏰</span> Organization Operating Hours
@@ -1211,7 +1247,7 @@ export default function OrganizationDashboard() {
         )}
 
         {/* ═══ PENDING REVIEW TAB ═══ */}
-        {activeTab === "pending" && (
+        {currentTab === "pending" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 style={{ fontSize: "1.15rem", color: "#1e293b", margin: 0 }}>🔔 Pending Booking Requests</h3>
@@ -1347,7 +1383,7 @@ export default function OrganizationDashboard() {
         )}
 
         {/* ═══ BOOKINGS TAB ═══ */}
-        {activeTab === "bookings" && (
+        {currentTab === "bookings" && (
           <div style={{
             backgroundColor: "white", borderRadius: 12, padding: 32,
             textAlign: "center", border: "2px dashed #d1d5db",
