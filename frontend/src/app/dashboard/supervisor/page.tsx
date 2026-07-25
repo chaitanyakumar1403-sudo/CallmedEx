@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import DashboardShell from '../components/DashboardShell';
 import { useRouter } from 'next/navigation';
 
 export default function SupervisorDashboard() {
@@ -58,22 +59,26 @@ export default function SupervisorDashboard() {
   }
 
   return (
-    <div style={{ backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '40px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <div>
-            <h1 style={{ color: '#1a2b4a', margin: '0 0 5px 0' }}>City Supervisor Dashboard</h1>
-            <p style={{ color: '#4a5568', margin: '0' }}>Managing territory: <strong style={{ color: '#e53e3e' }}>{supervisorCity}</strong></p>
-          </div>
-          <div>
-            <button style={{ backgroundColor: '#1a2b4a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer' }}>
-              Dispatch Command Center (Live Map)
-            </button>
-          </div>
-        </div>
-
+    <DashboardShell
+      role="admin"
+      title="City Supervisor"
+      subtitle={`Territory: ${supervisorCity}`}
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+      aside={
+        <button
+          style={{
+            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            border: "1px solid rgba(255,255,255,0.35)",
+            background: "rgba(255,255,255,0.12)", color: "#fff",
+            fontWeight: 700, fontSize: "0.85rem",
+          }}
+        >
+          🗺️ Dispatch command centre
+        </button>
+      }
+    >
         {/* Verification Queue */}
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -115,7 +120,6 @@ export default function SupervisorDashboard() {
           {verifications.length === 0 && <p style={{ textAlign: 'center', color: '#718096', marginTop: '30px' }}>No pending verifications in {supervisorCity}.</p>}
         </div>
 
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

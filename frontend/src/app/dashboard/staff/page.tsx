@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import DashboardShell from "../components/DashboardShell";
 
 export default function StaffDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -217,29 +218,25 @@ export default function StaffDashboard() {
   }
 
   return (
-    <div className="dashboard">
-      <div className="container">
-        {/* Header */}
-        <div className="dashboard__header">
-          <div>
-            <h1>Staff Dashboard 👤</h1>
-            <p className="dashboard__greeting">
-              {staffProfile?.organization_name
-                ? `Managing bookings for ${staffProfile.organization_name}`
-                : staffProfile?.staff_role
-                  ? `${staffProfile.staff_role} · ${staffProfile.department || "General"}`
-                  : "Manage your organization's appointments & patient flow"}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {staffProfile?.verification_status === "pending" ? (
-              <span className="badge badge-warning">⏳ Verification Pending</span>
-            ) : (
-              <span className="badge badge-success">✅ Verified</span>
-            )}
-          </div>
-        </div>
-
+    <DashboardShell
+      role="staff"
+      title="Staff Desk"
+      subtitle={
+        staffProfile?.organization_name
+          ? `Bookings for ${staffProfile.organization_name}`
+          : staffProfile?.staff_role
+            ? `${staffProfile.staff_role} · ${staffProfile.department || "General"}`
+            : "Appointments and patient flow"
+      }
+      tabs={[]}
+      activeTab=""
+      onTabChange={() => {}}
+      aside={
+        <span className={`cm-pill cm-pill--${staffProfile?.verification_status === "pending" ? "waiting" : "done"}`}>
+          {staffProfile?.verification_status === "pending" ? "Verification pending" : "Verified"}
+        </span>
+      }
+    >
         {/* Today's Stats */}
         <div className="stats-grid">
           <div className="card stat-card">
@@ -448,7 +445,6 @@ export default function StaffDashboard() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

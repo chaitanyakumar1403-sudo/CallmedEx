@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import DashboardShell from '../components/DashboardShell';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -277,96 +278,27 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div style={{ backgroundColor: '#f1f5f9', minHeight: '100vh' }}>
-      {/* ─── Header ─── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
-        padding: '24px 40px',
-        color: 'white',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.02em' }}>
-            ⚡ CallMedex Operations Center
-          </h1>
-          <p style={{ margin: '4px 0 0 0', color: 'rgba(255,255,255,0.75)', fontSize: '0.85rem', fontWeight: 400 }}>
-            Real-time Healthcare Platform Dashboard • v2.0
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <button
-            onClick={handleGenerateWeeklyReport}
-            disabled={reportLoading}
-            style={{
-              padding: "8px 16px",
-              background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              cursor: reportLoading ? "wait" : "pointer",
-              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6
-            }}
-          >
-            {reportLoading ? "⏳ Generating..." : "📧 Send Weekly Executive Report"}
-          </button>
-          <div style={{
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            borderRadius: 8,
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-          }}>
-            🟢 {liveOps?.total_online || 0} Providers Online
-          </div>
-          <div style={{
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            borderRadius: 8,
-            padding: '8px 16px',
-            fontSize: '0.85rem',
-          }}>
-            🔄 Auto-refresh: 30s
-          </div>
-        </div>
-      </div>
-
-
-      {/* ─── Tab Navigation ─── */}
-      <div style={{
-        backgroundColor: 'white',
-        borderBottom: '1px solid #e2e8f0',
-        padding: '0 40px',
-        display: 'flex',
-        gap: 0,
-        overflowX: 'auto',
-      }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '14px 20px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              fontWeight: activeTab === tab.id ? 700 : 500,
-              color: activeTab === tab.id ? '#1a2b4a' : '#6b7280',
-              borderBottom: activeTab === tab.id ? '3px solid #2563eb' : '3px solid transparent',
-              transition: 'all 0.2s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-
+    <DashboardShell
+      role="admin"
+      title="Operations Center"
+      subtitle="Real-time platform oversight"
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      aside={
+        <button
+          onClick={handleGenerateWeeklyReport}
+          style={{
+            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            border: "1px solid rgba(255,255,255,0.35)",
+            background: "rgba(255,255,255,0.12)", color: "#fff",
+            fontWeight: 700, fontSize: "0.85rem",
+          }}
+        >
+          📄 Weekly report
+        </button>
+      }
+    >
       {/* ─── Content Area ─── */}
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 40px' }}>
 
@@ -791,7 +723,7 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardShell>
   );
 }
 

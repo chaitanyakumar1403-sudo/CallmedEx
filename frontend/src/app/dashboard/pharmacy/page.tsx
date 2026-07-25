@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import DashboardShell from '../components/DashboardShell';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
 import DashboardProfile from '../components/DashboardProfile';
 import DrugShieldModal from '../../components/DrugShieldModal';
@@ -188,71 +189,27 @@ export default function PharmacyDashboard() {
     }
   };
 
+  const TABS = [
+    { id: "overview", label: "Overview", icon: "📊" },
+    { id: "orders", label: "Orders", icon: "📦" },
+    { id: "inventory", label: "Inventory", icon: "💊" },
+    { id: "delivery", label: "Delivery Dispatch", icon: "🚚" },
+    { id: "profile", label: "Profile", icon: "👤" },
+  ];
+
   return (
-    <div style={{ backgroundColor: '#0f172a', minHeight: '100vh', padding: '40px', color: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <DashboardShell
+      role="pharmacy"
+      title="Pharmacy Terminal"
+      subtitle="Orders, stock and delivery dispatch"
+      tabs={TABS}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+    >
 
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', background: 'linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.8))', padding: '30px', borderRadius: '24px', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div>
-            <h1 style={{ margin: '0 0 10px 0', fontSize: '36px', background: 'linear-gradient(to right, #60a5fa, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Pharmacy Terminal
-            </h1>
-            <p style={{ color: '#94a3b8', margin: '0', fontSize: '16px' }}>Manage prescriptions, digital inventory, and dispatches.</p>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowDrugShield(true)}
-              style={{
-                padding: '10px 18px',
-                background: 'linear-gradient(135deg, #0d9488 0%, #06b6d4 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontWeight: '700',
-                fontSize: '13px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              🛡️ DrugShield AI Verification
-            </button>
-            <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '10px 20px', borderRadius: '12px', fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%', boxShadow: '0 0 10px #10b981' }}></div>
-              Store Online
-            </span>
-          </div>
-        </div>
-
-        <DrugShieldModal isOpen={showDrugShield} onClose={() => setShowDrugShield(false)} />
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
-          {['overview', 'orders', 'inventory', 'delivery', 'profile'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '12px 24px',
-                backgroundColor: activeTab === tab ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                color: activeTab === tab ? '#818cf8' : '#94a3b8',
-                border: activeTab === tab ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid transparent',
-                borderRadius: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                textTransform: 'capitalize'
-              }}
-            >
-              {tab === 'delivery' ? 'Delivery Dispatch' : tab === 'profile' ? 'Profile Details' : tab}
-            </button>
-          ))}
-        </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '100px', color: '#94a3b8' }}>Loading Pharmacy Data...</div>
+          <div style={{ textAlign: 'center', padding: '100px', color: '#64748b' }}>Loading Pharmacy Data...</div>
         ) : (
           <>
             {/* OVERVIEW TAB */}
@@ -260,38 +217,38 @@ export default function PharmacyDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
                 <div
                   onClick={() => setActiveTab('orders')}
-                  style={{ background: 'rgba(30,41,59,0.5)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "rgba(30,41,59,0.8)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(30,41,59,0.5)"; }}
+                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.2)"; e.currentTarget.style.background = "#ffffff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
                 >
-                  <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px' }}>Active Orders</div>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f8fafc' }}>{orders.filter(o => o.status !== 'delivered').length}</div>
+                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Active Orders</div>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#0f172a' }}>{orders.filter(o => o.status !== 'delivered').length}</div>
                 </div>
                 <div
                   onClick={() => setActiveTab('orders')}
-                  style={{ background: 'rgba(30,41,59,0.5)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(245, 158, 11, 0.1)"; e.currentTarget.style.background = "rgba(30,41,59,0.8)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(30,41,59,0.5)"; }}
+                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(245, 158, 11, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
                 >
-                  <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px' }}>To Pack</div>
+                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>To Pack</div>
                   <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f59e0b' }}>{orders.filter(o => o.status === 'confirmed').length}</div>
                 </div>
                 <div
                   onClick={() => setActiveTab('inventory')}
-                  style={{ background: 'rgba(30,41,59,0.5)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(139, 92, 246, 0.1)"; e.currentTarget.style.background = "rgba(30,41,59,0.8)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(30,41,59,0.5)"; }}
+                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(139, 92, 246, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
                 >
-                  <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px' }}>Inventory Items</div>
+                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Inventory Items</div>
                   <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#8b5cf6' }}>{inventory.length}</div>
                 </div>
                 <div
                   onClick={() => setActiveTab('orders')}
-                  style={{ background: 'rgba(30,41,59,0.5)', padding: '24px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'all 0.2s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(56, 189, 248, 0.1)"; e.currentTarget.style.background = "rgba(30,41,59,0.8)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(30,41,59,0.5)"; }}
+                  style={{ background: '#ffffff', padding: '24px', borderRadius: '20px', border: '1px solid #0f172a', cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 10px 25px rgba(56, 189, 248, 0.1)"; e.currentTarget.style.background = "#ffffff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "#ffffff"; }}
                 >
-                  <div style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '10px' }}>Out for Delivery</div>
+                  <div style={{ color: '#64748b', fontSize: '14px', marginBottom: '10px' }}>Out for Delivery</div>
                   <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#38bdf8' }}>{orders.filter(o => o.status === 'out_for_delivery').length}</div>
                 </div>
               </div>
@@ -299,15 +256,15 @@ export default function PharmacyDashboard() {
 
             {/* ORDERS TAB */}
             {activeTab === 'orders' && (
-              <div style={{ background: 'rgba(30,41,59,0.5)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+              <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead style={{ background: 'rgba(15,23,42,0.8)' }}>
+                  <thead style={{ background: '#0f172a' }}>
                     <tr>
-                      <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Order ID</th>
-                      <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Medicines</th>
-                      <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Prescription</th>
-                      <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Status</th>
-                      <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Action</th>
+                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Order ID</th>
+                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Medicines</th>
+                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Prescription</th>
+                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Status</th>
+                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -315,15 +272,15 @@ export default function PharmacyDashboard() {
                       <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No active orders</td></tr>
                     )}
                     {orders.map((o) => (
-                      <tr key={o.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <tr key={o.id} style={{ borderBottom: '1px solid #0f172a' }}>
                         <td style={{ padding: '20px' }}>
                           <div style={{ fontWeight: '600', color: '#e2e8f0' }}>#{o.id.substring(0, 8).toUpperCase()}</div>
                           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{new Date(o.created_at).toLocaleTimeString()}</div>
                         </td>
-                        <td style={{ padding: '20px', color: '#cbd5e1' }}>
+                        <td style={{ padding: '20px', color: '#475569' }}>
                           <ul style={{ margin: 0, paddingLeft: '20px' }}>
                             {o.medicines_list?.map((m: any, idx: number) => (
-                              <li key={idx}>{m.name} <span style={{ color: '#94a3b8' }}>x{m.quantity}</span></li>
+                              <li key={idx}>{m.name} <span style={{ color: '#64748b' }}>x{m.quantity}</span></li>
                             ))}
                           </ul>
                         </td>
@@ -362,9 +319,9 @@ export default function PharmacyDashboard() {
             {/* INVENTORY TAB */}
             {activeTab === 'inventory' && (
               <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-                <div style={{ flex: '1', background: 'rgba(30,41,59,0.5)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', padding: '24px' }}>
+                <div style={{ flex: '1', background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', padding: '24px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ fontSize: '20px', margin: 0, color: '#f8fafc' }}>Add Medicine</h2>
+                    <h2 style={{ fontSize: '20px', margin: 0, color: '#0f172a' }}>Add Medicine</h2>
                     <button
                       onClick={() => setShowCsvModal(true)}
                       style={{
@@ -386,13 +343,13 @@ export default function PharmacyDashboard() {
                   </div>
 
                   <form onSubmit={handleAddInventory} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <input type="text" placeholder="Medicine Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} required style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                    <input type="text" placeholder="Description/Dosage" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} style={{ background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', color: '#fff' }} />
+                    <input type="text" placeholder="Medicine Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} required style={{ background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
+                    <input type="text" placeholder="Description/Dosage" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} style={{ background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
                     <div style={{ display: 'flex', gap: '15px' }}>
-                      <input type="number" placeholder="Price (₹)" value={newItem.price || ''} onChange={e => setNewItem({ ...newItem, price: parseFloat(e.target.value) })} required style={{ flex: 1, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                      <input type="number" placeholder="Stock Qty" value={newItem.stock_quantity || ''} onChange={e => setNewItem({ ...newItem, stock_quantity: parseInt(e.target.value) })} required style={{ flex: 1, background: 'rgba(15,23,42,0.5)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', color: '#fff' }} />
+                      <input type="number" placeholder="Price (₹)" value={newItem.price || ''} onChange={e => setNewItem({ ...newItem, price: parseFloat(e.target.value) })} required style={{ flex: 1, background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
+                      <input type="number" placeholder="Stock Qty" value={newItem.stock_quantity || ''} onChange={e => setNewItem({ ...newItem, stock_quantity: parseInt(e.target.value) })} required style={{ flex: 1, background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#cbd5e1' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#475569' }}>
                       <input type="checkbox" checked={newItem.is_prescription_required} onChange={e => setNewItem({ ...newItem, is_prescription_required: e.target.checked })} />
                       Prescription Required
                     </label>
@@ -400,19 +357,19 @@ export default function PharmacyDashboard() {
                   </form>
                 </div>
 
-                <div style={{ flex: '2', background: 'rgba(30,41,59,0.5)', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                <div style={{ flex: '2', background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ background: 'rgba(15,23,42,0.8)' }}>
+                    <thead style={{ background: '#0f172a' }}>
                       <tr>
-                        <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Name</th>
-                        <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Price</th>
-                        <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Stock</th>
-                        <th style={{ padding: '20px', color: '#94a3b8', fontWeight: '500' }}>Action</th>
+                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Name</th>
+                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Price</th>
+                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Stock</th>
+                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {inventory.map(item => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <tr key={item.id} style={{ borderBottom: '1px solid #0f172a' }}>
                           <td style={{ padding: '20px' }}>
                             <div style={{ color: '#e2e8f0', fontWeight: '600' }}>{item.name}</div>
                             {item.is_prescription_required && <span style={{ fontSize: '10px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', display: 'inline-block' }}>Rx Required</span>}
@@ -456,13 +413,13 @@ export default function PharmacyDashboard() {
           }}>
             <div style={{
               backgroundColor: "#1e293b", borderRadius: 20, padding: 30,
-              width: "100%", maxWidth: 600, border: "1px solid rgba(255,255,255,0.1)",
-              color: "#f8fafc", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
+              width: "100%", maxWidth: 600, border: "1px solid #e2e8f0",
+              color: "#0f172a", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
             }}>
               <h3 style={{ margin: "0 0 10px", fontSize: "1.3rem", color: "#60a5fa" }}>
                 📥 Batch Import Medicine SKUs (CSV)
               </h3>
-              <p style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: 16 }}>
+              <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>
                 Paste CSV data below or enter comma-separated lines. Columns: <br />
                 <code style={{ background: "#0f172a", padding: "4px 8px", borderRadius: 4, color: "#38bdf8", fontSize: "0.8rem" }}>
                   Name, Description, Price, Stock, Category, RxRequired(true/false)
@@ -476,7 +433,7 @@ export default function PharmacyDashboard() {
                 onChange={(e) => setCsvText(e.target.value)}
                 style={{
                   width: "100%", padding: "14px", borderRadius: 10,
-                  backgroundColor: "#0f172a", border: "1px solid rgba(255,255,255,0.1)",
+                  backgroundColor: "#0f172a", border: "1px solid #e2e8f0",
                   color: "#e2e8f0", fontFamily: "monospace", fontSize: "0.85rem", marginBottom: 16
                 }}
               />
@@ -484,7 +441,7 @@ export default function PharmacyDashboard() {
               <div style={{ display: "flex", gap: 12 }}>
                 <button
                   onClick={() => setShowCsvModal(false)}
-                  style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#94a3b8", cursor: "pointer", fontWeight: 600 }}
+                  style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#64748b", cursor: "pointer", fontWeight: 600 }}
                 >
                   Cancel
                 </button>
@@ -512,7 +469,7 @@ export default function PharmacyDashboard() {
               width: "100%", maxWidth: 420, color: "#1e293b", fontFamily: "monospace",
               boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
             }}>
-              <div style={{ textAlign: "center", borderBottom: "2px dashed #94a3b8", paddingBottom: 16, marginBottom: 16 }}>
+              <div style={{ textAlign: "center", borderBottom: "2px dashed #64748b", paddingBottom: 16, marginBottom: 16 }}>
                 <h2 style={{ margin: "0 0 4px", fontSize: "1.2rem", fontWeight: 900 }}>💊 CALLMEDEX PHARMACY</h2>
                 <div style={{ fontSize: "0.75rem", color: "#475569" }}>Licensed Medical Counter & Dark Store</div>
                 <div style={{ fontSize: "0.75rem", color: "#475569" }}>GSTIN: 37AAACC1208D1Z2 · Reg No: AP/VZG/2026/982</div>
@@ -527,7 +484,7 @@ export default function PharmacyDashboard() {
 
               <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse", marginBottom: 16 }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #cbd5e1", textAlign: "left" }}>
+                  <tr style={{ borderBottom: "1px solid #475569", textAlign: "left" }}>
                     <th style={{ padding: "4px 0" }}>Item</th>
                     <th style={{ padding: "4px 0", textAlign: "center" }}>Qty</th>
                     <th style={{ padding: "4px 0", textAlign: "right" }}>Price</th>
@@ -544,7 +501,7 @@ export default function PharmacyDashboard() {
                 </tbody>
               </table>
 
-              <div style={{ borderTop: "2px dashed #94a3b8", paddingTop: 12, marginBottom: 20, fontSize: "0.85rem" }}>
+              <div style={{ borderTop: "2px dashed #64748b", paddingTop: 12, marginBottom: 20, fontSize: "0.85rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span>Subtotal:</span>
                   <span>₹240.00</span>
@@ -553,7 +510,7 @@ export default function PharmacyDashboard() {
                   <span>CGST (6%) + SGST (6%):</span>
                   <span>₹28.80</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: "1rem", color: "#0f172a", marginTop: 8, borderTop: "1px solid #cbd5e1", paddingTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: "1rem", color: "#0f172a", marginTop: 8, borderTop: "1px solid #475569", paddingTop: 8 }}>
                   <span>GRAND TOTAL:</span>
                   <span>₹268.80</span>
                 </div>
@@ -562,7 +519,7 @@ export default function PharmacyDashboard() {
               <div style={{ display: "flex", gap: 10 }}>
                 <button
                   onClick={() => setShowInvoiceModal(false)}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f1f5f9", cursor: "pointer", fontWeight: 700 }}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #475569", background: "#f1f5f9", cursor: "pointer", fontWeight: 700 }}
                 >
                   Close
                 </button>
@@ -576,8 +533,7 @@ export default function PharmacyDashboard() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DashboardShell>
   );
 }
 
