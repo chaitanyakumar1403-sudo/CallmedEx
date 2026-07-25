@@ -670,8 +670,8 @@ export default function OrganizationDashboard() {
               </div>
 
               {/* Ledger Summary Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 20 }}>
-                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 20 }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Total Gross Revenue</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "white", marginTop: 4 }}>
                     ₹{(orgStats?.total_revenue ?? 0).toFixed(2)}
@@ -679,7 +679,7 @@ export default function OrganizationDashboard() {
                   <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>Gross patient payments</div>
                 </div>
 
-                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Net Diagnostic Payout (85%)</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#4ade80", marginTop: 4 }}>
                     ₹{((orgStats?.total_revenue ?? 0) * 0.85).toFixed(2)}
@@ -687,7 +687,7 @@ export default function OrganizationDashboard() {
                   <div style={{ fontSize: "0.7rem", color: "#86efac", marginTop: 2 }}>Direct bank transfer share</div>
                 </div>
 
-                <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 16 }}>
+                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Platform Tech Commission (15%)</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#f472b6", marginTop: 4 }}>
                     ₹{((orgStats?.total_revenue ?? 0) * 0.15).toFixed(2)}
