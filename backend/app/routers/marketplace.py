@@ -69,6 +69,41 @@ async def find_offers(
     return {"success": True, **result}
 
 
+@router.get("/fulfilment")
+async def find_fulfilment(
+    catalog_id: Optional[str] = None,
+    q: Optional[str] = None,
+    city: Optional[str] = None,
+    home: bool = False,
+    urgent: bool = False,
+):
+    """
+    One CallMedex fulfilment option for a test — partner-blind by design.
+
+    A blood test booked through CallMedex is between CallMedex and the
+    patient only. Which partner centre actually fulfils it is an internal
+    allocation, recorded on the booking so dispatch/samples/settlement keep
+    working, but never surfaced here — no partner name, id, rating or
+    address. `partner_count` is the one coverage signal that is safe to show
+    ("3 partner labs in your area") because it does not identify anyone.
+
+    Returns test=None, fulfilment=None when nothing covers the search, so the
+    frontend can say so honestly rather than inventing a price.
+    """
+    if not catalog_id and not q:
+        return {"success": True, "test": None, "fulfilment": None}
+
+    result = MarketplaceService.select_fulfilment(
+        catalog_id=catalog_id, query=q, city=city, home=home, urgent=urgent,
+    )
+    if not result:
+        return {"success": True, "test": None, "fulfilment": None}
+
+    # Built explicitly, never spread — result also carries an internal
+    # provider_user_id that must not reach the patient.
+    return {"success": True, "test": result["test"], "fulfilment": result["fulfilment"]}
+
+
 @router.get("/offers/featured")
 async def featured_offers(
     city: Optional[str] = None,

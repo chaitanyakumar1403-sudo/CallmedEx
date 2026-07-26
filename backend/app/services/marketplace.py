@@ -409,6 +409,77 @@ class MarketplaceService:
             "urgent": urgent,
         }
 
+    # ── Fulfilment (partner-blind) ───────────────────────────────────────
+
+    @staticmethod
+    def select_fulfilment(
+        catalog_id: Optional[str] = None,
+        query: Optional[str] = None,
+        city: Optional[str] = None,
+        home: bool = False,
+        urgent: bool = False,
+    ) -> Optional[dict]:
+        """
+        One CallMedex fulfilment option for a test — never a list of partners.
+
+        Blood tests are between CallMedex and the patient only; which partner
+        centre CallMedex routes the sample to internally is never shown (see
+        CLAUDE.md — partner-blind diagnostics booking is the core positioning).
+        This reuses `find_offers`' matching/pricing/verification and then
+        picks internally: home-capable partners first when home collection
+        was requested, then lowest patient price, then rating, then fastest
+        turnaround.
+
+        `walk_in_required` reflects whether ANY verified partner in this city
+        can do the test at home — not just the one selected — because that is
+        the honest answer to "can I avoid a walk-in visit here at all",
+        independent of which specific partner ends up winning this booking.
+
+        Returns None when no verified partner covers the test/city at all, so
+        the caller can say so honestly rather than fabricating an allocation.
+        """
+        result = MarketplaceService.find_offers(
+            catalog_id=catalog_id, query=query, city=city,
+            home_only=False, urgent=urgent, limit=200,
+        )
+        test = result.get("test")
+        offers = result.get("offers") or []
+        if not test or not offers:
+            return None
+
+        partner_count = len({o["provider_user_id"] for o in offers})
+        home_capable = [o for o in offers if o.get("home_available")]
+        walk_in_required = len(home_capable) == 0
+
+        candidates = home_capable if (home and home_capable) else offers
+        chosen = sorted(
+            candidates,
+            key=lambda o: (o["payable"], -o["rating"], o.get("turnaround_hours") or 9999),
+        )[0]
+
+        return {
+            "test": {
+                "id": test.get("id"),
+                "name": test.get("name"),
+                "preparation": test.get("preparation") or "",
+                "turnaround_hours": test.get("typical_turnaround_hours"),
+            },
+            "fulfilment": {
+                "price": chosen["price"],
+                "mrp": chosen["mrp"],
+                "savings": chosen["savings"],
+                "home_available": bool(chosen.get("home_available")),
+                "walk_in_required": walk_in_required,
+                "urgent_available": bool(chosen.get("urgent_available")),
+                "urgent_surcharge": chosen.get("urgent_surcharge", 0.0),
+                "partner_count": partner_count,
+            },
+            # Internal only. The bookings router uses this to resolve
+            # provider_id server-side; nothing else may read this key, and it
+            # must never be spread into a response the patient can see.
+            "provider_user_id": chosen["provider_user_id"],
+        }
+
     # ── Offers feed ───────────────────────────────────────────────────────
 
     @staticmethod

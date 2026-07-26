@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import LocationPicker from "../../../components/LocationPicker";
@@ -60,6 +60,7 @@ function BookingPageContent() {
   const orgParam = searchParams.get("org");
   const serviceParam = searchParams.get("service");
   const packageParam = searchParams.get("package");
+  const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
@@ -89,6 +90,15 @@ function BookingPageContent() {
   // On-demand dispatch fields
   const [dispatchAddress, setDispatchAddress] = useState("");
 
+  // Lab flow (partner-blind): the patient's city, used only to let CallMedex
+  // allocate the nearest covering partner server-side — never to let the
+  // patient pick a centre. deepLinkedTest is the single test carried over
+  // from the diagnostics fulfilment card via ?service=<catalog_id>.
+  const [labCity, setLabCity] = useState("");
+  const [deepLinkedTest, setDeepLinkedTest] = useState<any>(null);
+  const [deepLinkedLoading, setDeepLinkedLoading] = useState(false);
+  const [deepLinkedChecked, setDeepLinkedChecked] = useState(false);
+
   // Multi-test toggle helper
   const toggleTest = (test: any) => {
     setSelectedTests((prev) => {
@@ -102,9 +112,52 @@ function BookingPageContent() {
   // Multi-test total price
   const multiTestTotal = selectedTests.reduce((sum, t) => sum + (t.price || 0), 0);
 
+  // Resolve the single test the patient already saw priced on /diagnostics.
+  // This is display-only — which partner actually fulfils it is resolved
+  // again, server-side, at booking time (see handleConfirm); the patient
+  // never picks or sees a centre here either.
+  const fetchDeepLinkedTest = useCallback(() => {
+    if (!serviceParam) return;
+    setDeepLinkedLoading(true);
+    const url = new URL(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/marketplace/fulfilment`);
+    url.searchParams.set("catalog_id", serviceParam);
+    if (labCity.trim()) url.searchParams.set("city", labCity.trim());
+    url.searchParams.set("home", modeParam === "home" ? "true" : "false");
+
+    fetch(url.toString())
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.test && data.fulfilment) {
+          const test = {
+            name: data.test.name,
+            price: data.fulfilment.price,
+            description: data.test.preparation || "",
+            catalog_id: serviceParam,
+            walk_in_required: data.fulfilment.walk_in_required,
+          };
+          setDeepLinkedTest(test);
+          setSelectedTests((prev) => (prev.some((t) => t.name === test.name) ? prev : [...prev, test]));
+        } else {
+          setDeepLinkedTest(null);
+        }
+      })
+      .catch(() => setDeepLinkedTest(null))
+      .finally(() => {
+        setDeepLinkedLoading(false);
+        setDeepLinkedChecked(true);
+      });
+  }, [serviceParam, labCity, modeParam]);
+
+  useEffect(() => {
+    if (step === 2 && bookingType === "lab" && serviceParam && !deepLinkedChecked) {
+      fetchDeepLinkedTest();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, bookingType, serviceParam, deepLinkedChecked]);
+
   // Pre-select booking type & organization from URL params
   useEffect(() => {
-    const targetType = typeParam || (orgParam ? "lab" : "");
+    const targetType = typeParam || (orgParam ? "lab" : serviceParam ? "lab" : "");
     if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];
       if (validTypes.includes(targetType)) {
@@ -113,20 +166,24 @@ function BookingPageContent() {
           setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Provider" });
           setStep(3);
         } else {
+          // Lab/diagnostics is partner-blind: there is no centre step to land
+          // on, so this goes straight to "Choose Tests" at step 2.
           setStep(2);
         }
       }
     }
-  }, [typeParam, orgParam, bookingType]);
+  }, [typeParam, orgParam, serviceParam, bookingType]);
 
-  // Fetch real registered organizations or doctors when step === 2
+  // Fetch real registered organizations or doctors when step === 2.
+  // Lab/diagnostics no longer has a centre-selection step (partner-blind —
+  // CallMedex allocates a centre server-side, never shown to the patient),
+  // so only the doctor/clinic flow fetches organizations here.
   useEffect(() => {
     if (step === 2) {
       setFetchingOrgs(true);
-      if (bookingType === "doctor" || bookingType === "lab") {
-        const orgTypeFilter = bookingType === "lab" ? "diagnostic_center" : "";
-        const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations${orgTypeFilter ? `?org_type=${orgTypeFilter}` : ""}`;
-        
+      if (bookingType === "doctor") {
+        const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations`;
+
         fetch(url)
           .then((r) => r.json())
           .then((data) => {
@@ -306,6 +363,18 @@ function BookingPageContent() {
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
           total_price: selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0,
           preferred_date: selectedDate,
+          // Lab is partner-blind: no centre was chosen (providerId is ""), so
+          // the backend resolves the allocation itself from these. catalog_id
+          // covers the test carried over from /diagnostics; query is a
+          // name-match fallback for tests picked from the generic list below.
+          ...(bookingType === "lab"
+            ? {
+                catalog_id: deepLinkedTest?.catalog_id || undefined,
+                query: !deepLinkedTest?.catalog_id ? selectedTests[0]?.name : undefined,
+                city: labCity.trim() || undefined,
+                home: false,
+              }
+            : {}),
         }),
       });
 
@@ -455,7 +524,10 @@ function BookingPageContent() {
     if (isOnDemand) return ["Select Service", "Choose Item", "Enter Address"];
     if (bookingType === "video_consult") return ["Select Service", "Choose Doctor", "Date & Time"];
     if (bookingType === "doctor") return ["Select Service", "Find Provider", "Choose Doctor", "Date & Time"];
-    if (bookingType === "lab") return ["Select Service", "Find Center", "Choose Tests", "Select Preferred Date"];
+    // Partner-blind: no centre-selection step. CallMedex allocates the
+    // fulfilling partner server-side; the patient only ever picks tests and a
+    // preferred date.
+    if (bookingType === "lab") return ["Select Service", "Choose Tests", "Select Preferred Date"];
     return [];
   };
   const currentStepIdx = step === 10 ? -1 : isOnDemand ? (step <= 2 ? step - 1 : 2) : Math.min(step - 1, getSteps().length - 1);
@@ -523,7 +595,7 @@ function BookingPageContent() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
               {[
                 { key: "doctor", icon: "🩺", label: "Doctor Appointment", desc: "Clinic, Polyclinic or Hospital OPD Visit" },
-                { key: "lab", icon: "🧪", label: "Lab Test / Diagnostics", desc: "Visit registered Diagnostic Center for blood/imaging tests" },
+                { key: "lab", icon: "🧪", label: "Lab Test / Diagnostics", desc: "Book with CallMedex — we allocate the nearest partner centre for tests that need a visit" },
                 { key: "home_doctor", icon: "🏠", label: "Doctor Home Visit", desc: "Verified doctor arrives at your doorstep" },
                 { key: "home_collection", icon: "🩸", label: "Home Sample Collection", desc: "Phlebotomist collects blood samples at home" },
                 { key: "video_consult", icon: "📹", label: "Instant Video Consult", desc: "Consult top doctor online via live video room" },
@@ -558,17 +630,19 @@ function BookingPageContent() {
           </div>
         )}
 
-        {/* ─── STEP 2 (Doctor & Lab flow): Search Registered Organizations ─── */}
-        {step === 2 && (bookingType === "doctor" || bookingType === "lab") && (
+        {/* ─── STEP 2 (Doctor flow only): Search Registered Organizations ───
+             Lab/diagnostics is partner-blind and has no centre-selection step
+             — see the "Choose Tests" block below, which is lab's step 2. ─── */}
+        {step === 2 && bookingType === "doctor" && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
-              {bookingType === "lab" ? "Select Registered Diagnostic Center" : "Find a Clinic, Polyclinic or Hospital"}
+              Find a Clinic, Polyclinic or Hospital
             </h3>
 
             {/* Search filter input */}
             <input
               type="text"
-              placeholder={bookingType === "lab" ? "Search registered diagnostic centers by name or city..." : "Search registered hospitals or clinics..."}
+              placeholder="Search registered hospitals or clinics..."
               className="input-field"
               style={{ marginBottom: 20, width: "100%" }}
               value={searchQuery}
@@ -799,71 +873,108 @@ function BookingPageContent() {
           </div>
         )}
 
-        {/* ─── STEP 3 (lab flow): Select Tests/Packages from Selected Registered Diagnostic Center ─── */}
-        {step === 3 && bookingType === "lab" && selectedOrg && (
+        {/* ─── STEP 2 (Lab flow): Choose Tests — partner-blind ───
+             No centre is chosen here or anywhere in this flow. CallMedex
+             allocates the fulfilling partner server-side at booking time
+             (see handleConfirm); the patient only ever sees the test and the
+             price they already saw on /diagnostics. ─── */}
+        {step === 2 && bookingType === "lab" && (
           <div className="card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>
-              Select Tests at {selectedOrg.organization_name || selectedOrg.name}
-            </h3>
-            <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>✅ Select multiple tests or health panels — click to add or remove</p>
+            <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>Choose Your Tests</h3>
+            <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
+              Booked with CallMedex — we allocate the right centre internally. Select one or more tests or health panels.
+            </p>
 
-            {selectedOrg.packages && selectedOrg.packages.length > 0 && (
-              <>
-                <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-                  {selectedOrg.packages.map((pkg: any, i: number) => {
-                    const isSelected = selectedTests.some((t) => t.name === pkg.name);
-                    return (
-                      <div
-                        key={i}
-                        style={{
-                          padding: 14,
-                          cursor: "pointer",
-                          borderRadius: 10,
-                          border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
-                          backgroundColor: isSelected ? "#faf5ff" : "white",
-                          transition: "all 0.2s",
-                        }}
-                        onClick={() => toggleTest(pkg)}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                            <div
-                              style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 4,
-                                border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
-                                backgroundColor: isSelected ? "#805ad5" : "white",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: "0.75rem",
-                                color: "white",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {isSelected ? "✓" : ""}
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
-                              <div style={{ fontSize: "0.72rem", color: "#718096" }}>
-                                {Array.isArray(pkg.tests) ? pkg.tests.join(", ") : pkg.description || "Comprehensive Panel"}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price}</div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
+                Your city
+              </label>
+              <input
+                type="text"
+                className="input-field"
+                style={{ width: "100%" }}
+                placeholder="e.g. Visakhapatnam — helps us allocate the nearest partner centre"
+                value={labCity}
+                onChange={(e) => setLabCity(e.target.value)}
+                onBlur={() => serviceParam && fetchDeepLinkedTest()}
+              />
+            </div>
+
+            {serviceParam && (
+              <div style={{ marginBottom: 20 }}>
+                {deepLinkedLoading ? (
+                  <p style={{ color: "#64748b", fontSize: "0.85rem" }}>Checking availability…</p>
+                ) : deepLinkedTest ? (
+                  <div style={{ padding: 14, borderRadius: 10, border: "2px solid #0284c7", backgroundColor: "#f0f9ff" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#0f172a" }}>{deepLinkedTest.name}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#0284c7" }}>
+                          {deepLinkedTest.walk_in_required ? "Walk-in — centre confirmed after booking" : "Home collection available"}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </>
+                      <div style={{ fontWeight: 700, color: "#059669" }}>₹{deepLinkedTest.price}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>
+                    No CallMedex partner currently covers this test in your area yet — pick another below.
+                  </p>
+                )}
+              </div>
             )}
+
+            <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+              {DEFAULT_DIAGNOSTIC_PACKAGES.map((pkg, i) => {
+                const isSelected = selectedTests.some((t) => t.name === pkg.name);
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      padding: 14,
+                      cursor: "pointer",
+                      borderRadius: 10,
+                      border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
+                      backgroundColor: isSelected ? "#faf5ff" : "white",
+                      transition: "all 0.2s",
+                    }}
+                    onClick={() => toggleTest(pkg)}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 4,
+                            border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
+                            backgroundColor: isSelected ? "#805ad5" : "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.75rem",
+                            color: "white",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {isSelected ? "✓" : ""}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
+                          <div style={{ fontSize: "0.72rem", color: "#718096" }}>{pkg.tests.join(", ")}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>🔬 Individual Lab Tests</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {(selectedOrg.tests || DEFAULT_DIAGNOSTIC_TESTS).map((test: any, i: number) => {
+              {DEFAULT_DIAGNOSTIC_TESTS.map((test, i) => {
                 const isSelected = selectedTests.some((t) => t.name === test.name);
                 return (
                   <div
@@ -926,7 +1037,7 @@ function BookingPageContent() {
             )}
 
             <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn btn-secondary" onClick={() => { setStep(2); setSelectedTests([]); }}>← Back</button>
+              <button className="btn btn-secondary" onClick={() => { setStep(1); setSelectedTests([]); }}>← Back</button>
               <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={selectedTests.length === 0} onClick={() => setStep(4)}>
                 Select Preferred Date →
               </button>
@@ -1157,7 +1268,9 @@ function BookingPageContent() {
             )}
 
             <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn btn-secondary" onClick={() => setStep(3)}>← Back</button>
+              {/* Lab's step 2 is "Choose Tests" (no centre step); every other
+                  flow that reaches this date step still has a step 3. */}
+              <button className="btn btn-secondary" onClick={() => setStep(bookingType === "lab" ? 2 : 3)}>← Back</button>
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}
@@ -1219,6 +1332,17 @@ function BookingPageContent() {
               </div>
             </div>
 
+            {/* Walk-in lab booking: the centre is revealed here, on the
+                confirmed booking, never during test selection — the patient
+                books CallMedex, not a named lab. */}
+            {bookingResult.allocated_centre && (
+              <div style={{ backgroundColor: "#fff7ed", padding: 16, borderRadius: 12, border: "1px solid #fed7aa", textAlign: "left", marginBottom: 24 }}>
+                <div style={{ fontWeight: 700, color: "#9a3412", marginBottom: 4 }}>📍 Visit this CallMedex partner centre</div>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>{bookingResult.allocated_centre.name}</div>
+                <div style={{ color: "#64748b", fontSize: "0.85rem" }}>{bookingResult.allocated_centre.address}</div>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <a href="/dashboard/patient" className="btn btn-primary" style={{ borderRadius: 10, backgroundColor: "#0284c7" }}>
                 Go to Patient Dashboard
@@ -1236,6 +1360,9 @@ function BookingPageContent() {
                   setSelectedDate("");
                   setSelectedSlot("");
                   setError("");
+                  setLabCity("");
+                  setDeepLinkedTest(null);
+                  setDeepLinkedChecked(false);
                 }}
               >
                 Book Another

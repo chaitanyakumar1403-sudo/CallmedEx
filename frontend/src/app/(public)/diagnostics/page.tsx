@@ -1,16 +1,20 @@
 "use client";
 
 /**
- * Diagnostics — test-first marketplace.
+ * Diagnostics — test-first, partner-blind marketplace.
  *
  * The patient searches for a TEST, not a centre. Someone who needs an MRI does
  * not know or care which lab they end up at; they care what it costs, how far
- * it is and when they can be seen. Every offer shows the partner's own MRP
- * struck through against the CallMedex price, so the saving is a number the
- * patient can verify rather than a claim.
+ * it is and when they can be seen.
  *
- * Replaces the previous hardcoded array of twelve tests with fixed prices,
- * which was backed by no partner and could not actually be booked.
+ * A blood test booked here is between CallMedex and the patient only.
+ * CallMedex links to partner centres internally to fulfil it, but that
+ * partner is never named, rated or compared on this screen — only the
+ * CallMedex price, the real saving against MRP, and whether the test is
+ * home-serviceable or requires a walk-in visit (see CLAUDE.md, "partner-blind
+ * diagnostics booking"). The allocated centre is still recorded on the
+ * booking server-side so dispatch/samples/settlement work unchanged; it is
+ * only ever revealed to the patient once a walk-in booking is confirmed.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -29,22 +33,18 @@ type Test = {
   sub_category?: string;
 };
 
-type Offer = {
-  service_id: string;
-  service_name: string;
-  provider_user_id: string;
-  provider_name: string;
-  city: string;
-  rating: number;
-  mrp: number;
+// The ONE CallMedex fulfilment option for the selected test. Never a list of
+// partners — no provider name, id, rating or address. `partner_count` is the
+// one coverage signal that's safe to show, because it doesn't identify anyone.
+type Fulfilment = {
   price: number;
+  mrp: number;
   savings: number;
-  discount_pct: number;
-  urgent_surcharge: number;
-  payable: number;
   home_available: boolean;
+  walk_in_required: boolean;
   urgent_available: boolean;
-  turnaround_hours?: number | null;
+  urgent_surcharge: number;
+  partner_count: number;
 };
 
 const CATEGORIES = [
@@ -74,8 +74,8 @@ export default function DiagnosticsPage() {
   const [popular, setPopular] = useState<Test[]>([]);
   const [selected, setSelected] = useState<Test | null>(null);
 
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [loadingOffers, setLoadingOffers] = useState(false);
+  const [fulfilment, setFulfilment] = useState<Fulfilment | null>(null);
+  const [loadingFulfilment, setLoadingFulfilment] = useState(false);
   const [city, setCity] = useState("");
   const [homeOnly, setHomeOnly] = useState(false);
   const [urgent, setUrgent] = useState(false);
@@ -122,23 +122,23 @@ export default function DiagnosticsPage() {
       .finally(() => setLoadingBrowse(false));
   }, [category]);
 
-  const loadOffers = useCallback(
+  const loadFulfilment = useCallback(
     async (test: Test) => {
-      setLoadingOffers(true);
+      setLoadingFulfilment(true);
       try {
-        const url = new URL(`${API}/api/marketplace/offers`);
+        const url = new URL(`${API}/api/marketplace/fulfilment`);
         url.searchParams.set("catalog_id", test.id);
         if (city.trim()) url.searchParams.set("city", city.trim());
-        if (homeOnly) url.searchParams.set("home_only", "true");
+        if (homeOnly) url.searchParams.set("home", "true");
         if (urgent) url.searchParams.set("urgent", "true");
 
         const res = await fetch(url.toString());
         const data = await res.json();
-        setOffers(data.offers || []);
+        setFulfilment(data.fulfilment || null);
       } catch {
-        setOffers([]);
+        setFulfilment(null);
       } finally {
-        setLoadingOffers(false);
+        setLoadingFulfilment(false);
       }
     },
     [city, homeOnly, urgent]
@@ -148,13 +148,13 @@ export default function DiagnosticsPage() {
     setSelected(test);
     setSuggestions([]);
     setQuery(test.name);
-    loadOffers(test);
+    loadFulfilment(test);
   }
 
   // Re-price when a filter changes, so toggling "urgent" updates the numbers in
   // place rather than making the patient search again.
   useEffect(() => {
-    if (selected) loadOffers(selected);
+    if (selected) loadFulfilment(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOnly, urgent]);
 
@@ -164,8 +164,9 @@ export default function DiagnosticsPage() {
         <div className="section-title">
           <h1>Book a test, treatment or therapy</h1>
           <p>
-            Search across lab tests, imaging, dental and physiotherapy. Compare
-            verified partner centres and pay the CallMedex rate, not the walk-in price.
+            Search across lab tests, imaging, dental and physiotherapy. Book at
+            the CallMedex rate — home collection where possible, or we&apos;ll
+            allocate a verified partner centre for tests that need one.
           </p>
         </div>
 
@@ -191,7 +192,7 @@ export default function DiagnosticsPage() {
             <input
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              onBlur={() => selected && loadOffers(selected)}
+              onBlur={() => selected && loadFulfilment(selected)}
               placeholder="City"
               style={{
                 flex: 1,
@@ -383,7 +384,7 @@ export default function DiagnosticsPage() {
                 onClick={() => {
                   setSelected(null);
                   setQuery("");
-                  setOffers([]);
+                  setFulfilment(null);
                 }}
                 style={{
                   background: "none",
@@ -412,100 +413,75 @@ export default function DiagnosticsPage() {
               </div>
             )}
 
-            {loadingOffers ? (
-              <p style={{ textAlign: "center", color: "#64748b" }}>Finding partner centres…</p>
-            ) : offers.length === 0 ? (
+            {loadingFulfilment ? (
+              <p style={{ textAlign: "center", color: "#64748b" }}>Checking availability…</p>
+            ) : !fulfilment ? (
               <div className="card" style={{ padding: 32, textAlign: "center" }}>
                 <p style={{ margin: 0, color: "#64748b" }}>
-                  No verified partner offers this test{city ? ` in ${city}` : ""} yet.
+                  CallMedex doesn&apos;t cover this test{city ? ` in ${city}` : ""} yet.
                 </p>
               </div>
             ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {offers.map((o, idx) => (
-                  <div
-                    key={o.service_id}
-                    className="card"
-                    style={{
-                      padding: 20,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 20,
-                      flexWrap: "wrap",
-                      // The cheapest offer is what most patients came for.
-                      border: idx === 0 ? "2px solid #16a34a" : "1px solid #e2e8f0",
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 220 }}>
-                      {idx === 0 && (
-                        <span
-                          style={{
-                            background: "#dcfce7",
-                            color: "#166534",
-                            padding: "2px 10px",
-                            borderRadius: 999,
-                            fontSize: "0.7rem",
-                            fontWeight: 800,
-                          }}
-                        >
-                          BEST PRICE
-                        </span>
-                      )}
-                      <h4 style={{ margin: "6px 0 2px", fontSize: "1.05rem" }}>
-                        {o.provider_name}
-                      </h4>
-                      <div style={{ fontSize: "0.83rem", color: "#64748b" }}>
-                        {o.service_name}
-                        {o.city ? ` · ${o.city}` : ""} · ⭐ {Number(o.rating).toFixed(1)}
-                      </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                        {o.home_available && <span style={tag}>🏠 Home collection</span>}
-                        {o.turnaround_hours ? (
-                          <span style={tag}>⏱ {o.turnaround_hours}h report</span>
-                        ) : null}
-                        {urgent && o.urgent_available && (
-                          <span style={{ ...tag, background: "#fee2e2", color: "#991b1b" }}>
-                            🔴 Priority
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: "right", minWidth: 170 }}>
-                      {o.savings > 0 && (
-                        <div
-                          style={{
-                            color: "#94a3b8",
-                            textDecoration: "line-through",
-                            fontSize: "0.9rem",
-                          }}
-                        >
-                          {inr(o.mrp)}
-                        </div>
-                      )}
-                      <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a" }}>
-                        {inr(o.price)}
-                      </div>
-                      {o.savings > 0 && (
-                        <div style={{ color: "#16a34a", fontSize: "0.82rem", fontWeight: 700 }}>
-                          You save {inr(o.savings)} ({o.discount_pct}% off)
-                        </div>
-                      )}
-                      {o.urgent_surcharge > 0 && (
-                        <div style={{ color: "#b91c1c", fontSize: "0.8rem", marginTop: 4 }}>
-                          + {inr(o.urgent_surcharge)} priority · pay {inr(o.payable)}
-                        </div>
-                      )}
-                      <a
-                        href={`/booking?provider=${o.provider_user_id}&service=${o.service_id}${urgent ? "&priority=urgent" : ""}`}
-                        className="btn btn-primary"
-                        style={{ marginTop: 10, display: "inline-block" }}
-                      >
-                        Book
-                      </a>
-                    </div>
+              <div className="card" style={{ padding: 24, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <h4 style={{ margin: "0 0 4px", fontSize: "1.05rem" }}>Booked with CallMedex</h4>
+                  <p style={{ margin: 0, fontSize: "0.88rem", color: "#475569", lineHeight: 1.5 }}>
+                    {fulfilment.walk_in_required
+                      ? "This test needs lab equipment. Book a slot and we'll confirm your nearest CallMedex partner centre."
+                      : "Home collection — a CallMedex phlebotomist comes to you."}
+                  </p>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {!fulfilment.walk_in_required && <span style={tag}>🏠 Home collection</span>}
+                    {fulfilment.walk_in_required && <span style={tag}>🏥 Walk-in visit</span>}
+                    {selected.typical_turnaround_hours ? (
+                      <span style={tag}>⏱ {selected.typical_turnaround_hours}h report</span>
+                    ) : null}
+                    {urgent && fulfilment.urgent_available && (
+                      <span style={{ ...tag, background: "#fee2e2", color: "#991b1b" }}>
+                        🔴 Priority
+                      </span>
+                    )}
+                    {fulfilment.partner_count > 0 && (
+                      <span style={tag}>
+                        {fulfilment.partner_count} CallMedex partner{fulfilment.partner_count === 1 ? "" : "s"} in your area
+                      </span>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                <div style={{ textAlign: "right", minWidth: 170 }}>
+                  {fulfilment.savings > 0 && (
+                    <div
+                      style={{
+                        color: "#94a3b8",
+                        textDecoration: "line-through",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {inr(fulfilment.mrp)}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a" }}>
+                    {inr(fulfilment.price)}
+                  </div>
+                  {fulfilment.savings > 0 && (
+                    <div style={{ color: "#16a34a", fontSize: "0.82rem", fontWeight: 700 }}>
+                      You save {inr(fulfilment.savings)}
+                    </div>
+                  )}
+                  {urgent && fulfilment.urgent_surcharge > 0 && (
+                    <div style={{ color: "#b91c1c", fontSize: "0.8rem", marginTop: 4 }}>
+                      + {inr(fulfilment.urgent_surcharge)} priority · pay {inr(fulfilment.price + fulfilment.urgent_surcharge)}
+                    </div>
+                  )}
+                  <a
+                    href={`/booking?service=${selected.id}&mode=${fulfilment.walk_in_required ? "walkin" : "home"}${urgent ? "&priority=urgent" : ""}`}
+                    className="btn btn-primary"
+                    style={{ marginTop: 10, display: "inline-block" }}
+                  >
+                    Book
+                  </a>
+                </div>
               </div>
             )}
           </div>

@@ -27,10 +27,35 @@ test.describe('Booking Workflow E2E', () => {
     await expect(page.getByRole('heading', { name: 'Enter Patient Location for Nurse Home Visit' })).toBeVisible();
   });
 
-  test('should allow multi-selection of tests in diagnostic centers', async ({ page }) => {
-    // The current flow fetches registered organizations and, per-org, their
-    // service catalog from the backend before tests can be selected — mock
-    // both so the multi-select UI is reachable without a live API server.
+  test('should allow multi-selection of tests in the partner-blind lab flow', async ({ page }) => {
+    // Partner-blind diagnostics booking: the lab/diagnostics flow no longer
+    // lets the patient pick a centre (see CLAUDE.md — "partner-blind
+    // diagnostics booking is the product's core positioning"), so there is no
+    // organization-search step to mock here any more. Selecting "Lab Test /
+    // Diagnostics" now goes straight to "Choose Your Tests".
+    await page.goto('http://localhost:3000/booking');
+
+    await page.getByText('Lab Test / Diagnostics', { exact: true }).click();
+
+    await expect(page.getByRole('heading', { name: 'Choose Your Tests' })).toBeVisible();
+    await expect(page.getByText('Select Registered Diagnostic Center')).toHaveCount(0);
+
+    // Tests are selected by clicking the row itself — there is no per-test
+    // "Add" button in the current design. Select two of the default tests and
+    // confirm the running total reflects both.
+    await expect(page.getByText('Complete Blood Count (CBC)', { exact: true })).toBeVisible();
+    await page.getByText('Complete Blood Count (CBC)', { exact: true }).click();
+    await page.getByText('Lipid Profile (Cholesterol)', { exact: true }).click();
+
+    await expect(page.getByText('Selected 2 Item(s)')).toBeVisible();
+    await expect(page.getByText('₹650', { exact: true })).toBeVisible();
+  });
+
+  test('should still show the clinic list for the doctor appointment flow', async ({ page }) => {
+    // The doctor/clinic flow is deliberately partner-visible — the patient
+    // physically attends a named clinic, so it must keep its centre-selection
+    // step. This guards against the lab-flow change above accidentally
+    // removing it.
     await page.route('**/api/providers/search/organizations*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -38,49 +63,19 @@ test.describe('Booking Workflow E2E', () => {
         body: JSON.stringify({
           success: true,
           organizations: [
-            { id: 'org-1', organization_name: 'Test Diagnostic Center', organization_type: 'diagnostic', city: 'Visakhapatnam', doctors_count: 0, services_count: 2 },
+            { id: 'org-1', organization_name: 'Test Clinic', organization_type: 'clinic', city: 'Visakhapatnam', doctors_count: 2, services_count: 0 },
           ],
-        }),
-      });
-    });
-    await page.route('**/api/bookings/org-services/**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          data: {
-            services: [
-              { name: 'Test A', price: 100, description: 'A' },
-              { name: 'Test B', price: 200, description: 'B' },
-            ],
-            packages: [],
-            doctors: [],
-            timings: [],
-          },
         }),
       });
     });
 
     await page.goto('http://localhost:3000/booking');
 
-    // Select "Lab Test / Diagnostics" — the flow that actually routes through
-    // a registered diagnostic center, matching this test's intent.
-    await page.getByText('Lab Test / Diagnostics', { exact: true }).click();
+    await page.getByText('Doctor Appointment', { exact: true }).click();
 
-    // Step 2: pick the (mocked) registered organization, then continue.
-    await expect(page.getByText('Test Diagnostic Center')).toBeVisible();
-    await page.getByText('Test Diagnostic Center').click();
-    await page.getByRole('button', { name: 'Continue to Test / Service Selection →' }).click();
-
-    // Step 3: tests are selected by clicking the row itself — there is no
-    // per-test "Add" button in the current design. Select two tests and
-    // confirm the running total reflects both.
-    await expect(page.getByText('Test A', { exact: true })).toBeVisible();
-    await page.getByText('Test A', { exact: true }).click();
-    await page.getByText('Test B', { exact: true }).click();
-
-    await expect(page.getByText('Selected 2 Item(s)')).toBeVisible();
-    await expect(page.getByText('₹300', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Find a Clinic, Polyclinic or Hospital' })).toBeVisible();
+    await expect(page.getByText('Test Clinic')).toBeVisible();
+    await page.getByText('Test Clinic').click();
+    await expect(page.getByRole('button', { name: 'Continue to Test / Service Selection →' })).toBeEnabled();
   });
 });

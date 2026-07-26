@@ -320,6 +320,16 @@ class BookingCreate(BaseModel):
     selected_tests: Optional[List[str]] = None  # Multi-test selection for diagnostics/home collection
     total_price: Optional[float] = None  # Computed total for multi-test bookings
     preferred_date: Optional[str] = None  # For diagnostic bookings — patient picks date only
+    # Partner-blind diagnostics: the lab/diagnostics flow no longer lets the
+    # patient choose a centre, so it cannot send provider_id. These let the
+    # booking router resolve the allocation itself via MarketplaceService —
+    # catalog_id when the patient came from a specific test search, query as
+    # a name-match fallback for the generic multi-test picker, city/home to
+    # scope the match. All optional: every other booking flow ignores them.
+    catalog_id: Optional[str] = None
+    query: Optional[str] = None
+    city: Optional[str] = None
+    home: Optional[bool] = None
 
 
 class SlotAllotment(BaseModel):

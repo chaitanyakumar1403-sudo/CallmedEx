@@ -301,6 +301,64 @@ def test_offers_without_a_query_return_nothing(fake_db):
     assert MarketplaceService.find_offers()["offers"] == []
 
 
+# ── Fulfilment (partner-blind) ────────────────────────────────────────────
+
+def test_fulfilment_is_home_when_a_partner_can_do_it_at_home(fake_db):
+    """Home-capable coverage means no walk-in is required."""
+    cid = _seed_catalog(fake_db, "CBC", "cbc", [])
+    home_partner = _seed_provider(fake_db, "Home Labs", discount=10)
+    walkin_partner = _seed_provider(fake_db, "Walkin Labs", discount=0)
+    _seed_service(fake_db, home_partner, cid, "CBC", mrp=400, home=True)
+    _seed_service(fake_db, walkin_partner, cid, "CBC", mrp=350, home=False)
+
+    result = MarketplaceService.select_fulfilment(catalog_id=cid, home=True)
+
+    assert result is not None
+    assert result["fulfilment"]["walk_in_required"] is False
+    assert result["fulfilment"]["partner_count"] == 2
+    # Partner-blind: no identifying field anywhere in the public payload.
+    assert "provider_name" not in result["fulfilment"]
+    assert "provider_user_id" not in result["fulfilment"]
+    assert "provider_user_id" in result  # internal-only, used by bookings router
+
+
+def test_fulfilment_requires_walk_in_when_no_partner_offers_home(fake_db):
+    """A lab-only test (e.g. imaging) must honestly say walk-in is unavoidable."""
+    cid = _seed_catalog(fake_db, "MRI", "mri", [], "imaging", 24)
+    p = _seed_provider(fake_db, "Scan Centre", discount=0)
+    _seed_service(fake_db, p, cid, "MRI Brain", mrp=8000, home=False)
+
+    result = MarketplaceService.select_fulfilment(catalog_id=cid, home=True)
+
+    assert result["fulfilment"]["walk_in_required"] is True
+    assert result["fulfilment"]["home_available"] is False
+
+
+def test_fulfilment_returns_none_for_an_uncovered_city(fake_db):
+    """No partner in the requested city → an honest None, not a fabricated offer."""
+    cid = _seed_catalog(fake_db, "CBC", "cbc", [])
+    p = _seed_provider(fake_db, "Vizag Labs", city="Visakhapatnam")
+    _seed_service(fake_db, p, cid, "CBC", mrp=400)
+
+    assert MarketplaceService.select_fulfilment(catalog_id=cid, city="Chennai") is None
+
+
+def test_fulfilment_returns_none_when_nothing_matches_the_search(fake_db):
+    assert MarketplaceService.select_fulfilment(query="dermatology") is None
+
+
+def test_fulfilment_picks_the_cheapest_home_capable_partner(fake_db):
+    cid = _seed_catalog(fake_db, "CBC", "cbc", [])
+    cheap = _seed_provider(fake_db, "Cheap Labs", discount=20)
+    dear = _seed_provider(fake_db, "Dear Labs", discount=0)
+    _seed_service(fake_db, cheap, cid, "CBC", mrp=500, home=True)
+    _seed_service(fake_db, dear, cid, "CBC", mrp=500, home=True)
+
+    result = MarketplaceService.select_fulfilment(catalog_id=cid, home=True)
+
+    assert result["fulfilment"]["price"] == 400.0
+
+
 # ── Popular ──────────────────────────────────────────────────────────────────
 
 def test_popular_ranks_by_partner_availability(fake_db):

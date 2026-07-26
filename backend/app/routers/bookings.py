@@ -15,9 +15,44 @@ from app.models.schemas import (
 )
 from app.middleware.auth import get_current_user
 from app.database import supabase
+from app.services.marketplace import MarketplaceService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
+
+
+def _reveal_walkin_centre(provider_user_id: str) -> Optional[dict]:
+    """
+    Name + address of the allocated partner centre, for a CONFIRMED walk-in
+    lab booking only.
+
+    Never called during test selection — the patient books CallMedex, not a
+    named lab. This is what tells them where to physically go once the
+    booking already exists, which is the one moment a walk-in test requires
+    revealing it at all.
+    """
+    if not supabase or not provider_user_id:
+        return None
+    try:
+        directory = (
+            supabase.table("provider_directory")
+            .select("display_name, city, state")
+            .eq("provider_user_id", provider_user_id).limit(1).execute()
+        )
+        row = directory.data[0] if directory.data else {}
+        user_row = (
+            supabase.table("users").select("address")
+            .eq("id", provider_user_id).limit(1).execute()
+        )
+        addr = user_row.data[0].get("address", "") if user_row.data else ""
+        parts = [p for p in [addr, row.get("city", ""), row.get("state", "")] if p]
+        return {
+            "name": row.get("display_name") or "CallMedex partner centre",
+            "address": ", ".join(parts) or "Address will follow shortly by SMS.",
+        }
+    except Exception as e:
+        logger.warning(f"walk-in centre reveal failed: {e}")
+        return None
 
 
 def _record_booking_history(
@@ -172,15 +207,55 @@ async def create_booking(
         ServiceType.LAB_TEST, ServiceType.IMAGING, ServiceType.HEALTH_PACKAGE
     ) and booking.preferred_date
 
+    # Partner-blind diagnostics: the lab/diagnostics flow no longer lets the
+    # patient choose a centre, so provider_id arrives empty. Resolve the
+    # allocation here, server-side, from the marketplace layer — the patient
+    # never sees which partner won; dispatch/samples/settlement still key off
+    # provider_id exactly as before.
+    resolved_provider_id = booking.provider_id
+    resolved_provider_type = booking.provider_type
+    allocation = None
+
+    if not resolved_provider_id and is_diagnostic_review:
+        allocation = MarketplaceService.select_fulfilment(
+            catalog_id=booking.catalog_id,
+            query=booking.query,
+            city=booking.city,
+            home=bool(booking.home),
+        )
+        if not allocation:
+            raise HTTPException(
+                status_code=422,
+                detail="No CallMedex partner currently covers this test in your area.",
+            )
+
+        # The org-review workflow (pending-review queue, allot-slot) keys
+        # bookings.provider_id off organizations.id, not the marketplace
+        # layer's users.id — resolve through that join so staff still see
+        # this booking in their queue.
+        resolved_provider_id = allocation["provider_user_id"]
+        resolved_provider_type = "organization"
+        if supabase:
+            try:
+                org_row = (
+                    supabase.table("organizations")
+                    .select("id").eq("user_id", allocation["provider_user_id"])
+                    .limit(1).execute()
+                )
+                if org_row.data:
+                    resolved_provider_id = org_row.data[0]["id"]
+            except Exception as e:
+                logger.warning(f"organization lookup for allocation failed: {e}")
+
     if is_diagnostic_review:
         # Diagnostic booking: patient selects date only, org allots time
         booking_data = {
             "id": booking_id,
             "patient_id": current_user["sub"],
-            "provider_id": booking.provider_id,
-            "provider_type": booking.provider_type,
+            "provider_id": resolved_provider_id,
+            "provider_type": resolved_provider_type,
             "service_type": booking.service_type.value,
-            "slot_id": f"{booking.provider_id}|{booking.preferred_date}|pending",
+            "slot_id": f"{resolved_provider_id}|{booking.preferred_date}|pending",
             "slot_start": f"{booking.preferred_date}T00:00:00",
             "slot_end": f"{booking.preferred_date}T23:59:59",
             "preferred_date": booking.preferred_date,
@@ -195,8 +270,8 @@ async def create_booking(
         booking_data = {
             "id": booking_id,
             "patient_id": current_user["sub"],
-            "provider_id": booking.provider_id,
-            "provider_type": booking.provider_type,
+            "provider_id": resolved_provider_id,
+            "provider_type": resolved_provider_type,
             "service_type": booking.service_type.value,
             "slot_id": booking.slot_id,
             "slot_start": slot_start,
@@ -216,6 +291,15 @@ async def create_booking(
             _local_bookings.append(booking_data)
     else:
         _local_bookings.append(booking_data)
+
+    # Walk-in lab booking: the patient must now learn where to go. Reveal the
+    # allocated centre's name/address only here, on the CONFIRMED booking —
+    # never during test/centre selection. Home-collection bookings need no
+    # such reveal; a phlebotomist is dispatched to the patient instead.
+    if allocation and allocation["fulfilment"].get("walk_in_required"):
+        centre = _reveal_walkin_centre(allocation["provider_user_id"])
+        if centre:
+            booking_data["allocated_centre"] = centre
 
     status_msg = (
         "Booking submitted for review. The diagnostic centre will allot your time slot."
