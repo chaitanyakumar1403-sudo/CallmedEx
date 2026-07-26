@@ -29,18 +29,21 @@
   --color-gray-200:   var(--cm-line);
   --color-gray-300:   var(--cm-line-strong);
   --color-gray-400:   var(--cm-ink-faint);
+  /* More legacy aliases: these three do have a byte-for-byte --cm-* match
+     (foundation.css's --cm-ink-3/--cm-ink-2/--cm-ink), just under a name
+     that doesn't map 1:1 onto the --color-gray-* numbering. */
+  --color-gray-500: var(--cm-ink-3);
+  --color-gray-700: var(--cm-ink-2);
+  --color-gray-900: var(--cm-ink);
   /* Names globals.css declared that Step 1's search did not flag as unused —
-     kept as literal values (not --cm-* aliases) since they have no --cm-*
-     equivalent and other rules in this file still depend on them. */
+     kept as literal values (not --cm-* aliases) since they genuinely have no
+     --cm-* equivalent and other rules in this file still depend on them. */
   --color-red-light: #fc8181;
   --color-teal-light: #22d3ee;
   --color-green-light: #86efac;
   --color-amber-light: #fcd34d;
-  --color-gray-500: #64748b;
   --color-gray-600: #475569;
-  --color-gray-700: #334155;
   --color-gray-800: #1e293b;
-  --color-gray-900: #0f172a;
   /* One family, weight does the work — the way transit and hospital wayfinding
      handle hierarchy. Playfair Display was dropped deliberately: a high-contrast
      didone loses its thin strokes on a low-end LCD in sunlight and is the wrong
