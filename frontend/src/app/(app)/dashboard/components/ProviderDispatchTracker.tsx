@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import { Banner } from "@/components/ui";
 import { DutyBar } from "./dispatch/DutyBar";
 import { OffDutyPanel } from "./dispatch/OffDutyPanel";
+import { ActiveTaskPanel } from "./dispatch/ActiveTaskPanel";
+import { TaskListPanel } from "./dispatch/TaskListPanel";
 import { statusTone, stripStatusGlyphs } from "./dispatch/statusTone";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-interface DispatchTask {
+export interface DispatchTask {
   id: string;
   patient_address: string;
   patient_lat: number;
@@ -383,13 +385,6 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
     );
   }
 
-  const statusNextMap: Record<string, { label: string; next: string }> = {
-    provider_accepted: { label: "Start Route", next: "en_route" },
-    en_route: { label: "Mark Arrived", next: "arrived" },
-    // arrived is handled specifically with OTP UI
-    in_progress: { label: "Mark Complete ✅", next: "completed" },
-  };
-
   return (
     <div style={embedded ? undefined : { backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
       <DutyBar
@@ -419,163 +414,17 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
         {/* ─── ACTIVE TASK TRACKER ─── */}
         {onDuty && activeTask && (
-          <div style={{
-            backgroundColor: "white", borderRadius: 16, padding: 20,
-            marginBottom: 14, boxShadow: "0 2px 12px rgba(79,70,229,0.15)",
-            border: `2px solid ${STATUS_COLORS[activeTask.status] || "#4f46e5"}30`,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, color: "#1e293b", fontSize: "0.95rem" }}>
-                🚗 Active Task
-              </h3>
-              <span style={{
-                backgroundColor: `${STATUS_COLORS[activeTask.status]}20`,
-                color: STATUS_COLORS[activeTask.status] || "#64748b",
-                padding: "4px 12px", borderRadius: 20,
-                fontSize: "0.75rem", fontWeight: 700,
-              }}>
-                {activeTask.status.replace("_", " ").toUpperCase()}
-              </span>
-            </div>
-
-            <div style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 14, marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.9rem" }}>
-                📍 {activeTask.patient_address}
-              </div>
-              <div style={{ color: "#64748b", fontSize: "0.8rem", marginTop: 4 }}>
-                {activeTask.estimated_distance_km?.toFixed(1)} km away •{" "}
-                <span style={{ textTransform: "capitalize" }}>{activeTask.service_type.replace('_', ' ')}</span>
-              </div>
-              {activeTask.notes && (
-                <div style={{ color: "#475569", fontSize: "0.85rem", marginTop: 8, padding: 10, backgroundColor: "#f1f5f9", borderRadius: 8, borderLeft: "3px solid #6366f1" }}>
-                  <strong>Requirements:</strong><br />
-                  {activeTask.notes.split('\n').map((line, i) => (
-                    <span key={i}>
-                      {line.includes('http') ? (
-                        <a href={line.split(' ').find(w => w.startsWith('http'))} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>
-                          View Prescription Document
-                        </a>
-                      ) : (
-                        line
-                      )}
-                      <br />
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-              {/* 1-Click Driving Turn-by-Turn Navigation Deep Links */}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${activeTask.patient_lat},${activeTask.patient_lng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    flex: 1, padding: "8px 12px", borderRadius: 8, backgroundColor: "#4285F4",
-                    color: "white", textAlign: "center", textDecoration: "none", fontWeight: 700, fontSize: "0.8rem",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4
-                  }}
-                >
-                  🗺️ Google Maps
-                </a>
-                <a
-                  href={`https://waze.com/ul?ll=${activeTask.patient_lat},${activeTask.patient_lng}&navigate=yes`}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{
-                    flex: 1, padding: "8px 12px", borderRadius: 8, backgroundColor: "#33CCFF",
-                    color: "#1e293b", textAlign: "center", textDecoration: "none", fontWeight: 700, fontSize: "0.8rem",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 4
-                  }}
-                >
-                  🚗 Waze
-                </a>
-              </div>
-
-            {/* Specialized Field Action Buttons */}
-
-            {activeTask.status === "in_progress" && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                {providerType === "phlebotomist" && (
-                  <button
-                    onClick={() => setShowLabModal(true)}
-                    style={{
-                      flex: 1, padding: "10px", borderRadius: 8, border: "none",
-                      background: "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)",
-                      color: "white", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6
-                    }}
-                  >
-                    🧪 Sample Handover to Lab Hub
-                  </button>
-                )}
-
-                {providerType === "nurse" && (
-                  <button
-                    onClick={() => setShowVitalsModal(true)}
-                    style={{
-                      flex: 1, padding: "10px", borderRadius: 8, border: "none",
-                      background: "linear-gradient(135deg, #db2777 0%, #f472b6 100%)",
-                      color: "white", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6
-                    }}
-                  >
-                    🩺 Upload Vitals & Clinical Note
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Action buttons for status progression */}
-            {activeTask.status === "arrived" ? (
-              <div style={{ backgroundColor: "#fef3c7", padding: 16, borderRadius: 10, border: "2px dashed #f59e0b" }}>
-                <h4 style={{ margin: "0 0 10px", color: "#92400e", fontSize: "0.9rem" }}>🔒 Verify Patient OTP</h4>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <input
-                    type="text"
-                    placeholder="Enter 6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    maxLength={6}
-                    style={{
-                      flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #d97706",
-                      fontSize: "1.1rem", textAlign: "center", letterSpacing: "4px", fontWeight: 700
-                    }}
-                  />
-                  <button
-                    onClick={() => handleVerifyOtp(activeTask.id)}
-                    disabled={actionLoading === "verify_otp"}
-                    style={{
-                      backgroundColor: "#d97706", color: "white", border: "none",
-                      padding: "0 20px", borderRadius: 8, fontWeight: 700, cursor: "pointer"
-                    }}
-                  >
-                    {actionLoading === "verify_otp" ? "⏳" : "Verify"}
-                  </button>
-                </div>
-              </div>
-            ) : statusNextMap[activeTask.status] && (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => handleUpdateStatus(activeTask.id, statusNextMap[activeTask.status].next)}
-                  disabled={actionLoading === activeTask.id + statusNextMap[activeTask.status].next}
-                  style={{
-                    flex: 1,
-                    backgroundColor: STATUS_COLORS[activeTask.status] || "#0f4c81",
-                    color: "white", border: "none",
-                    padding: "12px", borderRadius: 10, fontWeight: 700,
-                    cursor: "pointer", fontSize: "0.9rem",
-                  }}
-                >
-                  {actionLoading === activeTask.id + statusNextMap[activeTask.status].next
-                    ? "⏳..."
-                    : statusNextMap[activeTask.status].label}
-                </button>
-              </div>
-            )}
-
-          </div>
+          <ActiveTaskPanel
+            task={activeTask}
+            otp={otp}
+            onOtpChange={setOtp}
+            actionLoading={actionLoading}
+            onAdvance={handleUpdateStatus}
+            onVerifyOtp={handleVerifyOtp}
+            onOpenVitals={() => setShowVitalsModal(true)}
+            onOpenLab={() => setShowLabModal(true)}
+            providerType={providerType}
+          />
         )}
 
         {/* ─── PENDING TASKS (Accept/Reject) ─── */}
@@ -584,91 +433,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
             <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontSize: "0.95rem" }}>
               📬 Incoming Requests ({tasks.filter(t => t.status === "pending").length})
             </h3>
-            {tasks
-              .filter(t => t.status === "pending")
-              .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1))
-              .map(task => {
-                const isUrgent = task.priority === "urgent";
-                return (
-                <div
-                  key={task.id}
-                  style={{
-                    backgroundColor: "white", borderRadius: 16, padding: 18,
-                    marginBottom: 10,
-                    boxShadow: isUrgent
-                      ? "0 2px 12px rgba(220,38,38,0.28)"
-                      : "0 2px 8px rgba(245,158,11,0.2)",
-                    border: isUrgent ? "2px solid #dc2626" : "2px solid #fde68a",
-                    animation: "pulse 2s infinite",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{
-                      backgroundColor: isUrgent ? "#fee2e2" : "#fef3c7",
-                      color: isUrgent ? "#991b1b" : "#92400e",
-                      padding: "3px 10px", borderRadius: 20,
-                      fontSize: "0.72rem", fontWeight: 700,
-                    }}>
-                      {isUrgent ? "🔴 URGENT — respond now" : "🔔 New Request"}
-                    </span>
-                    <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
-                      {task.estimated_distance_km?.toFixed(1)} km away
-                    </span>
-                  </div>
-
-                  <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>
-                    📍 {task.patient_address}
-                  </div>
-                  <div style={{ color: "#64748b", fontSize: "0.82rem", marginBottom: 12 }}>
-                    <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{task.service_type.replace('_', ' ')}</span>
-                    {task.notes && (
-                      <div style={{ marginTop: 8, padding: 10, backgroundColor: "#f8fafc", borderRadius: 8, borderLeft: "3px solid #3b82f6", color: "#334155" }}>
-                        <strong>Details:</strong><br />
-                        {task.notes.split('\n').map((line, i) => (
-                          <span key={i}>
-                            {line.includes('http') ? (
-                              <a href={line.split(' ').find(w => w.startsWith('http'))} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", textDecoration: "underline" }}>
-                                View Prescription Document
-                              </a>
-                            ) : (
-                              line
-                            )}
-                            <br />
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <button
-                      onClick={() => handleTaskAction(task.id, "accept")}
-                      disabled={!!actionLoading}
-                      style={{
-                        flex: 1, backgroundColor: "#16a34a",
-                        color: "white", border: "none",
-                        padding: "12px", borderRadius: 10, fontWeight: 700,
-                        cursor: actionLoading ? "wait" : "pointer", fontSize: "0.9rem",
-                      }}
-                    >
-                      {actionLoading === task.id + "accept" ? "⏳..." : "✅ Accept"}
-                    </button>
-                    <button
-                      onClick={() => handleTaskAction(task.id, "reject")}
-                      disabled={!!actionLoading}
-                      style={{
-                        flex: 1, backgroundColor: "white",
-                        color: "#dc2626", border: "2px solid #fecaca",
-                        padding: "12px", borderRadius: 10, fontWeight: 700,
-                        cursor: actionLoading ? "wait" : "pointer", fontSize: "0.9rem",
-                      }}
-                    >
-                      {actionLoading === task.id + "reject" ? "⏳..." : "❌ Decline"}
-                    </button>
-                  </div>
-                </div>
-                );
-              })}
+            <TaskListPanel
+              tasks={tasks
+                .filter(t => t.status === "pending")
+                .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1))}
+              actionLoading={actionLoading}
+              onAccept={(id) => handleTaskAction(id, "accept")}
+              onReject={(id) => handleTaskAction(id, "reject")}
+            />
           </div>
         )}
 

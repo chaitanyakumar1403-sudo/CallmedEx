@@ -749,3 +749,75 @@ input[type="radio"] {
 /* On duty flips the rail and badge to the active colour. */
 .cm-duty--on .cm-duty__head { border-left-color: var(--cm-done); }
 .cm-duty--on .cm-duty__icon { background: var(--cm-done-bg); color: var(--cm-done); }
+
+/* ── Dispatch task list ──────────────────────────────────────────────── */
+.cm-tasklist > * + * { margin-top: var(--cm-3); }
+.cm-task { display: flex; gap: var(--cm-3); align-items: flex-start; flex-wrap: wrap; }
+.cm-task__body { flex: 1; min-width: 160px; }
+.cm-task__name {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: var(--cm-1) 0 0; font-weight: 800; color: var(--cm-ink);
+}
+.cm-task__meta {
+  margin: var(--cm-1) 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3);
+  text-transform: capitalize;
+}
+.cm-task__actions { display: flex; gap: var(--cm-2); }
+@media (max-width: 640px) {
+  .cm-task__actions { width: 100%; }
+  .cm-task__actions > * { flex: 1; }
+}
+
+/* Shared notes callout — active task requirements + pending task details.
+   Same "http line becomes a link" parsing on both, just styled once. */
+.cm-notes {
+  margin-top: var(--cm-3); padding: var(--cm-3);
+  background: var(--cm-surface-3); border-left: 3px solid var(--cm-active);
+  border-radius: var(--cm-radius); font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-notes strong { color: var(--cm-ink); }
+.cm-notes p { margin: var(--cm-1) 0 0; }
+.cm-notes a { color: var(--cm-active); font-weight: 600; }
+
+/* ── Active task panel ───────────────────────────────────────────────── */
+.cm-active {
+  background: var(--cm-surface); border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg); padding: var(--cm-5);
+  margin-bottom: var(--cm-4); box-shadow: var(--cm-shadow-2);
+}
+.cm-active__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); margin-bottom: var(--cm-4); flex-wrap: wrap;
+}
+.cm-active__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-base); font-weight: 800; color: var(--cm-ink);
+}
+.cm-active__body {
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+  padding: var(--cm-4); margin-bottom: var(--cm-4);
+}
+.cm-active__address {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  margin: 0; font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm);
+}
+.cm-active__meta {
+  margin: var(--cm-1) 0 0; font-size: var(--cm-text-xs); color: var(--cm-ink-3);
+  text-transform: capitalize;
+}
+.cm-active__spine { margin-bottom: var(--cm-4); }
+.cm-active__nav { display: flex; gap: var(--cm-2); margin-bottom: var(--cm-4); }
+.cm-active__nav > a { flex: 1; }
+.cm-active__task-actions { display: flex; gap: var(--cm-2); margin-bottom: var(--cm-4); }
+.cm-active__task-actions > * { flex: 1; }
+.cm-active__otp {
+  background: var(--cm-waiting-bg); border: 2px dashed var(--cm-waiting-line);
+  border-radius: var(--cm-radius); padding: var(--cm-4);
+}
+.cm-active__otp-title {
+  margin: 0 0 var(--cm-3); font-weight: 800; color: var(--cm-waiting); font-size: var(--cm-text-sm);
+}
+.cm-active__otp .cm-input {
+  text-align: center; letter-spacing: 6px; font-weight: 700; font-size: var(--cm-text-lg);
+}
+.cm-active__verify, .cm-active__advance { width: 100%; }
