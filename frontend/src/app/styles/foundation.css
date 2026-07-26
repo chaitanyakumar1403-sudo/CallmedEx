@@ -506,3 +506,6 @@ input[type="radio"] {
   .cm-dash__title { font-size: var(--cm-text-xl); }
   .cm-stats-grid  { grid-template-columns: 1fr; }
 }
+
+/* ── Icons ────────────────────────────────────────────────────────────── */
+.cm-icon { flex: none; vertical-align: -0.125em; }
