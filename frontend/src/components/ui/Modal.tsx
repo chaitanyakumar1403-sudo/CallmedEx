@@ -4,8 +4,25 @@ import { useEffect, useRef } from "react";
 import { Icon } from "./Icon";
 import { X } from "./icons";
 
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/**
+ * Must list everything the browser will stop on, not just form controls. The
+ * boundary check only fires when focus is on the first or last item, so an
+ * element the browser tabs to but this selector misses lets focus walk past
+ * the edge and out of the dialog. `AIVoiceIntakeModal` in particular will
+ * carry media controls once it is converted.
+ */
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[contenteditable]:not([contenteditable="false"])',
+  'audio[controls]',
+  'video[controls]',
+  'iframe',
+  '[tabindex]:not([tabindex="-1"])',
+].join(", ");
 
 /**
  * The five hand-rolled overlays this replaces each trapped nothing: Tab walked

@@ -12,13 +12,24 @@ export function Field({
   required?: boolean;
   children: React.ReactElement<Record<string, unknown>>;
 }) {
-  const hintId = hint ? `${id}-hint` : undefined;
-  const errId = error ? `${id}-err` : undefined;
-  const describedBy = [hintId, errId].filter(Boolean).join(" ") || undefined;
+  // A child may already carry its own id or aria-describedby — a composite
+  // widget that describes itself, for instance. Overwriting either silently
+  // drops a real association, so the child wins on id and both lists merge.
+  const childProps = (children.props ?? {}) as Record<string, unknown>;
+  const controlId = typeof childProps.id === "string" ? childProps.id : id;
+  const childDescribedBy =
+    typeof childProps["aria-describedby"] === "string"
+      ? childProps["aria-describedby"]
+      : undefined;
+
+  const hintId = hint ? `${controlId}-hint` : undefined;
+  const errId = error ? `${controlId}-err` : undefined;
+  const describedBy =
+    [childDescribedBy, hintId, errId].filter(Boolean).join(" ") || undefined;
 
   const control = isValidElement(children)
     ? cloneElement(children, {
-        id,
+        id: controlId,
         "aria-describedby": describedBy,
         "aria-invalid": error ? true : undefined,
         required,
@@ -27,7 +38,7 @@ export function Field({
 
   return (
     <div className="cm-field">
-      <label className="cm-field__label" htmlFor={id}>
+      <label className="cm-field__label" htmlFor={controlId}>
         {label}
         {required && <span className="cm-field__req" aria-hidden="true"> *</span>}
       </label>
