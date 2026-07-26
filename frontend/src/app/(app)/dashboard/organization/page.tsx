@@ -671,28 +671,35 @@ export default function OrganizationDashboard() {
 
               {/* Ledger Summary Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 20 }}>
+                {/*
+                  Only gross revenue is shown, because only gross revenue is real:
+                  the backend sums it from actual booking prices
+                  (provider_management.py:1084). The payout and commission cards
+                  that used to sit here multiplied it by a hardcoded 0.85 / 0.15
+                  in the browser — no such split exists anywhere in the backend,
+                  and no settlement had run. A partner could have planned against
+                  a rate this screen invented. They return when settlement
+                  supplies real figures.
+                */}
                 <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
                   <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Total Gross Revenue</div>
                   <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "white", marginTop: 4 }}>
-                    ₹{(orgStats?.total_revenue ?? 0).toFixed(2)}
+                    {typeof orgStats?.total_revenue === "number"
+                      ? `₹${orgStats.total_revenue.toFixed(2)}`
+                      : "—"}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>Gross patient payments</div>
                 </div>
 
                 <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Net Diagnostic Payout (85%)</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#4ade80", marginTop: 4 }}>
-                    ₹{((orgStats?.total_revenue ?? 0) * 0.85).toFixed(2)}
+                  <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Payout &amp; commission</div>
+                  <div style={{ fontSize: "1rem", fontWeight: 700, color: "white", marginTop: 4 }}>
+                    Not yet settled
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#86efac", marginTop: 2 }}>Direct bank transfer share</div>
-                </div>
-
-                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Platform Tech Commission (15%)</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#f472b6", marginTop: 4 }}>
-                    ₹{((orgStats?.total_revenue ?? 0) * 0.15).toFixed(2)}
+                  <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>
+                    Your share and the platform fee appear here once your MOU rate is
+                    configured and the first settlement runs.
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#fbcfe8", marginTop: 2 }}>Auto-deducted platform fee</div>
                 </div>
               </div>
             </div>
