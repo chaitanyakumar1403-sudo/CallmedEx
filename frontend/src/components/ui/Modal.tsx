@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Icon } from "./Icon";
 import { X } from "./icons";
 
@@ -39,6 +39,9 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
+  // A hardcoded id would collide the moment two modals mount at once (the
+  // all-tasks modal and a confirmation dialog, for instance).
+  const titleId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -72,9 +75,9 @@ export function Modal({
 
   return (
     <div className="cm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="cm-modal" role="dialog" aria-modal="true" aria-labelledby="cm-modal-title" ref={ref}>
+      <div className="cm-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref}>
         <div className="cm-modal__head">
-          <h2 className="cm-modal__title" id="cm-modal-title">{title}</h2>
+          <h2 className="cm-modal__title" id={titleId}>{title}</h2>
           <button className="cm-modal__x" onClick={onClose} aria-label="Close dialog">
             <Icon as={X} size={20} />
           </button>

@@ -6,7 +6,7 @@ import { ClipboardList, Clock, MapPin, Navigation } from "@/components/ui/icons"
 import { StatusPill } from "@/app/components/StatusSpine";
 import { DutyBar } from "./dispatch/DutyBar";
 import { OffDutyPanel } from "./dispatch/OffDutyPanel";
-import { ActiveTaskPanel } from "./dispatch/ActiveTaskPanel";
+import { ActiveTaskPanel, type ActiveTaskProviderType } from "./dispatch/ActiveTaskPanel";
 import { TaskListPanel } from "./dispatch/TaskListPanel";
 import { SelfieModal } from "./dispatch/SelfieModal";
 import { LabHandoverModal } from "./dispatch/LabHandoverModal";
@@ -423,7 +423,11 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
             onVerifyOtp={handleVerifyOtp}
             onOpenVitals={() => setShowVitalsModal(true)}
             onOpenLab={() => setShowLabModal(true)}
-            providerType={providerType}
+            // ActiveTaskPanel's handover branch only ever fires for these two
+            // — doctor/pharmacy_delivery dispatch through this same tracker
+            // but never hit that branch, so this narrows without changing
+            // what actually renders.
+            providerType={providerType as ActiveTaskProviderType}
           />
         )}
 

@@ -3,33 +3,7 @@
 import { Button, Card, Icon, Pill } from "@/components/ui";
 import { MapPin } from "@/components/ui/icons";
 import type { DispatchTask } from "../ProviderDispatchTracker";
-
-/**
- * The parenthesised note that used to hide a prescription/handover URL inside
- * a plain-text notes blob. Same parsing as before — a line containing "http"
- * becomes a link, everything else prints as-is — just without inline styles.
- */
-function TaskNotes({ notes }: { notes: string }) {
-  return (
-    <div className="cm-notes">
-      <strong>Details:</strong>
-      {notes.split("\n").map((line, i) => {
-        const url = line.split(" ").find((w) => w.startsWith("http"));
-        return (
-          <p key={i}>
-            {url ? (
-              <a href={url} target="_blank" rel="noreferrer">
-                View Prescription Document
-              </a>
-            ) : (
-              line
-            )}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
+import { TaskNotes } from "./TaskNotes";
 
 /**
  * Incoming dispatch requests awaiting Accept/Reject. Pure presentation —
@@ -65,7 +39,7 @@ export function TaskListPanel({
                   {t.estimated_distance_km != null &&
                     ` · ${t.estimated_distance_km.toFixed(1)} km away`}
                 </p>
-                {t.notes && <TaskNotes notes={t.notes} />}
+                {t.notes && <TaskNotes notes={t.notes} heading="Details:" />}
               </div>
               <div className="cm-task__actions">
                 <Button

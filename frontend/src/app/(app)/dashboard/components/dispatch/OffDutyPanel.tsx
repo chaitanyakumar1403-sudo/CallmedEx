@@ -1,5 +1,3 @@
-"use client";
-
 import { Button, EmptyState, Icon, Panel } from "@/components/ui";
 import { CheckCircle2, MapPin } from "@/components/ui/icons";
 

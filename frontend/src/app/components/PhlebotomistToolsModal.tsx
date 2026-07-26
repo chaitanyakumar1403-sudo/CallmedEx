@@ -70,6 +70,7 @@ export default function PhlebotomistToolsModal({ isOpen, onClose }: Phlebotomist
                 <span className="cm-swatch">
                   <span
                     className="cm-swatch__chip"
+                    aria-hidden="true"
                     // ui-lint-ignore-next-line tube colour is data, not design
                     style={{ "--cm-swatch": tube.color } as React.CSSProperties}
                   />

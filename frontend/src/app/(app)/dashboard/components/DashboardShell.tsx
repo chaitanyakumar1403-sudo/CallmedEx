@@ -37,9 +37,9 @@ export default function DashboardShell({
             label={`${title} sections`} />
       <div
         className="cm-dash__body"
-        role="tabpanel"
-        id={`panel-${activeTab}`}
-        aria-labelledby={`tab-${activeTab}`}
+        role={activeTab ? "tabpanel" : undefined}
+        id={activeTab ? `panel-${activeTab}` : undefined}
+        aria-labelledby={activeTab ? `tab-${activeTab}` : undefined}
       >
         {children}
       </div>

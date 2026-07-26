@@ -97,7 +97,7 @@ export default function PhlebotomistDashboard() {
         )}
 
         {activeTab === "samples" && (
-          <div className="cm-tasklist">
+          <div className="cm-stack">
             <AttendanceCard />
             <SampleCollectionPanel />
           </div>

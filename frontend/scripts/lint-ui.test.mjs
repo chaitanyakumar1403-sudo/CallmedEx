@@ -1,5 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { lintFile } from "./lint-ui.mjs";
 
 test("flags an inline style object", () => {
@@ -67,4 +72,43 @@ test("flags glyphs in Miscellaneous Technical", () => {
 // `●` is a text bullet in this codebase, not decoration — it must not trip.
 test("does not flag geometric shapes used as text bullets", () => {
   assert.deepEqual(lintFile(`<span>● Active</span>`), []);
+});
+
+// ─── main()'s CLI paths ──────────────────────────────────────────────────
+// `lintFile` is exercised above; `main()` — the missing-file and exit-code
+// behaviour actually run by `npm run lint:ui` — was not. `main()` derives its
+// root from its own file location (`dirname(import.meta.url)/..`), so the
+// only way to point it at a throwaway config is a throwaway copy of the
+// script one directory below a throwaway config, never the repo's real
+// ui-lint.config.json. Every temp file this creates is cleaned up in the
+// `finally` below, even if the assertion throws.
+const scriptSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "lint-ui.mjs"),
+  "utf8"
+);
+
+function runCli(config) {
+  const dir = mkdtempSync(join(tmpdir(), "ui-lint-cli-"));
+  try {
+    const scriptsDir = join(dir, "scripts");
+    mkdirSync(scriptsDir);
+    const scriptPath = join(scriptsDir, "lint-ui.mjs");
+    writeFileSync(scriptPath, scriptSource);
+    writeFileSync(join(dir, "ui-lint.config.json"), JSON.stringify(config));
+    return spawnSync(process.execPath, [scriptPath], { encoding: "utf8" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("main() reports a missing listed file and exits non-zero", () => {
+  const r = runCli({ files: ["does-not-exist.tsx"] });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /ui-lint: listed file is missing: does-not-exist\.tsx/);
+});
+
+test("main() exits zero for a clean config", () => {
+  const r = runCli({ files: [] });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /ui-lint: clean across 0 converted file\(s\)\./);
 });

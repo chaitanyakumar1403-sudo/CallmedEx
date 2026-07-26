@@ -4,6 +4,7 @@ import { Button, Field, Icon, TextInput } from "@/components/ui";
 import { FlaskConical, MapPin, Navigation, Stethoscope } from "@/components/ui/icons";
 import StatusSpine, { StatusPill, dispatchSteps } from "@/app/components/StatusSpine";
 import type { DispatchTask } from "../ProviderDispatchTracker";
+import { TaskNotes } from "./TaskNotes";
 
 /**
  * "arrived" is deliberately absent — that status renders the OTP block
@@ -15,28 +16,14 @@ const STATUS_NEXT: Record<string, { label: string; next: string }> = {
   in_progress: { label: "Mark Complete", next: "completed" },
 };
 
-/** Same "http line becomes a link" parsing as TaskListPanel's notes block. */
-function TaskNotes({ notes }: { notes: string }) {
-  return (
-    <div className="cm-notes">
-      <strong>Requirements:</strong>
-      {notes.split("\n").map((line, i) => {
-        const url = line.split(" ").find((w) => w.startsWith("http"));
-        return (
-          <p key={i}>
-            {url ? (
-              <a href={url} target="_blank" rel="noreferrer">
-                View Prescription Document
-              </a>
-            ) : (
-              line
-            )}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
+/**
+ * The only two provider types that reach the role-specific handover action
+ * below (lab handover for phlebotomist, vitals for nurse). `providerType` on
+ * the parent tracker stays a bare `string` — doctor and pharmacy_delivery
+ * dispatch through it too — but the branch this component owns is only ever
+ * this pair, so the type documents that instead of leaving it implicit.
+ */
+export type ActiveTaskProviderType = "phlebotomist" | "nurse";
 
 /**
  * The job a field worker is on right now: where, the custody journey via
@@ -59,7 +46,7 @@ export function ActiveTaskPanel({
   onVerifyOtp: (taskId: string) => void;
   onOpenVitals: () => void;
   onOpenLab: () => void;
-  providerType: string;
+  providerType: ActiveTaskProviderType;
 }) {
   const next = STATUS_NEXT[task.status];
   // Derived from the `otp` prop, not local state, so the panel stays pure —
@@ -87,7 +74,7 @@ export function ActiveTaskPanel({
           {task.estimated_distance_km != null && `${task.estimated_distance_km.toFixed(1)} km away · `}
           {task.service_type.replace(/_/g, " ")}
         </p>
-        {task.notes && <TaskNotes notes={task.notes} />}
+        {task.notes && <TaskNotes notes={task.notes} heading="Requirements:" />}
       </div>
 
       <div className="cm-active__spine">

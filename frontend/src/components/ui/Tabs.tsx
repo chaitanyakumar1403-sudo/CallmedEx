@@ -67,7 +67,10 @@ export function Tabs({
             role="tab"
             id={`tab-${tab.id}`}
             aria-selected={selected}
-            aria-controls={`panel-${tab.id}`}
+            // DashboardShell renders only the active panel, so for every
+            // unselected tab `panel-${tab.id}` names an element that does not
+            // exist. Only the selected tab's panel is ever mounted.
+            aria-controls={selected ? `panel-${tab.id}` : undefined}
             // Roving tabindex: the tablist is one tab stop, arrows move within.
             tabIndex={selected ? 0 : -1}
             className="cm-tab"

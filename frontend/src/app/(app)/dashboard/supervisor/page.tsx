@@ -82,8 +82,10 @@ export default function SupervisorDashboard() {
     >
       {/* Verification Queue */}
       <section className="cm-panel">
-        <h2 className="cm-panel__title">Pending Verifications Queue</h2>
-        <Pill tone="urgent">{verifications.length} Requires Action</Pill>
+        <div className="cm-row-between">
+          <h2 className="cm-panel__title">Pending Verifications Queue</h2>
+          <Pill tone="urgent">{verifications.length} Requires Action</Pill>
+        </div>
 
         {verifications.length === 0 ? (
           <EmptyState
@@ -102,10 +104,15 @@ export default function SupervisorDashboard() {
                     <p className="cm-task__meta">
                       License/Reg #: {v.data.medical_license_number || v.data.drug_license_number || v.data.certification_number || v.data.license_number || 'N/A'}
                     </p>
+                    <p className="cm-panel__note">
+                      Approve/Reject aren&apos;t wired to a backend action from this
+                      screen yet — verification decisions are still made directly
+                      through the admin API, not this queue.
+                    </p>
                   </div>
                   <div className="cm-task__actions">
-                    <Button variant="danger">Reject</Button>
-                    <Button variant="primary">Approve</Button>
+                    <Button variant="danger" disabled aria-disabled="true">Reject</Button>
+                    <Button variant="primary" disabled aria-disabled="true">Approve</Button>
                   </div>
                 </div>
               </Card>

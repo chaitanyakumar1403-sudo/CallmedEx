@@ -421,6 +421,22 @@ input[type="radio"] {
 }
 .cm-panel__note { margin: 0 0 var(--cm-5); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
 
+/* Generic flex row — a heading (or any block element) sitting beside a
+   trailing element (a count Pill, an action) instead of stacking under it.
+   `.cm-panel__title` is a block-level h2, so pairing it with a Pill needs
+   this rather than relying on inline flow. */
+.cm-row-between {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap;
+}
+.cm-row-between > .cm-panel__title { margin-bottom: 0; }
+
+/* Generic vertical stack, 20px between siblings. Deliberately its own class
+   rather than reusing `.cm-tasklist` (12px, and semantically "a list of
+   dispatch task cards") or `.cm-wallet` (its own ledger-specific spacing) —
+   borrowing either would silently couple unrelated layouts. */
+.cm-stack > * + * { margin-top: var(--cm-5); }
+
 /* ── Cards and panels ─────────────────────────────────────────────────── */
 .cm-card {
   background: var(--cm-surface);
@@ -447,6 +463,10 @@ input[type="radio"] {
   padding: var(--cm-4) var(--cm-5);
   text-align: left;
   font-family: inherit;
+  /* States the tap-target floor rather than relying on content height to
+     clear it incidentally — under .cm-dense, --cm-4/--cm-5 shrink to
+     10px/12px and the label+value stack alone would fall short of 44px. */
+  min-height: var(--cm-tap);
 }
 .cm-stat--btn { cursor: pointer; transition: border-color var(--cm-fast) var(--cm-ease); }
 .cm-stat--btn:hover { border-color: var(--cm-line-strong); }
@@ -658,6 +678,23 @@ input[type="radio"] {
 .cm-input[aria-invalid="true"] { border-color: var(--cm-urgent); }
 .cm-input--area { min-height: 96px; padding: var(--cm-3); resize: vertical; }
 
+/* `Select` emits this modifier but nothing defined it — the disclosure arrow
+   it clearly implied. `appearance: none` needs a hand-drawn replacement or
+   the control loses any affordance that it opens a list. This is the one
+   place `linear-gradient` is legitimate outside a token file: it draws a
+   control affordance, not a decorative surface, and this file sits outside
+   the ui-lint gate's scan (which only covers .tsx files). */
+.cm-input--select {
+  appearance: none;
+  padding-right: var(--cm-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--cm-ink-3) 50%),
+                    linear-gradient(135deg, var(--cm-ink-3) 50%, transparent 50%);
+  background-position: right calc(var(--cm-4) + 4px) center,
+                       right var(--cm-4) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
 /* ── Modal ────────────────────────────────────────────────────────────── */
 .cm-overlay {
   position: fixed; inset: 0; z-index: 2000;
@@ -704,7 +741,10 @@ input[type="radio"] {
                     font-size: var(--cm-text-lg); text-decoration: none; }
 .cm-appbar__role {
   padding: 3px 10px; border-radius: var(--cm-radius-pill);
-  background: rgba(255, 255, 255, 0.14); color: #dbeafe;
+  background: rgba(255, 255, 255, 0.14);
+  /* Nearest existing token to the prior hardcoded #dbeafe. Checked against
+     --cm-navy-deep: contrast ratio ~9.3:1, well clear of the 4.5:1 floor. */
+  color: var(--cm-active-line);
   font-size: var(--cm-text-xs); font-weight: 700;
   text-transform: capitalize;
 }
@@ -901,6 +941,10 @@ input[type="radio"] {
   cursor: pointer;
   transition: border-color var(--cm-fast) var(--cm-ease),
               background var(--cm-fast) var(--cm-ease);
+  /* Previously cleared 44px only because three lines of guide text pushed it
+     there — shorter or localised copy could silently drop it below the tap
+     floor. Stated explicitly instead. */
+  min-height: var(--cm-tap);
 }
 .cm-tube-card:hover { border-color: var(--cm-line-strong); }
 .cm-tube-card--selected { background: var(--cm-done-bg); border-color: var(--cm-done); }
