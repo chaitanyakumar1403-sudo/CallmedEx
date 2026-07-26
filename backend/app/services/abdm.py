@@ -42,26 +42,28 @@ class ABDMService:
         token = await ABDMService.get_access_token()
 
         if token == "mock-access-token":
-            # ---------------------------------------------------------
-            # MOCK / FALLBACK MODE FOR LOCAL DEVELOPMENT
-            # ---------------------------------------------------------
-            logger.warning(f"Simulating ABDM HFR Verification for License: {license_number}")
-            
-            # Simulate a fake or test license number failing
-            if "FAKE" in license_number.upper() or "INVALID" in license_number.upper():
-                return {
-                    "is_valid": False, 
-                    "reason": f"ABDM Registry: Facility with license {license_number} not found or inactive."
-                }
-                
-            # Simulate success
+            # ABDM credentials are not configured, so no verification happened.
+            #
+            # This block previously simulated SUCCESS: any licence that did not
+            # literally contain "FAKE" or "INVALID" came back is_valid=True with
+            # facility_details naming it "Verified Facility (Mocked)" in
+            # Telangana. A facility could therefore be marked verified against
+            # the Health Facility Registry without any check being performed.
+            #
+            # Returning invalid is the honest answer — the platform cannot
+            # confirm this facility, so it must not claim it has.
+            logger.warning(
+                "ABDM credentials are not configured — HFR verification skipped "
+                f"for licence {license_number}. Reporting as unverified."
+            )
             return {
-                "is_valid": True,
-                "facility_details": {
-                    "facility_name": "Verified Facility (Mocked)",
-                    "license_number": license_number,
-                    "state": "Telangana"
-                }
+                "is_valid": False,
+                "reason": (
+                    "Facility verification is unavailable: the ABDM connection "
+                    "is not configured. This licence has not been checked and "
+                    "needs manual review."
+                ),
+                "needs_manual_review": True,
             }
 
         # ---------------------------------------------------------
