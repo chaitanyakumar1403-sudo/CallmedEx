@@ -9,9 +9,11 @@
  * who reads "you can't work" when they can will stop taking jobs, which costs
  * the patient.
  *
- * Attendance gates pay under the MOU, so the pending/verified state has to be
- * unmistakable: the requirement banner is `waiting` until the selfie lands and
- * flips to `done` once it does — never colour-only, the copy changes too.
+ * Attendance gates pay under the MOU, so the pending/late/verified state has
+ * to be unmistakable: the requirement banner tracks the same three states as
+ * the status Pill (not a done/not-done binary), and the copy — not just the
+ * tone — changes with it, since a late submission read as "still missing" is
+ * a false claim, not just an ambiguous colour.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -98,10 +100,16 @@ export default function AttendanceCard() {
         <Pill tone={statusTone}>{statusLabel}</Pill>
       </div>
 
+      {/* Same three states as the Pill above (Recorded / Late / Pending or
+          Missed), not a done/not-done binary — a late submission is not the
+          same as no submission, and telling a provider who already submitted
+          that their selfie is "missing" is simply false. */}
       <Banner tone={done ? "done" : "waiting"}>
         {done
           ? "05:15 selfie verified — today's earnings are unlocked."
-          : `Live selfie with your ID and collection kit required by ${state.deadline} IST. Missing it holds today's payout — you can still take jobs and keep earning.`}
+          : state.submitted && state.is_late
+            ? `Selfie received after ${state.deadline} IST — logged as late. Operations will confirm whether today's payout is affected.`
+            : `Live selfie with your ID and collection kit required by ${state.deadline} IST. Missing it holds today's payout — you can still take jobs and keep earning.`}
       </Banner>
 
       {state.on_hold && (
