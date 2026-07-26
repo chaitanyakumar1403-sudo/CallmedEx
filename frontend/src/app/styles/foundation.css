@@ -419,27 +419,56 @@ input[type="radio"] {
 }
 .cm-panel__note { margin: 0 0 var(--cm-5); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
 
+/* ── Cards and panels ─────────────────────────────────────────────────── */
+.cm-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-5);
+}
+.cm-card--interactive { cursor: pointer; transition: border-color var(--cm-fast) var(--cm-ease); }
+.cm-card--interactive:hover { border-color: var(--cm-line-strong); }
+
+/* ── Stats ────────────────────────────────────────────────────────────── */
 .cm-stats {
-  display: grid; gap: var(--cm-4);
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--cm-4);
   margin-bottom: var(--cm-6);
 }
 .cm-stat {
+  display: flex; flex-direction: column; align-items: flex-start;
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
   border-left: 4px solid var(--cm-accent);
   border-radius: var(--cm-radius);
-  padding: var(--cm-5);
+  padding: var(--cm-4) var(--cm-5);
+  text-align: left;
+  font-family: inherit;
 }
-.cm-stat__label { font-size: var(--cm-text-xs); color: var(--cm-ink-3); font-weight: 700;
-                  text-transform: uppercase; letter-spacing: 0.06em; }
-/* Tabular figures stop the number jittering as it updates. */
-.cm-stat__value { font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
-                  margin-top: var(--cm-1); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.cm-stat__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-faint); margin-top: var(--cm-1); }
+.cm-stat--btn { cursor: pointer; transition: border-color var(--cm-fast) var(--cm-ease); }
+.cm-stat--btn:hover { border-color: var(--cm-line-strong); }
+.cm-stat__label {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--cm-ink-3);
+}
+.cm-stat__value {
+  font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
+  margin-top: var(--cm-1); line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.cm-stat__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: var(--cm-1); }
 .cm-stat--urgent { border-left-color: var(--cm-urgent); }
 .cm-stat--urgent .cm-stat__value { color: var(--cm-urgent); }
+.cm-stat--active { border-left-color: var(--cm-active); }
+.cm-stat--done   { border-left-color: var(--cm-done); }
 
+/* DEPRECATED — superseded by .cm-stat / .cm-stats (this file) and the Stat
+   primitive. Still consumed by admin, doctor, organization and pharmacy, which
+   Waves 4 and 5 convert. Delete when the last consumer is gone; do not add new
+   uses. */
 /* ── Stats grid — responsive card grid for dashboard KPIs ────────────── */
 /* Replaces the per-dashboard inline `repeat(4,1fr)` grids that collapsed
    to unreadable micro-columns on tablet and phone. auto-fit + a 220px
@@ -488,16 +517,25 @@ input[type="radio"] {
   margin-top: 2px; font-weight: 600;
 }
 
-/* ── Empty state — an invitation to act, not an apology ───────────────── */
+/* ── Empty state ──────────────────────────────────────────────────────── */
 .cm-empty {
-  text-align: center; padding: var(--cm-12) var(--cm-6);
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: var(--cm-10) var(--cm-6);
   border: 1px dashed var(--cm-line-strong);
   border-radius: var(--cm-radius-lg);
   background: var(--cm-surface);
 }
-.cm-empty__icon  { font-size: 2rem; margin-bottom: var(--cm-3); }
-.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); }
-.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0 auto; max-width: 46ch; }
+.cm-empty__icon {
+  display: grid; place-items: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--cm-surface-3); color: var(--cm-ink-3);
+  margin-bottom: var(--cm-3);
+}
+.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg); }
+.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; }
+.cm-empty__action { margin-top: var(--cm-5); }
+
+.cm-skeleton-rows > .cm-skeleton { margin-bottom: var(--cm-3); }
 
 @media (max-width: 640px) {
   .cm-dash__head  { padding: var(--cm-5) var(--cm-4) var(--cm-6); }
