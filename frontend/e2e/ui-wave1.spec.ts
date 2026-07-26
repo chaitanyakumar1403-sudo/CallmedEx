@@ -297,7 +297,12 @@ for (const s of SURFACES) {
     await page.goto(`http://localhost:3000${s.path}`);
     await page.waitForLoadState("networkidle");
     const text = await page.locator(CHROME_SELECTOR).allInnerTexts();
-    expect(text.join(" ")).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    // Range must match lint-ui.mjs's emoji rule exactly (U+2300–23FF and
+    // U+2B00–2BFF included) — an earlier version of this assertion omitted
+    // both blocks and let a ⏸/⏰/⌛ in chrome pass this check silently.
+    expect(text.join(" ")).not.toMatch(
+      /[\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F000}-\u{1FAFF}]/u
+    );
   });
 }
 
@@ -323,4 +328,66 @@ test("a11y: dev-ui has no serious/critical WCAG2A/AA violations", async ({ page 
     .analyze();
   const serious = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(serious, JSON.stringify(violations, null, 2)).toEqual([]);
+});
+
+// ─── Modal focus-stealing regression (chain-of-custody data integrity) ─────
+//
+// LabHandoverModal and VitalsModal are controlled by state living in
+// ProviderDispatchTracker (sampleBarcodes, labNotes, vitals, ...). Every
+// call site passes Modal an inline arrow for onClose, so onClose gets a new
+// identity on every parent render. If Modal's focus-management effect
+// depends on `onClose`, it tears down and re-runs on every keystroke (each
+// keystroke re-renders the parent), re-running the initial-focus line and
+// yanking focus back to the close button after a single character. A
+// phlebotomist typing a sample barcode, or a nurse typing a BP reading,
+// would only ever get the first character in — the rest lands on a button
+// that ignores keystrokes. This must be caught with real typing (not a
+// single keypress), because a single character reproduces nothing: the
+// effect only re-runs on the SECOND render, i.e. the second character.
+test("modal fields keep full typed value and focus (phlebotomist lab handover)", async ({ page }) => {
+  const inProgressTask = {
+    id: "d-in-progress-1",
+    patient_address: "Test Address, Visakhapatnam",
+    patient_lat: 17.7, patient_lng: 83.3,
+    status: "in_progress",
+    service_type: "home_collection",
+    estimated_distance_km: 1.0,
+    created_at: ago(15),
+    priority: "normal",
+  };
+  await mockDispatchBackend(page, { role: "phlebotomist", isOnline: true, tasks: [inProgressTask] });
+  await page.goto("http://localhost:3000/dashboard/phlebotomist");
+  await page.waitForLoadState("networkidle");
+
+  await page.getByRole("button", { name: /Sample Handover to Lab Hub/i }).click();
+  const barcodeInput = page.getByLabel("Sample barcode IDs / tube numbers");
+  await barcodeInput.click();
+  await barcodeInput.pressSequentially("BAR-98231", { delay: 30 });
+  await expect(barcodeInput).toHaveValue("BAR-98231");
+  await expect(barcodeInput).toBeFocused();
+});
+
+test("modal fields keep full typed value and focus (nurse vitals)", async ({ page }) => {
+  const inProgressTask = {
+    id: "n-in-progress-1",
+    patient_address: "Test Address, Visakhapatnam",
+    patient_lat: 17.7, patient_lng: 83.3,
+    status: "in_progress",
+    service_type: "home_nursing_visit",
+    estimated_distance_km: 1.0,
+    created_at: ago(15),
+    priority: "normal",
+  };
+  await mockDispatchBackend(page, { role: "nurse", isOnline: true, tasks: [inProgressTask] });
+  await page.goto("http://localhost:3000/dashboard/nurse");
+  await page.waitForLoadState("networkidle");
+
+  await page.getByRole("button", { name: /Upload Vitals & Clinical Note/i }).click();
+  const bpInput = page.getByLabel("Blood pressure (mmHg)");
+  // The field is pre-filled with a default reading ("120/80"); select it all
+  // so typing replaces it instead of appending to it.
+  await bpInput.click({ clickCount: 3 });
+  await bpInput.pressSequentially("118/76", { delay: 30 });
+  await expect(bpInput).toHaveValue("118/76");
+  await expect(bpInput).toBeFocused();
 });

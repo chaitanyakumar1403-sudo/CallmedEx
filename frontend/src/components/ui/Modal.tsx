@@ -43,6 +43,18 @@ export function Modal({
   // all-tasks modal and a confirmation dialog, for instance).
   const titleId = useId();
 
+  // Every call site passes an inline arrow for `onClose`, so it gets a new
+  // identity on every parent render. LabHandoverModal/VitalsModal are
+  // controlled by state living in the parent tracker, so a keystroke in any
+  // field re-renders the parent. If the effect below depended on `onClose`
+  // directly, it would tear down and re-run on every keystroke, re-running
+  // the initial-focus line and yanking focus back to the close button after
+  // one character — exactly the chain-of-custody bug this ref exists to
+  // prevent. Keeping `onClose` in a ref lets the effect depend on `open`
+  // alone while still calling the latest `onClose` from the Esc handler.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
   useEffect(() => {
     if (!open) return;
 
@@ -53,7 +65,7 @@ export function Modal({
     ref.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "Escape") { onCloseRef.current(); return; }
       if (e.key !== "Tab" || !ref.current) return;
       const items = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE));
       if (items.length === 0) return;
@@ -69,7 +81,7 @@ export function Modal({
       document.body.style.overflow = prevOverflow;
       restoreTo.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
