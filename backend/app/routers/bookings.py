@@ -93,10 +93,14 @@ def _init_demo_slots():
     """Generate demo slots for local dev if empty."""
     if _local_slots:
         return
-    # Generate 7 days of slots for 2 demo providers
+    # Names are deliberately unmistakable. This only runs when Supabase is
+    # absent (local dev), but it previously used "Vizag Diagnostics Center" and
+    # "Apollo Health Hub" — the latter being a real hospital chain's name — so a
+    # dropped database connection would have offered patients bookable slots at
+    # centres that do not exist and read as if they did.
     providers = [
-        {"id": "org-demo-1", "type": "organization", "name": "Vizag Diagnostics Center"},
-        {"id": "org-demo-2", "type": "organization", "name": "Apollo Health Hub"},
+        {"id": "org-demo-1", "type": "organization", "name": "[DEMO DATA] Test Centre A"},
+        {"id": "org-demo-2", "type": "organization", "name": "[DEMO DATA] Test Centre B"},
     ]
     base_date = date.today()
     for provider in providers:

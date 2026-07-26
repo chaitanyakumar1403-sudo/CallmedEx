@@ -38,11 +38,36 @@ async def submit_claim(req: SubmitClaimRequest, current_user: dict = Depends(get
     )
     
     if supabase:
+        # A claim is only meaningful against the patient's real ABHA. This
+        # previously persisted a literal "fake-abha-1234" into the claims table
+        # beside a real amount and a real FHIR bundle — a fabricated national
+        # health identifier written into a financial-medical record. Refuse
+        # instead: a claim that cannot be filed is recoverable, a claim filed
+        # against an invented health ID is not.
+        patient = (
+            supabase.table("patients")
+            .select("abha_number")
+            .eq("user_id", current_user["sub"])
+            .limit(1)
+            .execute()
+        )
+        rows = patient.data or []
+        row: dict = rows[0] if rows and isinstance(rows[0], dict) else {}
+        abha_number = (row.get("abha_number") or "").strip()
+        if not abha_number:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No ABHA number is linked to this patient, so an insurance "
+                    "claim cannot be submitted. Link an ABHA account first."
+                ),
+            )
+
         data = {
             "id": claim_id,
             "patient_id": current_user["sub"],
             "booking_id": req.booking_id,
-            "abha_number": "fake-abha-1234",
+            "abha_number": abha_number,
             "insurer_name": "NHCX Sandbox Mock Insurer",
             "claim_amount": req.amount,
             "status": "submitted",

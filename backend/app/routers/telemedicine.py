@@ -42,82 +42,11 @@ async def list_available_doctors(
     """List doctors available for video consultation."""
     doctors = await TelemedicineService.get_available_doctors(specialization)
 
-    # If no doctors from DB, return curated defaults for MVP
-    if not doctors:
-        doctors = [
-            {
-                "doctor_id": "demo-doc-1",
-                "name": "Dr. Priya Sharma",
-                "specialization": "General Medicine",
-                "qualification": "MBBS, MD (Internal Medicine)",
-                "experience_years": 12,
-                "consultation_fee": 499,
-                "languages": ["English", "Hindi", "Telugu"],
-                "city": "Visakhapatnam",
-                "available": True,
-                "rating": 4.9,
-            },
-            {
-                "doctor_id": "demo-doc-2",
-                "name": "Dr. Rajesh Kumar",
-                "specialization": "Cardiology",
-                "qualification": "MBBS, DM (Cardiology)",
-                "experience_years": 18,
-                "consultation_fee": 799,
-                "languages": ["English", "Hindi"],
-                "city": "Hyderabad",
-                "available": True,
-                "rating": 4.8,
-            },
-            {
-                "doctor_id": "demo-doc-3",
-                "name": "Dr. Ananya Reddy",
-                "specialization": "Dermatology",
-                "qualification": "MBBS, MD (Dermatology)",
-                "experience_years": 8,
-                "consultation_fee": 599,
-                "languages": ["English", "Telugu"],
-                "city": "Visakhapatnam",
-                "available": True,
-                "rating": 4.7,
-            },
-            {
-                "doctor_id": "demo-doc-4",
-                "name": "Dr. Mohammed Irfan",
-                "specialization": "Pediatrics",
-                "qualification": "MBBS, MD (Pediatrics)",
-                "experience_years": 10,
-                "consultation_fee": 499,
-                "languages": ["English", "Hindi", "Urdu"],
-                "city": "Vijayawada",
-                "available": True,
-                "rating": 4.9,
-            },
-            {
-                "doctor_id": "demo-doc-5",
-                "name": "Dr. Lakshmi Devi",
-                "specialization": "Gynecology",
-                "qualification": "MBBS, MS (OBG)",
-                "experience_years": 15,
-                "consultation_fee": 699,
-                "languages": ["English", "Telugu", "Hindi"],
-                "city": "Visakhapatnam",
-                "available": True,
-                "rating": 4.8,
-            },
-            {
-                "doctor_id": "demo-doc-6",
-                "name": "Dr. Suresh Babu",
-                "specialization": "Orthopedics",
-                "qualification": "MBBS, MS (Ortho)",
-                "experience_years": 20,
-                "consultation_fee": 699,
-                "languages": ["English", "Telugu"],
-                "city": "Visakhapatnam",
-                "available": True,
-                "rating": 4.6,
-            },
-        ]
+    # No invented doctors. This previously returned six fabricated
+    # practitioners with names, qualifications, fees and ratings whenever the
+    # database had none, so a patient could book a video consultation with a
+    # doctor who does not exist. An empty list is honest and the client can say
+    # so; a plausible fake is not recoverable once someone has booked against it.
 
     return {"success": True, "doctors": doctors, "count": len(doctors)}
 
