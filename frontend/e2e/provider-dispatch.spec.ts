@@ -50,7 +50,7 @@ test.describe('Provider Dispatch Workflows E2E', () => {
     await page.goto('http://localhost:3000/dashboard/phlebotomist');
 
     // Wait for dashboard to load
-    await expect(page.locator('h1', { hasText: 'Phlebotomist Hub' }).first()).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Field Collection' }).first()).toBeVisible();
 
     // In a mock state, there might be active tasks or "No active tasks"
     // Let's ensure the tabs load and navigation works
@@ -65,7 +65,7 @@ test.describe('Provider Dispatch Workflows E2E', () => {
     await page.goto('http://localhost:3000/dashboard/nurse');
 
     // Wait for dashboard to load
-    await expect(page.locator('h1', { hasText: 'Nurse Dashboard' })).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Home Nursing' })).toBeVisible();
 
     // Verify main components render without crashing
     const activeTasks = page.locator('text=Active Tasks').first();

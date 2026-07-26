@@ -1,0 +1,22 @@
+{
+  "files": [
+    "src/app/(app)/dashboard/components/DashboardShell.tsx",
+    "src/app/(app)/dashboard/components/dispatch/DutyBar.tsx",
+    "src/app/(app)/dashboard/components/dispatch/OffDutyPanel.tsx",
+    "src/app/(app)/dashboard/components/dispatch/ActiveTaskPanel.tsx",
+    "src/app/(app)/dashboard/components/dispatch/TaskListPanel.tsx",
+    "src/app/(app)/dashboard/components/dispatch/TaskNotes.tsx",
+    "src/app/(app)/dashboard/components/dispatch/SelfieModal.tsx",
+    "src/app/(app)/dashboard/components/dispatch/LabHandoverModal.tsx",
+    "src/app/(app)/dashboard/components/dispatch/VitalsModal.tsx",
+    "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx",
+    "src/app/(app)/dashboard/components/PhleboWalletPanel.tsx",
+    "src/app/(app)/dashboard/components/AttendanceCard.tsx",
+    "src/app/(app)/dashboard/components/DashboardProfile.tsx",
+    "src/app/components/NurseToolsModal.tsx",
+    "src/app/components/PhlebotomistToolsModal.tsx",
+    "src/app/(app)/dashboard/phlebotomist/page.tsx",
+    "src/app/(app)/dashboard/nurse/page.tsx",
+    "src/app/(app)/dashboard/supervisor/page.tsx"
+  ]
+}

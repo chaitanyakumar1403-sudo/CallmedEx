@@ -221,7 +221,13 @@ input[type="radio"] {
 .cm-spine__step--halted  .cm-spine__dot { background: var(--cm-halted); border-color: var(--cm-halted); color: #fff; }
 
 .cm-spine__label { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); }
-.cm-spine__step--pending .cm-spine__label { color: var(--cm-ink-faint); font-weight: 600; }
+/* --cm-ink-faint measures 2.56:1 on white — below the 4.5:1 floor. The spine is
+   the product's signature status element and is read outdoors in direct
+   sunlight, so pending steps use the secondary-text token instead (~4.76:1).
+   Fixed here rather than by lowering --cm-ink-faint globally, which is used for
+   genuinely de-emphasised text elsewhere. Hierarchy is preserved by the lighter
+   weight and the hollow dot, not by colour alone. */
+.cm-spine__step--pending .cm-spine__label { color: var(--cm-ink-3); font-weight: 600; }
 .cm-spine__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
 
 /* The current step gets a soft ring so it is findable at a glance without
@@ -322,20 +328,13 @@ input[type="radio"] {
   background: var(--cm-surface-2);
 }
 
-.cm-dash[data-role="patient"]      { --cm-accent: #1a2b4a; --cm-accent-deep: #0f1d33; }
-.cm-dash[data-role="doctor"]       { --cm-accent: #1e3a8a; --cm-accent-deep: #172554; }
-.cm-dash[data-role="phlebotomist"] { --cm-accent: #0f766e; --cm-accent-deep: #134e4a; }
-.cm-dash[data-role="nurse"]        { --cm-accent: #6d28d9; --cm-accent-deep: #4c1d95; }
-.cm-dash[data-role="organization"] { --cm-accent: #334155; --cm-accent-deep: #1e293b; }
-.cm-dash[data-role="pharmacy"]     { --cm-accent: #15803d; --cm-accent-deep: #14532d; }
-.cm-dash[data-role="admin"]        { --cm-accent: #0f172a; --cm-accent-deep: #020617; }
-.cm-dash[data-role="staff"]        { --cm-accent: #0369a1; --cm-accent-deep: #075985; }
-
 /* ── Header ───────────────────────────────────────────────────────────── */
+/* Flat, not gradient: a gradient on a low-end LCD in sunlight reads as a
+   smudge, and the role-tinted version made two roles look like two products. */
 .cm-dash__head {
-  background: linear-gradient(135deg, var(--cm-accent-deep) 0%, var(--cm-accent) 100%);
+  background: var(--cm-accent);
   color: #fff;
-  padding: var(--cm-6) var(--cm-8) var(--cm-8);
+  padding: var(--cm-6) var(--cm-8) 0;
 }
 .cm-dash__head-inner {
   max-width: 1280px; margin: 0 auto;
@@ -354,43 +353,59 @@ input[type="radio"] {
 .cm-dash__aside { display: flex; gap: var(--cm-2); align-items: center; flex-wrap: wrap; }
 
 /* ── Tabs — a real tablist, arrow-navigable ───────────────────────────── */
+/* Tabs sit INSIDE the header band. The previous rule pulled them up with a
+   negative margin onto a header that reserved no space for them, so they cut
+   across its lower boundary. */
 .cm-dash__tabs {
-  max-width: 1280px; margin: calc(var(--cm-5) * -1) auto 0;
-  padding: 0 var(--cm-8);
-  display: flex; gap: var(--cm-1);
-  overflow-x: auto; scrollbar-width: none;
+  background: var(--cm-accent);
+  /* The navy band is full-bleed, but the tabs themselves must line up with the
+     header title above them, which `.cm-dash__head-inner` caps at 1280px and
+     centres. Without this the tabs run to the left screen edge on a wide
+     monitor while the title starts 320px in. Padding rather than max-width so
+     the band stays edge-to-edge and no markup wrapper is needed. */
+  /* Matches `.cm-dash__head-inner`'s true offset. The header's own --cm-8 inset
+     cancels out of the centring maths, so it must NOT be re-added here. */
+  padding: 0 max(var(--cm-8), calc((100% - 1280px) / 2));
+  display: flex;
+  gap: var(--cm-1);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 .cm-dash__tabs::-webkit-scrollbar { display: none; }
 
 .cm-tab {
   flex: none;
-  padding: var(--cm-3) var(--cm-5);
+  padding: var(--cm-3) var(--cm-4);
   min-height: var(--cm-tap);
-  border: 1px solid var(--cm-line);
-  border-bottom: none;
-  border-radius: var(--cm-radius) var(--cm-radius) 0 0;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--cm-ink-3);
-  font-weight: 600; font-size: var(--cm-text-sm);
-  cursor: pointer; white-space: nowrap;
-  transition: background var(--cm-fast) var(--cm-ease),
-              color var(--cm-fast) var(--cm-ease);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 700;
+  font-size: var(--cm-text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-2);
+  transition: color var(--cm-fast) var(--cm-ease),
+              border-color var(--cm-fast) var(--cm-ease);
 }
-.cm-tab:hover { background: #fff; color: var(--cm-ink); }
+.cm-tab:hover { color: #fff; }
 .cm-tab[aria-selected="true"] {
-  background: var(--cm-surface);
-  color: var(--cm-accent);
-  font-weight: 800;
-  box-shadow: inset 0 3px 0 var(--cm-accent);
+  color: #fff;
+  border-bottom-color: #fff;
 }
-/* A count that changes is worth noticing; it should not be a decoration. */
 .cm-tab__count {
-  display: inline-block; margin-left: 6px;
-  padding: 1px 7px; border-radius: var(--cm-radius-pill);
-  background: var(--cm-surface-3); color: var(--cm-ink-2);
-  font-size: var(--cm-text-xs); font-weight: 800;
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: var(--cm-radius-pill);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: var(--cm-text-xs);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
-.cm-tab[aria-selected="true"] .cm-tab__count { background: var(--cm-accent); color: #fff; }
 .cm-tab__count--alert { background: var(--cm-urgent); color: #fff; }
 
 .cm-dash__body {
@@ -412,27 +427,76 @@ input[type="radio"] {
 }
 .cm-panel__note { margin: 0 0 var(--cm-5); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
 
+/* Generic flex row — a heading (or any block element) sitting beside a
+   trailing element (a count Pill, an action) instead of stacking under it.
+   `.cm-panel__title` is a block-level h2, so pairing it with a Pill needs
+   this rather than relying on inline flow. */
+.cm-row-between {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap;
+}
+.cm-row-between > .cm-panel__title { margin-bottom: 0; }
+
+/* Generic vertical stack, 20px between siblings. Deliberately its own class
+   rather than reusing `.cm-tasklist` (12px, and semantically "a list of
+   dispatch task cards") or `.cm-wallet` (its own ledger-specific spacing) —
+   borrowing either would silently couple unrelated layouts. */
+.cm-stack > * + * { margin-top: var(--cm-5); }
+
+/* ── Cards and panels ─────────────────────────────────────────────────── */
+.cm-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-5);
+}
+.cm-card--interactive { cursor: pointer; transition: border-color var(--cm-fast) var(--cm-ease); }
+.cm-card--interactive:hover { border-color: var(--cm-line-strong); }
+
+/* ── Stats ────────────────────────────────────────────────────────────── */
 .cm-stats {
-  display: grid; gap: var(--cm-4);
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--cm-4);
   margin-bottom: var(--cm-6);
 }
 .cm-stat {
+  display: flex; flex-direction: column; align-items: flex-start;
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
   border-left: 4px solid var(--cm-accent);
   border-radius: var(--cm-radius);
-  padding: var(--cm-5);
+  padding: var(--cm-4) var(--cm-5);
+  text-align: left;
+  font-family: inherit;
+  /* States the tap-target floor rather than relying on content height to
+     clear it incidentally — under .cm-dense, --cm-4/--cm-5 shrink to
+     10px/12px and the label+value stack alone would fall short of 44px. */
+  min-height: var(--cm-tap);
 }
-.cm-stat__label { font-size: var(--cm-text-xs); color: var(--cm-ink-3); font-weight: 700;
-                  text-transform: uppercase; letter-spacing: 0.06em; }
-/* Tabular figures stop the number jittering as it updates. */
-.cm-stat__value { font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
-                  margin-top: var(--cm-1); font-variant-numeric: tabular-nums; line-height: 1.1; }
-.cm-stat__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-faint); margin-top: var(--cm-1); }
+.cm-stat--btn { cursor: pointer; transition: border-color var(--cm-fast) var(--cm-ease); }
+.cm-stat--btn:hover { border-color: var(--cm-line-strong); }
+.cm-stat__label {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--cm-ink-3);
+}
+.cm-stat__value {
+  font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
+  margin-top: var(--cm-1); line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.cm-stat__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: var(--cm-1); }
 .cm-stat--urgent { border-left-color: var(--cm-urgent); }
 .cm-stat--urgent .cm-stat__value { color: var(--cm-urgent); }
+.cm-stat--active { border-left-color: var(--cm-active); }
+.cm-stat--done   { border-left-color: var(--cm-done); }
 
+/* DEPRECATED — superseded by .cm-stat / .cm-stats (this file) and the Stat
+   primitive. Still consumed by admin, doctor, organization and pharmacy, which
+   Waves 4 and 5 convert. Delete when the last consumer is gone; do not add new
+   uses. */
 /* ── Stats grid — responsive card grid for dashboard KPIs ────────────── */
 /* Replaces the per-dashboard inline `repeat(4,1fr)` grids that collapsed
    to unreadable micro-columns on tablet and phone. auto-fit + a 220px
@@ -481,16 +545,34 @@ input[type="radio"] {
   margin-top: 2px; font-weight: 600;
 }
 
-/* ── Empty state — an invitation to act, not an apology ───────────────── */
+/* ── Empty state ──────────────────────────────────────────────────────── */
 .cm-empty {
-  text-align: center; padding: var(--cm-12) var(--cm-6);
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: var(--cm-10) var(--cm-6);
   border: 1px dashed var(--cm-line-strong);
   border-radius: var(--cm-radius-lg);
   background: var(--cm-surface);
 }
-.cm-empty__icon  { font-size: 2rem; margin-bottom: var(--cm-3); }
-.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); }
-.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0 auto; max-width: 46ch; }
+.cm-empty__icon {
+  display: grid; place-items: center;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--cm-surface-3); color: var(--cm-ink-3);
+  margin-bottom: var(--cm-3);
+}
+.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg); }
+.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; }
+.cm-empty__action { margin-top: var(--cm-5); }
+
+.cm-promises {
+  list-style: none; margin: var(--cm-5) 0 0; padding: var(--cm-4);
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+  font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-promises li { display: flex; align-items: center; gap: var(--cm-2); }
+.cm-promises li + li { margin-top: var(--cm-2); }
+.cm-promises svg { color: var(--cm-done); }
+
+.cm-skeleton-rows > .cm-skeleton { margin-bottom: var(--cm-3); }
 
 @media (max-width: 640px) {
   .cm-dash__head  { padding: var(--cm-5) var(--cm-4) var(--cm-6); }
@@ -499,3 +581,461 @@ input[type="radio"] {
   .cm-dash__title { font-size: var(--cm-text-xl); }
   .cm-stats-grid  { grid-template-columns: 1fr; }
 }
+
+/* ── Icons ────────────────────────────────────────────────────────────── */
+.cm-icon { flex: none; vertical-align: -0.125em; }
+
+/* ── Button ───────────────────────────────────────────────────────────── */
+.cm-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--cm-2);
+  min-height: var(--cm-tap);
+  padding: 0 var(--cm-5);
+  border: 1px solid transparent;
+  border-radius: var(--cm-radius);
+  font-family: inherit;
+  font-size: var(--cm-text-sm);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--cm-fast) var(--cm-ease),
+              border-color var(--cm-fast) var(--cm-ease),
+              color var(--cm-fast) var(--cm-ease);
+}
+.cm-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.cm-btn--sm { min-height: 36px; padding: 0 var(--cm-3); font-size: var(--cm-text-xs); }
+.cm-btn--icon { padding: 0; width: var(--cm-tap); }
+.cm-btn--sm.cm-btn--icon { width: 36px; }
+
+.cm-btn--primary   { background: var(--cm-accent); color: #fff; }
+.cm-btn--primary:hover:not(:disabled)   { background: var(--cm-navy-deep); }
+.cm-btn--secondary { background: var(--cm-surface); color: var(--cm-ink);
+                     border-color: var(--cm-line-strong); }
+.cm-btn--secondary:hover:not(:disabled) { background: var(--cm-surface-2); }
+.cm-btn--ghost     { background: transparent; color: var(--cm-ink-2); }
+.cm-btn--ghost:hover:not(:disabled)     { background: var(--cm-surface-3); color: var(--cm-ink); }
+.cm-btn--danger    { background: var(--cm-urgent); color: #fff; }
+.cm-btn--danger:hover:not(:disabled)    { filter: brightness(0.92); }
+
+/* On the navy header band, secondary and ghost need to invert or they vanish. */
+.cm-dash__head .cm-btn--secondary,
+.cm-appbar .cm-btn--secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.32);
+}
+.cm-dash__head .cm-btn--ghost,
+.cm-appbar .cm-btn--ghost { color: rgba(255, 255, 255, 0.85); }
+
+/* ── Banner ───────────────────────────────────────────────────────────── */
+.cm-banner {
+  display: flex; align-items: flex-start; gap: var(--cm-3);
+  padding: var(--cm-3) var(--cm-4);
+  border: 1px solid transparent;
+  border-radius: var(--cm-radius);
+  font-size: var(--cm-text-sm);
+  font-weight: 600;
+  margin-bottom: var(--cm-4);
+}
+.cm-banner__body { flex: 1; }
+/* The glyph stays small so the banner does not bloat to 68px, but the TARGET
+   must still clear 44px. A centred, transparent ::after does that without
+   changing layout — sizing the button itself would push every banner taller. */
+.cm-banner__x {
+  position: relative;
+  background: none; border: 0; cursor: pointer; color: inherit;
+  min-height: auto; padding: 2px; opacity: 0.7;
+}
+.cm-banner__x::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--cm-tap); height: var(--cm-tap);
+}
+.cm-banner__x:hover { opacity: 1; }
+.cm-banner--urgent  { background: var(--cm-urgent-bg);  color: var(--cm-urgent);  border-color: var(--cm-urgent-line); }
+.cm-banner--active  { background: var(--cm-active-bg);  color: var(--cm-active);  border-color: var(--cm-active-line); }
+.cm-banner--done    { background: var(--cm-done-bg);    color: var(--cm-done);    border-color: var(--cm-done-line); }
+.cm-banner--waiting { background: var(--cm-waiting-bg); color: var(--cm-waiting); border-color: var(--cm-waiting-line); }
+.cm-banner--halted  { background: var(--cm-halted-bg);  color: var(--cm-halted);  border-color: var(--cm-halted-line); }
+
+/* ── Fields ───────────────────────────────────────────────────────────── */
+.cm-field { margin-bottom: var(--cm-4); }
+.cm-field__label { display: block; font-size: var(--cm-text-sm); font-weight: 700;
+                   color: var(--cm-ink); margin-bottom: var(--cm-1); }
+.cm-field__req  { color: var(--cm-urgent); }
+.cm-field__hint { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin: 0 0 var(--cm-2); }
+.cm-field__err  { font-size: var(--cm-text-xs); color: var(--cm-urgent); margin: var(--cm-1) 0 0; font-weight: 600; }
+
+.cm-input {
+  width: 100%;
+  min-height: var(--cm-tap);
+  padding: var(--cm-2) var(--cm-3);
+  border: 1px solid var(--cm-line-strong);
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface);
+  color: var(--cm-ink);
+  font-family: inherit;
+  font-size: var(--cm-text-base);   /* 16px: anything smaller zooms iOS Safari */
+}
+.cm-input:disabled { background: var(--cm-surface-3); color: var(--cm-ink-3); }
+.cm-input[aria-invalid="true"] { border-color: var(--cm-urgent); }
+.cm-input--area { min-height: 96px; padding: var(--cm-3); resize: vertical; }
+
+/* `Select` emits this modifier but nothing defined it — the disclosure arrow
+   it clearly implied. `appearance: none` needs a hand-drawn replacement or
+   the control loses any affordance that it opens a list. This is the one
+   place `linear-gradient` is legitimate outside a token file: it draws a
+   control affordance, not a decorative surface, and this file sits outside
+   the ui-lint gate's scan (which only covers .tsx files). */
+.cm-input--select {
+  appearance: none;
+  padding-right: var(--cm-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--cm-ink-3) 50%),
+                    linear-gradient(135deg, var(--cm-ink-3) 50%, transparent 50%);
+  background-position: right calc(var(--cm-4) + 4px) center,
+                       right var(--cm-4) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.cm-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--cm-4);
+}
+.cm-modal {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius-lg);
+  box-shadow: var(--cm-shadow-3);
+  width: 100%; max-width: 520px;
+  max-height: calc(100vh - var(--cm-10));
+  display: flex; flex-direction: column;
+}
+.cm-modal__head {
+  display: flex; align-items: center; gap: var(--cm-3);
+  padding: var(--cm-5) var(--cm-5) var(--cm-3);
+  border-bottom: 1px solid var(--cm-line);
+}
+.cm-modal__title { margin: 0; flex: 1; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink); }
+.cm-modal__x { background: none; border: 0; cursor: pointer; color: var(--cm-ink-3);
+               min-height: var(--cm-tap); width: var(--cm-tap); }
+.cm-modal__x:hover { color: var(--cm-ink); }
+.cm-modal__body { padding: var(--cm-5); overflow-y: auto; }
+.cm-modal__foot {
+  display: flex; justify-content: flex-end; gap: var(--cm-2);
+  padding: var(--cm-3) var(--cm-5) var(--cm-5);
+  border-top: 1px solid var(--cm-line);
+}
+@media (max-width: 640px) {
+  .cm-overlay { padding: 0; align-items: flex-end; }
+  .cm-modal { max-width: none; border-radius: var(--cm-radius-lg) var(--cm-radius-lg) 0 0;
+              max-height: 92vh; }
+}
+
+/* ── App bar ──────────────────────────────────────────────────────────── */
+.cm-appbar {
+  display: flex; align-items: center; gap: var(--cm-3);
+  height: 56px; padding: 0 var(--cm-5);
+  background: var(--cm-navy-deep); color: #fff;
+}
+.cm-appbar__brand { color: #fff; font-weight: 800; letter-spacing: -0.02em;
+                    font-size: var(--cm-text-lg); text-decoration: none; }
+.cm-appbar__role {
+  padding: 3px 10px; border-radius: var(--cm-radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  /* Nearest existing token to the prior hardcoded #dbeafe. Checked against
+     --cm-navy-deep: contrast ratio ~9.3:1, well clear of the 4.5:1 floor. */
+  color: var(--cm-active-line);
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: capitalize;
+}
+.cm-appbar__spacer { flex: 1; }
+.cm-appbar__user {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-sm); font-weight: 600; color: rgba(255, 255, 255, 0.9);
+}
+@media (max-width: 640px) {
+  .cm-appbar { padding: 0 var(--cm-4); }
+  .cm-appbar__user { display: none; }
+}
+.cm-gallery-row { display: flex; flex-wrap: wrap; gap: var(--cm-3); align-items: center; }
+.cm-dash__body > .cm-panel { margin-bottom: var(--cm-5); }
+
+/* ── Duty bar ─────────────────────────────────────────────────────────── */
+.cm-duty { margin-bottom: var(--cm-5); }
+.cm-duty__head {
+  display: flex; align-items: center; gap: var(--cm-3);
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-left: 4px solid var(--cm-waiting);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-4) var(--cm-5);
+  margin-bottom: var(--cm-4);
+  flex-wrap: wrap;
+}
+.cm-duty__icon {
+  display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 50%; background: var(--cm-waiting-bg); color: var(--cm-waiting);
+  flex: none;
+}
+.cm-duty__title-h {
+  margin: 0 0 var(--cm-3);
+  font-size: var(--cm-text-xl); font-weight: 800;
+  color: var(--cm-ink); letter-spacing: -0.02em;
+}
+.cm-duty__text { flex: 1; min-width: 180px; }
+.cm-duty__title { margin: 0; font-weight: 800; font-size: var(--cm-text-lg); color: var(--cm-ink); }
+.cm-duty__sub   { margin: 2px 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
+
+/* On duty flips the rail and badge to the active colour. */
+.cm-duty--on .cm-duty__head { border-left-color: var(--cm-done); }
+.cm-duty--on .cm-duty__icon { background: var(--cm-done-bg); color: var(--cm-done); }
+
+/* ── Dispatch task list ──────────────────────────────────────────────── */
+.cm-tasklist > * + * { margin-top: var(--cm-3); }
+.cm-task { display: flex; gap: var(--cm-3); align-items: flex-start; flex-wrap: wrap; }
+.cm-task__body { flex: 1; min-width: 160px; }
+.cm-task__name {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: var(--cm-1) 0 0; font-weight: 800; color: var(--cm-ink);
+}
+.cm-task__meta {
+  margin: var(--cm-1) 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3);
+  text-transform: capitalize;
+}
+.cm-task__actions { display: flex; gap: var(--cm-2); }
+@media (max-width: 640px) {
+  .cm-task__actions { width: 100%; }
+  .cm-task__actions > * { flex: 1; }
+}
+
+/* Shared notes callout — active task requirements + pending task details.
+   Same "http line becomes a link" parsing on both, just styled once. */
+.cm-notes {
+  margin-top: var(--cm-3); padding: var(--cm-3);
+  background: var(--cm-surface-3); border-left: 3px solid var(--cm-active);
+  border-radius: var(--cm-radius); font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-notes strong { color: var(--cm-ink); }
+.cm-notes p { margin: var(--cm-1) 0 0; }
+.cm-notes a { color: var(--cm-active); font-weight: 600; }
+
+/* ── Active task panel ───────────────────────────────────────────────── */
+.cm-active {
+  background: var(--cm-surface); border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg); padding: var(--cm-5);
+  margin-bottom: var(--cm-4); box-shadow: var(--cm-shadow-2);
+}
+.cm-active__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); margin-bottom: var(--cm-4); flex-wrap: wrap;
+}
+.cm-active__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-base); font-weight: 800; color: var(--cm-ink);
+}
+.cm-active__body {
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+  padding: var(--cm-4); margin-bottom: var(--cm-4);
+}
+.cm-active__address {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  margin: 0; font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm);
+}
+.cm-active__meta {
+  margin: var(--cm-1) 0 0; font-size: var(--cm-text-xs); color: var(--cm-ink-3);
+  text-transform: capitalize;
+}
+.cm-active__spine { margin-bottom: var(--cm-4); }
+.cm-active__nav { display: flex; gap: var(--cm-2); margin-bottom: var(--cm-4); }
+.cm-active__nav > a { flex: 1; }
+.cm-active__task-actions { display: flex; gap: var(--cm-2); margin-bottom: var(--cm-4); }
+.cm-active__task-actions > * { flex: 1; }
+.cm-active__otp {
+  background: var(--cm-waiting-bg); border: 2px dashed var(--cm-waiting-line);
+  border-radius: var(--cm-radius); padding: var(--cm-4);
+}
+.cm-active__otp-title {
+  margin: 0 0 var(--cm-3); font-weight: 800; color: var(--cm-waiting); font-size: var(--cm-text-sm);
+}
+.cm-active__otp .cm-input {
+  text-align: center; letter-spacing: 6px; font-weight: 700; font-size: var(--cm-text-lg);
+}
+.cm-active__verify, .cm-active__advance { width: 100%; }
+
+/* ── Dispatch tracker shell ───────────────────────────────────────────── */
+/* Only the non-embedded callers (doctor, pharmacy) need page chrome — the
+   embedded ones (nurse, phlebotomist) sit inside DashboardShell, which
+   already supplies a background and scroll container. */
+.cm-tracker--standalone { background: var(--cm-surface-3); min-height: 100vh; }
+.cm-tracker__body { max-width: 600px; margin: 0 auto; padding: var(--cm-4); }
+.cm-tracker__loading { padding: var(--cm-6) 0; }
+.cm-tracker__loading--standalone { min-height: 100vh; display: flex; align-items: center;
+  padding: var(--cm-8) var(--cm-4); }
+.cm-tracker__loading--standalone .cm-skeleton-rows { width: 100%; }
+.cm-tracker__section { margin-bottom: var(--cm-4); }
+.cm-tracker__section-title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0 0 var(--cm-3); color: var(--cm-ink-2);
+  font-size: var(--cm-text-base); font-weight: 800;
+}
+
+/* ── All-tasks modal ──────────────────────────────────────────────────── */
+.cm-alltasks__row { display: flex; align-items: center; justify-content: space-between; gap: var(--cm-2); }
+.cm-alltasks__type { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); text-transform: capitalize; }
+.cm-alltasks__address {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  margin: var(--cm-2) 0; font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-alltasks__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-faint); }
+.cm-alltasks__map {
+  display: inline-flex; align-items: center; gap: var(--cm-1);
+  font-size: var(--cm-text-xs); font-weight: 700; color: var(--cm-active);
+  text-decoration: none; min-height: var(--cm-tap);
+}
+.cm-alltasks__item--current { border-left: 4px solid var(--cm-active); }
+.cm-alltasks__empty { text-align: center; color: var(--cm-ink-3); padding: var(--cm-6) 0; }
+
+/* ── Selfie / lab handover / vitals modals ───────────────────────────── */
+.cm-selfie-reqs { margin: var(--cm-2) 0 0; padding-left: var(--cm-5); }
+.cm-selfie-reqs li + li { margin-top: var(--cm-1); }
+.cm-modal-lede { margin: 0 0 var(--cm-4); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
+.cm-vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--cm-3); }
+@media (max-width: 420px) {
+  .cm-vitals-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Tool guide modals (nurse / phlebotomist) ───────────────────────────── */
+.cm-modal-section + .cm-modal-section { margin-top: var(--cm-6); }
+.cm-modal-section__title {
+  margin: 0 0 var(--cm-3); font-size: var(--cm-text-base);
+  font-weight: 800; color: var(--cm-ink);
+}
+
+/* A tube's colour is data, not design — the chip is set from a CSS custom
+   property carrying the record's hex value, never an inline style with a
+   literal. The name always renders as text beside it: colour alone fails
+   for a phlebotomist with a colour vision deficiency reading tube order in
+   poor field light. */
+.cm-swatch {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-sm); font-weight: 700; color: var(--cm-ink);
+}
+.cm-swatch__chip {
+  width: 14px; height: 14px; border-radius: 3px; flex: none;
+  border: 1px solid var(--cm-line-strong);
+  background: var(--cm-swatch, var(--cm-surface-3));
+}
+
+.cm-tube-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--cm-3);
+}
+.cm-tube-card {
+  display: block; width: 100%;
+  text-align: left; font-family: inherit;
+  background: var(--cm-surface);
+  border: 2px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-4);
+  cursor: pointer;
+  transition: border-color var(--cm-fast) var(--cm-ease),
+              background var(--cm-fast) var(--cm-ease);
+  /* Previously cleared 44px only because three lines of guide text pushed it
+     there — shorter or localised copy could silently drop it below the tap
+     floor. Stated explicitly instead. */
+  min-height: var(--cm-tap);
+}
+.cm-tube-card:hover { border-color: var(--cm-line-strong); }
+.cm-tube-card--selected { background: var(--cm-done-bg); border-color: var(--cm-done); }
+.cm-tube-card__meta {
+  display: block; font-size: var(--cm-text-xs); color: var(--cm-ink-3);
+  margin-top: var(--cm-1);
+}
+
+/* ── Wallet / ledger ──────────────────────────────────────────────────── */
+/* A wallet is a ledger, not a counter: the balance is a cached projection
+   always recomputed from wallet_transactions server-side, so credit and debit
+   rows are equally first-class here, never a plain running total. */
+.cm-wallet > * + * { margin-top: var(--cm-5); }
+.cm-wallet__tip {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  padding: var(--cm-3) var(--cm-4);
+  background: var(--cm-surface-3); border-radius: var(--cm-radius);
+  font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-wallet__tip svg { flex: none; margin-top: 2px; color: var(--cm-ink-3); }
+.cm-wallet__empty { margin: 0; color: var(--cm-ink-3); }
+
+.cm-ledger > * + * { margin-top: var(--cm-2); }
+.cm-ledger__row {
+  display: flex; align-items: center; gap: var(--cm-3);
+  padding: var(--cm-3); flex-wrap: wrap;
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+}
+.cm-ledger__info { flex: 1; min-width: 160px; }
+.cm-ledger__reason { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); }
+.cm-ledger__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
+
+/* Tabular figures so amounts line up in a column and do not jitter as the
+   ledger updates — same intent as .cm-stat__value, for amounts shown outside
+   a Stat card. Colour reinforces direction; the Pill beside it carries the
+   word, so colour is never the only signal. */
+.cm-amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+.cm-amount--credit { color: var(--cm-done); }
+.cm-amount--debit  { color: var(--cm-halted); }
+
+/* ── Attendance card ──────────────────────────────────────────────────── */
+.cm-attendance__head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap; margin-bottom: var(--cm-4);
+}
+.cm-attendance__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-base); font-weight: 800; color: var(--cm-ink);
+}
+.cm-attendance__form {
+  display: flex; gap: var(--cm-3); align-items: flex-end; flex-wrap: wrap;
+  margin-top: var(--cm-1);
+}
+.cm-attendance__form .cm-field { flex: 1; min-width: 220px; margin-bottom: 0; }
+
+/* ── Profile ──────────────────────────────────────────────────────────── */
+.cm-profile__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap; margin-bottom: var(--cm-5);
+}
+.cm-profile__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink);
+}
+.cm-profile {
+  margin: 0; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--cm-4);
+}
+.cm-profile__item {
+  background: var(--cm-surface-2);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-4);
+  min-width: 0;
+}
+.cm-profile__label {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0 0 var(--cm-1);
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--cm-ink-3);
+}
+.cm-profile__value {
+  margin: 0; font-size: var(--cm-text-sm); font-weight: 600;
+  color: var(--cm-ink); word-break: break-word; overflow-wrap: anywhere;
+}
+.cm-profile__value--cap { text-transform: capitalize; }

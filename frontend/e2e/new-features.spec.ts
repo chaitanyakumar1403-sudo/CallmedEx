@@ -34,20 +34,25 @@ test.describe('New Features E2E Tests', () => {
 
   test('1. Search Page - Should load location and search inputs', async ({ page }) => {
     await page.goto('http://localhost:3000/search');
-    
-    // Verify inputs are present
-    await expect(page.getByPlaceholder('e.g. Apollo Hospitals')).toBeVisible();
-    await expect(page.getByPlaceholder('City, District, or Pincode')).toBeVisible();
-    
+
+    // Verify inputs are present. Placeholders are accessible names here too
+    // (each input also carries a matching aria-label), so this doubles as an
+    // accessible-name check rather than relying on exact placeholder markup.
+    await expect(page.getByPlaceholder('Search by name or specialty')).toBeVisible();
+    await expect(page.getByPlaceholder('City, district or pincode')).toBeVisible();
+
     // Verify the search button is present
     await expect(page.getByRole('button', { name: 'Search' })).toBeVisible();
   });
 
   test('2. Smart Navbar - Provider should not see consumer links', async ({ page }) => {
-    // Navigate without auth (should see consumer links)
+    // Navigate without auth (should see consumer links). "Find Hospitals" was
+    // never a real nav link — SmartNavbar.tsx explicitly documents that
+    // facility discovery is deliberately not a top-level destination; the
+    // real consumer-only links are "Book a Test" and "Pharmacy".
     await page.goto('http://localhost:3000/');
     const nav = page.getByRole('navigation');
-    await expect(nav.getByRole('link', { name: 'Find Hospitals' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Book a Test' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Pharmacy' })).toBeVisible();
 
     // Now mock login as a doctor
@@ -56,7 +61,7 @@ test.describe('New Features E2E Tests', () => {
 
     // Should NOT see consumer links in the navbar
     const nav2 = page.getByRole('navigation');
-    await expect(nav2.getByRole('link', { name: 'Find Hospitals' })).not.toBeVisible();
+    await expect(nav2.getByRole('link', { name: 'Book a Test' })).not.toBeVisible();
     await expect(nav2.getByRole('link', { name: 'Pharmacy' })).not.toBeVisible();
   });
 
@@ -91,15 +96,21 @@ test.describe('New Features E2E Tests', () => {
     await page.goto('http://localhost:3000/dashboard/phlebotomist');
     
     // Should be on the Dispatch Tracking tab initially
-    await expect(page.locator('h1', { hasText: 'Phlebotomist Hub' }).first()).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Field Collection' }).first()).toBeVisible();
 
     // Verify Selfie Modal triggers when clicking Go On Duty
-    const onDutyBtn = page.getByRole('button', { name: '🟢 Go On Duty' });
+    // Two equivalent entry points exist by design — the duty bar's toggle and
+    // the off-duty panel's call to action. Both dispatch the same request, so
+    // the first is the one this test means.
+    const onDutyBtn = page.getByRole('button', { name: 'Go On Duty' }).first();
     await expect(onDutyBtn).toBeVisible();
     await onDutyBtn.click();
 
     // Expect the modal to appear
-    const modalHeading = page.locator('h3', { hasText: 'Pre-Duty Selfie Verification' });
+    // The Modal primitive renders its title as an h2, and sentence case is the
+    // convention now — so match by dialog role and accessible name rather than
+    // by tag and exact casing, which is what this assertion actually means.
+    const modalHeading = page.getByRole('dialog', { name: /pre-duty selfie verification/i });
     await expect(modalHeading).toBeVisible();
     
     // Cancel the modal
@@ -107,11 +118,14 @@ test.describe('New Features E2E Tests', () => {
     await expect(modalHeading).not.toBeVisible();
 
     // Check Profile Tab
-    const profileTab = page.getByRole('button', { name: '👤 Profile Details' });
+    // Tabs are a real ARIA tablist now, and their labels carry no emoji.
+    const profileTab = page.getByRole('tab', { name: 'Profile' });
     await profileTab.click();
     
     // Ensure DashboardProfile is rendered
-    await expect(page.locator('h3', { hasText: 'Registration & Service Profile' })).toBeVisible();
+    // Heading level moved h3 → h2 with the panel conversion; match by role so
+    // the assertion tracks the heading itself rather than its tag.
+    await expect(page.getByRole('heading', { name: /Registration & Service Profile/ })).toBeVisible();
     await expect(page.locator('text=Test phlebotomist').first()).toBeVisible();
   });
 });
