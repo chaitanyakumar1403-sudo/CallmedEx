@@ -91,7 +91,7 @@ test.describe('New Features E2E Tests', () => {
     await page.goto('http://localhost:3000/dashboard/phlebotomist');
     
     // Should be on the Dispatch Tracking tab initially
-    await expect(page.locator('h1', { hasText: 'Phlebotomist Hub' }).first()).toBeVisible();
+    await expect(page.locator('h1', { hasText: 'Field Collection' }).first()).toBeVisible();
 
     // Verify Selfie Modal triggers when clicking Go On Duty
     const onDutyBtn = page.getByRole('button', { name: '🟢 Go On Duty' });

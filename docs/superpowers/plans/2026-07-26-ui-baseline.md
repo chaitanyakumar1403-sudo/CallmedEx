@@ -295,3 +295,104 @@ $ grep -roE "#[0-9a-fA-F]{6}" --include=*.tsx . | wc -l
 - Playwright: 1.61.1, chromium project only (firefox/webkit not run, per
   task instructions)
 - OS: Windows 11 (win32), commands run via Git Bash / PowerShell
+
+---
+
+## Wave 1 result — 2026-07-26 (Task 20)
+
+Recorded after Tasks 1–19 (18 files converted, gate clean) and Task 20's own
+work (three stale `h1` assertions fixed, `@axe-core/playwright` installed,
+`e2e/ui-wave1.spec.ts` added, screenshots captured). Same branch, same
+method as the baseline above — `frontend/` is the working directory for
+every command.
+
+### Before / after
+
+| Metric | Baseline | Wave 1 | Command |
+|---|---|---|---|
+| `ProviderDispatchTracker.tsx` line count | 1073 | **547** | `wc -l "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx"` |
+| `style={{` occurrences (`src/`) | 2147 | **1912** | `grep -ro "style={{" --include=*.tsx src/ \| wc -l` |
+| 6-digit hex literal occurrences (`src/`) | 1911 | **1696** | `grep -roE "#[0-9a-fA-F]{6}" --include=*.tsx src/ \| wc -l` |
+| e2e suite (chromium, original 12 tests) | 5 passed / 7 failed | **7 passed / 5 failed** | `npx playwright test --project=chromium --reporter=list e2e/example.spec.ts e2e/new-features.spec.ts e2e/pharmacy.spec.ts e2e/provider-dispatch.spec.ts e2e/booking.spec.ts` |
+| lint:ui gate — converted file count | 0 | **18**, clean | `npm run lint:ui` |
+
+`ProviderDispatchTracker.tsx` dropped from 1073 to 547 lines (~49%) because
+Tasks 12–15 split its duty bar, active-task panel, task list, off-duty
+panel, selfie modal, lab-handover modal and vitals modal out into
+`dashboard/components/dispatch/*.tsx` — the line count moved out of this
+file, not out of the codebase; the `style={{` and hex-literal counts are
+codebase-wide (`src/`) so they reflect real removal, not relocation.
+
+### e2e result — deviation from the brief's prediction
+
+The brief predicted **8 passed / 4 failed**. The actual result is **7
+passed / 5 failed**. Every test green at baseline is still green, and the
+two `provider-dispatch.spec.ts` tests the brief targeted
+(`Phlebotomist Dashboard`, `Nurse Dashboard`) now pass for the first time,
+exactly as predicted. The discrepancy is in a third test the brief did not
+anticipate:
+
+**`new-features.spec.ts:83` — "4. Phlebotomist Dashboard - Profile Tab and
+Selfie Modal"** was failing at baseline on its `h1` assertion (line 94,
+`'Phlebotomist Hub'`), the same duplicated stale string this task's Step 1
+fixes. Fixing it (→ `'Field Collection'`) does make that assertion pass —
+but the test still fails, now three lines later:
+
+```
+Locator: getByRole('button', { name: '🟢 Go On Duty' })
+Expected: visible
+  97 |     const onDutyBtn = page.getByRole('button', { name: '🟢 Go On Duty' });
+> 98 |     await expect(onDutyBtn).toBeVisible();
+```
+
+The duty-toggle button's accessible name is now plain `"Go On Duty"` — the
+emoji was removed by the Wave 1 emoji ban (Task 13's `DutyBar.tsx`, gated by
+`lint:ui`; see the self-review note in the task brief about `statusTone.ts`
+being the one deliberate, flagged exception). This assertion was never in
+the task-20 brief's list of "three stale assertions" to fix, and per the
+task's explicit instruction ("do not adjust tests to reach a target"), it
+was left as-is and is reported here rather than silently patched. It is a
+fourth stale assertion in the same file, undiscovered until fixing the
+third one let the test run further. `new-features.spec.ts:83` therefore
+counts as failing both before and after this task, for two different
+reasons.
+
+Full breakdown, 12 original tests:
+- Still green (5, unchanged): `example.spec.ts:3`, `example.spec.ts:10`,
+  `new-features.spec.ts:63`, `pharmacy.spec.ts:4`,
+  `provider-dispatch.spec.ts:75`
+- Newly green (2): `provider-dispatch.spec.ts:48` (Phlebotomist),
+  `provider-dispatch.spec.ts:63` (Nurse)
+- Still red, unchanged, out of scope (4): `booking.spec.ts:4`,
+  `booking.spec.ts:28`, `new-features.spec.ts:35`, `new-features.spec.ts:46`
+- Still red, new failure line inside the same test (1):
+  `new-features.spec.ts:83` (now fails at line 98, not line 94)
+
+### New in Wave 1: `e2e/ui-wave1.spec.ts`
+
+24 additional tests: screenshots (phlebotomist off-duty, phlebotomist
+on-duty with active tasks, nurse, supervisor, `/dev/ui` × 3 viewports each),
+an axe (WCAG2A/AA) pass and an emoji-in-chrome check per converted surface.
+22 of 24 passed. The 2 failures are a real, reproducible `color-contrast`
+finding (not a test-authoring artifact) — see `task-20-report.md` for full
+detail:
+
+- `.cm-spine__step--pending .cm-spine__label` (`StatusSpine`, used by
+  `ActiveTaskPanel` on both the phlebotomist and nurse dashboards) renders
+  the `--cm-ink-faint` token (`#94a3b8`) on white — a contrast ratio of
+  2.56:1 against a required 4.5:1 for 14px text. This is a converted-surface
+  finding (Tasks 12–15's `StatusSpine`/`ActiveTaskPanel` work), not an
+  unconverted one. Task 20 is verification-only and does not fix it; it is
+  flagged here for the reviewer.
+
+`/dev/ui` requires a `next dev` server, not `next start` — the page calls
+`notFound()` when `process.env.NODE_ENV === "production"`, which is dead-code
+eliminated at build time and 404s under any production build regardless of
+runtime env vars. Its 3 screenshots and its axe check were captured against
+a `next dev` server on port 3000, then that server was stopped before
+re-running the production-mode suite for the other three surfaces (which
+render identically under `next dev` and `next start`). Running the whole
+`ui-wave1.spec.ts` file against `next start` silently overwrites the
+`/dev/ui` screenshots with 404-page captures with no test failure — this
+was caught only because file sizes and timestamps were checked by hand
+after the fact; it's not something the test suite itself would catch.
