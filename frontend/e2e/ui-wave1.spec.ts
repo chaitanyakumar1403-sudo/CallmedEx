@@ -391,3 +391,36 @@ test("modal fields keep full typed value and focus (nurse vitals)", async ({ pag
   await expect(bpInput).toHaveValue("118/76");
   await expect(bpInput).toBeFocused();
 });
+
+/**
+ * The live dispatch API can return a task carrying little more than an id and a
+ * status. Three components called `.replace()` on `service_type` directly, which
+ * threw and took the whole dashboard down behind an error boundary in
+ * production — while every mocked test passed, because the fixtures always
+ * supplied the field. Renders with a deliberately sparse task.
+ */
+test("dashboard survives a dispatch task missing optional fields", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+
+  await page.addInitScript(() => {
+    localStorage.setItem("token", "t");
+    localStorage.setItem("user", JSON.stringify({ role: "phlebotomist" }));
+  });
+  await page.route("**/api/**", (route) => {
+    const url = route.request().url();
+    const body = url.includes("/api/auth/me")
+      ? { success: true, data: { role: "phlebotomist", full_name: "R", is_online: true } }
+      : url.includes("my-tasks")
+        ? { tasks: [{ id: "1", status: "provider_accepted" }] }
+        : { success: true };
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  });
+
+  await page.goto("http://localhost:3000/dashboard/phlebotomist");
+  await page.waitForLoadState("networkidle");
+
+  await expect(page.locator("h1", { hasText: "Field Collection" })).toBeVisible();
+  await expect(page.getByText("This page couldn’t load")).toHaveCount(0);
+  expect(errors, errors.join(" | ")).toEqual([]);
+});

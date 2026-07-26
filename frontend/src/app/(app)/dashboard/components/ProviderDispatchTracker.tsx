@@ -11,6 +11,7 @@ import { TaskListPanel } from "./dispatch/TaskListPanel";
 import { SelfieModal } from "./dispatch/SelfieModal";
 import { LabHandoverModal } from "./dispatch/LabHandoverModal";
 import { VitalsModal, type Vitals } from "./dispatch/VitalsModal";
+import { serviceLabel } from "./dispatch/serviceLabel";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -482,7 +483,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
                 >
                   <div className="cm-alltasks__row">
                     <span className="cm-alltasks__type">
-                      {task.service_type === "home_collection" ? "Blood collection" : task.service_type.replace(/_/g, " ")}
+                      {serviceLabel(task.service_type)}
                     </span>
                     <StatusPill status={task.status} />
                   </div>

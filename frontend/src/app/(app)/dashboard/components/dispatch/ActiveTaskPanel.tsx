@@ -5,6 +5,7 @@ import { FlaskConical, MapPin, Navigation, Stethoscope } from "@/components/ui/i
 import StatusSpine, { StatusPill, dispatchSteps } from "@/app/components/StatusSpine";
 import type { DispatchTask } from "../ProviderDispatchTracker";
 import { TaskNotes } from "./TaskNotes";
+import { serviceLabel } from "./serviceLabel";
 
 /**
  * "arrived" is deliberately absent — that status renders the OTP block
@@ -72,7 +73,7 @@ export function ActiveTaskPanel({
         </p>
         <p className="cm-active__meta">
           {task.estimated_distance_km != null && `${task.estimated_distance_km.toFixed(1)} km away · `}
-          {task.service_type.replace(/_/g, " ")}
+          {serviceLabel(task.service_type)}
         </p>
         {task.notes && <TaskNotes notes={task.notes} heading="Requirements:" />}
       </div>

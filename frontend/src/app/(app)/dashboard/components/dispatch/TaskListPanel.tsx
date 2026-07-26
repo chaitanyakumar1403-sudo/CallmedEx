@@ -5,6 +5,7 @@ import { Button, Card, Icon, Modal, Pill } from "@/components/ui";
 import { MapPin } from "@/components/ui/icons";
 import type { DispatchTask } from "../ProviderDispatchTracker";
 import { TaskNotes } from "./TaskNotes";
+import { serviceLabel } from "./serviceLabel";
 
 /**
  * Incoming dispatch requests awaiting Accept/Reject. Pure presentation —
@@ -44,7 +45,7 @@ export function TaskListPanel({
                   {t.patient_address}
                 </p>
                 <p className="cm-task__meta">
-                  {t.service_type.replace(/_/g, " ")}
+                  {serviceLabel(t.service_type)}
                   {t.estimated_distance_km != null &&
                     ` · ${t.estimated_distance_km.toFixed(1)} km away`}
                 </p>

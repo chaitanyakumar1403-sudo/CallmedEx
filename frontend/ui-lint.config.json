@@ -17,6 +17,7 @@
     "src/app/components/PhlebotomistToolsModal.tsx",
     "src/app/(app)/dashboard/phlebotomist/page.tsx",
     "src/app/(app)/dashboard/nurse/page.tsx",
-    "src/app/(app)/dashboard/supervisor/page.tsx"
+    "src/app/(app)/dashboard/supervisor/page.tsx",
+    "src/app/(app)/dashboard/components/dispatch/serviceLabel.ts"
   ]
 }
