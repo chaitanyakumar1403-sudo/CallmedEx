@@ -55,3 +55,16 @@ test("reports every violation on a line, not just the first", () => {
   const v = lintFile(`<div style={{ color: "#fff" }} />`);
   assert.deepEqual(v.map((x) => x.rule).sort(), ["hex-literal", "inline-style"]);
 });
+
+// ⏸ is U+23F8, Miscellaneous Technical — outside the obvious emoji planes and
+// missed by the first version of this rule, while rendering in real chrome.
+test("flags glyphs in Miscellaneous Technical", () => {
+  for (const g of ["⏸️", "⏰", "⌛", "⏳"]) {
+    assert.equal(lintFile(`const m = "${g} off duty";`)[0]?.rule, "emoji", g);
+  }
+});
+
+// `●` is a text bullet in this codebase, not decoration — it must not trip.
+test("does not flag geometric shapes used as text bullets", () => {
+  assert.deepEqual(lintFile(`<span>● Active</span>`), []);
+});

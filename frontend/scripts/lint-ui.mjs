@@ -17,7 +17,12 @@ import { dirname, join, relative } from "node:path";
 const RULES = [
   { id: "inline-style", re: /style=\{\{/g },
   { id: "hex-literal", re: /#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b/g },
-  { id: "emoji", re: /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F900}-\u{1F9FF}]/gu },
+  // Ranges must cover Miscellaneous Technical (U+2300–23FF) — that is where
+  // ⏸ lives, and the off-duty toggle message uses it on every single toggle.
+  // An earlier version of this rule omitted that block and let the glyph
+  // through. Geometric Shapes (U+25A0–25FF) is deliberately NOT included:
+  // `●` is used as a text bullet in places and is not decoration.
+  { id: "emoji", re: /[\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F000}-\u{1FAFF}]/gu },
   { id: "gradient", re: /linear-gradient\(/g },
 ];
 

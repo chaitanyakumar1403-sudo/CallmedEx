@@ -10,6 +10,16 @@ export function statusTone(msg: string): "done" | "urgent" | "active" {
   return "active";
 }
 
+/**
+ * The ranges must cover Miscellaneous Technical (U+2300–23FF) — that is where
+ * ⏸ lives, and the off-duty toggle message uses it on every single toggle.
+ * An earlier version of this regex omitted that block and left the glyph on
+ * screen. Geometric Shapes is deliberately NOT included: `●` is used as a
+ * text bullet in places and is not decoration.
+ */
+const GLYPHS =
+  /[\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F000}-\u{1FAFF}]/gu;
+
 export function stripStatusGlyphs(msg: string): string {
-  return msg.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").trim();
+  return msg.replace(GLYPHS, "").trim();
 }
