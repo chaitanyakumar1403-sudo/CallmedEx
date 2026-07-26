@@ -1,7 +1,10 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Banner } from "@/components/ui";
 import { DutyBar } from "./dispatch/DutyBar";
+import { OffDutyPanel } from "./dispatch/OffDutyPanel";
+import { statusTone, stripStatusGlyphs } from "./dispatch/statusTone";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -404,49 +407,15 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
       <div style={embedded ? undefined : { maxWidth: 600, margin: "0 auto", padding: "16px" }}>
 
-        {/* Status message */}
         {statusMsg && (
-          <div style={{
-            padding: "12px 16px",
-            backgroundColor: statusMsg.includes("✅") ? "#f0fdf4" : statusMsg.includes("❌") ? "#fef2f2" : "#f0f9ff",
-            color: statusMsg.includes("✅") ? "#166534" : statusMsg.includes("❌") ? "#991b1b" : "#0c4a6e",
-            borderRadius: 10, marginBottom: 14, fontSize: "0.85rem", fontWeight: 600,
-            border: `1px solid ${statusMsg.includes("✅") ? "#bbf7d0" : statusMsg.includes("❌") ? "#fecaca" : "#bae6fd"}`,
-          }}>
-            {statusMsg}
-            <button onClick={() => setStatusMsg("")} style={{ float: "right", background: "none", border: "none", cursor: "pointer" }}>✕</button>
-          </div>
+          <Banner tone={statusTone(statusMsg)} onDismiss={() => setStatusMsg("")}>
+            {stripStatusGlyphs(statusMsg)}
+          </Banner>
         )}
 
-        {/* GPS error */}
-        {locationError && (
-          <div style={{ padding: "10px 14px", backgroundColor: "#fef2f2", color: "#991b1b", borderRadius: 8, marginBottom: 14, fontSize: "0.8rem", border: "1px solid #fecaca" }}>
-            📡 {locationError}
-          </div>
-        )}
+        {locationError && <Banner tone="urgent">{locationError}</Banner>}
 
-        {/* ─── NOT ON DUTY ─── */}
-        {!onDuty && (
-          <div style={{
-            backgroundColor: "white", borderRadius: 16, padding: 40,
-            textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-          }}>
-            <div style={{ fontSize: "3.5rem", marginBottom: 12 }}>🌙</div>
-            <h3 style={{ color: "#1e293b", marginBottom: 8 }}>You are Off Duty</h3>
-            <p style={{ color: "#64748b", fontSize: "0.85rem", maxWidth: 300, margin: "0 auto 20px" }}>
-              Tap <strong>Go On Duty</strong> above to start receiving field requests in your area.
-            </p>
-            <div style={{
-              backgroundColor: "#f8fafc", borderRadius: 10,
-              padding: "14px 20px", fontSize: "0.82rem", color: "#64748b", textAlign: "left",
-            }}>
-              <div>✅ GPS will auto-start when you go on duty</div>
-              <div style={{ marginTop: 6 }}>✅ You will receive real-time dispatch alerts</div>
-              <div style={{ marginTop: 6 }}>✅ You can accept or reject each request</div>
-              <div style={{ marginTop: 6 }}>✅ Earnings are updated after each completion</div>
-            </div>
-          </div>
-        )}
+        {!onDuty && <OffDutyPanel onGoOnDuty={onToggleClick} />}
 
         {/* ─── ACTIVE TASK TRACKER ─── */}
         {onDuty && activeTask && (

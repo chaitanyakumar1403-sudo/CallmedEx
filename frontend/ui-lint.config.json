@@ -1,6 +1,7 @@
 {
   "files": [
     "src/app/(app)/dashboard/components/DashboardShell.tsx",
-    "src/app/(app)/dashboard/components/dispatch/DutyBar.tsx"
+    "src/app/(app)/dashboard/components/dispatch/DutyBar.tsx",
+    "src/app/(app)/dashboard/components/dispatch/OffDutyPanel.tsx"
   ]
 }

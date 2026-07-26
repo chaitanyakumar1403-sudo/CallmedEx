@@ -537,6 +537,15 @@ input[type="radio"] {
 .cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; }
 .cm-empty__action { margin-top: var(--cm-5); }
 
+.cm-promises {
+  list-style: none; margin: var(--cm-5) 0 0; padding: var(--cm-4);
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+  font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-promises li { display: flex; align-items: center; gap: var(--cm-2); }
+.cm-promises li + li { margin-top: var(--cm-2); }
+.cm-promises svg { color: var(--cm-done); }
+
 .cm-skeleton-rows > .cm-skeleton { margin-bottom: var(--cm-3); }
 
 @media (max-width: 640px) {
