@@ -100,16 +100,20 @@ export default function AttendanceCard() {
         <Pill tone={statusTone}>{statusLabel}</Pill>
       </div>
 
-      {/* Same three states as the Pill above (Recorded / Late / Pending or
-          Missed), not a done/not-done binary — a late submission is not the
-          same as no submission, and telling a provider who already submitted
-          that their selfie is "missing" is simply false. */}
-      <Banner tone={done ? "done" : "waiting"}>
+      {/* Four states, matching the Pill above exactly (same status === "missed"
+          check, checked in the same order) — not a done/not-done binary. A
+          late submission is not the same as no submission, and a swept
+          "missed" row is not the same as still-pending: sweep_missed has
+          already called WalletService.set_hold by the time this row can be
+          in that state, so the hold is applied, not a future risk. */}
+      <Banner tone={done ? "done" : state.status === "missed" ? "halted" : "waiting"}>
         {done
           ? "05:15 selfie verified — today's earnings are unlocked."
-          : state.submitted && state.is_late
-            ? `Selfie received after ${state.deadline} IST — logged as late. Operations will confirm whether today's payout is affected.`
-            : `Live selfie with your ID and collection kit required by ${state.deadline} IST. Missing it holds today's payout — you can still take jobs and keep earning.`}
+          : state.status === "missed"
+            ? `The ${state.deadline} IST window closed without your attendance selfie. Today's payout is on hold — contact operations to have it reviewed.`
+            : state.submitted && state.is_late
+              ? `Selfie received after ${state.deadline} IST — logged as late. Operations will confirm whether today's payout is affected.`
+              : `Live selfie with your ID and collection kit required by ${state.deadline} IST. Missing it holds today's payout — you can still take jobs and keep earning.`}
       </Banner>
 
       {state.on_hold && (

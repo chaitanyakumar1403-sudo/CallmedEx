@@ -204,6 +204,16 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
           stopLocationBroadcast();
           setStatusMsg({ tone: "active", text: "You're now off duty" });
         }
+      } else {
+        // A silent failure here is worse than an error banner: the provider
+        // believes the tap worked and expects dispatch requests that will
+        // never arrive, with nothing telling them why.
+        setStatusMsg({
+          tone: "urgent",
+          text: newStatus
+            ? "Could not go on duty — please try again."
+            : "Could not go off duty — please try again.",
+        });
       }
     } catch (e) {
       setStatusMsg({ tone: "urgent", text: "Failed to update duty status" });
