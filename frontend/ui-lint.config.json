@@ -11,6 +11,8 @@
     "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx",
     "src/app/(app)/dashboard/components/PhleboWalletPanel.tsx",
     "src/app/(app)/dashboard/components/AttendanceCard.tsx",
-    "src/app/(app)/dashboard/components/DashboardProfile.tsx"
+    "src/app/(app)/dashboard/components/DashboardProfile.tsx",
+    "src/app/components/NurseToolsModal.tsx",
+    "src/app/components/PhlebotomistToolsModal.tsx"
   ]
 }

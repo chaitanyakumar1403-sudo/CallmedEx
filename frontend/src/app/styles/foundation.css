@@ -864,6 +864,51 @@ input[type="radio"] {
   .cm-vitals-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Tool guide modals (nurse / phlebotomist) ───────────────────────────── */
+.cm-modal-section + .cm-modal-section { margin-top: var(--cm-6); }
+.cm-modal-section__title {
+  margin: 0 0 var(--cm-3); font-size: var(--cm-text-base);
+  font-weight: 800; color: var(--cm-ink);
+}
+
+/* A tube's colour is data, not design — the chip is set from a CSS custom
+   property carrying the record's hex value, never an inline style with a
+   literal. The name always renders as text beside it: colour alone fails
+   for a phlebotomist with a colour vision deficiency reading tube order in
+   poor field light. */
+.cm-swatch {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-sm); font-weight: 700; color: var(--cm-ink);
+}
+.cm-swatch__chip {
+  width: 14px; height: 14px; border-radius: 3px; flex: none;
+  border: 1px solid var(--cm-line-strong);
+  background: var(--cm-swatch, var(--cm-surface-3));
+}
+
+.cm-tube-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--cm-3);
+}
+.cm-tube-card {
+  display: block; width: 100%;
+  text-align: left; font-family: inherit;
+  background: var(--cm-surface);
+  border: 2px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-4);
+  cursor: pointer;
+  transition: border-color var(--cm-fast) var(--cm-ease),
+              background var(--cm-fast) var(--cm-ease);
+}
+.cm-tube-card:hover { border-color: var(--cm-line-strong); }
+.cm-tube-card--selected { background: var(--cm-done-bg); border-color: var(--cm-done); }
+.cm-tube-card__meta {
+  display: block; font-size: var(--cm-text-xs); color: var(--cm-ink-3);
+  margin-top: var(--cm-1);
+}
+
 /* ── Wallet / ledger ──────────────────────────────────────────────────── */
 /* A wallet is a ledger, not a counter: the balance is a cached projection
    always recomputed from wallet_transactions server-side, so credit and debit

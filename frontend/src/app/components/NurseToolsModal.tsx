@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { Banner, Button, Card, Field, Modal, Select, TextInput } from "@/components/ui";
 
 interface NurseToolsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+/**
+ * Nurse field reference: an IV drip-rate calculator and a visit vitals
+ * logger, unchanged in formula/fields from the hand-rolled overlay this
+ * replaces. Modal now owns the dialog role, focus trap, Esc and scroll lock
+ * that overlay never had.
+ */
 export default function NurseToolsModal({ isOpen, onClose }: NurseToolsModalProps) {
   const [ivVolume, setIvVolume] = useState("500");
   const [ivHours, setIvHours] = useState("4");
@@ -19,8 +26,6 @@ export default function NurseToolsModal({ isOpen, onClose }: NurseToolsModalProp
   const [spo2, setSpo2] = useState("98");
   const [pulse, setPulse] = useState("72");
   const [vitalsSaved, setVitalsSaved] = useState(false);
-
-  if (!isOpen) return null;
 
   const calculateIvRate = () => {
     const vol = parseFloat(ivVolume);
@@ -39,78 +44,63 @@ export default function NurseToolsModal({ isOpen, onClose }: NurseToolsModalProp
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15, 23, 42, 0.75)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div className="glass-card" style={{ maxWidth: 640, width: "100%", padding: 28, background: "white", borderRadius: 20, maxHeight: "90vh", overflowY: "auto" }}>
-        
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
-            👩‍⚕️ Nurse Clinical Assistant <span className="badge-ai">Field Care Engine</span>
-          </h3>
-          <button className="btn btn-secondary btn-sm" onClick={onClose}>✕</button>
-        </div>
+    <Modal open={isOpen} onClose={onClose} title="Nurse Clinical Assistant">
+      <p className="cm-modal-lede">Field Care Engine</p>
 
-        {/* IV Drip Rate Calculator */}
-        <div style={{ background: "#f8fafc", padding: 20, borderRadius: 16, border: "1px solid #e2e8f0", marginBottom: 20 }}>
-          <h4 style={{ margin: "0 0 10px 0", color: "#0f172a", fontSize: "1rem" }}>💧 IV Infusion Drip Rate Calculator</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Volume (mL)</label>
-              <input type="number" className="form-input" value={ivVolume} onChange={e => setIvVolume(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Time (Hours)</label>
-              <input type="number" className="form-input" value={ivHours} onChange={e => setIvHours(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Drop Factor (gtt/mL)</label>
-              <select className="form-input" value={dropFactor} onChange={e => setDropFactor(e.target.value)}>
+      <section className="cm-modal-section">
+        <h3 className="cm-modal-section__title">IV Infusion Drip Rate Calculator</h3>
+        <Card>
+          <div className="cm-vitals-grid">
+            <Field label="Volume (mL)" id="nurse-iv-volume">
+              <TextInput type="number" value={ivVolume} onChange={(e) => setIvVolume(e.target.value)} />
+            </Field>
+            <Field label="Time (Hours)" id="nurse-iv-hours">
+              <TextInput type="number" value={ivHours} onChange={(e) => setIvHours(e.target.value)} />
+            </Field>
+            <Field label="Drop Factor (gtt/mL)" id="nurse-drop-factor">
+              <Select value={dropFactor} onChange={(e) => setDropFactor(e.target.value)}>
                 <option value="20">20 (Standard Adult)</option>
                 <option value="15">15 (Blood Set)</option>
                 <option value="60">60 (Micro Drip)</option>
-              </select>
-            </div>
+              </Select>
+            </Field>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button className="btn btn-teal btn-sm" onClick={calculateIvRate}>⚡ Calculate Rate</button>
-            {calculatedRate !== null && (
-              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 14px", borderRadius: 10, color: "#166534", fontWeight: 800, fontSize: "0.9rem" }}>
-                💧 Required Drip Rate: {calculatedRate} drops/min (gtt/min)
-              </div>
-            )}
-          </div>
-        </div>
+          <Button variant="secondary" onClick={calculateIvRate}>Calculate Rate</Button>
 
-        {/* Patient Vitals Entry Box */}
-        <div style={{ background: "white", padding: 20, borderRadius: 16, border: "1px solid #cbd5e1" }}>
-          <h4 style={{ margin: "0 0 12px 0", color: "#0f172a", fontSize: "1rem" }}>📊 Record Visit Vitals & Triage</h4>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Systolic BP</label>
-              <input type="number" className="form-input" value={bpSystolic} onChange={e => setBpSystolic(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Diastolic BP</label>
-              <input type="number" className="form-input" value={bpDiastolic} onChange={e => setBpDiastolic(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>SpO2 (%)</label>
-              <input type="number" className="form-input" value={spo2} onChange={e => setSpo2(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700 }}>Pulse (bpm)</label>
-              <input type="number" className="form-input" value={pulse} onChange={e => setPulse(e.target.value)} />
-            </div>
+          {calculatedRate !== null && (
+            <Banner tone="done">
+              Required Drip Rate: {calculatedRate} drops/min (gtt/min)
+            </Banner>
+          )}
+        </Card>
+      </section>
+
+      <section className="cm-modal-section">
+        <h3 className="cm-modal-section__title">Record Visit Vitals &amp; Triage</h3>
+        <Card>
+          <div className="cm-vitals-grid">
+            <Field label="Systolic BP" id="nurse-bp-systolic">
+              <TextInput type="number" value={bpSystolic} onChange={(e) => setBpSystolic(e.target.value)} />
+            </Field>
+            <Field label="Diastolic BP" id="nurse-bp-diastolic">
+              <TextInput type="number" value={bpDiastolic} onChange={(e) => setBpDiastolic(e.target.value)} />
+            </Field>
+            <Field label="SpO2 (%)" id="nurse-spo2">
+              <TextInput type="number" value={spo2} onChange={(e) => setSpo2(e.target.value)} />
+            </Field>
+            <Field label="Pulse (bpm)" id="nurse-pulse">
+              <TextInput type="number" value={pulse} onChange={(e) => setPulse(e.target.value)} />
+            </Field>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button className="btn btn-teal" onClick={handleSaveVitals}>📋 Log Patient Vitals</button>
-            {vitalsSaved && <span style={{ color: "#16a34a", fontWeight: 700, fontSize: "0.85rem" }}>✅ Vitals Logged & Sent to Doctor!</span>}
-          </div>
-        </div>
+          <Button variant="primary" onClick={handleSaveVitals}>Log Patient Vitals</Button>
 
-      </div>
-    </div>
+          {vitalsSaved && (
+            <Banner tone="done">Vitals Logged &amp; Sent to Doctor!</Banner>
+          )}
+        </Card>
+      </section>
+    </Modal>
   );
 }
