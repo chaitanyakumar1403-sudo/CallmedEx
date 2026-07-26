@@ -357,7 +357,9 @@ input[type="radio"] {
      centres. Without this the tabs run to the left screen edge on a wide
      monitor while the title starts 320px in. Padding rather than max-width so
      the band stays edge-to-edge and no markup wrapper is needed. */
-  padding: 0 max(var(--cm-8), calc((100% - 1280px) / 2 + var(--cm-8)));
+  /* Matches `.cm-dash__head-inner`'s true offset. The header's own --cm-8 inset
+     cancels out of the centring maths, so it must NOT be re-added here. */
+  padding: 0 max(var(--cm-8), calc((100% - 1280px) / 2));
   display: flex;
   gap: var(--cm-1);
   overflow-x: auto;
@@ -670,4 +672,28 @@ input[type="radio"] {
   .cm-overlay { padding: 0; align-items: flex-end; }
   .cm-modal { max-width: none; border-radius: var(--cm-radius-lg) var(--cm-radius-lg) 0 0;
               max-height: 92vh; }
+}
+
+/* ── App bar ──────────────────────────────────────────────────────────── */
+.cm-appbar {
+  display: flex; align-items: center; gap: var(--cm-3);
+  height: 56px; padding: 0 var(--cm-5);
+  background: var(--cm-navy-deep); color: #fff;
+}
+.cm-appbar__brand { color: #fff; font-weight: 800; letter-spacing: -0.02em;
+                    font-size: var(--cm-text-lg); text-decoration: none; }
+.cm-appbar__role {
+  padding: 3px 10px; border-radius: var(--cm-radius-pill);
+  background: rgba(255, 255, 255, 0.14); color: #dbeafe;
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: capitalize;
+}
+.cm-appbar__spacer { flex: 1; }
+.cm-appbar__user {
+  display: inline-flex; align-items: center; gap: var(--cm-2);
+  font-size: var(--cm-text-sm); font-weight: 600; color: rgba(255, 255, 255, 0.9);
+}
+@media (max-width: 640px) {
+  .cm-appbar { padding: 0 var(--cm-4); }
+  .cm-appbar__user { display: none; }
 }
