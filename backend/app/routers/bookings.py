@@ -39,12 +39,17 @@ def _reveal_walkin_centre(provider_user_id: str) -> Optional[dict]:
             .select("display_name, city, state")
             .eq("provider_user_id", provider_user_id).limit(1).execute()
         )
-        row = directory.data[0] if directory.data else {}
+        # Supabase returns loosely-typed JSON; narrow to a dict once here so the
+        # three .get() calls below are safe whatever the client hands back.
+        dir_rows = directory.data or []
+        row: dict = dir_rows[0] if dir_rows and isinstance(dir_rows[0], dict) else {}
         user_row = (
             supabase.table("users").select("address")
             .eq("id", provider_user_id).limit(1).execute()
         )
-        addr = user_row.data[0].get("address", "") if user_row.data else ""
+        usr_rows = user_row.data or []
+        usr: dict = usr_rows[0] if usr_rows and isinstance(usr_rows[0], dict) else {}
+        addr = str(usr.get("address") or "")
         parts = [p for p in [addr, row.get("city", ""), row.get("state", "")] if p]
         return {
             "name": row.get("display_name") or "CallMedex partner centre",
