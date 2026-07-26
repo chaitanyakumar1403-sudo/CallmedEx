@@ -94,10 +94,24 @@ export default function VideoConsultationRoom({ params }: { params: Promise<{ id
     
     setStatus('Finalizing... Gemini AI is generating structured E-Prescription.');
     
-    // If we didn't capture audio, provide a robust dummy transcript for demo purposes
-    const finalTranscript = transcript.trim() || 
-      "Doctor: Hello, how are you feeling today? Patient: I have a severe headache and high fever for 3 days. Doctor: I am prescribing Paracetamol 500mg to take twice a day after meals, and Amoxicillin 500mg once a day for 5 days. Drink plenty of fluids.";
-      
+    // Never fabricate a transcript. This value is sent to /api/telemed/finalize,
+    // which drives AI generation of a structured e-prescription — so a stand-in
+    // does not produce a harmless placeholder, it produces a prescription for
+    // symptoms the patient never reported. The previous fallback here invented a
+    // headache and fever and prescribed Amoxicillin against them.
+    //
+    // If nothing was captured, stop and tell the doctor. An unfinalised consult
+    // they can retry is recoverable; a fictional clinical record is not.
+    const finalTranscript = transcript.trim();
+    if (!finalTranscript) {
+      setStatus(
+        "No consultation audio was captured, so there is nothing to summarise. " +
+        "Check your microphone permission and record again, or write the notes " +
+        "and prescription manually — nothing has been saved."
+      );
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/telemed/finalize`, {

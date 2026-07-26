@@ -142,13 +142,18 @@ export default function StaffDashboard() {
     );
   };
 
-  // Revenue calculations (demo: use fixed avg fee per service type)
-  const feeMap: Record<string, number> = {
-    doctor_appointment: 500, lab_test: 400, video_consult: 600,
-    home_collection: 350, home_visit: 700,
-  };
-  const getBookingFee = (b: any) => b.amount || feeMap[b.service_type] || 400;
-  const todayRevenue = todayBookings.filter(b => b.status !== "cancelled").reduce((sum, b) => sum + getBookingFee(b), 0);
+  // Only count money the booking actually carries. This previously fell back to
+  // a hardcoded fee per service type (500 / 400 / 600 / 350 / 700) and then to a
+  // flat 400, so a desk showing "today's revenue" was reporting a figure the
+  // platform had invented for every booking whose price had not been recorded.
+  //
+  // Bookings without a price are counted separately rather than guessed at, so
+  // the total is understated-but-true instead of confident-and-wrong.
+  const priced = todayBookings.filter(b => b.status !== "cancelled" && typeof b.amount === "number");
+  const unpricedCount = todayBookings.filter(
+    b => b.status !== "cancelled" && typeof b.amount !== "number"
+  ).length;
+  const todayRevenue = priced.reduce((sum, b) => sum + b.amount, 0);
   const prepaidCount = todayBookings.filter(b => getPaymentStatus(b) === "prepaid").length;
   const payAtCounterCount = todayBookings.filter(b => getPaymentStatus(b) === "pay_on_service").length;
   const settledCount = todayBookings.filter(b => getPaymentStatus(b) === "settled").length;
@@ -283,6 +288,11 @@ export default function StaffDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
             <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2f855a' }}>₹{todayRevenue.toLocaleString()}</div>
+              {unpricedCount > 0 && (
+                <div style={{ fontSize: '0.7rem', color: '#718096', marginTop: 2 }}>
+                  excludes {unpricedCount} booking{unpricedCount === 1 ? '' : 's'} with no price recorded
+                </div>
+              )}
               <div style={{ fontSize: '0.72rem', color: '#718096', fontWeight: 600 }}>Today&apos;s Revenue</div>
             </div>
             <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
@@ -384,7 +394,9 @@ export default function StaffDashboard() {
                         <span>🕐 {formatTime(booking.slot_start)}{booking.slot_end ? ` – ${formatTime(booking.slot_end)}` : ''}</span>
                         <span>📅 {booking.slot_start?.split("T")[0] || booking.created_at?.split("T")[0] || "—"}</span>
                         <span>🆔 {booking.patient_id?.substring(0, 8)}...</span>
-                        <span style={{ fontWeight: 700, color: '#2f855a' }}>₹{getBookingFee(booking)}</span>
+                        <span style={{ fontWeight: 700, color: typeof booking.amount === "number" ? '#2f855a' : '#718096' }}>
+                          {typeof booking.amount === "number" ? `₹${booking.amount}` : "Price not set"}
+                        </span>
                         {getPaymentBadge(booking)}
                       </div>
                     </div>
