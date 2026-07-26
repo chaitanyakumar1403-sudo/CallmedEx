@@ -12,7 +12,7 @@ export interface ButtonProps
   /** Renders a busy state and blocks the click. Keeps the label — a spinner
       alone tells the user nothing about what is happening. */
   loading?: boolean;
-  /** Square target for a bare icon. Requires `aria-label`. */
+  /** Square target for a bare icon. Requires `aria-label` — enforced below. */
   iconOnly?: boolean;
 }
 
@@ -21,6 +21,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     className = "", disabled, children, ...rest },
   ref
 ) {
+  // An icon-only button with no accessible name is inert to a screen reader.
+  // The type cannot express "aria-label required when iconOnly", so this is
+  // caught in development instead — silently shipping one is worse.
+  if (process.env.NODE_ENV !== "production" && iconOnly && !rest["aria-label"]) {
+    console.warn("Button: iconOnly requires an aria-label.", rest);
+  }
+
   return (
     <button
       ref={ref}
