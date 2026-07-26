@@ -604,9 +604,20 @@ input[type="radio"] {
   margin-bottom: var(--cm-4);
 }
 .cm-banner__body { flex: 1; }
+/* The glyph stays small so the banner does not bloat to 68px, but the TARGET
+   must still clear 44px. A centred, transparent ::after does that without
+   changing layout — sizing the button itself would push every banner taller. */
 .cm-banner__x {
+  position: relative;
   background: none; border: 0; cursor: pointer; color: inherit;
   min-height: auto; padding: 2px; opacity: 0.7;
+}
+.cm-banner__x::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--cm-tap); height: var(--cm-tap);
 }
 .cm-banner__x:hover { opacity: 1; }
 .cm-banner--urgent  { background: var(--cm-urgent-bg);  color: var(--cm-urgent);  border-color: var(--cm-urgent-line); }

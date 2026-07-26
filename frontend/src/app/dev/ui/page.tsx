@@ -22,6 +22,9 @@ export default function UiGallery() {
             <Button variant="ghost">Details</Button>
             <Button variant="danger">Go Off Duty</Button>
             <Button variant="primary" size="sm">Small</Button>
+            <Button variant="secondary" size="sm">Small</Button>
+            <Button variant="ghost" size="sm">Small</Button>
+            <Button variant="danger" size="sm">Small</Button>
             <Button variant="primary" disabled>Disabled</Button>
             <Button variant="primary" loading>Saving</Button>
             <Button variant="secondary" iconOnly aria-label="Navigate">
@@ -45,13 +48,14 @@ export default function UiGallery() {
           <Banner tone="urgent">GPS permission denied — dispatch cannot reach you.</Banner>
           <Banner tone="active">Broadcasting location every 15 seconds.</Banner>
           <Banner tone="waiting">Waiting for the lab to verify three tubes.</Banner>
+          <Banner tone="halted">This collection was cancelled by the patient.</Banner>
         </Panel>
 
         <Panel title="Stats">
           <StatGrid>
             <Stat label="Active tasks" value={3} meta="2 due within the hour"
                   icon={ClipboardList} tone="active" onClick={() => {}} />
-            <Stat label="Done today" value={0} meta="of 8 assigned" icon={CheckCircle2} />
+            <Stat label="Done today" value={0} meta="of 8 assigned" icon={CheckCircle2} tone="done" />
             <Stat label="Today's earnings" value="₹0" meta="₹150 per verified tube" icon={Wallet} />
             <Stat label="Overdue" value={1} meta="collection missed" tone="urgent" />
           </StatGrid>
