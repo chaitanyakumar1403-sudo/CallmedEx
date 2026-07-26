@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from app.config import settings, jwt_secret_warning
+from app.config import settings, jwt_secret_warning, mock_verification_warning
 from app.routers import (
     auth, bookings, verification, dispatch, whatsapp, admin,
     pharmacy_orders, telemedicine, insurance, ai_reports,
@@ -108,6 +108,10 @@ async def lifespan(app: FastAPI):
     if (warning := jwt_secret_warning()):
         logger.critical("=" * 78)
         logger.critical(f"🔴 SECURITY: {warning}")
+        logger.critical("=" * 78)
+    if (warning := mock_verification_warning()):
+        logger.critical("=" * 78)
+        logger.critical(f"🔴 VERIFICATION: {warning}")
         logger.critical("=" * 78)
     yield
     logger.info("🛑 CallMedex API shutting down gracefully...")

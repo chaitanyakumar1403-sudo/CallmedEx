@@ -16,8 +16,8 @@ class FraudDetectionService:
         Feeds raw billing data into Groq to detect fraud/anomalies.
         """
         if not settings.GROQ_API_KEY:
-            logger.warning("GROQ_API_KEY is not set. Returning simulated fraud anomalies.")
-            return FraudDetectionService._get_mock_anomalies()
+            logger.warning("GROQ_API_KEY is not set — fraud scan skipped, returning no anomalies.")
+            return FraudDetectionService._no_scan_result()
 
         try:
             from groq import Groq
@@ -74,10 +74,18 @@ class FraudDetectionService:
             raise ValueError("Failed to run AI fraud scan.")
 
     @staticmethod
-    def _get_mock_anomalies() -> List[Dict[str, Any]]:
-        return [
-            { "id": '1', "name": 'Dr. Ramesh Kumar', "type": 'doctor', "total_bookings": 145, "no_shows": 2, "complaints": 1, "score": 98.5, "flagged": False, "flag_reason": "N/A" },
-            { "id": '2', "name": 'Apollo Pharmacy (Madhurawada)', "type": 'pharmacy', "total_bookings": 320, "no_shows": 12, "complaints": 8, "score": 65.0, "flagged": True, "flag_reason": "High complaint volume and no-shows." },
-            { "id": '3', "name": 'Suresh (Phlebotomist)', "type": 'phlebotomist', "total_bookings": 89, "no_shows": 0, "complaints": 0, "score": 100.0, "flagged": False, "flag_reason": "N/A" },
-            { "id": '4', "name": 'Dr. Anjali Gupta', "type": 'doctor', "total_bookings": 45, "no_shows": 5, "complaints": 3, "score": 52.5, "flagged": True, "flag_reason": "Abnormal ratio of no-shows compared to total bookings." }
-        ]
+    def _no_scan_result() -> List[Dict[str, Any]]:
+        """
+        Empty, not invented.
+
+        This previously returned four fabricated providers by name — including
+        "Dr. Ramesh Kumar", "Dr. Anjali Gupta" and "Apollo Pharmacy
+        (Madhurawada)", a real chain and a real Vizag suburb — with two of them
+        flagged for fraud, complete with scores and reasons. An admin reading the
+        fraud dashboard saw specific named practitioners and a named pharmacy
+        accused of high complaint volumes that no data supported.
+
+        A scan that could not run returns nothing; the caller reports that
+        honestly rather than showing accusations the platform made up.
+        """
+        return []

@@ -62,7 +62,14 @@ class Settings:
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
     # ─── Phase 8: AI Verification Pipeline ────────────────────────────
-    USE_MOCK_GOV_API: bool = os.getenv("USE_MOCK_GOV_API", "true").lower() in ("true", "1", "yes")
+    # Defaults to LIVE, not mock. This previously defaulted to "true", so any
+    # deployment that had not explicitly set it verified provider credentials
+    # against GovRegistryAPI._mock_verify — which approves any identifier of
+    # four or more characters that does not contain FAKE/INVALID/TEST. A doctor
+    # registering with licence number "1234" was therefore marked verified
+    # against the National Medical Council, and a pharmacy with drug licence
+    # "ABCD" likewise. Mock mode must now be opted into deliberately.
+    USE_MOCK_GOV_API: bool = os.getenv("USE_MOCK_GOV_API", "false").lower() in ("true", "1", "yes")
     NMC_API_URL: str = os.getenv("NMC_API_URL", "https://www.nmc.org.in/api/v1")
     NURSING_COUNCIL_API_URL: str = os.getenv("NURSING_COUNCIL_API_URL", "https://indiannursingcouncil.org/api/v1")
 
@@ -108,5 +115,17 @@ def jwt_secret_warning() -> str:
         return (
             f"JWT_SECRET is only {len(secret)} characters. Use at least 32 "
             "random bytes, e.g. `openssl rand -hex 32`."
+        )
+    return ""
+
+
+def mock_verification_warning() -> str:
+    """Warn if provider credentials are being verified against the mock registry."""
+    if settings.USE_MOCK_GOV_API:
+        return (
+            "USE_MOCK_GOV_API is on. Doctor, pharmacy and organization licences "
+            "are NOT checked against any government registry — the mock approves "
+            "any identifier of four or more characters. Every provider verified "
+            "while this is set must be re-verified before being trusted."
         )
     return ""
