@@ -612,3 +612,62 @@ input[type="radio"] {
 .cm-banner--done    { background: var(--cm-done-bg);    color: var(--cm-done);    border-color: var(--cm-done-line); }
 .cm-banner--waiting { background: var(--cm-waiting-bg); color: var(--cm-waiting); border-color: var(--cm-waiting-line); }
 .cm-banner--halted  { background: var(--cm-halted-bg);  color: var(--cm-halted);  border-color: var(--cm-halted-line); }
+
+/* ── Fields ───────────────────────────────────────────────────────────── */
+.cm-field { margin-bottom: var(--cm-4); }
+.cm-field__label { display: block; font-size: var(--cm-text-sm); font-weight: 700;
+                   color: var(--cm-ink); margin-bottom: var(--cm-1); }
+.cm-field__req  { color: var(--cm-urgent); }
+.cm-field__hint { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin: 0 0 var(--cm-2); }
+.cm-field__err  { font-size: var(--cm-text-xs); color: var(--cm-urgent); margin: var(--cm-1) 0 0; font-weight: 600; }
+
+.cm-input {
+  width: 100%;
+  min-height: var(--cm-tap);
+  padding: var(--cm-2) var(--cm-3);
+  border: 1px solid var(--cm-line-strong);
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface);
+  color: var(--cm-ink);
+  font-family: inherit;
+  font-size: var(--cm-text-base);   /* 16px: anything smaller zooms iOS Safari */
+}
+.cm-input:disabled { background: var(--cm-surface-3); color: var(--cm-ink-3); }
+.cm-input[aria-invalid="true"] { border-color: var(--cm-urgent); }
+.cm-input--area { min-height: 96px; padding: var(--cm-3); resize: vertical; }
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.cm-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--cm-4);
+}
+.cm-modal {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius-lg);
+  box-shadow: var(--cm-shadow-3);
+  width: 100%; max-width: 520px;
+  max-height: calc(100vh - var(--cm-10));
+  display: flex; flex-direction: column;
+}
+.cm-modal__head {
+  display: flex; align-items: center; gap: var(--cm-3);
+  padding: var(--cm-5) var(--cm-5) var(--cm-3);
+  border-bottom: 1px solid var(--cm-line);
+}
+.cm-modal__title { margin: 0; flex: 1; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink); }
+.cm-modal__x { background: none; border: 0; cursor: pointer; color: var(--cm-ink-3);
+               min-height: var(--cm-tap); width: var(--cm-tap); }
+.cm-modal__x:hover { color: var(--cm-ink); }
+.cm-modal__body { padding: var(--cm-5); overflow-y: auto; }
+.cm-modal__foot {
+  display: flex; justify-content: flex-end; gap: var(--cm-2);
+  padding: var(--cm-3) var(--cm-5) var(--cm-5);
+  border-top: 1px solid var(--cm-line);
+}
+@media (max-width: 640px) {
+  .cm-overlay { padding: 0; align-items: flex-end; }
+  .cm-modal { max-width: none; border-radius: var(--cm-radius-lg) var(--cm-radius-lg) 0 0;
+              max-height: 92vh; }
+}
