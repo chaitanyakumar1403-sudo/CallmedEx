@@ -7,6 +7,8 @@ import SampleCollectionPanel from "../components/SampleCollectionPanel";
 import PhleboWalletPanel from "../components/PhleboWalletPanel";
 import AttendanceCard from "../components/AttendanceCard";
 import { useRouter } from "next/navigation";
+import { Button, Icon } from "@/components/ui";
+import { MapPin, TestTube, Wallet, User } from "@/components/ui/icons";
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
@@ -45,10 +47,10 @@ export default function PhlebotomistDashboard() {
   }, [router]);
 
   const TABS = [
-    { id: "dispatch", label: "Live Dispatch", icon: "📍" },
-    { id: "samples", label: "Samples & Handover", icon: "🧪" },
-    { id: "wallet", label: "Wallet", icon: "💰" },
-    { id: "profile", label: "Profile", icon: "👤" },
+    { id: "dispatch", label: "Live Dispatch", icon: MapPin },
+    { id: "samples", label: "Samples & Handover", icon: TestTube },
+    { id: "wallet", label: "Wallet", icon: Wallet },
+    { id: "profile", label: "Profile", icon: User },
   ];
 
   if (loading) {
@@ -75,17 +77,10 @@ export default function PhlebotomistDashboard() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       aside={
-        <button
-          onClick={() => setShowToolsModal(true)}
-          style={{
-            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
-            border: "1px solid rgba(255,255,255,0.35)",
-            background: "rgba(255,255,255,0.12)", color: "#fff", fontWeight: 700,
-            fontSize: "0.85rem",
-          }}
-        >
-          🧪 Tube guide
-        </button>
+        <Button variant="secondary" onClick={() => setShowToolsModal(true)}>
+          <Icon as={TestTube} size={16} />
+          Tube guide
+        </Button>
       }
     >
       <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
@@ -102,7 +97,7 @@ export default function PhlebotomistDashboard() {
         )}
 
         {activeTab === "samples" && (
-          <div style={{ display: "grid", gap: 20 }}>
+          <div className="cm-tasklist">
             <AttendanceCard />
             <SampleCollectionPanel />
           </div>

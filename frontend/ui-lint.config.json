@@ -13,6 +13,9 @@
     "src/app/(app)/dashboard/components/AttendanceCard.tsx",
     "src/app/(app)/dashboard/components/DashboardProfile.tsx",
     "src/app/components/NurseToolsModal.tsx",
-    "src/app/components/PhlebotomistToolsModal.tsx"
+    "src/app/components/PhlebotomistToolsModal.tsx",
+    "src/app/(app)/dashboard/phlebotomist/page.tsx",
+    "src/app/(app)/dashboard/nurse/page.tsx",
+    "src/app/(app)/dashboard/supervisor/page.tsx"
   ]
 }

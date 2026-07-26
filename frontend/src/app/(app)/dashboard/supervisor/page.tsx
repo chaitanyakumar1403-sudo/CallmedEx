@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import DashboardShell, { SkeletonRows } from '../components/DashboardShell';
 import { useRouter } from 'next/navigation';
+import { Button, Card, EmptyState, Icon, Pill } from '@/components/ui';
+import { CheckCircle2, Navigation } from '@/components/ui/icons';
 
 export default function SupervisorDashboard() {
   const router = useRouter();
@@ -72,58 +74,45 @@ export default function SupervisorDashboard() {
       activeTab=""
       onTabChange={() => {}}
       aside={
-        <button
-          style={{
-            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
-            border: "1px solid rgba(255,255,255,0.35)",
-            background: "rgba(255,255,255,0.12)", color: "#fff",
-            fontWeight: 700, fontSize: "0.85rem",
-          }}
-        >
-          🗺️ Dispatch command centre
-        </button>
+        <Button variant="secondary">
+          <Icon as={Navigation} size={16} />
+          Dispatch command centre
+        </Button>
       }
     >
-        {/* Verification Queue */}
-        <section className="cm-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--cm-5)' }}>
-            <h2 className="cm-panel__title">Pending Verifications Queue</h2>
-            <span className="cm-pill cm-pill--urgent">
-              {verifications.length} Requires Action
-            </span>
-          </div>
+      {/* Verification Queue */}
+      <section className="cm-panel">
+        <h2 className="cm-panel__title">Pending Verifications Queue</h2>
+        <Pill tone="urgent">{verifications.length} Requires Action</Pill>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#718096' }}>
-                <th style={{ padding: '12px' }}>Provider Name</th>
-                <th style={{ padding: '12px' }}>Role</th>
-                <th style={{ padding: '12px' }}>License/Reg #</th>
-                <th style={{ padding: '12px' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {verifications.map((v: any, idx: number) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{v.user.full_name}</td>
-                  <td style={{ padding: '12px' }}>
-                    <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', backgroundColor: '#e2e8f0', color: '#4a5568' }}>
-                      {v.role.toUpperCase()}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px', color: '#4a5568' }}>
-                    {v.data.medical_license_number || v.data.drug_license_number || v.data.certification_number || v.data.license_number || 'N/A'}
-                  </td>
-                  <td style={{ padding: '12px' }}>
-                    <button style={{ backgroundColor: '#48bb78', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', marginRight: '8px', cursor: 'pointer' }}>Approve</button>
-                    <button style={{ backgroundColor: '#e53e3e', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>Reject</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {verifications.length === 0 && <p style={{ textAlign: 'center', color: 'var(--cm-ink-3)', marginTop: 'var(--cm-6)' }}>No pending verifications in {supervisorCity}.</p>}
-        </section>
+        {verifications.length === 0 ? (
+          <EmptyState
+            icon={CheckCircle2}
+            title="No pending verifications"
+            body={`Nothing is waiting on you in ${supervisorCity} right now.`}
+          />
+        ) : (
+          <div className="cm-tasklist">
+            {verifications.map((v: any, idx: number) => (
+              <Card key={idx}>
+                <div className="cm-task">
+                  <Pill tone="waiting">{v.role.toUpperCase()}</Pill>
+                  <div className="cm-task__body">
+                    <p className="cm-task__name">{v.user.full_name}</p>
+                    <p className="cm-task__meta">
+                      License/Reg #: {v.data.medical_license_number || v.data.drug_license_number || v.data.certification_number || v.data.license_number || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="cm-task__actions">
+                    <Button variant="danger">Reject</Button>
+                    <Button variant="primary">Approve</Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
 
     </DashboardShell>
   );

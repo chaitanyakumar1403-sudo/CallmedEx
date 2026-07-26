@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
+import { Button, Icon } from "@/components/ui";
+import { MapPin, Stethoscope, User } from "@/components/ui/icons";
 
 import NurseToolsModal from "../../../components/NurseToolsModal";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
@@ -42,8 +44,8 @@ export default function NurseDashboard() {
   }, [router]);
 
   const TABS = [
-    { id: "dispatch", label: "Live Dispatch", icon: "📍" },
-    { id: "profile", label: "Profile", icon: "👤" },
+    { id: "dispatch", label: "Live Dispatch", icon: MapPin },
+    { id: "profile", label: "Profile", icon: User },
   ];
 
   if (loading) {
@@ -64,17 +66,10 @@ export default function NurseDashboard() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       aside={
-        <button
-          onClick={() => setShowToolsModal(true)}
-          style={{
-            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
-            border: "1px solid rgba(255,255,255,0.35)",
-            background: "rgba(255,255,255,0.12)", color: "#fff",
-            fontWeight: 700, fontSize: "0.85rem",
-          }}
-        >
-          🩺 Care guide
-        </button>
+        <Button variant="secondary" onClick={() => setShowToolsModal(true)}>
+          <Icon as={Stethoscope} size={16} />
+          Care guide
+        </Button>
       }
     >
       <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
