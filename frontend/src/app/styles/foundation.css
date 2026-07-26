@@ -710,3 +710,28 @@ input[type="radio"] {
 }
 .cm-gallery-row { display: flex; flex-wrap: wrap; gap: var(--cm-3); align-items: center; }
 .cm-dash__body > .cm-panel { margin-bottom: var(--cm-5); }
+
+/* ── Duty bar ─────────────────────────────────────────────────────────── */
+.cm-duty { margin-bottom: var(--cm-5); }
+.cm-duty__head {
+  display: flex; align-items: center; gap: var(--cm-3);
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-left: 4px solid var(--cm-waiting);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-4) var(--cm-5);
+  margin-bottom: var(--cm-4);
+  flex-wrap: wrap;
+}
+.cm-duty__icon {
+  display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 50%; background: var(--cm-waiting-bg); color: var(--cm-waiting);
+  flex: none;
+}
+.cm-duty__text { flex: 1; min-width: 180px; }
+.cm-duty__title { margin: 0; font-weight: 800; font-size: var(--cm-text-lg); color: var(--cm-ink); }
+.cm-duty__sub   { margin: 2px 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
+
+/* On duty flips the rail and badge to the active colour. */
+.cm-duty--on .cm-duty__head { border-left-color: var(--cm-done); }
+.cm-duty--on .cm-duty__icon { background: var(--cm-done-bg); color: var(--cm-done); }

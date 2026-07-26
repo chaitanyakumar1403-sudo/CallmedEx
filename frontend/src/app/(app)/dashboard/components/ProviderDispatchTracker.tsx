@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { DutyBar } from "./dispatch/DutyBar";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -388,96 +389,17 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
   return (
     <div style={embedded ? undefined : { backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
-      {/* ─── Duty bar ─── */}
-      <div style={{
-        background: onDuty
-          ? "linear-gradient(135deg, #064e3b 0%, #059669 100%)"
-          : "linear-gradient(135deg, #1e293b 0%, #475569 100%)",
-        padding: embedded ? "18px 20px" : "24px 20px",
-        color: "white",
-        transition: "all 0.5s",
-        borderRadius: embedded ? "var(--cm-radius-lg)" : undefined,
-        marginBottom: embedded ? "var(--cm-4)" : undefined,
-      }}>
-        <div style={{ maxWidth: embedded ? "none" : 600, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              {!embedded && (
-                <h1 style={{ margin: 0, fontSize: "1.3rem", fontWeight: 800, color: "white" }}>
-                  {icon} {title}
-                </h1>
-              )}
-              <p style={{ margin: embedded ? 0 : "4px 0 0", color: "rgba(255,255,255,0.85)", fontSize: embedded ? "0.9rem" : "0.8rem", fontWeight: embedded ? 700 : 400 }}>
-                {embedded
-                  ? (onDuty ? "You are On Duty" : "You are Off Duty")
-                  : `${profile?.full_name || "Welcome"} • ${onDuty ? "On Duty 🟢" : "Off Duty 🔴"}`}
-              </p>
-            </div>
-
-            {/* Duty Toggle and GPS Indicator */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-              <button
-                onClick={onToggleClick}
-                disabled={dutyLoading || verifyingSelfie}
-                style={{
-                  backgroundColor: onDuty ? "rgba(220,38,38,0.9)" : "rgba(5,150,105,0.9)",
-                  color: "white",
-                  border: "2px solid rgba(255,255,255,0.3)",
-                  padding: "10px 18px",
-                  borderRadius: 12,
-                  fontWeight: 800,
-                  fontSize: "0.85rem",
-                  cursor: dutyLoading ? "wait" : "pointer",
-                  transition: "all 0.3s",
-                  minWidth: 110,
-                }}
-              >
-                {dutyLoading ? "⏳..." : onDuty ? "🔴 Go Off Duty" : "🟢 Go On Duty"}
-              </button>
-              {onDuty && (
-                <div style={{
-                  display: "inline-flex", alignItems: "center",
-                  padding: "4px 10px", borderRadius: 20,
-                  backgroundColor: "rgba(255,255,255,0.15)", color: "white",
-                  fontSize: "0.7rem", fontWeight: 700,
-                }}>
-                  <span style={{
-                    display: "inline-block", width: 6, height: 6, borderRadius: "50%",
-                    backgroundColor: "#6ee7b7", marginRight: 6, boxShadow: "0 0 8px #6ee7b7",
-                    animation: "pulse 1.5s infinite"
-                  }} />
-                  GPS Live
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--cm-4)", marginTop: "var(--cm-5)" }}>
-            {[
-              { label: "Active Tasks", value: tasks.length, icon: "📋", onClick: () => setShowAllTasks(true) },
-              { label: "Done Today", value: completedToday, icon: "✅" },
-              { label: "Today's Earnings", value: `₹${earnings}`, icon: "💰" },
-            ].map((stat, i) => (
-              <div key={i} onClick={stat.onClick} style={{
-                backgroundColor: "rgba(255,255,255,0.12)",
-                border: "1px solid rgba(255,255,255,0.25)",
-                borderRadius: "var(--cm-radius)",
-                padding: "14px 12px", textAlign: "center",
-                cursor: stat.onClick ? "pointer" : "default",
-                transition: "background-color 0.2s, transform 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.22)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.transform = "translateY(0)"; }}
-              >
-                <div style={{ fontSize: "1.2rem" }}>{stat.icon}</div>
-                <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "white", marginTop: 4 }}>{stat.value}</div>
-                <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.75)", marginTop: 2, fontWeight: 600 }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <DutyBar
+        onDuty={onDuty}
+        dutyLoading={dutyLoading || verifyingSelfie}
+        gpsLive={onDuty && !locationError}
+        activeCount={tasks.length}
+        completedToday={completedToday}
+        earnings={earnings}
+        earningsRate={earningsRate}
+        onToggle={onToggleClick}
+        onShowAllTasks={() => setShowAllTasks(true)}
+      />
 
       <div style={embedded ? undefined : { maxWidth: 600, margin: "0 auto", padding: "16px" }}>
 
