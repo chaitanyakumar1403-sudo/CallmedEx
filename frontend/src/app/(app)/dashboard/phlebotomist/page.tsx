@@ -94,7 +94,6 @@ export default function PhlebotomistDashboard() {
           <div>
             <ProviderDispatchTracker
               title="Phlebotomist Hub"
-              icon="🩸"
               providerType="phlebotomist"
               embedded
               earningsRate={200}

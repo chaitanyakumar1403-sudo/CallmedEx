@@ -892,7 +892,6 @@ export default function DoctorDashboard() {
           <div style={{ margin: "-24px -40px" }}>
             <ProviderDispatchTracker
               title="Home Visits Dispatch"
-              icon="🏠"
               providerType="doctor"
               earningsRate={500}
             />

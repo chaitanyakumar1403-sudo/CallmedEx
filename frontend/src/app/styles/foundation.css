@@ -821,3 +821,45 @@ input[type="radio"] {
   text-align: center; letter-spacing: 6px; font-weight: 700; font-size: var(--cm-text-lg);
 }
 .cm-active__verify, .cm-active__advance { width: 100%; }
+
+/* ── Dispatch tracker shell ───────────────────────────────────────────── */
+/* Only the non-embedded callers (doctor, pharmacy) need page chrome — the
+   embedded ones (nurse, phlebotomist) sit inside DashboardShell, which
+   already supplies a background and scroll container. */
+.cm-tracker--standalone { background: var(--cm-surface-3); min-height: 100vh; }
+.cm-tracker__body { max-width: 600px; margin: 0 auto; padding: var(--cm-4); }
+.cm-tracker__loading { padding: var(--cm-6) 0; }
+.cm-tracker__loading--standalone { min-height: 100vh; display: flex; align-items: center;
+  padding: var(--cm-8) var(--cm-4); }
+.cm-tracker__loading--standalone .cm-skeleton-rows { width: 100%; }
+.cm-tracker__section { margin-bottom: var(--cm-4); }
+.cm-tracker__section-title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0 0 var(--cm-3); color: var(--cm-ink-2);
+  font-size: var(--cm-text-base); font-weight: 800;
+}
+
+/* ── All-tasks modal ──────────────────────────────────────────────────── */
+.cm-alltasks__row { display: flex; align-items: center; justify-content: space-between; gap: var(--cm-2); }
+.cm-alltasks__type { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); text-transform: capitalize; }
+.cm-alltasks__address {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  margin: var(--cm-2) 0; font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-alltasks__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-faint); }
+.cm-alltasks__map {
+  display: inline-flex; align-items: center; gap: var(--cm-1);
+  font-size: var(--cm-text-xs); font-weight: 700; color: var(--cm-active);
+  text-decoration: none; min-height: var(--cm-tap);
+}
+.cm-alltasks__item--current { border-left: 4px solid var(--cm-active); }
+.cm-alltasks__empty { text-align: center; color: var(--cm-ink-3); padding: var(--cm-6) 0; }
+
+/* ── Selfie / lab handover / vitals modals ───────────────────────────── */
+.cm-selfie-reqs { margin: var(--cm-2) 0 0; padding-left: var(--cm-5); }
+.cm-selfie-reqs li + li { margin-top: var(--cm-1); }
+.cm-modal-lede { margin: 0 0 var(--cm-4); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
+.cm-vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--cm-3); }
+@media (max-width: 420px) {
+  .cm-vitals-grid { grid-template-columns: 1fr; }
+}

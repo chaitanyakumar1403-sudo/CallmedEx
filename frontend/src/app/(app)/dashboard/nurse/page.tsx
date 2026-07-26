@@ -83,7 +83,6 @@ export default function NurseDashboard() {
           <div>
             <ProviderDispatchTracker
               title="Nurse Care Station"
-              icon="👩‍⚕️"
               providerType="nurse"
               embedded
               earningsRate={350}

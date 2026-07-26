@@ -1,12 +1,16 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Banner } from "@/components/ui";
+import { Banner, Card, EmptyState, Icon, Modal, Panel, Pill, SkeletonRows } from "@/components/ui";
+import { ClipboardList, Clock, MapPin, Navigation } from "@/components/ui/icons";
+import { StatusPill } from "@/app/components/StatusSpine";
 import { DutyBar } from "./dispatch/DutyBar";
 import { OffDutyPanel } from "./dispatch/OffDutyPanel";
 import { ActiveTaskPanel } from "./dispatch/ActiveTaskPanel";
 import { TaskListPanel } from "./dispatch/TaskListPanel";
-import { statusTone, stripStatusGlyphs } from "./dispatch/statusTone";
+import { SelfieModal } from "./dispatch/SelfieModal";
+import { LabHandoverModal } from "./dispatch/LabHandoverModal";
+import { VitalsModal, type Vitals } from "./dispatch/VitalsModal";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -24,19 +28,10 @@ export interface DispatchTask {
   priority?: string;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#f59e0b",
-  assigned: "#3b82f6",
-  en_route: "#8b5cf6",
-  arrived: "#10b981",
-  in_progress: "#0f4c81",
-  completed: "#16a34a",
-  cancelled: "#dc2626",
-};
+type StatusMsg = { tone: "done" | "urgent" | "active"; text: string } | null;
 
 interface ProviderDispatchTrackerProps {
   title: string;
-  icon: string;
   /**
    * Set when the tracker is rendered inside DashboardShell. The shell already
    * supplies the page title, name and background, so repeating them here
@@ -49,9 +44,8 @@ interface ProviderDispatchTrackerProps {
   earningsRate: number;
 }
 
-export default function ProviderDispatchTracker({ title, icon, providerType, earningsRate, embedded = false }: ProviderDispatchTrackerProps) {
+export default function ProviderDispatchTracker({ title, providerType, earningsRate, embedded = false }: ProviderDispatchTrackerProps) {
   const router = useRouter();
-  const [profile, setProfile] = useState<any>(null);
   const [onDuty, setOnDuty] = useState(false);
   const [tasks, setTasks] = useState<DispatchTask[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
@@ -61,7 +55,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   const [locationError, setLocationError] = useState("");
   const [activeTask, setActiveTask] = useState<DispatchTask | null>(null);
   const [actionLoading, setActionLoading] = useState("");
-  const [statusMsg, setStatusMsg] = useState("");
+  const [statusMsg, setStatusMsg] = useState<StatusMsg>(null);
   const [otp, setOtp] = useState("");
   const [showAllTasks, setShowAllTasks] = useState(false);
 
@@ -78,18 +72,20 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
   // Nurse Clinical Vitals State
   const [showVitalsModal, setShowVitalsModal] = useState(false);
-  const [vitalsBP, setVitalsBP] = useState("120/80");
-  const [vitalsPulse, setVitalsPulse] = useState("72");
-  const [vitalsTemp, setVitalsTemp] = useState("98.6");
-  const [vitalsSpO2, setVitalsSpO2] = useState("99");
+  const [vitals, setVitals] = useState<Vitals>({ bp: "120/80", pulse: "72", temp: "98.6", spo2: "99" });
   const [procedureNotes, setProcedureNotes] = useState("");
 
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const taskIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-
-  // ─── Fetch profile and initial data ──────────────────────────────────
-  const fetchProfile = useCallback(async () => {
+  // ─── Fetch duty status ────────────────────────────────────────────────
+  // `profile` was dead (flagged in Task 12 review) — nothing here ever read
+  // it, only `DashboardProfile` at the page level does. `is_online` is not:
+  // it seeds `onDuty` on mount so duty state survives a reload, matching the
+  // `is_online: true` Playwright mock in e2e/provider-dispatch.spec.ts and
+  // the backend's duty-toggle route. So the fetch and redirect guards stay;
+  // only the unused `profile` state is gone.
+  const fetchDutyStatus = useCallback(async () => {
     const token = getToken();
     if (!token) { router.push("/auth/login"); return; }
     try {
@@ -98,7 +94,6 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
       });
       const data = await res.json();
       if (data.success) {
-        setProfile(data.data);
         setOnDuty(data.data.is_online || false);
       } else {
         router.push("/auth/login");
@@ -127,17 +122,17 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         setActiveTask(active || null);
       }
     } catch (e) { console.error(e); }
-  }, []);
+  }, [earningsRate]);
 
   useEffect(() => {
-    fetchProfile();
+    fetchDutyStatus();
     fetchTasks();
     taskIntervalRef.current = setInterval(fetchTasks, 12000);
     return () => {
       if (taskIntervalRef.current) clearInterval(taskIntervalRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
-  }, [fetchProfile, fetchTasks]);
+  }, [fetchDutyStatus, fetchTasks]);
 
   // ─── GPS Location Broadcasting ────────────────────────────────────────
   const startLocationBroadcast = useCallback(() => {
@@ -171,7 +166,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
     };
     sendLoc(); // Send immediately
     locationIntervalRef.current = setInterval(sendLoc, 30000); // Every 30s
-  }, []);
+  }, [providerType]);
 
   const stopLocationBroadcast = useCallback(() => {
     if (locationIntervalRef.current) {
@@ -204,14 +199,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         setOnDuty(newStatus);
         if (newStatus) {
           startLocationBroadcast();
-          setStatusMsg("✅ You're now ON DUTY — accepting dispatch requests");
+          setStatusMsg({ tone: "done", text: "You're now on duty — accepting dispatch requests" });
         } else {
           stopLocationBroadcast();
-          setStatusMsg("⏸️ You're now OFF DUTY");
+          setStatusMsg({ tone: "active", text: "You're now off duty" });
         }
       }
     } catch (e) {
-      setStatusMsg("❌ Failed to update duty status");
+      setStatusMsg({ tone: "urgent", text: "Failed to update duty status" });
     } finally {
       setDutyLoading(false);
     }
@@ -219,7 +214,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
   const handleSelfieSubmit = async () => {
     if (!selfieFile) {
-      setStatusMsg("❌ Please upload your duty selfie first.");
+      setStatusMsg({ tone: "urgent", text: "Please upload your duty selfie first." });
       return;
     }
     setVerifyingSelfie(true);
@@ -244,14 +239,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
       const data = await res.json();
       if (data.success) {
         setStatusMsg(action === "accept"
-          ? "✅ Task accepted! Head to the patient's location."
-          : "Task declined — you will receive the next request.");
+          ? { tone: "done", text: "Task accepted! Head to the patient's location." }
+          : { tone: "active", text: "Task declined — you will receive the next request." });
         fetchTasks();
       } else {
-        setStatusMsg(`❌ ${data.detail || `Failed to ${action} task`}`);
+        setStatusMsg({ tone: "urgent", text: data.detail || `Failed to ${action} task` });
       }
     } catch (e) {
-      setStatusMsg("❌ Network error");
+      setStatusMsg({ tone: "urgent", text: "Network error" });
     } finally {
       setActionLoading("");
     }
@@ -269,13 +264,13 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMsg(`✅ Status updated to: ${newStatus}`);
+        setStatusMsg({ tone: "done", text: `Status updated to: ${newStatus}` });
         fetchTasks();
       } else {
-        setStatusMsg(`❌ ${data.detail || "Update failed"}`);
+        setStatusMsg({ tone: "urgent", text: data.detail || "Update failed" });
       }
     } catch (e) {
-      setStatusMsg("❌ Network error");
+      setStatusMsg({ tone: "urgent", text: "Network error" });
     } finally {
       setActionLoading("");
     }
@@ -284,7 +279,7 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   // ─── Verify OTP ────────────────────────────────────────────────────────
   const handleVerifyOtp = async (taskId: string) => {
     if (!otp || otp.length < 6) {
-      setStatusMsg("❌ Please enter the 6-digit OTP from the patient");
+      setStatusMsg({ tone: "urgent", text: "Please enter the 6-digit OTP from the patient" });
       return;
     }
     setActionLoading("verify_otp");
@@ -297,14 +292,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMsg("✅ OTP Verified! Starting service.");
+        setStatusMsg({ tone: "done", text: "OTP Verified! Starting service." });
         setOtp("");
         fetchTasks();
       } else {
-        setStatusMsg(`❌ ${data.detail || "Invalid OTP"}`);
+        setStatusMsg({ tone: "urgent", text: data.detail || "Invalid OTP" });
       }
     } catch (e) {
-      setStatusMsg("❌ Network error verifying OTP");
+      setStatusMsg({ tone: "urgent", text: "Network error verifying OTP" });
     } finally {
       setActionLoading("");
     }
@@ -327,17 +322,23 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMsg(`✅ Samples Handed Over to ${labHubName}!`);
+        setStatusMsg({ tone: "done", text: `Samples Handed Over to ${labHubName}!` });
         setShowLabModal(false);
         fetchTasks();
       } else {
-        setStatusMsg(`❌ ${data.detail || "Handover failed"}`);
+        setStatusMsg({ tone: "urgent", text: data.detail || "Handover failed" });
       }
     } catch (e) {
-      setStatusMsg("❌ Network error saving lab handover");
+      setStatusMsg({ tone: "urgent", text: "Network error saving lab handover" });
     } finally {
       setActionLoading("");
     }
+  };
+
+  const handleLabFieldChange = (field: "labHubName" | "barcodes" | "notes", value: string) => {
+    if (field === "labHubName") setLabHubName(value);
+    else if (field === "barcodes") setSampleBarcodes(value);
+    else setLabNotes(value);
   };
 
   // ─── Clinical Notes Submit ──────────────────────────────────────────────
@@ -350,43 +351,43 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          blood_pressure: vitalsBP,
-          pulse_rate: vitalsPulse,
-          temperature_f: vitalsTemp,
-          spo2_percent: vitalsSpO2,
+          blood_pressure: vitals.bp,
+          pulse_rate: vitals.pulse,
+          temperature_f: vitals.temp,
+          spo2_percent: vitals.spo2,
           procedure_notes: procedureNotes || "Standard nursing procedure completed with full infection control protocol.",
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMsg("✅ Clinical Vitals & Notes recorded successfully!");
+        setStatusMsg({ tone: "done", text: "Clinical Vitals & Notes recorded successfully!" });
         setShowVitalsModal(false);
         // Complete the task
         handleUpdateStatus(activeTask.id, "completed");
       } else {
-        setStatusMsg(`❌ ${data.detail || "Submission failed"}`);
+        setStatusMsg({ tone: "urgent", text: data.detail || "Submission failed" });
       }
     } catch (e) {
-      setStatusMsg("❌ Network error saving clinical notes");
+      setStatusMsg({ tone: "urgent", text: "Network error saving clinical notes" });
     } finally {
       setActionLoading("");
     }
   };
 
-
   if (loading) {
     return (
-      <div style={{ minHeight: embedded ? 240 : "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: embedded ? "transparent" : "#f8fafc" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🩸</div>
-          <h2 style={{ color: "#1a2b4a" }}>Loading Dashboard...</h2>
-        </div>
+      <div className={embedded ? "cm-tracker__loading" : "cm-tracker__loading--standalone"}>
+        <SkeletonRows rows={3} />
       </div>
     );
   }
 
+  const pendingTasks = tasks
+    .filter(t => t.status === "pending")
+    .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1));
+
   return (
-    <div style={embedded ? undefined : { backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
+    <div className={embedded ? undefined : "cm-tracker--standalone"}>
       <DutyBar
         title={embedded ? undefined : title}
         onDuty={onDuty}
@@ -400,11 +401,10 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         onShowAllTasks={() => setShowAllTasks(true)}
       />
 
-      <div style={embedded ? undefined : { maxWidth: 600, margin: "0 auto", padding: "16px" }}>
-
+      <div className={embedded ? undefined : "cm-tracker__body"}>
         {statusMsg && (
-          <Banner tone={statusTone(statusMsg)} onDismiss={() => setStatusMsg("")}>
-            {stripStatusGlyphs(statusMsg)}
+          <Banner tone={statusMsg.tone} onDismiss={() => setStatusMsg(null)}>
+            {statusMsg.text}
           </Banner>
         )}
 
@@ -428,15 +428,14 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
         )}
 
         {/* ─── PENDING TASKS (Accept/Reject) ─── */}
-        {onDuty && tasks.filter(t => t.status === "pending").length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontSize: "0.95rem" }}>
-              📬 Incoming Requests ({tasks.filter(t => t.status === "pending").length})
+        {onDuty && pendingTasks.length > 0 && (
+          <div className="cm-tracker__section">
+            <h3 className="cm-tracker__section-title">
+              <Icon as={ClipboardList} size={16} />
+              Incoming requests ({pendingTasks.length})
             </h3>
             <TaskListPanel
-              tasks={tasks
-                .filter(t => t.status === "pending")
-                .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1))}
+              tasks={pendingTasks}
               actionLoading={actionLoading}
               onAccept={(id) => handleTaskAction(id, "accept")}
               onReject={(id) => handleTaskAction(id, "reject")}
@@ -446,292 +445,89 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
 
         {/* ─── ON DUTY but no tasks ─── */}
         {onDuty && tasks.length === 0 && !activeTask && (
-          <div style={{
-            backgroundColor: "white", borderRadius: 16, padding: 40,
-            textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-          }}>
-            <div style={{ fontSize: "3rem", marginBottom: 12 }}>⏳</div>
-            <h3 style={{ color: "#1e293b", marginBottom: 8 }}>Waiting for Requests</h3>
-            <p style={{ color: "#64748b", fontSize: "0.85rem" }}>
-              You&apos;re live on the platform. New field requests will appear here automatically.
-            </p>
-            <div style={{
-              display: "inline-block", marginTop: 16,
-              padding: "6px 18px", borderRadius: 20,
-              backgroundColor: "#f0fdf4", color: "#16a34a",
-              fontSize: "0.8rem", fontWeight: 600,
-            }}>
-              <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", backgroundColor: "#22c55e", marginRight: 6, animation: "pulse 1.5s infinite" }} />
-              GPS Active • Visible to patients
-            </div>
-          </div>
+          <Panel>
+            <EmptyState
+              icon={Clock}
+              title="Waiting for requests"
+              body="You're live on the platform. New field requests will appear here automatically."
+              action={<Pill tone="active">GPS active — visible to patients</Pill>}
+            />
+          </Panel>
         )}
 
         {/* ─── ALL TASKS MODAL ─── */}
-        {showAllTasks && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)", zIndex: 999,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "white", borderRadius: 16, padding: 24,
-              width: "100%", maxWidth: 500, maxHeight: "80vh", overflowY: "auto"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <h3 style={{ margin: 0, color: "#1e293b" }}>📋 All Active Tasks</h3>
-                <button onClick={() => setShowAllTasks(false)} style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}>✕</button>
-              </div>
-
-              {tasks.length === 0 ? (
-                <p style={{ color: "#64748b", textAlign: "center" }}>No active tasks in your queue.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {tasks.map(task => (
-                    <div key={task.id} style={{
-                      padding: 14, borderRadius: 10, border: "1px solid #e2e8f0",
-                      backgroundColor: task.id === activeTask?.id ? "#f8fafc" : "white",
-                      borderLeft: task.id === activeTask?.id ? "4px solid #4f46e5" : "1px solid #e2e8f0"
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                        <span style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.9rem" }}>{task.service_type === "home_collection" ? "🩸 Blood Collection" : task.service_type}</span>
-                        <span style={{
-                          backgroundColor: `${STATUS_COLORS[task.status] || "#64748b"}20`,
-                          color: STATUS_COLORS[task.status] || "#64748b",
-                          padding: "2px 8px", borderRadius: 10, fontSize: "0.7rem", fontWeight: 700
-                        }}>
-                          {task.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: 8 }}>📍 {task.patient_address}</div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Created: {new Date(task.created_at).toLocaleString()}</div>
-                        <a
-                          href={`https://maps.google.com/?q=${task.patient_lat},${task.patient_lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: "4px 12px", borderRadius: 6, backgroundColor: "#f1f5f9",
-                            color: "#334155", fontSize: "0.8rem", fontWeight: 600, textDecoration: "none",
-                            border: "1px solid #e2e8f0"
-                          }}
-                        >
-                          🗺️ Map
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+        <Modal open={showAllTasks} onClose={() => setShowAllTasks(false)} title="All active tasks">
+          {tasks.length === 0 ? (
+            <p className="cm-alltasks__empty">No active tasks in your queue.</p>
+          ) : (
+            <div className="cm-tasklist">
+              {tasks.map(task => (
+                <Card
+                  key={task.id}
+                  className={task.id === activeTask?.id ? "cm-alltasks__item--current" : undefined}
+                >
+                  <div className="cm-alltasks__row">
+                    <span className="cm-alltasks__type">
+                      {task.service_type === "home_collection" ? "Blood collection" : task.service_type.replace(/_/g, " ")}
+                    </span>
+                    <StatusPill status={task.status} />
+                  </div>
+                  <p className="cm-alltasks__address">
+                    <Icon as={MapPin} size={14} />
+                    {task.patient_address}
+                  </p>
+                  <div className="cm-alltasks__row">
+                    <span className="cm-alltasks__meta">Created: {new Date(task.created_at).toLocaleString()}</span>
+                    <a
+                      className="cm-alltasks__map"
+                      href={`https://maps.google.com/?q=${task.patient_lat},${task.patient_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Icon as={Navigation} size={14} />
+                      Map
+                    </a>
+                  </div>
+                </Card>
+              ))}
             </div>
-          </div>
-        )}
+          )}
+        </Modal>
+
         {/* ─── SELFIE VERIFICATION MODAL ─── */}
-        {showSelfieModal && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "white", borderRadius: 16, padding: 30,
-              width: "100%", maxWidth: 450,
-            }}>
-              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
-                <span>📸</span> Pre-Duty Selfie Verification
-              </h3>
-              <div style={{ backgroundColor: "#fef3c7", padding: 16, borderRadius: 10, border: "1px solid #fde68a", marginBottom: 20 }}>
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "#92400e", fontWeight: 600 }}>
-                  As per the Phlebotomist MOU, you must upload a live selfie showing:
-                </p>
-                <ul style={{ margin: "10px 0 0", paddingLeft: 20, fontSize: "0.85rem", color: "#b45309" }}>
-                  <li>Your Face clearly visible</li>
-                  <li>Official Uniform and ID Card</li>
-                  <li>Sample Collection Kit</li>
-                </ul>
-              </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => setSelfieFile(e.target.files?.[0] || null)}
-                style={{
-                  display: "block", width: "100%", padding: "12px",
-                  border: "2px dashed #cbd5e1", borderRadius: 8, marginBottom: 20,
-                  color: "#475569"
-                }}
-              />
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  onClick={() => { setShowSelfieModal(false); setSelfieFile(null); }}
-                  style={{
-                    flex: 1, backgroundColor: "#f1f5f9", color: "#475569",
-                    border: "none", padding: "12px", borderRadius: 8, fontWeight: 600,
-                    cursor: "pointer"
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSelfieSubmit}
-                  disabled={verifyingSelfie || !selfieFile}
-                  style={{
-                    flex: 1, backgroundColor: "#059669", color: "white",
-                    border: "none", padding: "12px", borderRadius: 8, fontWeight: 700,
-                    cursor: verifyingSelfie || !selfieFile ? "not-allowed" : "pointer"
-                  }}
-                >
-                  {verifyingSelfie ? "⏳ AI Verifying..." : "Verify & Go On Duty"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <SelfieModal
+          open={showSelfieModal}
+          onClose={() => { setShowSelfieModal(false); setSelfieFile(null); }}
+          file={selfieFile}
+          onFileChange={setSelfieFile}
+          verifying={verifyingSelfie}
+          onSubmit={handleSelfieSubmit}
+        />
 
         {/* ─── LAB HANDOVER MODAL (Phlebotomist) ─── */}
-        {showLabModal && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "white", borderRadius: 16, padding: 28,
-              width: "100%", maxWidth: 480,
-            }}>
-              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.15rem" }}>
-                🧪 Phlebotomist Sample Handover to Lab Hub
-              </h3>
-              <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 16 }}>
-                Record the diagnostic hub details and sample container barcodes before dropping off tubes.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
-                    Diagnostic Lab Hub Name
-                  </label>
-                  <input
-                    type="text"
-                    value={labHubName}
-                    onChange={(e) => setLabHubName(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem" }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
-                    Sample Barcode IDs / Tube Numbers
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. BAR-98231, BAR-98232 (EDTA / SST)"
-                    value={sampleBarcodes}
-                    onChange={(e) => setSampleBarcodes(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem" }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
-                    Handover Notes & Temp Verification
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Cold chain status, transport container temp (e.g. 4°C)"
-                    value={labNotes}
-                    onChange={(e) => setLabNotes(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => setShowLabModal(false)}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLabHandoverSubmit}
-                  disabled={actionLoading === "lab_handover"}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#b91c1c", color: "white", fontWeight: 700, cursor: "pointer" }}
-                >
-                  {actionLoading === "lab_handover" ? "Saving..." : "Confirm Handover"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <LabHandoverModal
+          open={showLabModal}
+          onClose={() => setShowLabModal(false)}
+          labHubName={labHubName}
+          barcodes={sampleBarcodes}
+          notes={labNotes}
+          onChange={handleLabFieldChange}
+          onSubmit={handleLabHandoverSubmit}
+          loading={actionLoading === "lab_handover"}
+        />
 
         {/* ─── CLINICAL VITALS & NOTES MODAL (Nurse) ─── */}
-        {showVitalsModal && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.6)", zIndex: 1000,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "white", borderRadius: 16, padding: 28,
-              width: "100%", maxWidth: 500,
-            }}>
-              <h3 style={{ margin: "0 0 16px", color: "#1e293b", fontSize: "1.15rem" }}>
-                🩺 Upload Patient Vitals & Clinical Note
-              </h3>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Blood Pressure (mmHg)</label>
-                  <input type="text" value={vitalsBP} onChange={(e) => setVitalsBP(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Pulse Rate (bpm)</label>
-                  <input type="text" value={vitalsPulse} onChange={(e) => setVitalsPulse(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>Body Temp (°F)</label>
-                  <input type="text" value={vitalsTemp} onChange={(e) => setVitalsTemp(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#334155", marginBottom: 2 }}>SpO2 (%)</label>
-                  <input type="text" value={vitalsSpO2} onChange={(e) => setVitalsSpO2(e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1" }} />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>Procedure & Dressing Clinical Notes</label>
-                <textarea
-                  rows={3}
-                  placeholder="Record nursing procedure, wound dressing details, medications administered..."
-                  value={procedureNotes}
-                  onChange={(e) => setProcedureNotes(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => setShowVitalsModal(false)}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleClinicalNotesSubmit}
-                  disabled={actionLoading === "clinical_notes"}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#db2777", color: "white", fontWeight: 700, cursor: "pointer" }}
-                >
-                  {actionLoading === "clinical_notes" ? "Saving..." : "Save Vitals & Complete"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <VitalsModal
+          open={showVitalsModal}
+          onClose={() => setShowVitalsModal(false)}
+          vitals={vitals}
+          onChange={setVitals}
+          notes={procedureNotes}
+          onNotesChange={setProcedureNotes}
+          onSubmit={handleClinicalNotesSubmit}
+          loading={actionLoading === "clinical_notes"}
+        />
       </div>
     </div>
   );
 }
-

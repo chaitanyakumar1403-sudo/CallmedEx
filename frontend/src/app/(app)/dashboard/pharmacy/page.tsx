@@ -369,7 +369,6 @@ export default function PharmacyDashboard() {
               <div style={{ margin: "-40px", borderRadius: "20px", overflow: "hidden" }}>
                 <ProviderDispatchTracker
                   title="Pharmacy Delivery Dispatch"
-                  icon="🛵"
                   providerType="pharmacy_delivery"
                   earningsRate={100}
                 />
