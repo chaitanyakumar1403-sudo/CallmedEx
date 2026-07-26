@@ -34,20 +34,25 @@ test.describe('New Features E2E Tests', () => {
 
   test('1. Search Page - Should load location and search inputs', async ({ page }) => {
     await page.goto('http://localhost:3000/search');
-    
-    // Verify inputs are present
-    await expect(page.getByPlaceholder('e.g. Apollo Hospitals')).toBeVisible();
-    await expect(page.getByPlaceholder('City, District, or Pincode')).toBeVisible();
-    
+
+    // Verify inputs are present. Placeholders are accessible names here too
+    // (each input also carries a matching aria-label), so this doubles as an
+    // accessible-name check rather than relying on exact placeholder markup.
+    await expect(page.getByPlaceholder('Search by name or specialty')).toBeVisible();
+    await expect(page.getByPlaceholder('City, district or pincode')).toBeVisible();
+
     // Verify the search button is present
     await expect(page.getByRole('button', { name: 'Search' })).toBeVisible();
   });
 
   test('2. Smart Navbar - Provider should not see consumer links', async ({ page }) => {
-    // Navigate without auth (should see consumer links)
+    // Navigate without auth (should see consumer links). "Find Hospitals" was
+    // never a real nav link — SmartNavbar.tsx explicitly documents that
+    // facility discovery is deliberately not a top-level destination; the
+    // real consumer-only links are "Book a Test" and "Pharmacy".
     await page.goto('http://localhost:3000/');
     const nav = page.getByRole('navigation');
-    await expect(nav.getByRole('link', { name: 'Find Hospitals' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Book a Test' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Pharmacy' })).toBeVisible();
 
     // Now mock login as a doctor
@@ -56,7 +61,7 @@ test.describe('New Features E2E Tests', () => {
 
     // Should NOT see consumer links in the navbar
     const nav2 = page.getByRole('navigation');
-    await expect(nav2.getByRole('link', { name: 'Find Hospitals' })).not.toBeVisible();
+    await expect(nav2.getByRole('link', { name: 'Book a Test' })).not.toBeVisible();
     await expect(nav2.getByRole('link', { name: 'Pharmacy' })).not.toBeVisible();
   });
 
