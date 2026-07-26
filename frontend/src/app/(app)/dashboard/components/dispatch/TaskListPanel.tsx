@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Card, Icon, Pill } from "@/components/ui";
+import { useState } from "react";
+import { Button, Card, Icon, Modal, Pill } from "@/components/ui";
 import { MapPin } from "@/components/ui/icons";
 import type { DispatchTask } from "../ProviderDispatchTracker";
 import { TaskNotes } from "./TaskNotes";
@@ -10,6 +11,12 @@ import { TaskNotes } from "./TaskNotes";
  * filtering, sorting (urgent-first) and the `actionLoading` key format
  * (`taskId + "accept"` / `taskId + "reject"`, no separator) all stay owned by
  * ProviderDispatchTracker exactly as before.
+ *
+ * Reject is gated behind a confirmation naming the specific request; Accept
+ * is not. This is a deliberate asymmetry: on a phone held outdoors before
+ * dawn, a mis-tap on Accept costs nothing the provider can't undo — a
+ * mis-tap on Reject discards the dispatch and costs the patient their
+ * collection slot, irrecoverably.
  */
 export function TaskListPanel({
   tasks, actionLoading, onAccept, onReject,
@@ -19,6 +26,8 @@ export function TaskListPanel({
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
 }) {
+  const [confirmTarget, setConfirmTarget] = useState<DispatchTask | null>(null);
+
   return (
     <div className="cm-tasklist">
       {tasks.map((t) => {
@@ -44,7 +53,7 @@ export function TaskListPanel({
               <div className="cm-task__actions">
                 <Button
                   variant="ghost"
-                  onClick={() => onReject(t.id)}
+                  onClick={() => setConfirmTarget(t)}
                   disabled={!!actionLoading}
                   loading={actionLoading === t.id + "reject"}
                 >
@@ -63,6 +72,33 @@ export function TaskListPanel({
           </Card>
         );
       })}
+
+      <Modal
+        open={confirmTarget !== null}
+        onClose={() => setConfirmTarget(null)}
+        title="Reject this request?"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (confirmTarget) onReject(confirmTarget.id);
+                setConfirmTarget(null);
+              }}
+            >
+              Reject request
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Reject the pickup at <strong>{confirmTarget?.patient_address}</strong>? The
+          patient loses this collection slot and this cannot be undone from here.
+        </p>
+      </Modal>
     </div>
   );
 }
