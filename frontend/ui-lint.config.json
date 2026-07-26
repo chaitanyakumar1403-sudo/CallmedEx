@@ -8,6 +8,7 @@
     "src/app/(app)/dashboard/components/dispatch/SelfieModal.tsx",
     "src/app/(app)/dashboard/components/dispatch/LabHandoverModal.tsx",
     "src/app/(app)/dashboard/components/dispatch/VitalsModal.tsx",
-    "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx"
+    "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx",
+    "src/app/(app)/dashboard/components/PhleboWalletPanel.tsx"
   ]
 }

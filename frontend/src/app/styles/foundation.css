@@ -863,3 +863,35 @@ input[type="radio"] {
 @media (max-width: 420px) {
   .cm-vitals-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Wallet / ledger ──────────────────────────────────────────────────── */
+/* A wallet is a ledger, not a counter: the balance is a cached projection
+   always recomputed from wallet_transactions server-side, so credit and debit
+   rows are equally first-class here, never a plain running total. */
+.cm-wallet > * + * { margin-top: var(--cm-5); }
+.cm-wallet__tip {
+  display: flex; align-items: flex-start; gap: var(--cm-2);
+  padding: var(--cm-3) var(--cm-4);
+  background: var(--cm-surface-3); border-radius: var(--cm-radius);
+  font-size: var(--cm-text-sm); color: var(--cm-ink-2);
+}
+.cm-wallet__tip svg { flex: none; margin-top: 2px; color: var(--cm-ink-3); }
+.cm-wallet__empty { margin: 0; color: var(--cm-ink-3); }
+
+.cm-ledger > * + * { margin-top: var(--cm-2); }
+.cm-ledger__row {
+  display: flex; align-items: center; gap: var(--cm-3);
+  padding: var(--cm-3); flex-wrap: wrap;
+  background: var(--cm-surface-2); border-radius: var(--cm-radius);
+}
+.cm-ledger__info { flex: 1; min-width: 160px; }
+.cm-ledger__reason { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); }
+.cm-ledger__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
+
+/* Tabular figures so amounts line up in a column and do not jitter as the
+   ledger updates — same intent as .cm-stat__value, for amounts shown outside
+   a Stat card. Colour reinforces direction; the Pill beside it carries the
+   word, so colour is never the only signal. */
+.cm-amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+.cm-amount--credit { color: var(--cm-done); }
+.cm-amount--debit  { color: var(--cm-halted); }

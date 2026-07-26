@@ -10,9 +10,18 @@
  *
  * A payment hold (a missed 05:15 selfie, or an open complaint) blocks
  * settlement, not accrual — so the banner explains the balance is still theirs.
+ *
+ * The balance is a cached projection, always recomputed from
+ * `wallet_transactions` server-side — never edited in place. So the ledger
+ * below treats credit and debit as equally first-class: each row carries a
+ * Pill naming its direction, not just a colour, because a disputed collection
+ * is reversed with a compensating entry the phlebotomist has to be able to
+ * read, not a colour they have to guess at in direct sun.
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Banner, Icon, Panel, Pill, SkeletonRows, Stat, StatGrid } from "@/components/ui";
+import { CheckCircle2, IndianRupee, Wallet } from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -60,14 +69,10 @@ export default function PhleboWalletPanel() {
   }, [load]);
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading wallet…</div>;
+    return <SkeletonRows rows={3} />;
   }
   if (error) {
-    return (
-      <div className="card" style={{ padding: 20, color: "#991b1b", background: "#fef2f2" }}>
-        {error}
-      </div>
-    );
+    return <Banner tone="urgent">{error}</Banner>;
   }
 
   const txns: any[] = wallet?.transactions || [];
@@ -86,121 +91,76 @@ export default function PhleboWalletPanel() {
   ).length;
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div className="cm-wallet">
       {wallet.on_hold && (
-        <div
-          style={{
-            padding: "14px 18px",
-            borderRadius: 10,
-            background: "#fffbeb",
-            border: "1px solid #fcd34d",
-            color: "#92400e",
-          }}
-        >
-          <strong>⏸ Payout on hold.</strong>{" "}
-          {wallet.hold_reason || "Contact operations."} Your balance keeps accruing —
-          only the transfer is paused.
-        </div>
+        <Banner tone="waiting">
+          <strong>Payout on hold.</strong> {wallet.hold_reason || "Contact operations."} Your
+          balance keeps accruing — only the transfer is paused.
+        </Banner>
       )}
 
-      {/* ── Headline figures ─────────────────────────────────────────── */}
-      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-        <div
-          className="card"
-          style={{
-            padding: 20,
-            background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
-            color: "#fff",
-          }}
-        >
-          <div style={{ fontSize: "0.8rem", opacity: 0.85 }}>Wallet balance</div>
-          <div style={{ fontSize: "2rem", fontWeight: 800, marginTop: 4 }}>{inr(wallet.balance)}</div>
-          <div style={{ fontSize: "0.75rem", opacity: 0.8, marginTop: 6 }}>Settles monthly to your bank</div>
-        </div>
+      <StatGrid>
+        <Stat
+          label="Wallet balance"
+          value={inr(wallet.balance)}
+          meta="Settles monthly to your bank"
+          icon={Wallet}
+          tone="done"
+        />
+        <Stat
+          label="Earned this month"
+          value={inr(earnedThisMonth)}
+          meta={`${collectionsThisMonth} verified collection${collectionsThisMonth === 1 ? "" : "s"}`}
+          icon={IndianRupee}
+        />
+        <Stat
+          label="Lifetime earned"
+          value={inr(wallet.lifetime_earned)}
+          meta={`${inr(wallet.lifetime_paid)} paid out`}
+          icon={CheckCircle2}
+        />
+      </StatGrid>
 
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Earned this month</div>
-          <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
-            {inr(earnedThisMonth)}
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 6 }}>
-            {collectionsThisMonth} verified collection{collectionsThisMonth === 1 ? "" : "s"}
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 20 }}>
-          <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Lifetime earned</div>
-          <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
-            {inr(wallet.lifetime_earned)}
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 6 }}>
-            {inr(wallet.lifetime_paid)} paid out
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          padding: "12px 16px",
-          borderRadius: 10,
-          background: "#f1f5f9",
-          fontSize: "0.83rem",
-          color: "#475569",
-        }}
-      >
-        💡 A collection is credited only once the receiving lab <strong>verifies</strong> the
-        tube. Rejected tubes are not payable.
+      <div className="cm-wallet__tip">
+        <Icon as={CheckCircle2} size={16} />
+        <span>
+          A collection is credited only once the receiving lab <strong>verifies</strong> the
+          tube. Rejected tubes are not payable.
+        </span>
       </div>
 
       {/* ── Ledger ───────────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 20 }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "1.05rem" }}>📒 Statement</h3>
+      <Panel title="Statement">
         {txns.length === 0 ? (
-          <p style={{ color: "#64748b", margin: 0 }}>
+          <p className="cm-wallet__empty">
             No entries yet. Your first verified collection will appear here.
           </p>
         ) : (
-          <div style={{ display: "grid", gap: 6 }}>
+          <div className="cm-ledger">
             {txns.map((t) => {
               const credit = t.direction === "credit";
               return (
-                <div
-                  key={t.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background: "#f8fafc",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.9rem" }}>
-                      {REASON_LABEL[t.reason] || t.reason}
-                    </div>
-                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                <div key={t.id} className="cm-ledger__row">
+                  <div className="cm-ledger__info">
+                    <div className="cm-ledger__reason">{REASON_LABEL[t.reason] || t.reason}</div>
+                    <div className="cm-ledger__meta">
                       {new Date(t.created_at).toLocaleString("en-IN")}
                       {t.notes ? ` • ${t.notes}` : ""}
                     </div>
                   </div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: "0.95rem",
-                      color: credit ? "#166534" : "#991b1b",
-                      whiteSpace: "nowrap",
-                    }}
+                  <Pill tone={credit ? "done" : "halted"}>{credit ? "Credit" : "Debit"}</Pill>
+                  <span
+                    className={`cm-amount ${credit ? "cm-amount--credit" : "cm-amount--debit"}`}
                   >
                     {credit ? "+" : "−"}
                     {inr(t.amount)}
-                  </div>
+                  </span>
                 </div>
               );
             })}
           </div>
         )}
-      </div>
+      </Panel>
     </div>
   );
 }
