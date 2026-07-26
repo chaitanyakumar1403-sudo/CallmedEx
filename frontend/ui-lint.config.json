@@ -9,6 +9,8 @@
     "src/app/(app)/dashboard/components/dispatch/LabHandoverModal.tsx",
     "src/app/(app)/dashboard/components/dispatch/VitalsModal.tsx",
     "src/app/(app)/dashboard/components/ProviderDispatchTracker.tsx",
-    "src/app/(app)/dashboard/components/PhleboWalletPanel.tsx"
+    "src/app/(app)/dashboard/components/PhleboWalletPanel.tsx",
+    "src/app/(app)/dashboard/components/AttendanceCard.tsx",
+    "src/app/(app)/dashboard/components/DashboardProfile.tsx"
   ]
 }

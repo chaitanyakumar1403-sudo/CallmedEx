@@ -11,5 +11,6 @@ export {
   Clock, Power, Bell, User, Users, LogOut, Settings, Camera, QrCode,
   Package, FlaskConical, FileText, Phone, ChevronRight, ChevronDown, X,
   Search, Plus, Trash2, Pencil, Eye, Download, RefreshCw, Menu, Building2,
+  Mail, GraduationCap,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";

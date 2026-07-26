@@ -895,3 +895,52 @@ input[type="radio"] {
 .cm-amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
 .cm-amount--credit { color: var(--cm-done); }
 .cm-amount--debit  { color: var(--cm-halted); }
+
+/* ── Attendance card ──────────────────────────────────────────────────── */
+.cm-attendance__head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap; margin-bottom: var(--cm-4);
+}
+.cm-attendance__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-base); font-weight: 800; color: var(--cm-ink);
+}
+.cm-attendance__form {
+  display: flex; gap: var(--cm-3); align-items: flex-end; flex-wrap: wrap;
+  margin-top: var(--cm-1);
+}
+.cm-attendance__form .cm-field { flex: 1; min-width: 220px; margin-bottom: 0; }
+
+/* ── Profile ──────────────────────────────────────────────────────────── */
+.cm-profile__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cm-3); flex-wrap: wrap; margin-bottom: var(--cm-5);
+}
+.cm-profile__title {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink);
+}
+.cm-profile {
+  margin: 0; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--cm-4);
+}
+.cm-profile__item {
+  background: var(--cm-surface-2);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-4);
+  min-width: 0;
+}
+.cm-profile__label {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: 0 0 var(--cm-1);
+  font-size: var(--cm-text-xs); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--cm-ink-3);
+}
+.cm-profile__value {
+  margin: 0; font-size: var(--cm-text-sm); font-weight: 600;
+  color: var(--cm-ink); word-break: break-word; overflow-wrap: anywhere;
+}
+.cm-profile__value--cap { text-transform: capitalize; }

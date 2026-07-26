@@ -8,9 +8,15 @@
  * careful to say the payout is paused, never that work is blocked. A provider
  * who reads "you can't work" when they can will stop taking jobs, which costs
  * the patient.
+ *
+ * Attendance gates pay under the MOU, so the pending/verified state has to be
+ * unmistakable: the requirement banner is `waiting` until the selfie lands and
+ * flips to `done` once it does — never colour-only, the copy changes too.
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { Banner, Button, Field, Icon, Panel, Pill, TextInput } from "@/components/ui";
+import { Camera } from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -71,96 +77,61 @@ export default function AttendanceCard() {
   if (!state) return null;
 
   const done = state.submitted && !state.is_late;
+  const statusTone = done ? "done" : state.status === "missed" ? "halted" : "waiting";
+  const statusLabel = done
+    ? "Recorded"
+    : state.status === "missed"
+      ? "Missed"
+      : state.is_late
+        ? "Late"
+        : "Pending";
 
   return (
-    <div
-      className="card"
-      style={{
-        padding: 18,
-        borderLeft: `5px solid ${done ? "#16a34a" : state.on_hold ? "#dc2626" : "#f59e0b"}`,
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+    <Panel>
+      <div className="cm-attendance__head">
         <div>
-          <h3 style={{ margin: 0, fontSize: "1rem" }}>
-            📸 Daily attendance {done ? "✓" : ""}
+          <h3 className="cm-attendance__title">
+            <Icon as={Camera} size={20} />
+            Daily attendance
           </h3>
-          <p style={{ margin: "4px 0 0 0", fontSize: "0.83rem", color: "#64748b" }}>
-            Live selfie with your ID and collection kit, by {state.deadline} IST.
-          </p>
         </div>
-        <span
-          style={{
-            padding: "4px 12px",
-            borderRadius: 999,
-            fontSize: "0.75rem",
-            fontWeight: 700,
-            height: "fit-content",
-            background: done ? "#dcfce7" : state.status === "missed" ? "#fee2e2" : "#fef3c7",
-            color: done ? "#166534" : state.status === "missed" ? "#991b1b" : "#92400e",
-          }}
-        >
-          {done ? "Recorded" : state.status === "missed" ? "Missed" : state.is_late ? "Late" : "Pending"}
-        </span>
+        <Pill tone={statusTone}>{statusLabel}</Pill>
       </div>
 
+      <Banner tone={done ? "done" : "waiting"}>
+        {done
+          ? "05:15 selfie verified — today's earnings are unlocked."
+          : `Live selfie with your ID and collection kit required by ${state.deadline} IST. Missing it holds today's payout — you can still take jobs and keep earning.`}
+      </Banner>
+
       {state.on_hold && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 14px",
-            borderRadius: 8,
-            background: "#fef2f2",
-            border: "1px solid #fca5a5",
-            color: "#991b1b",
-            fontSize: "0.84rem",
-          }}
-        >
+        <Banner tone="waiting">
           <strong>Payout paused.</strong> {state.hold_reason}. You can still take jobs and
           keep earning — only the transfer is on hold.
-        </div>
+        </Banner>
       )}
 
-      {msg && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "10px 14px",
-            borderRadius: 8,
-            fontSize: "0.84rem",
-            background: msg.kind === "ok" ? "#dcfce7" : "#fef2f2",
-            color: msg.kind === "ok" ? "#166534" : "#991b1b",
-          }}
-        >
-          {msg.text}
-        </div>
-      )}
+      {msg && <Banner tone={msg.kind === "ok" ? "done" : "urgent"}>{msg.text}</Banner>}
 
       {!done && (
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-          <input
-            value={selfieUrl}
-            onChange={(e) => setSelfieUrl(e.target.value)}
-            placeholder="Selfie image URL"
-            style={{
-              flex: 1,
-              minWidth: 220,
-              padding: "9px 12px",
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              fontSize: "0.87rem",
-            }}
-          />
-          <button
+        <div className="cm-attendance__form">
+          <Field label="Selfie image URL" id="attendance-selfie">
+            <TextInput
+              value={selfieUrl}
+              onChange={(e) => setSelfieUrl(e.target.value)}
+              placeholder="Selfie image URL"
+            />
+          </Field>
+          <Button
+            variant="primary"
             onClick={submit}
-            disabled={saving || !selfieUrl.trim()}
-            className="btn btn-primary"
-            style={{ opacity: saving || !selfieUrl.trim() ? 0.6 : 1 }}
+            loading={saving}
+            disabled={!selfieUrl.trim()}
           >
-            {saving ? "Recording…" : "Submit"}
-          </button>
+            Submit
+          </Button>
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
