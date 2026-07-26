@@ -221,7 +221,13 @@ input[type="radio"] {
 .cm-spine__step--halted  .cm-spine__dot { background: var(--cm-halted); border-color: var(--cm-halted); color: #fff; }
 
 .cm-spine__label { font-weight: 700; color: var(--cm-ink); font-size: var(--cm-text-sm); }
-.cm-spine__step--pending .cm-spine__label { color: var(--cm-ink-faint); font-weight: 600; }
+/* --cm-ink-faint measures 2.56:1 on white — below the 4.5:1 floor. The spine is
+   the product's signature status element and is read outdoors in direct
+   sunlight, so pending steps use the secondary-text token instead (~4.76:1).
+   Fixed here rather than by lowering --cm-ink-faint globally, which is used for
+   genuinely de-emphasised text elsewhere. Hierarchy is preserved by the lighter
+   weight and the hollow dot, not by colour alone. */
+.cm-spine__step--pending .cm-spine__label { color: var(--cm-ink-3); font-weight: 600; }
 .cm-spine__meta  { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
 
 /* The current step gets a soft ring so it is findable at a glance without

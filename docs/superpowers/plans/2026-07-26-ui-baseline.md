@@ -396,3 +396,59 @@ render identically under `next dev` and `next start`). Running the whole
 `/dev/ui` screenshots with 404-page captures with no test failure — this
 was caught only because file sizes and timestamps were checked by hand
 after the fact; it's not something the test suite itself would catch.
+
+---
+
+## Wave 1 — final result (2026-07-27)
+
+Measured after the last fix round. Every figure is from a command run on this branch.
+
+| Metric | Baseline | After Wave 1 |
+|---|---|---|
+| `ProviderDispatchTracker.tsx` lines | 1073 | **547** |
+| `style={{` across `src/` | 2147 | **1912** |
+| Hex literals across `src/` | 1911 | **1696** |
+| Original e2e suite | 5 passed / 7 failed | **8 passed / 4 failed** |
+| `e2e/ui-wave1.spec.ts` | did not exist | **24 passed / 0 failed** |
+| Lint gate | 0 files | **18 files, clean** |
+| Unit tests (`lint-ui`) | did not exist | **13 passed** |
+| Build | 34 routes | **34 routes** |
+
+### The four remaining e2e failures are all out of scope
+
+`booking.spec.ts:20`, `booking.spec.ts:34`, `new-features.spec.ts:39`,
+`new-features.spec.ts:50` — the booking flow, the search page and the public navbar.
+All are Wave 2 and Wave 6 surfaces this wave never converted. All four were already
+failing at baseline. **No test that passed at baseline fails now.**
+
+### Test updates made, and why
+
+Five assertions were stale rather than newly broken. Three predated this branch (the
+renamed dashboard titles). Two were caused by this wave and are correct consequences of it:
+
+- `new-features.spec.ts` matched `'🟢 Go On Duty'` and `'👤 Profile Details'` — emoji were
+  removed from chrome by design, so the labels are now plain text.
+- The same test resolved two "Go On Duty" buttons. That is deliberate: the duty bar and the
+  off-duty panel are both entry points, and both were verified to dispatch byte-identical
+  requests. The locator now takes the first.
+- Two headings moved `h3` → `h2` as their containers became `Modal` and `Panel`. Those
+  assertions now match by ARIA role rather than tag, so they track the heading rather than
+  its markup.
+
+### Accessibility
+
+`e2e/ui-wave1.spec.ts` runs axe (WCAG 2 A/AA) against all four converted surfaces at three
+viewports. **Zero serious or critical violations.**
+
+One real bug was found and fixed in the process: `StatusSpine`'s pending-step label used
+`--cm-ink-faint` (#94a3b8), measuring **2.56:1** on white against a 4.5:1 requirement. The
+spine is the product's signature status element and is read outdoors in direct sunlight.
+Fixed at the point of use with `--cm-ink-3` (~4.76:1) rather than by lowering the global
+token, which is used for genuinely de-emphasised text elsewhere.
+
+### Not measured, deliberately
+
+No First Load JS comparison. Next.js 16 removed the `size` and `First Load JS` columns from
+build output — its own upgrade guide states they were inaccurate under React Server
+Components. No baseline figure exists, and a `.next` chunk diff would be invalidated by the
+component restructuring this wave performed.

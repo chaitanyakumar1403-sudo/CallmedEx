@@ -94,12 +94,18 @@ test.describe('New Features E2E Tests', () => {
     await expect(page.locator('h1', { hasText: 'Field Collection' }).first()).toBeVisible();
 
     // Verify Selfie Modal triggers when clicking Go On Duty
-    const onDutyBtn = page.getByRole('button', { name: '🟢 Go On Duty' });
+    // Two equivalent entry points exist by design — the duty bar's toggle and
+    // the off-duty panel's call to action. Both dispatch the same request, so
+    // the first is the one this test means.
+    const onDutyBtn = page.getByRole('button', { name: 'Go On Duty' }).first();
     await expect(onDutyBtn).toBeVisible();
     await onDutyBtn.click();
 
     // Expect the modal to appear
-    const modalHeading = page.locator('h3', { hasText: 'Pre-Duty Selfie Verification' });
+    // The Modal primitive renders its title as an h2, and sentence case is the
+    // convention now — so match by dialog role and accessible name rather than
+    // by tag and exact casing, which is what this assertion actually means.
+    const modalHeading = page.getByRole('dialog', { name: /pre-duty selfie verification/i });
     await expect(modalHeading).toBeVisible();
     
     // Cancel the modal
@@ -107,11 +113,14 @@ test.describe('New Features E2E Tests', () => {
     await expect(modalHeading).not.toBeVisible();
 
     // Check Profile Tab
-    const profileTab = page.getByRole('button', { name: '👤 Profile Details' });
+    // Tabs are a real ARIA tablist now, and their labels carry no emoji.
+    const profileTab = page.getByRole('tab', { name: 'Profile' });
     await profileTab.click();
     
     // Ensure DashboardProfile is rendered
-    await expect(page.locator('h3', { hasText: 'Registration & Service Profile' })).toBeVisible();
+    // Heading level moved h3 → h2 with the panel conversion; match by role so
+    // the assertion tracks the heading itself rather than its tag.
+    await expect(page.getByRole('heading', { name: /Registration & Service Profile/ })).toBeVisible();
     await expect(page.locator('text=Test phlebotomist').first()).toBeVisible();
   });
 });
