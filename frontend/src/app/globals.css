@@ -5,31 +5,37 @@
 
 /* ─── Google Fonts & Design System ───────────────────────────────────────── */
 /* Fonts are loaded by next/font in layout.tsx — self-hosted, non-blocking. */
-@import './styles/design-system.css';
 @import './styles/foundation.css';
 
 /* ─── CSS Variables / Design Tokens ──────────────────────────────────────── */
 :root {
-  --color-navy: #1a2b4a;
-  --color-navy-light: #243656;
-  --color-navy-dark: #0f1d33;
-  --color-navy-hover: #2a3d5e;
-  --color-red: #e53e3e;
+  /* Legacy aliases. Every one of these is a pointer at a --cm-* token, not an
+     independent value. They exist so pages not yet converted keep rendering;
+     Wave 6 removes the last consumer and then this block goes.
+     Do not add to this list. */
+  --color-navy:       var(--cm-navy);
+  --color-navy-light: var(--cm-navy-soft);
+  --color-navy-dark:  var(--cm-navy-deep);
+  --color-navy-hover: var(--cm-navy-soft);
+  --color-red:        var(--cm-urgent);
+  --color-red-dark:   var(--cm-urgent);
+  --color-green:      var(--cm-done);
+  --color-amber:      var(--cm-waiting);
+  --color-teal:       var(--cm-navy);      /* teal was never a brand colour */
+  --color-teal-dark:  var(--cm-navy-deep);
+  --color-white:      var(--cm-surface);
+  --color-gray-50:    var(--cm-surface-2);
+  --color-gray-100:   var(--cm-surface-3);
+  --color-gray-200:   var(--cm-line);
+  --color-gray-300:   var(--cm-line-strong);
+  --color-gray-400:   var(--cm-ink-faint);
+  /* Names globals.css declared that Step 1's search did not flag as unused —
+     kept as literal values (not --cm-* aliases) since they have no --cm-*
+     equivalent and other rules in this file still depend on them. */
   --color-red-light: #fc8181;
-  --color-red-dark: #c53030;
-  --color-teal: #0891b2;
   --color-teal-light: #22d3ee;
-  --color-teal-dark: #0e7490;
-  --color-green: #22c55e;
   --color-green-light: #86efac;
-  --color-amber: #f59e0b;
   --color-amber-light: #fcd34d;
-  --color-white: #ffffff;
-  --color-gray-50: #f8fafc;
-  --color-gray-100: #f1f5f9;
-  --color-gray-200: #e2e8f0;
-  --color-gray-300: #cbd5e1;
-  --color-gray-400: #94a3b8;
   --color-gray-500: #64748b;
   --color-gray-600: #475569;
   --color-gray-700: #334155;
@@ -66,6 +72,91 @@
   --max-width: 1280px;
   --navbar-height: 72px;
   --utility-bar-height: 40px;
+}
+
+/* ─── Legacy component styles (formerly the deleted teal/glass token file) ──
+   That file is gone (Task 3), but four of its classes are still live: the AI
+   tool modals (voice intake, DrugShield, nurse/phlebo tools, body map), the
+   patient reports page, the dashboard profile badge, and the patient
+   dashboard's SOS button all reference them. Those surfaces are not
+   converted to --cm-* in this wave, so the rules are kept verbatim — not
+   reskinned to navy — rather than left dangling. Delete each rule here once
+   its last consumer is converted. */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+}
+
+.badge-ai {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.voice-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 48px;
+}
+.voice-wave span {
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(180deg, #0d9488 0%, #06b6d4 100%);
+  border-radius: 4px;
+  animation: wave 1.2s infinite ease-in-out;
+}
+.voice-wave span:nth-child(2) { animation-delay: 0.2s; }
+.voice-wave span:nth-child(3) { animation-delay: 0.4s; }
+.voice-wave span:nth-child(4) { animation-delay: 0.6s; }
+.voice-wave span:nth-child(5) { animation-delay: 0.8s; }
+@keyframes wave {
+  0%, 100% { height: 12px; }
+  50% { height: 44px; }
+}
+
+.sos-floating-btn {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9999;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: 2px solid #fca5a5;
+  border-radius: 50px;
+  padding: 14px 24px;
+  font-weight: 800;
+  font-size: 1rem;
+  box-shadow: 0 10px 25px rgba(220, 38, 38, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: pulse-sos 2s infinite;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.sos-floating-btn:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 15px 35px rgba(220, 38, 38, 0.7);
+}
+@keyframes pulse-sos {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
