@@ -5,7 +5,7 @@ import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 
-import NurseToolsModal from "../../components/NurseToolsModal";
+import NurseToolsModal from "../../../components/NurseToolsModal";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

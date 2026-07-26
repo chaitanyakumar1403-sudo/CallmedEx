@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import DashboardShell from '../components/DashboardShell';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
 import DashboardProfile from '../components/DashboardProfile';
-import DrugShieldModal from '../../components/DrugShieldModal';
+import DrugShieldModal from '../../../components/DrugShieldModal';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => localStorage.getItem("token") || "";

@@ -8,7 +8,7 @@ import PhleboWalletPanel from "../components/PhleboWalletPanel";
 import AttendanceCard from "../components/AttendanceCard";
 import { useRouter } from "next/navigation";
 
-import PhlebotomistToolsModal from "../../components/PhlebotomistToolsModal";
+import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

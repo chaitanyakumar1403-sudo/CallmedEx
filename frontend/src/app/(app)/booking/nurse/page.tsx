@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import LocationPicker from '../../../components/LocationPicker';
+import LocationPicker from '../../../../components/LocationPicker';
 
 const NURSING_SERVICES = [
   { id: 'wound_dressing', name: 'Wound Dressing', icon: '🩹', desc: 'Post-surgical or injury wound care', duration: '30-60 min' },

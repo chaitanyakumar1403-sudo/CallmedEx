@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { StatusPill } from "../../components/StatusSpine";
+import { StatusPill } from "../../../components/StatusSpine";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>

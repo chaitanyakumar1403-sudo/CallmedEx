@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import LocationPicker from "../../components/LocationPicker";
+import LocationPicker from "../../../components/LocationPicker";
 
 // Nursing care types a nurse can be dispatched for. Mirrors nurses.specializations
 // and the dedicated /booking/nurse flow.
