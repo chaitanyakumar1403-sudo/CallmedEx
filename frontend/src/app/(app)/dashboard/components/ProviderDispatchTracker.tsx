@@ -390,9 +390,10 @@ export default function ProviderDispatchTracker({ title, icon, providerType, ear
   return (
     <div style={embedded ? undefined : { backgroundColor: "#f1f5f9", minHeight: "100vh" }}>
       <DutyBar
+        title={embedded ? undefined : title}
         onDuty={onDuty}
         dutyLoading={dutyLoading || verifyingSelfie}
-        gpsLive={onDuty && !locationError}
+        gpsLive={onDuty}
         activeCount={tasks.length}
         completedToday={completedToday}
         earnings={earnings}

@@ -10,10 +10,17 @@ import { ClipboardList, CheckCircle2, Wallet, Power } from "@/components/ui/icon
  * block of colour.
  */
 export function DutyBar({
-  onDuty, dutyLoading, gpsLive,
+  title, onDuty, dutyLoading, gpsLive,
   activeCount, completedToday, earnings, earningsRate,
   onToggle, onShowAllTasks,
 }: {
+  /**
+   * Rendered as an <h2> above the duty head. Passed only by non-embedded
+   * callers (doctor, pharmacy), which have no other heading inside their
+   * tabpanel — dropping it removed the region from heading navigation
+   * entirely. Embedded callers omit it; DashboardShell supplies their <h1>.
+   */
+  title?: string;
   onDuty: boolean;
   dutyLoading: boolean;
   gpsLive: boolean;
@@ -26,6 +33,7 @@ export function DutyBar({
 }) {
   return (
     <section className={`cm-duty${onDuty ? " cm-duty--on" : ""}`} aria-label="Duty status">
+      {title && <h2 className="cm-duty__title-h">{title}</h2>}
       <div className="cm-duty__head">
         <span className="cm-duty__icon"><Icon as={Power} size={20} /></span>
         <div className="cm-duty__text">

@@ -728,6 +728,11 @@ input[type="radio"] {
   border-radius: 50%; background: var(--cm-waiting-bg); color: var(--cm-waiting);
   flex: none;
 }
+.cm-duty__title-h {
+  margin: 0 0 var(--cm-3);
+  font-size: var(--cm-text-xl); font-weight: 800;
+  color: var(--cm-ink); letter-spacing: -0.02em;
+}
 .cm-duty__text { flex: 1; min-width: 180px; }
 .cm-duty__title { margin: 0; font-weight: 800; font-size: var(--cm-text-lg); color: var(--cm-ink); }
 .cm-duty__sub   { margin: 2px 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
