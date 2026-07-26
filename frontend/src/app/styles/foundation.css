@@ -697,3 +697,5 @@ input[type="radio"] {
   .cm-appbar { padding: 0 var(--cm-4); }
   .cm-appbar__user { display: none; }
 }
+.cm-gallery-row { display: flex; flex-wrap: wrap; gap: var(--cm-3); align-items: center; }
+.cm-dash__body > .cm-panel { margin-bottom: var(--cm-5); }
