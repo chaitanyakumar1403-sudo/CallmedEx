@@ -74,6 +74,38 @@ test("does not flag geometric shapes used as text bullets", () => {
   assert.deepEqual(lintFile(`<span>● Active</span>`), []);
 });
 
+// ─── gate blind spots (probed directly against the shipped gate) ──────────
+// radial-gradient(/conic-gradient( slip past the linear-gradient(-only rule;
+// rgb()/rgba()/hsl() slip past every rule entirely (no color-function rule
+// exists at all); and `style={ { ... } }` (one space after the outer brace)
+// slips past the exact `style={{` match. rgba() matters most: the old duty
+// bar was built almost entirely from rgba(255,255,255,0.12), so a future
+// edit could reintroduce arbitrary colour in a gated file with a green gate.
+
+test("flags a radial-gradient", () => {
+  assert.equal(lintFile(`background: radial-gradient(circle, a, b)`)[0]?.rule, "gradient");
+});
+
+test("flags a conic-gradient", () => {
+  assert.equal(lintFile(`background: conic-gradient(from 90deg, a, b)`)[0]?.rule, "gradient");
+});
+
+test("flags an rgb() colour literal", () => {
+  assert.equal(lintFile(`const navy = "rgb(26,43,74)";`)[0]?.rule, "color-literal");
+});
+
+test("flags an rgba() colour literal", () => {
+  assert.equal(lintFile(`background: rgba(0,0,0,.5);`)[0]?.rule, "color-literal");
+});
+
+test("flags an hsl() colour literal", () => {
+  assert.equal(lintFile(`const c = "hsl(210, 50%, 20%)";`)[0]?.rule, "color-literal");
+});
+
+test("flags a spaced inline style prop", () => {
+  assert.equal(lintFile(`const a = <div style={ { color: "red" } } />;`)[0]?.rule, "inline-style");
+});
+
 // ─── main()'s CLI paths ──────────────────────────────────────────────────
 // `lintFile` is exercised above; `main()` — the missing-file and exit-code
 // behaviour actually run by `npm run lint:ui` — was not. `main()` derives its

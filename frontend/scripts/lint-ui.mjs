@@ -15,7 +15,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
 const RULES = [
-  { id: "inline-style", re: /style=\{\{/g },
+  // `style={{` is the common case, but `style={ { ... } }` (whitespace after
+  // the outer brace) is the same inline style object and was slipping past
+  // the exact-match version of this rule.
+  { id: "inline-style", re: /style=\{\s*\{/g },
   { id: "hex-literal", re: /#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b/g },
   // Ranges must cover Miscellaneous Technical (U+2300–23FF) — that is where
   // ⏸ lives, and the off-duty toggle message uses it on every single toggle.
@@ -23,7 +26,14 @@ const RULES = [
   // through. Geometric Shapes (U+25A0–25FF) is deliberately NOT included:
   // `●` is used as a text bullet in places and is not decoration.
   { id: "emoji", re: /[\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{1F000}-\u{1FAFF}]/gu },
-  { id: "gradient", re: /linear-gradient\(/g },
+  // linear-gradient( alone missed radial-gradient(/conic-gradient( — the same
+  // arbitrary-decoration escape hatch the rule exists to close.
+  { id: "gradient", re: /(?:linear|radial|conic)-gradient\(/g },
+  // rgb()/rgba()/hsl()/hsla() were not covered by any rule at all. rgba()
+  // matters most in practice — the old duty bar was built almost entirely
+  // from rgba(255,255,255,0.12), so a future edit could reintroduce
+  // arbitrary colour in a gated file with the gate reporting green.
+  { id: "color-literal", re: /\b(?:rgb|rgba|hsl|hsla)\(/g },
 ];
 
 const IGNORE = /\/\/\s*ui-lint-ignore-next-line\s+\S+/;
