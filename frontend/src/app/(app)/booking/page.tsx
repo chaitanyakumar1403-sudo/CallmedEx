@@ -182,7 +182,7 @@ function BookingPageContent() {
     if (step === 2) {
       setFetchingOrgs(true);
       if (bookingType === "doctor") {
-        const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations`;
+        const url = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/search/organizations?exclude_diagnostic=true`;
 
         fetch(url)
           .then((r) => r.json())
@@ -516,7 +516,7 @@ function BookingPageContent() {
   };
 
   const isOnDemand = bookingType === "home_collection" || bookingType === "home_doctor" || bookingType === "nurse_visit";
-  const fee = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || 0;
+  const fee = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || (bookingType === "doctor" ? (selectedOrg?.consultation_fee || 300) : 0);
 
   // Step indicator
   const getSteps = () => {
@@ -712,7 +712,112 @@ function BookingPageContent() {
                 disabled={!selectedOrg}
                 onClick={() => setStep(3)}
               >
-                Continue to Test / Service Selection →
+                Continue to Doctor Selection →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── STEP 3 (Doctor flow): Select Linked Doctor at Organization ─── */}
+        {step === 3 && bookingType === "doctor" && selectedOrg && (
+          <div className="card" style={{ padding: 32 }}>
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ fontSize: "1.05rem", margin: 0, color: "#1a2b4a" }}>
+                Select Doctor at {selectedOrg.organization_name || selectedOrg.name || "Facility"}
+              </h3>
+              <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "4px 0 0 0" }}>
+                📍 {[selectedOrg.address, selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
+              </p>
+            </div>
+
+            {/* General OPD Option */}
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 12,
+                border: !selectedDoctor ? "2px solid #0284c7" : "2px solid #e2e8f0",
+                backgroundColor: !selectedDoctor ? "#f0f9ff" : "white",
+                cursor: "pointer",
+                marginBottom: 16,
+                transition: "all 0.2s",
+              }}
+              onClick={() => {
+                setSelectedDoctor(null);
+                setError("");
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "#0f172a" }}>🏥 General OPD Consultation</div>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Assigned to available specialist at reception during walk-in / OPD hours</div>
+                </div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0284c7" }}>
+                  {!selectedDoctor ? "✓ Selected" : "Select"}
+                </div>
+              </div>
+            </div>
+
+            <h4 style={{ fontSize: "0.9rem", color: "#475569", marginBottom: 12, marginTop: 20 }}>
+              👨‍⚕️ Available Doctors at this Facility ({(selectedOrg.doctors || []).length})
+            </h4>
+
+            {(selectedOrg.doctors || []).length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                {selectedOrg.doctors.map((doc: any, i: number) => {
+                  const isSelected = selectedDoctor?.id === (doc.doctor_id || doc.id);
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        border: isSelected ? "2px solid #0284c7" : "2px solid #e2e8f0",
+                        backgroundColor: isSelected ? "#f0f9ff" : "white",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onClick={() => {
+                        setSelectedDoctor({
+                          id: doc.doctor_id || doc.id,
+                          name: doc.name || doc.full_name || "Doctor",
+                          specialization: doc.specialization || "Specialist",
+                          fee: doc.consultation_fee || 0,
+                        });
+                        setError("");
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "#0f172a" }}>
+                            Dr. {doc.name?.replace(/^Dr\.\s*/i, "")}
+                          </div>
+                          <div style={{ fontSize: "0.82rem", color: "#64748b" }}>
+                            {doc.specialization || "General Medicine"}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#059669", marginTop: 2 }}>
+                            {doc.consultation_mode === "online" ? "💻 Online Only" : doc.consultation_mode === "in_person" ? "🏥 In-Person Only" : "🏥 In-Person & Online"}
+                          </div>
+                        </div>
+                        {doc.consultation_fee > 0 && (
+                          <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.05rem" }}>
+                            ₹{doc.consultation_fee}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ padding: 16, backgroundColor: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.85rem", marginBottom: 20 }}>
+                Note: No specific individual doctors are listed online yet for this facility. You can proceed with <strong>General OPD Consultation</strong>.
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Facilities</button>
+              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} onClick={() => setStep(4)}>
+                Select Date & Time Slot →
               </button>
             </div>
           </div>
@@ -1270,7 +1375,7 @@ function BookingPageContent() {
             <div style={{ display: "flex", gap: 12 }}>
               {/* Lab's step 2 is "Choose Tests" (no centre step); every other
                   flow that reaches this date step still has a step 3. */}
-              <button className="btn btn-secondary" onClick={() => setStep(bookingType === "lab" ? 2 : 3)}>← Back</button>
+              <button className="btn btn-secondary" onClick={() => setStep(bookingType === "lab" || bookingType === "video_consult" || bookingType === "home_doctor" ? 2 : 3)}>← Back</button>
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}

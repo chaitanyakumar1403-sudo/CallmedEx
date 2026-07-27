@@ -1275,16 +1275,25 @@ async def provider_catalog(provider_user_id: str):
 
 @router.get("/search/organizations")
 async def search_organizations(org_type: Optional[str] = None, city: Optional[str] = None,
-                               q: Optional[str] = None, limit: int = 50):
-    """Back-compat wrapper → verified orgs from provider_directory."""
+                               q: Optional[str] = None, limit: int = 50,
+                               exclude_diagnostic: Optional[bool] = None):
+    """Back-compat wrapper → verified orgs from provider_directory.
+    
+    Pass exclude_diagnostic=true to omit diagnostic_center and laboratory
+    types — used by the doctor-appointment booking flow so that patients
+    only see hospitals, polyclinics and clinics, never diagnostic centres.
+    """
     res = await search_providers(type=org_type or "organization", city=city, q=q, limit=limit)
+    DIAGNOSTIC_SUBTYPES = {"diagnostic_center", "diagnostic", "laboratory"}
     orgs = [{
         "id": p["provider_user_id"], "user_id": p["provider_user_id"],
         "name": p["display_name"], "organization_name": p["display_name"],
         "type": p["subtype"], "organization_type": p["subtype"],
         "city": p.get("city", ""), "state": p.get("state", ""),
         "verification_status": p["verification_status"], "min_price": p.get("min_price"),
-    } for p in res["providers"] if p["provider_type"] == "organization" or (org_type and org_type != "doctor")]
+    } for p in res["providers"]
+        if (p["provider_type"] == "organization" or (org_type and org_type != "doctor"))
+        and (not exclude_diagnostic or p.get("subtype", "") not in DIAGNOSTIC_SUBTYPES)]
     return {"success": True, "organizations": orgs}
 
 
@@ -1299,3 +1308,4 @@ async def search_packages(limit: int = Query(50, le=100)):
     except Exception as e:
         logger.error(f"Error fetching packages: {e}")
         return {"success": True, "packages": []}
+

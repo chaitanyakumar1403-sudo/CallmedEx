@@ -55,6 +55,12 @@ class PharmacyType(str, Enum):
     CLINIC = "clinic"
 
 
+class WorkSetting(str, Enum):
+    SOLO_CLINIC = "solo_clinic"
+    POLYCLINIC = "polyclinic"
+    HOSPITAL = "hospital"
+
+
 class ConsultationMode(str, Enum):
     IN_PERSON = "in_person"
     ONLINE = "online"
@@ -180,6 +186,7 @@ class UserSignup(UserBase):
     languages_spoken: Optional[List[str]] = None
     is_independent: Optional[bool] = None
     service_area: Optional[str] = None
+    work_setting: Optional[str] = None  # solo_clinic | polyclinic | hospital
 
     # Phlebotomist-specific
     phleb_type: Optional[PhlebType] = None

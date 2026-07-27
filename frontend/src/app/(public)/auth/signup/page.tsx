@@ -45,6 +45,7 @@ export default function SignupPage() {
   const [dob, setDob] = useState("");
   const [registrantRole, setRegistrantRole] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
+  const [workSetting, setWorkSetting] = useState("solo_clinic"); // "solo_clinic" | "polyclinic" | "hospital"
 
   const addDocumentField = () => setAdditionalDocs(prev => [...prev, { id: Date.now(), name: "" }]);
   const removeDocumentField = (id: number) => setAdditionalDocs(prev => prev.filter(doc => doc.id !== id));
@@ -115,8 +116,9 @@ export default function SignupPage() {
         body.hospital_clinic_name = formData.get("hospital_clinic_name");
         body.consultation_mode = formData.get("consultation_mode") || "both";
         body.available_for_online = formData.get("available_for_online") === "on";
-        body.is_independent = isIndependent;
-        if (isIndependent) {
+        body.work_setting = workSetting;
+        body.is_independent = workSetting === "solo_clinic" ? true : isIndependent;
+        if (workSetting === "solo_clinic" || isIndependent) {
             body.service_area = formData.get("service_area");
         }
       }
@@ -479,14 +481,49 @@ export default function SignupPage() {
           {/* ─── Doctor Fields ─── */}
           {role === "doctor" && (
             <div className="card-section">
-              <h4>Professional Information</h4>
+              <h4>Professional & Practice Details</h4>
               
-              <div className="form-group" style={{ marginBottom: 20 }}>
-                  <label className="form-checkbox" style={{ fontWeight: 600, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                    <input type="checkbox" checked={isIndependent} onChange={(e) => setIsIndependent(e.target.checked)} />
-                    Independent Practitioner (Home Visits)
-                  </label>
+              <div className="form-group" style={{ marginBottom: 24 }}>
+                <label className="form-label" style={{ fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "block" }}>
+                  Primary Work Setting / Practice Type *
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+                  {[
+                    { id: "solo_clinic", icon: "🩺", label: "Solo Clinic", desc: "Independent Practice" },
+                    { id: "polyclinic", icon: "🏢", label: "Polyclinic", desc: "Multi-Specialty Facility" },
+                    { id: "hospital", icon: "🏥", label: "Hospital", desc: "Hospital Affiliated OPD" },
+                  ].map((setting) => (
+                    <div
+                      key={setting.id}
+                      style={{
+                        padding: "14px 12px",
+                        borderRadius: 10,
+                        border: workSetting === setting.id ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                        backgroundColor: workSetting === setting.id ? "#f0f9ff" : "white",
+                        cursor: "pointer",
+                        textAlign: "center",
+                        transition: "all 0.2s ease",
+                      }}
+                      onClick={() => setWorkSetting(setting.id)}
+                    >
+                      <div style={{ fontSize: "1.5rem", marginBottom: 4 }}>{setting.icon}</div>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem", color: workSetting === setting.id ? "#0369a1" : "#334155" }}>
+                        {setting.label}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>{setting.desc}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {workSetting !== "solo_clinic" && (
+                <div className="form-group" style={{ marginBottom: 20 }}>
+                  <label className="form-checkbox" style={{ fontWeight: 600, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, backgroundColor: "#f8fafc" }}>
+                    <input type="checkbox" checked={isIndependent} onChange={(e) => setIsIndependent(e.target.checked)} />
+                    Also provide independent Home Visits / On-Demand Consultations
+                  </label>
+                </div>
+              )}
 
               <div className="form-row">
                 <div className="form-group">
@@ -495,7 +532,7 @@ export default function SignupPage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Specialization *</label>
-                  <input name="specialization" className="form-input" placeholder="e.g. General Medicine" required />
+                  <input name="specialization" className="form-input" placeholder="e.g. General Medicine, Cardiology" required />
                 </div>
               </div>
 
@@ -527,16 +564,22 @@ export default function SignupPage() {
                 </div>
               </div>
               
-              {!isIndependent ? (
+              {workSetting === "solo_clinic" ? (
+                <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Hospital/Clinic Name</label>
-                    <input name="hospital_clinic_name" className="form-input" placeholder="Current affiliation" />
+                    <label className="form-label">Solo Clinic Name *</label>
+                    <input name="hospital_clinic_name" className="form-input" placeholder="e.g. Dr. Kumar's Health Clinic" required />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Primary Locality / Service Area *</label>
+                    <input name="service_area" className="form-input" placeholder="e.g. MVP Colony, Visakhapatnam" required />
+                  </div>
+                </div>
               ) : (
-                  <div className="form-group">
-                    <label className="form-label">Service Area (City/Locality) *</label>
-                    <input name="service_area" className="form-input" placeholder="e.g. MVP Colony, Visakhapatnam" required={isIndependent} />
-                  </div>
+                <div className="form-group">
+                  <label className="form-label">{workSetting === "hospital" ? "Hospital Name & Branch *" : "Polyclinic Name & Branch *"}</label>
+                  <input name="hospital_clinic_name" className="form-input" placeholder={workSetting === "hospital" ? "e.g. Apollo Hospitals, Visakhapatnam" : "e.g. Medicover Polyclinic"} required />
+                </div>
               )}
 
               <div className="form-row">

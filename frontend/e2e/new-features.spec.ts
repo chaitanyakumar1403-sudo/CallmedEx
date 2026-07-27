@@ -20,7 +20,7 @@ async function mockProviderLogin(page: any, role: string) {
     });
   });
 
-  await page.addInitScript(({ token, role }) => {
+  await page.addInitScript(({ token, role }: { token: string; role: string }) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify({
       id: 'test-id',

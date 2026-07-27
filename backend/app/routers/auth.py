@@ -143,6 +143,8 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "consultation_mode": user.consultation_mode.value if user.consultation_mode else "both",
             "available_for_online": user.available_for_online or False,
             "languages_spoken": user.languages_spoken or ["English"],
+            "work_setting": user.work_setting or "solo_clinic",
+            "is_independent": user.is_independent if user.is_independent is not None else (user.work_setting == "solo_clinic" if user.work_setting else True),
             "verification_status": "pending",
         }
 
