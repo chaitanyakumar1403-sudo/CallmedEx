@@ -97,10 +97,29 @@ const ORGANS: Record<string, OrganInfo> = {
   },
 };
 
+// Sample nearby clinics data for offline consultation
+const NEARBY_CLINICS: Record<string, { name: string; address: string; distance: string; rating: number; timings: string }[]> = {
+  default: [
+    { name: "CallMedex Partner Clinic — Kukatpally", address: "KPHB Colony, Kukatpally, Hyderabad", distance: "2.3 km", rating: 4.5, timings: "9 AM – 8 PM" },
+    { name: "CallMedex Partner Clinic — Ameerpet", address: "Ameerpet Main Road, Hyderabad", distance: "4.1 km", rating: 4.3, timings: "8 AM – 9 PM" },
+    { name: "CallMedex Partner Clinic — Madhapur", address: "Hitech City Road, Madhapur", distance: "5.8 km", rating: 4.7, timings: "9 AM – 7 PM" },
+    { name: "CallMedex Partner Clinic — Gachibowli", address: "Financial District, Gachibowli", distance: "7.2 km", rating: 4.4, timings: "8 AM – 8 PM" },
+  ],
+};
+
 export default function InteractiveBodyMap() {
   const router = useRouter();
   const [selectedOrgan, setSelectedOrgan] = useState<string>("heart");
+  const [consultMode, setConsultMode] = useState<null | "choosing" | "offline_list">(null);
   const current = ORGANS[selectedOrgan] || ORGANS["heart"];
+
+  const handleOnlineConsult = () => {
+    router.push(`/consultation?spec=${encodeURIComponent(current.specialization)}&mode=online`);
+  };
+
+  const handleOfflineClinicSelect = (clinicName: string) => {
+    router.push(`/booking?type=walkin&spec=${encodeURIComponent(current.specialization)}&clinic=${encodeURIComponent(clinicName)}`);
+  };
 
   return (
     <div className="glass-card" style={{
@@ -130,7 +149,7 @@ export default function InteractiveBodyMap() {
           return (
             <button
               key={org.id}
-              onClick={() => setSelectedOrgan(org.id)}
+              onClick={() => { setSelectedOrgan(org.id); setConsultMode(null); }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -185,7 +204,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "skin" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "skin" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("skin")}
+              onClick={() => { setSelectedOrgan("skin"); setConsultMode(null); }}
             />
             <text x="72" y="164" textAnchor="middle" fontSize="11" pointerEvents="none">🧴</text>
 
@@ -198,7 +217,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "eyes" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "eyes" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("eyes")}
+              onClick={() => { setSelectedOrgan("eyes"); setConsultMode(null); }}
             />
             <text x="92" y="48" textAnchor="middle" fontSize="9" pointerEvents="none">👁️</text>
 
@@ -211,7 +230,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "dental" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "dental" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("dental")}
+              onClick={() => { setSelectedOrgan("dental"); setConsultMode(null); }}
             />
             <text x="108" y="61" textAnchor="middle" fontSize="9" pointerEvents="none">🦷</text>
 
@@ -224,7 +243,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "ent" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "ent" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("ent")}
+              onClick={() => { setSelectedOrgan("ent"); setConsultMode(null); }}
             />
             <text x="122" y="48" textAnchor="middle" fontSize="9" pointerEvents="none">👂</text>
 
@@ -237,7 +256,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "head" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "head" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("head")}
+              onClick={() => { setSelectedOrgan("head"); setConsultMode(null); }}
             />
             <text x="100" y="38" textAnchor="middle" fontSize="11" pointerEvents="none">🧠</text>
 
@@ -251,7 +270,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "lungs" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "lungs" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("lungs")}
+              onClick={() => { setSelectedOrgan("lungs"); setConsultMode(null); }}
             />
             <text x="100" y="130" textAnchor="middle" fontSize="13" pointerEvents="none">🫁</text>
 
@@ -264,7 +283,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "heart" ? "0.95" : "0.5"}
               stroke="#dc2626"
               strokeWidth={selectedOrgan === "heart" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("heart")}
+              onClick={() => { setSelectedOrgan("heart"); setConsultMode(null); }}
             />
             <text x="112" y="142" textAnchor="middle" fontSize="11" pointerEvents="none">🫀</text>
 
@@ -278,7 +297,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "abdomen" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "abdomen" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("abdomen")}
+              onClick={() => { setSelectedOrgan("abdomen"); setConsultMode(null); }}
             />
             <text x="100" y="190" textAnchor="middle" fontSize="13" pointerEvents="none">🩸</text>
 
@@ -291,7 +310,7 @@ export default function InteractiveBodyMap() {
               fillOpacity={selectedOrgan === "joints" ? "0.9" : "0.5"}
               stroke="#0284c7"
               strokeWidth={selectedOrgan === "joints" ? "3" : "1"}
-              onClick={() => setSelectedOrgan("joints")}
+              onClick={() => { setSelectedOrgan("joints"); setConsultMode(null); }}
             />
             <text x="110" y="259" textAnchor="middle" fontSize="11" pointerEvents="none">🦴</text>
           </svg>
@@ -339,27 +358,171 @@ export default function InteractiveBodyMap() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button
-              style={{
-                flex: 1, padding: "10px 16px", backgroundColor: "#0284c7", color: "white",
-                border: "none", borderRadius: 10, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
-              }}
-              onClick={() => router.push(`/consultation?spec=${encodeURIComponent(current.specialization)}`)}
-            >
-              🩺 Consult {current.specialization}
-            </button>
-            <button
-              style={{
-                flex: 1, padding: "10px 16px", backgroundColor: "#0f172a", color: "white",
-                border: "none", borderRadius: 10, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
-              }}
-              onClick={() => router.push(`/diagnostics?search=${encodeURIComponent(current.name)}`)}
-            >
-              🧪 Book Lab Package
-            </button>
-          </div>
+          {/* Consultation Actions — Online/Offline choice */}
+          {consultMode === null && (
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                style={{
+                  flex: 1, padding: "10px 16px", backgroundColor: "#0284c7", color: "white",
+                  border: "none", borderRadius: 10, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+                }}
+                onClick={() => setConsultMode("choosing")}
+              >
+                🩺 Consult {current.specialization}
+              </button>
+              <button
+                style={{
+                  flex: 1, padding: "10px 16px", backgroundColor: "#0f172a", color: "white",
+                  border: "none", borderRadius: 10, fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+                }}
+                onClick={() => router.push(`/diagnostics?search=${encodeURIComponent(current.name)}`)}
+              >
+                🧪 Book Lab Package
+              </button>
+            </div>
+          )}
+
+          {/* Online vs Offline Choice */}
+          {consultMode === "choosing" && (
+            <div style={{
+              background: "linear-gradient(135deg, #f0f9ff 0%, #eff6ff 100%)",
+              borderRadius: 14, padding: 18, border: "1px solid #bae6fd",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <strong style={{ color: "#0369a1", fontSize: "0.92rem" }}>
+                  How would you like to consult?
+                </strong>
+                <button
+                  onClick={() => setConsultMode(null)}
+                  style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                >
+                  ← Back
+                </button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {/* Online Option */}
+                <button
+                  onClick={handleOnlineConsult}
+                  style={{
+                    padding: 16, borderRadius: 12, border: "2px solid #0284c7",
+                    background: "white", cursor: "pointer", textAlign: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#e0f2fe"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "white"; }}
+                >
+                  <div style={{ fontSize: "2rem", marginBottom: 6 }}>📹</div>
+                  <div style={{ fontWeight: 700, color: "#0369a1", fontSize: "0.88rem" }}>
+                    Online
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 4 }}>
+                    Video consultation from home. HD call with AI prescriptions.
+                  </div>
+                  <div style={{
+                    marginTop: 8, padding: "3px 10px", borderRadius: 20,
+                    background: "#d1fae5", color: "#065f46", fontSize: "0.68rem", fontWeight: 600,
+                    display: "inline-block",
+                  }}>
+                    ⚡ Available Now
+                  </div>
+                </button>
+
+                {/* Offline Option */}
+                <button
+                  onClick={() => setConsultMode("offline_list")}
+                  style={{
+                    padding: 16, borderRadius: 12, border: "2px solid #475569",
+                    background: "white", cursor: "pointer", textAlign: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "white"; }}
+                >
+                  <div style={{ fontSize: "2rem", marginBottom: 6 }}>🏥</div>
+                  <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.88rem" }}>
+                    Offline
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 4 }}>
+                    Visit a partner clinic near you. In-person examination.
+                  </div>
+                  <div style={{
+                    marginTop: 8, padding: "3px 10px", borderRadius: 20,
+                    background: "#e0f2fe", color: "#0369a1", fontSize: "0.68rem", fontWeight: 600,
+                    display: "inline-block",
+                  }}>
+                    📍 Walk-in
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Offline Clinic List */}
+          {consultMode === "offline_list" && (
+            <div style={{
+              background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+              borderRadius: 14, padding: 18, border: "1px solid #e2e8f0",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <strong style={{ color: "#1e293b", fontSize: "0.92rem" }}>
+                  🏥 Nearby {current.specialization} Clinics
+                </strong>
+                <button
+                  onClick={() => setConsultMode("choosing")}
+                  style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 }}
+                >
+                  ← Back
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 240, overflowY: "auto" }}>
+                {(NEARBY_CLINICS.default).map((clinic, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleOfflineClinicSelect(clinic.name)}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "12px 14px", borderRadius: 10, border: "1px solid #e2e8f0",
+                      background: "white", cursor: "pointer", textAlign: "left",
+                      transition: "all 0.2s ease", gap: 10,
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "#0284c7";
+                      (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(2,132,199,0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "#e2e8f0";
+                      (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.82rem" }}>
+                        {clinic.name}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
+                        📍 {clinic.address}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        <span style={{ fontSize: "0.68rem", color: "#f59e0b" }}>⭐ {clinic.rating}</span>
+                        <span style={{ fontSize: "0.68rem", color: "#64748b" }}>🕐 {clinic.timings}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#0284c7" }}>
+                        {clinic.distance}
+                      </div>
+                      <div style={{
+                        marginTop: 4, padding: "3px 10px", borderRadius: 20,
+                        background: "#0284c7", color: "white", fontSize: "0.68rem", fontWeight: 700,
+                      }}>
+                        Book Visit →
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

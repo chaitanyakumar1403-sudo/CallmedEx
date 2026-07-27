@@ -43,6 +43,8 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
   const [error, setError] = useState("");
   const [supported, setSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Use a ref for accumulating final text to avoid closure stacking issues
+  const finalTextRef = useRef("");
 
   useEffect(() => {
     setSupported(getRecognition() !== null);
@@ -79,33 +81,65 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
     }
 
     recognition.lang = SPEECH_LOCALE[lang] || "en-IN";
-    recognition.continuous = true;
+    // Use non-continuous mode to avoid duplicate final results. Each utterance
+    // fires one final result, then we restart if the user is still recording.
+    recognition.continuous = false;
     recognition.interimResults = true;
 
-    let finalText = "";
+    // Reset the accumulated final text for a fresh recording session
+    finalTextRef.current = transcript.trim() === "" ? "" : transcript.trim() + " ";
+
     recognition.onresult = (event: any) => {
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const chunk = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText += chunk;
-        else interim += chunk;
+        if (event.results[i].isFinal) {
+          // Deduplicate: only add if the chunk isn't already at the end of finalText
+          const trimmedChunk = chunk.trim();
+          if (trimmedChunk && !finalTextRef.current.trimEnd().endsWith(trimmedChunk)) {
+            finalTextRef.current += trimmedChunk + " ";
+          }
+        } else {
+          interim = chunk;
+        }
       }
-      setTranscript((finalText + interim).trim());
+      setTranscript((finalTextRef.current + interim).trim());
     };
 
     recognition.onerror = (event: any) => {
       const kind = event?.error;
+      // "no-speech" is normal in non-continuous mode, just restart silently
+      if (kind === "no-speech") {
+        // Restart recognition if still in recording mode
+        if (recognitionRef.current) {
+          try { recognitionRef.current.start(); } catch { /* ignore */ }
+        }
+        return;
+      }
       setError(
         kind === "not-allowed" || kind === "service-not-allowed"
           ? "Microphone permission was denied. Allow it in your browser, or type your symptoms below."
-          : kind === "no-speech"
-          ? "I didn't catch anything. Tap the mic and speak, or type below."
           : "Speech recognition failed. Please type your symptoms below."
       );
       stopRecording();
     };
 
-    recognition.onend = () => setIsRecording(false);
+    // In non-continuous mode, recognition ends after each utterance.
+    // Auto-restart to keep listening until user clicks stop.
+    recognition.onend = () => {
+      if (recognitionRef.current) {
+        // Still in recording mode — restart to keep listening
+        try {
+          recognitionRef.current.start();
+        } catch {
+          // If restart fails, stop recording
+          setIsRecording(false);
+          recognitionRef.current = null;
+        }
+      } else {
+        setIsRecording(false);
+      }
+    };
 
     recognitionRef.current = recognition;
     try {
@@ -115,25 +149,57 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
       setError("Could not start the microphone. Please type your symptoms below.");
       setIsRecording(false);
     }
-  }, [lang, stopRecording]);
+  }, [lang, stopRecording, transcript]);
 
   if (!isOpen) return null;
 
   const handleAnalyzeTriage = async () => {
-    if (!transcript) return;
+    if (!transcript.trim()) return;
     setLoading(true);
+    setError("");
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : "";
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/ai/voice-triage`, {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+      // Use guest endpoint if no token to avoid 401 errors
+      const endpoint = token ? "/api/ai/voice-triage" : "/api/ai/voice-triage-guest";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${apiBase}${endpoint}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ transcript, language: lang })
+        headers,
+        body: JSON.stringify({ transcript: transcript.trim(), language: lang })
       });
+
+      // If auth endpoint returns 401, retry with guest endpoint
+      if (res.status === 401 && token) {
+        const guestRes = await fetch(`${apiBase}/api/ai/voice-triage-guest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: transcript.trim(), language: lang })
+        });
+        const data = await guestRes.json();
+        if (guestRes.ok && data.success) {
+          setTriageResult(data);
+        } else {
+          setError(data.detail || "Could not analyse that. Try rephrasing your symptoms.");
+        }
+        return;
+      }
+
       const data = await res.json();
       if (res.ok && data.success) {
         setTriageResult(data);
       } else {
-        setError(data.detail || "Could not analyse that. Try rephrasing your symptoms.");
+        // Provide a friendlier message for auth errors
+        if (res.status === 401) {
+          setError("Session expired. The triage still works — please try again.");
+        } else {
+          setError(data.detail || "Could not analyse that. Try rephrasing your symptoms.");
+        }
       }
     } catch {
       setError("Network error contacting the triage service. Please try again.");
@@ -280,7 +346,7 @@ export default function AIVoiceIntakeModal({ isOpen, onClose, onSelectProvider }
               <strong style={{ color: triageResult.urgency === "emergency" ? "#dc2626" : "#166534" }}>
                 {triageResult.urgency === "emergency" ? "🚨 EMERGENCY TRIAGE" : "✅ ROUTINE TRIAGE"}
               </strong>
-              <span className="badge badge-info">Score: {triageResult.confidence_score * 100}%</span>
+              <span className="badge badge-info">Score: {Math.round((triageResult.confidence_score || 0) * 100)}%</span>
             </div>
             <p style={{ fontSize: "0.85rem", color: "#334155", margin: "0 0 12px 0" }}>{triageResult.clinical_summary}</p>
 

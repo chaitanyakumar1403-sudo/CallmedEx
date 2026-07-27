@@ -222,10 +222,14 @@ async def update_user(user_id: str, data: UserUpdate, current_user: dict = Depen
     supabase.table("users").update(update_dict).eq("id", user_id).execute()
     return {"success": True, "message": "User updated successfully"}
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Super Admin only: Delete user."""
+    """Super Admin only: Delete user with cascade cleanup of dependent records."""
     admin_data = check_admin_access(current_user)
     if admin_data.get("managed_city") is not None:
         raise HTTPException(status_code=403, detail="Only Super Admins can delete users")
@@ -234,11 +238,94 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         return {"success": True, "message": "Simulated user deletion"}
 
     try:
-        # Delete from Supabase Auth (this usually cascades to the public.users table)
-        supabase.auth.admin.delete_user(user_id)
-    except Exception as e:
-        # Fallback to just deleting from public.users if auth admin fails
+        # Step 1: Clean up child records referencing user_id using verified schema columns
+
+        # 1a. Dispatch offers linked to dispatch requests for this user
+        try:
+            dr_res = supabase.table("dispatch_requests").select("id").or_(f"patient_id.eq.{user_id},assigned_provider_id.eq.{user_id}").execute()
+            if dr_res.data:
+                dr_ids = [r["id"] for r in dr_res.data if r.get("id")]
+                if dr_ids:
+                    supabase.table("dispatch_offers").delete().in_("dispatch_request_id", dr_ids).execute()
+        except Exception as e:
+            logger.warning(f"Cleanup dispatch_offers via requests error: {e}")
+
+        try:
+            supabase.table("dispatch_offers").delete().eq("provider_id", user_id).execute()
+        except Exception:
+            pass
+
+        # 1b. Dispatch requests (patient or provider)
+        try:
+            supabase.table("dispatch_requests").delete().eq("patient_id", user_id).execute()
+        except Exception as e:
+            logger.warning(f"Cleanup dispatch_requests patient_id error: {e}")
+        try:
+            supabase.table("dispatch_requests").delete().eq("assigned_provider_id", user_id).execute()
+        except Exception as e:
+            logger.warning(f"Cleanup dispatch_requests assigned_provider_id error: {e}")
+
+        # 1c. Bookings (patient_id or provider_id)
+        try:
+            supabase.table("bookings").delete().eq("patient_id", user_id).execute()
+        except Exception as e:
+            logger.warning(f"Cleanup bookings patient_id error: {e}")
+        try:
+            supabase.table("bookings").delete().eq("provider_id", user_id).execute()
+        except Exception as e:
+            logger.warning(f"Cleanup bookings provider_id error: {e}")
+
+        # 1d. Provider profiles
+        for table in ["doctors", "nurses", "pharmacies", "organizations"]:
+            try:
+                supabase.table(table).delete().eq("user_id", user_id).execute()
+            except Exception:
+                pass
+
+        try:
+            supabase.table("phlebotomists").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("phlebotomists").delete().eq("home_lab_org_user_id", user_id).execute()
+        except Exception:
+            pass
+
+        try:
+            supabase.table("organization_doctors").delete().eq("doctor_user_id", user_id).execute()
+        except Exception:
+            pass
+
+        try:
+            supabase.table("provider_locations").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+
+        # 1e. Auxiliary records (verified columns)
+        try:
+            supabase.table("documents").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("audit_log").delete().eq("actor_id", user_id).execute()
+        except Exception:
+            pass
+        try:
+            supabase.table("ai_report_analyses").delete().eq("patient_id", user_id).execute()
+        except Exception:
+            pass
+
+        # Step 2: Delete from Supabase Auth admin
+        try:
+            supabase.auth.admin.delete_user(user_id)
+        except Exception as e:
+            logger.info(f"Auth delete user {user_id}: {e}")
+
+        # Step 3: Delete from public.users table
         supabase.table("users").delete().eq("id", user_id).execute()
 
-    return {"success": True, "message": "User deleted successfully"}
+        return {"success": True, "message": "User deleted successfully"}
+    except Exception as e:
+        logger.error(f"Failed to delete user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 

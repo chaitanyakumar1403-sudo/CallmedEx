@@ -1,13 +1,14 @@
 /**
- * Consultation Page — Doctor Listing for Video Consultation
- * API-connected with search, filter, and real-time availability.
+ * Consultation Page — Doctor Listing for Video & Walk-in Consultation
+ * API-connected with search, filter, mode toggle, and real-time availability.
  */
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { telemedAPI } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
+import { Suspense } from 'react';
 
 interface Doctor {
   doctor_id: string;
@@ -20,6 +21,7 @@ interface Doctor {
   city: string;
   available: boolean;
   rating?: number;
+  walkin_available?: boolean;
 }
 
 const SPECIALIZATIONS = [
@@ -35,15 +37,33 @@ const SPECIALIZATIONS = [
   'Psychiatry',
 ];
 
-export default function ConsultationPage() {
+function ConsultationContent() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [selectedSpec, setSelectedSpec] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [consultMode, setConsultMode] = useState<'teleconsultation' | 'walkin'>('teleconsultation');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [detectedCity, setDetectedCity] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationDetected, setLocationDetected] = useState(false);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read mode from URL params (from body map navigation)
+  useEffect(() => {
+    const modeParam = searchParams.get('mode');
+    if (modeParam === 'online') setConsultMode('teleconsultation');
+    else if (modeParam === 'walkin' || modeParam === 'offline') setConsultMode('walkin');
+
+    const specParam = searchParams.get('spec');
+    if (specParam) {
+      const match = SPECIALIZATIONS.find(s => s.toLowerCase() === specParam.toLowerCase());
+      if (match) setSelectedSpec(match);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadDoctors();
@@ -66,8 +86,19 @@ export default function ConsultationPage() {
       );
     }
 
+    // For walk-in mode, optionally filter by city if detected
+    if (consultMode === 'walkin' && detectedCity) {
+      const cityFiltered = filtered.filter(d =>
+        d.city && d.city.toLowerCase().includes(detectedCity.toLowerCase())
+      );
+      // Only filter by city if it produces results, otherwise show all
+      if (cityFiltered.length > 0) {
+        filtered = cityFiltered;
+      }
+    }
+
     setFilteredDoctors(filtered);
-  }, [doctors, selectedSpec, searchQuery]);
+  }, [doctors, selectedSpec, searchQuery, consultMode, detectedCity]);
 
   const loadDoctors = async () => {
     setIsLoading(true);
@@ -88,27 +119,157 @@ export default function ConsultationPage() {
       return;
     }
     if (!doctor.available) return;
-    router.push(`/consultation/${doctor.doctor_id}?name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+
+    if (consultMode === 'teleconsultation') {
+      router.push(`/consultation/${doctor.doctor_id}?name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+    } else {
+      router.push(`/booking?type=walkin&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+    }
   };
+
+  // Auto-detect location
+  const handleDetectLocation = useCallback(async () => {
+    if (!navigator.geolocation) return;
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
+          let city = "";
+
+          if (geoapifyKey) {
+            const res = await fetch(
+              `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${geoapifyKey}&format=json`
+            );
+            const json = await res.json();
+            const result = json.results?.[0] || {};
+            city = result.city || result.town || result.village || result.county || "";
+          } else {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+              { headers: { "Accept-Language": "en", "User-Agent": "CallMedex/2.0" } }
+            );
+            const data = await res.json();
+            const addr = data.address || {};
+            city = addr.city || addr.town || addr.village || addr.county || "";
+          }
+
+          if (city) {
+            setDetectedCity(city);
+            setLocationDetected(true);
+          }
+        } catch { /* silent */ } finally {
+          setDetectingLocation(false);
+        }
+      },
+      () => { setDetectingLocation(false); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  }, []);
 
   return (
     <div className="section">
       <div className="container">
         <div className="section-title">
-          <h1>Video Consultation</h1>
-          <p>Connect with verified doctors via HD video call — with AI-generated e-prescriptions</p>
+          <h1>{consultMode === 'teleconsultation' ? '📹 Video Consultation' : '🏥 Walk-in Consultation'}</h1>
+          <p>
+            {consultMode === 'teleconsultation'
+              ? 'Connect with verified doctors via HD video call — with AI-generated e-prescriptions'
+              : 'Book an in-person visit with verified doctors near you — walk-in appointments available'}
+          </p>
         </div>
 
-        {/* Search Bar */}
-        <div style={{ maxWidth: 500, margin: '0 auto var(--space-lg)', position: 'relative' }}>
+        {/* ── Mode Toggle ─────────────────────────────────────────── */}
+        <div style={{
+          display: 'flex', gap: 0, justifyContent: 'center', marginBottom: 28,
+          background: '#f1f5f9', borderRadius: 14, padding: 4,
+          maxWidth: 420, margin: '0 auto 28px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        }}>
+          <button
+            onClick={() => setConsultMode('teleconsultation')}
+            style={{
+              flex: 1, padding: '12px 20px', borderRadius: 10,
+              border: 'none', cursor: 'pointer',
+              fontWeight: 700, fontSize: '0.88rem',
+              background: consultMode === 'teleconsultation'
+                ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                : 'transparent',
+              color: consultMode === 'teleconsultation' ? '#fff' : '#64748b',
+              boxShadow: consultMode === 'teleconsultation' ? '0 4px 12px rgba(2,132,199,0.3)' : 'none',
+              transition: 'all 0.25s ease',
+            }}
+          >
+            📹 Teleconsultation
+          </button>
+          <button
+            onClick={() => setConsultMode('walkin')}
+            style={{
+              flex: 1, padding: '12px 20px', borderRadius: 10,
+              border: 'none', cursor: 'pointer',
+              fontWeight: 700, fontSize: '0.88rem',
+              background: consultMode === 'walkin'
+                ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+                : 'transparent',
+              color: consultMode === 'walkin' ? '#fff' : '#64748b',
+              boxShadow: consultMode === 'walkin' ? '0 4px 12px rgba(15,23,42,0.3)' : 'none',
+              transition: 'all 0.25s ease',
+            }}
+          >
+            🏥 Walk-in
+          </button>
+        </div>
+
+        {/* ── Search & Location Bar ───────────────────────────────── */}
+        <div style={{ maxWidth: 600, margin: '0 auto var(--space-lg)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input
             type="text"
             className="form-input"
             placeholder="🔍 Search by doctor name, specialization, or language..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: 16, fontSize: '0.95rem' }}
+            style={{ flex: 2, paddingLeft: 16, fontSize: '0.95rem', minWidth: 240 }}
           />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {locationDetected && detectedCity && (
+              <span style={{
+                padding: '8px 14px', borderRadius: 10,
+                background: '#f0fdf4', border: '1px solid #bbf7d0',
+                fontSize: '0.82rem', color: '#166534', fontWeight: 600,
+                whiteSpace: 'nowrap',
+              }}>
+                📍 {detectedCity}
+                <button
+                  onClick={() => { setDetectedCity(''); setLocationDetected(false); }}
+                  style={{ background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer', marginLeft: 6, fontWeight: 700 }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {!locationDetected && (
+              <button
+                onClick={handleDetectLocation}
+                disabled={detectingLocation}
+                style={{
+                  padding: '10px 16px', borderRadius: 10,
+                  border: '1.5px solid #cbd5e1', background: '#fff',
+                  cursor: detectingLocation ? 'wait' : 'pointer',
+                  fontSize: '0.82rem', fontWeight: 600, color: '#475569',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {detectingLocation ? (
+                  <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>📡</span> Detecting...</>
+                ) : (
+                  <>📍 Detect Location</>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Specialization Filter */}
@@ -177,7 +338,9 @@ export default function ConsultationPage() {
                         height: 72,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        background: 'linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-light) 100%)',
+                        background: consultMode === 'teleconsultation'
+                          ? 'linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-light) 100%)'
+                          : 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -185,7 +348,7 @@ export default function ConsultationPage() {
                         color: '#fff',
                       }}
                     >
-                      👨‍⚕️
+                      {consultMode === 'teleconsultation' ? '👨‍⚕️' : '🏥'}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -214,18 +377,26 @@ export default function ConsultationPage() {
                           <span style={{ fontSize: '0.8rem', color: 'var(--color-gray-400)' }}>
                             · {doc.languages.join(', ')}
                           </span>
+                          {consultMode === 'walkin' && doc.city && (
+                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              · 📍 {doc.city}
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span style={{ fontWeight: 700, color: 'var(--color-navy)' }}>
                             ₹{doc.consultation_fee}
                           </span>
                           <button
-                            className="btn btn-teal btn-sm"
+                            className={`btn ${consultMode === 'teleconsultation' ? 'btn-teal' : 'btn-primary'} btn-sm`}
                             disabled={!doc.available}
                             onClick={() => handleConsult(doc)}
-                            style={{ minWidth: 100 }}
+                            style={{ minWidth: 110 }}
                           >
-                            {doc.available ? '📹 Consult' : 'Unavailable'}
+                            {consultMode === 'teleconsultation'
+                              ? (doc.available ? '📹 Consult' : 'Unavailable')
+                              : (doc.available ? '🏥 Book Visit' : 'Unavailable')
+                            }
                           </button>
                         </div>
                       </div>
@@ -255,5 +426,17 @@ export default function ConsultationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ConsultationPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#64748b' }}>Loading consultation...</p>
+      </div>
+    }>
+      <ConsultationContent />
+    </Suspense>
   );
 }

@@ -94,6 +94,12 @@ export default function AdminDashboard() {
   const [supervisorForm, setSupervisorForm] = useState({ full_name: '', email: '', mobile: '', password: '', managed_city: '' });
   const [formMsg, setFormMsg] = useState('');
 
+  // User Management: role filter + bulk selection
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+
   // Weekly Report State
   const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
   const [weeklyReportData, setWeeklyReportData] = useState<any>(null);
@@ -496,60 +502,281 @@ export default function AdminDashboard() {
         {/* ════════════════════════════════════════════════════════════ */}
         {/* USER MANAGEMENT TAB */}
         {/* ════════════════════════════════════════════════════════════ */}
-        {activeTab === 'users' && (
-          <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: '#1a2b4a' }}>Master User Directory</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                  {['Name', 'Email', 'Role', 'City', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.7rem', textTransform: 'uppercase' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u: any) => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: 8, fontWeight: 600 }}>{u.full_name}</td>
-                    <td style={{ padding: 8, color: '#6b7280' }}>{u.email}</td>
-                    <td style={{ padding: 8 }}>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 20, fontSize: '0.65rem', fontWeight: 600,
-                        backgroundColor: u.role === 'admin' ? '#ede9fe' : '#f0fdf4',
-                        color: u.role === 'admin' ? '#5b21b6' : '#166534',
-                        textTransform: 'uppercase',
-                      }}>{u.role}</span>
-                    </td>
-                    <td style={{ padding: 8, color: '#6b7280' }}>{u.city || 'N/A'}</td>
-                    <td style={{ padding: 8, color: u.is_active ? '#059669' : '#dc2626', fontWeight: 600 }}>
-                      {u.is_active ? '● Active' : '● Suspended'}
-                    </td>
-                    <td style={{ padding: 8 }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          onClick={() => handleUpdateUser(u.id, { is_active: !u.is_active })}
-                          style={{
-                            fontSize: '0.7rem', padding: '4px 10px', cursor: 'pointer',
-                            border: '1px solid #e5e7eb', borderRadius: 6, backgroundColor: 'white',
-                          }}
-                        >{u.is_active ? 'Suspend' : 'Activate'}</button>
-                        <button
-                          onClick={() => handleDeleteUser(u.id)}
-                          style={{
-                            fontSize: '0.7rem', padding: '4px 10px', cursor: 'pointer',
-                            border: '1px solid #fecaca', borderRadius: 6, backgroundColor: '#fef2f2',
-                            color: '#dc2626', fontWeight: 600
-                          }}
-                        >Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {users.length === 0 && <p style={{ textAlign: 'center', color: '#9ca3af', marginTop: 20 }}>No users found.</p>}
-          </div>
-        )}
+        {activeTab === 'users' && (() => {
+          // Compute role counts
+          const roleCounts: Record<string, number> = {};
+          users.forEach((u: any) => {
+            roleCounts[u.role] = (roleCounts[u.role] || 0) + 1;
+          });
+
+          const ROLE_CARDS = [
+            { role: 'all', label: 'All Users', icon: '👥', color: '#2563eb', count: users.length },
+            { role: 'doctor', label: 'Doctors', icon: '👨‍⚕️', color: '#7c3aed', count: roleCounts['doctor'] || 0 },
+            { role: 'nurse', label: 'Nurses', icon: '👩‍⚕️', color: '#db2777', count: roleCounts['nurse'] || 0 },
+            { role: 'patient', label: 'Patients', icon: '🧑‍🦱', color: '#059669', count: roleCounts['patient'] || 0 },
+            { role: 'phlebotomist', label: 'Phlebotomists', icon: '💉', color: '#ea580c', count: roleCounts['phlebotomist'] || 0 },
+            { role: 'pharmacy', label: 'Pharmacies', icon: '💊', color: '#65a30d', count: roleCounts['pharmacy'] || 0 },
+            { role: 'organization', label: 'Organizations', icon: '🏥', color: '#0891b2', count: roleCounts['organization'] || 0 },
+            { role: 'staff', label: 'Staff', icon: '📋', color: '#6366f1', count: roleCounts['staff'] || 0 },
+            { role: 'admin', label: 'Admins', icon: '🛡️', color: '#dc2626', count: roleCounts['admin'] || 0 },
+          ].filter(rc => rc.role === 'all' || rc.count > 0);
+
+          // Filter users by selected role and search
+          let displayedUsers = userRoleFilter === 'all' ? users : users.filter((u: any) => u.role === userRoleFilter);
+          if (userSearchQuery.trim()) {
+            const q = userSearchQuery.toLowerCase();
+            displayedUsers = displayedUsers.filter((u: any) =>
+              (u.full_name || '').toLowerCase().includes(q) ||
+              (u.email || '').toLowerCase().includes(q) ||
+              (u.city || '').toLowerCase().includes(q)
+            );
+          }
+
+          const allVisibleIds = displayedUsers.map((u: any) => u.id);
+          const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id: string) => selectedUserIds.has(id));
+
+          const toggleSelectAll = () => {
+            if (allSelected) {
+              setSelectedUserIds(new Set());
+            } else {
+              setSelectedUserIds(new Set(allVisibleIds));
+            }
+          };
+
+          const toggleSelectUser = (userId: string) => {
+            setSelectedUserIds(prev => {
+              const next = new Set(prev);
+              if (next.has(userId)) next.delete(userId);
+              else next.add(userId);
+              return next;
+            });
+          };
+
+          const handleBulkAction = async (action: 'suspend' | 'activate' | 'delete') => {
+            const ids = Array.from(selectedUserIds);
+            if (ids.length === 0) return;
+            if (action === 'delete' && !confirm(`Are you sure you want to DELETE ${ids.length} user(s)? This action cannot be undone.`)) return;
+            if (action === 'suspend' && !confirm(`Suspend ${ids.length} user(s)?`)) return;
+
+            setBulkActionLoading(true);
+            const token = getToken();
+            const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+
+            try {
+              if (action === 'delete') {
+                await Promise.allSettled(
+                  ids.map(id => fetch(`${apiBase}/api/admin/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }))
+                );
+                setUsers(users.filter((u: any) => !selectedUserIds.has(u.id)));
+              } else {
+                const isActive = action === 'activate';
+                await Promise.allSettled(
+                  ids.map(id => fetch(`${apiBase}/api/admin/users/${id}`, {
+                    method: 'PATCH', headers, body: JSON.stringify({ is_active: isActive })
+                  }))
+                );
+                setUsers(users.map((u: any) => selectedUserIds.has(u.id) ? { ...u, is_active: isActive } : u));
+              }
+              setSelectedUserIds(new Set());
+            } catch { /* silent */ } finally {
+              setBulkActionLoading(false);
+            }
+          };
+
+          return (
+            <div>
+              {/* ── Role Summary Cards ───────────────────────────────── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+                {ROLE_CARDS.map(rc => {
+                  const active = userRoleFilter === rc.role;
+                  return (
+                    <button
+                      key={rc.role}
+                      onClick={() => { setUserRoleFilter(rc.role); setSelectedUserIds(new Set()); }}
+                      style={{
+                        padding: '14px 12px', borderRadius: 12, cursor: 'pointer',
+                        border: active ? `2px solid ${rc.color}` : '1px solid #e5e7eb',
+                        backgroundColor: active ? `${rc.color}10` : 'white',
+                        textAlign: 'center', transition: 'all 0.2s ease',
+                        boxShadow: active ? `0 4px 12px ${rc.color}25` : '0 1px 3px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <div style={{ fontSize: '1.5rem', marginBottom: 4 }}>{rc.icon}</div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: rc.color }}>{rc.count}</div>
+                      <div style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', marginTop: 2 }}>{rc.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── Search within role ────────────────────────────────── */}
+              <div style={{ marginBottom: 16 }}>
+                <input
+                  type="text"
+                  placeholder={`🔍 Search ${userRoleFilter === 'all' ? 'all users' : ROLE_CARDS.find(r => r.role === userRoleFilter)?.label || 'users'}...`}
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 16px', borderRadius: 10,
+                    border: '1px solid #e5e7eb', fontSize: '0.85rem',
+                  }}
+                />
+              </div>
+
+              {/* ── Bulk Action Bar ──────────────────────────────────── */}
+              {selectedUserIds.size > 0 && (
+                <div style={{
+                  display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 18px', borderRadius: 12, marginBottom: 16,
+                  background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                  color: 'white', flexWrap: 'wrap',
+                  boxShadow: '0 4px 16px rgba(15,23,42,0.3)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      background: 'rgba(255,255,255,0.2)', padding: '3px 10px',
+                      borderRadius: 20, fontSize: '0.78rem', fontWeight: 700,
+                    }}>
+                      {selectedUserIds.size} selected
+                    </span>
+                    <button
+                      onClick={() => setSelectedUserIds(new Set())}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => handleBulkAction('suspend')}
+                      disabled={bulkActionLoading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)',
+                        background: 'rgba(255,255,255,0.1)', color: '#fbbf24',
+                        fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                      }}
+                    >
+                      ⏸ Suspend ({selectedUserIds.size})
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('activate')}
+                      disabled={bulkActionLoading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)',
+                        background: 'rgba(255,255,255,0.1)', color: '#4ade80',
+                        fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                      }}
+                    >
+                      ✅ Activate ({selectedUserIds.size})
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('delete')}
+                      disabled={bulkActionLoading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1px solid #fca5a5',
+                        background: '#dc2626', color: 'white',
+                        fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                      }}
+                    >
+                      🗑 Delete ({selectedUserIds.size})
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── User Table ───────────────────────────────────────── */}
+              <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ margin: 0, color: '#1a2b4a' }}>
+                    {userRoleFilter === 'all' ? 'All Users' : ROLE_CARDS.find(r => r.role === userRoleFilter)?.label || 'Users'}
+                    <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.85rem', marginLeft: 8 }}>({displayedUsers.length})</span>
+                  </h3>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                      <th style={{ padding: 10, textAlign: 'left', width: 40 }}>
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={toggleSelectAll}
+                          style={{ cursor: 'pointer', width: 16, height: 16 }}
+                        />
+                      </th>
+                      {['Name', 'Email', 'Role', 'City', 'Status', 'Actions'].map(h => (
+                        <th key={h} style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.7rem', textTransform: 'uppercase' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedUsers.map((u: any) => {
+                      const isChecked = selectedUserIds.has(u.id);
+                      const roleBadgeColors: Record<string, { bg: string; text: string }> = {
+                        admin: { bg: '#ede9fe', text: '#5b21b6' },
+                        doctor: { bg: '#f3e8ff', text: '#7c3aed' },
+                        nurse: { bg: '#fce7f3', text: '#db2777' },
+                        patient: { bg: '#f0fdf4', text: '#166534' },
+                        phlebotomist: { bg: '#fff7ed', text: '#ea580c' },
+                        pharmacy: { bg: '#ecfdf5', text: '#065f46' },
+                        organization: { bg: '#ecfeff', text: '#0891b2' },
+                        staff: { bg: '#eef2ff', text: '#4f46e5' },
+                      };
+                      const badge = roleBadgeColors[u.role] || { bg: '#f3f4f6', text: '#374151' };
+                      return (
+                        <tr key={u.id} style={{
+                          borderBottom: '1px solid #f3f4f6',
+                          backgroundColor: isChecked ? '#f0f9ff' : 'transparent',
+                          transition: 'background-color 0.15s',
+                        }}>
+                          <td style={{ padding: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleSelectUser(u.id)}
+                              style={{ cursor: 'pointer', width: 16, height: 16 }}
+                            />
+                          </td>
+                          <td style={{ padding: 8, fontWeight: 600 }}>{u.full_name}</td>
+                          <td style={{ padding: 8, color: '#6b7280' }}>{u.email}</td>
+                          <td style={{ padding: 8 }}>
+                            <span style={{
+                              padding: '3px 10px', borderRadius: 20, fontSize: '0.65rem', fontWeight: 600,
+                              backgroundColor: badge.bg, color: badge.text, textTransform: 'uppercase',
+                            }}>{u.role}</span>
+                          </td>
+                          <td style={{ padding: 8, color: '#6b7280' }}>{u.city || 'N/A'}</td>
+                          <td style={{ padding: 8, color: u.is_active ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                            {u.is_active ? '● Active' : '● Suspended'}
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                onClick={() => handleUpdateUser(u.id, { is_active: !u.is_active })}
+                                style={{
+                                  fontSize: '0.7rem', padding: '4px 10px', cursor: 'pointer',
+                                  border: '1px solid #e5e7eb', borderRadius: 6, backgroundColor: 'white',
+                                }}
+                              >{u.is_active ? 'Suspend' : 'Activate'}</button>
+                              <button
+                                onClick={() => handleDeleteUser(u.id)}
+                                style={{
+                                  fontSize: '0.7rem', padding: '4px 10px', cursor: 'pointer',
+                                  border: '1px solid #fecaca', borderRadius: 6, backgroundColor: '#fef2f2',
+                                  color: '#dc2626', fontWeight: 600
+                                }}
+                              >Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {displayedUsers.length === 0 && <p style={{ textAlign: 'center', color: '#9ca3af', marginTop: 20 }}>No users found{userRoleFilter !== 'all' ? ` with role "${userRoleFilter}"` : ''}.</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ════════════════════════════════════════════════════════════ */}
         {/* DELEGATION TAB */}

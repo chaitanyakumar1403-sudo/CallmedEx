@@ -1,7 +1,7 @@
 """
 Phase 5 Router: AI Voice Triage & DrugShield API Endpoints
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from app.middleware.auth import get_current_user
@@ -26,7 +26,25 @@ async def process_voice_triage(
     req: VoiceTriageRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Parses voice transcript into clinical urgency score & provider recommendation."""
+    """Parses voice transcript into clinical urgency score & provider recommendation (auth required)."""
+    result = AIVoiceScribeService.process_voice_triage(
+        transcript=req.transcript,
+        language=req.language,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/voice-triage-guest")
+async def process_voice_triage_guest(
+    req: VoiceTriageRequest,
+):
+    """
+    Guest-accessible voice triage endpoint — no auth required.
+    Allows patients who haven't logged in yet to still use the AI symptom triage.
+    This helps them decide what provider to book before they create an account.
+    """
     result = AIVoiceScribeService.process_voice_triage(
         transcript=req.transcript,
         language=req.language,

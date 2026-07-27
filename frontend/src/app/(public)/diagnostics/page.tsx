@@ -54,6 +54,78 @@ const CATEGORIES = [
   { id: "physiotherapy", label: "Physiotherapy", icon: "🧘" },
 ];
 
+// Sub-categories for organized browsing within each category
+const SUB_CATEGORIES: Record<string, { id: string; label: string; icon: string }[]> = {
+  lab_test: [
+    { id: "blood_test", label: "Blood Tests", icon: "🩸" },
+    { id: "hormone", label: "Hormone Tests", icon: "⚗️" },
+    { id: "diabetes", label: "Diabetes & Sugar", icon: "🍬" },
+    { id: "thyroid", label: "Thyroid Panel", icon: "🦋" },
+    { id: "liver", label: "Liver Function", icon: "🫘" },
+    { id: "kidney", label: "Kidney Function", icon: "🫧" },
+    { id: "allergy", label: "Allergy Tests", icon: "🤧" },
+    { id: "vitamin", label: "Vitamin & Nutrition", icon: "💊" },
+    { id: "infection", label: "Infection Markers", icon: "🦠" },
+    { id: "urine_stool", label: "Urine & Stool", icon: "🔬" },
+  ],
+  imaging: [
+    { id: "mri", label: "MRI Scans", icon: "🧲" },
+    { id: "ct_scan", label: "CT Scans", icon: "🖥️" },
+    { id: "xray", label: "X-Ray", icon: "☢️" },
+    { id: "ultrasound", label: "Ultrasound", icon: "📡" },
+    { id: "ecg_echo", label: "ECG & Echo", icon: "💓" },
+    { id: "dexa", label: "DEXA / Bone Density", icon: "🦴" },
+  ],
+  dental: [
+    { id: "cleaning", label: "Cleaning & Polishing", icon: "✨" },
+    { id: "root_canal", label: "Root Canal", icon: "🦷" },
+    { id: "extraction", label: "Tooth Extraction", icon: "🔧" },
+    { id: "orthodontics", label: "Orthodontics", icon: "😁" },
+    { id: "dental_xray", label: "Dental X-Ray", icon: "📸" },
+    { id: "cavity", label: "Cavity & Fillings", icon: "🪥" },
+  ],
+  physiotherapy: [
+    { id: "back_pain", label: "Back & Spine", icon: "🔙" },
+    { id: "sports_rehab", label: "Sports Rehab", icon: "🏃" },
+    { id: "post_surgery", label: "Post-Surgery", icon: "🏥" },
+    { id: "joint_mobility", label: "Joint & Mobility", icon: "🦿" },
+    { id: "neuro_rehab", label: "Neuro Rehab", icon: "🧠" },
+    { id: "geriatric", label: "Elderly Care", icon: "👴" },
+  ],
+};
+
+// Maps sub-category IDs to search keywords for the API
+const SUB_CATEGORY_KEYWORDS: Record<string, string[]> = {
+  blood_test: ["blood", "cbc", "haemoglobin", "platelet", "rbc", "wbc", "blood count", "blood group"],
+  hormone: ["hormone", "testosterone", "estrogen", "prolactin", "cortisol", "fsh", "lh", "growth hormone"],
+  diabetes: ["diabetes", "hba1c", "glucose", "sugar", "fasting glucose", "insulin", "ogtt", "gtt"],
+  thyroid: ["thyroid", "t3", "t4", "tsh", "thyroid profile", "free t3", "free t4"],
+  liver: ["liver", "lft", "sgot", "sgpt", "bilirubin", "alkaline phosphatase", "ggt", "albumin"],
+  kidney: ["kidney", "kft", "creatinine", "urea", "uric acid", "bun", "egfr", "electrolytes"],
+  allergy: ["allergy", "ige", "skin prick", "food allergy", "dust", "pollen"],
+  vitamin: ["vitamin", "vitamin d", "vitamin b12", "folate", "folic acid", "iron", "ferritin", "calcium"],
+  infection: ["infection", "crp", "esr", "procalcitonin", "widal", "dengue", "malaria", "typhoid", "hiv", "hepatitis"],
+  urine_stool: ["urine", "stool", "urinalysis", "urine culture", "stool culture", "occult blood"],
+  mri: ["mri", "magnetic resonance"],
+  ct_scan: ["ct scan", "ct", "computed tomography", "cect"],
+  xray: ["x-ray", "xray", "x ray", "radiograph"],
+  ultrasound: ["ultrasound", "usg", "sonography", "doppler"],
+  ecg_echo: ["ecg", "echo", "echocardiogram", "electrocardiogram", "2d echo", "treadmill"],
+  dexa: ["dexa", "bone density", "bmd", "bone mineral"],
+  cleaning: ["cleaning", "scaling", "polishing", "prophylaxis"],
+  root_canal: ["root canal", "rct", "endodontic"],
+  extraction: ["extraction", "tooth removal"],
+  orthodontics: ["orthodontic", "braces", "aligner", "invisalign"],
+  dental_xray: ["dental x-ray", "opg", "iopa", "panoramic"],
+  cavity: ["cavity", "filling", "restoration", "composite"],
+  back_pain: ["back pain", "spine", "lumbar", "cervical", "sciatica", "disc"],
+  sports_rehab: ["sports", "athletic", "ligament", "acl", "muscle strain", "sprain"],
+  post_surgery: ["post surgery", "post operative", "post-op", "rehabilitation"],
+  joint_mobility: ["joint", "knee", "shoulder", "hip", "arthritis", "frozen shoulder"],
+  neuro_rehab: ["neuro", "stroke", "paralysis", "parkinson", "neuropathy"],
+  geriatric: ["elderly", "geriatric", "balance", "fall prevention", "senior"],
+};
+
 const CATEGORY_ICON: Record<string, string> = {
   lab_test: "🧪",
   imaging: "📷",
@@ -77,9 +149,12 @@ export default function DiagnosticsPage() {
   const [fulfilment, setFulfilment] = useState<Fulfilment | null>(null);
   const [loadingFulfilment, setLoadingFulfilment] = useState(false);
   const [city, setCity] = useState("");
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [locationDetected, setLocationDetected] = useState(false);
   const [homeOnly, setHomeOnly] = useState(false);
   const [urgent, setUrgent] = useState(false);
   const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
   const [browse, setBrowse] = useState<Test[]>([]);
   const [loadingBrowse, setLoadingBrowse] = useState(false);
 
@@ -114,13 +189,38 @@ export default function DiagnosticsPage() {
       setBrowse([]);
       return;
     }
+
+    // If a sub-category is selected, search using its keywords instead of the full category
+    if (subCategory && SUB_CATEGORY_KEYWORDS[subCategory]) {
+      setLoadingBrowse(true);
+      const keywords = SUB_CATEGORY_KEYWORDS[subCategory];
+      // Search using the first keyword as the main query, filtered by category
+      const searchQ = keywords[0];
+      fetch(`${API}/api/marketplace/tests/search?q=${encodeURIComponent(searchQ)}&category=${encodeURIComponent(category)}&limit=200`)
+        .then((r) => r.json())
+        .then((d) => {
+          // Client-side filter: keep tests that match any of the sub-category keywords
+          const tests = (d.tests || []) as Test[];
+          const filtered = tests.filter((t: Test) => {
+            const name = t.name.toLowerCase();
+            const syns = (t.synonyms || []).map((s: string) => s.toLowerCase()).join(" ");
+            const combined = `${name} ${syns} ${(t.sub_category || "").toLowerCase()}`;
+            return keywords.some((kw: string) => combined.includes(kw.toLowerCase()));
+          });
+          setBrowse(filtered.length > 0 ? filtered : tests);
+        })
+        .catch(() => setBrowse([]))
+        .finally(() => setLoadingBrowse(false));
+      return;
+    }
+
     setLoadingBrowse(true);
     fetch(`${API}/api/marketplace/tests/search?category=${encodeURIComponent(category)}&limit=200`)
       .then((r) => r.json())
       .then((d) => setBrowse(d.tests || []))
       .catch(() => setBrowse([]))
       .finally(() => setLoadingBrowse(false));
-  }, [category]);
+  }, [category, subCategory]);
 
   const loadFulfilment = useCallback(
     async (test: Test) => {
@@ -158,6 +258,52 @@ export default function DiagnosticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOnly, urgent]);
 
+  // Auto-detect location using browser geolocation
+  const handleDetectLocation = useCallback(async () => {
+    if (!navigator.geolocation) return;
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
+          let detectedCity = "";
+
+          if (geoapifyKey) {
+            const res = await fetch(
+              `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${geoapifyKey}&format=json`
+            );
+            const json = await res.json();
+            const result = json.results?.[0] || {};
+            detectedCity = result.city || result.town || result.village || result.county || "";
+          } else {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+              { headers: { "Accept-Language": "en", "User-Agent": "CallMedex/2.0" } }
+            );
+            const data = await res.json();
+            const addr = data.address || {};
+            detectedCity = addr.city || addr.town || addr.village || addr.county || "";
+          }
+
+          if (detectedCity) {
+            setCity(detectedCity);
+            setLocationDetected(true);
+            if (selected) loadFulfilment(selected);
+          }
+        } catch {
+          // Silent failure — user can still type manually
+        } finally {
+          setDetectingLocation(false);
+        }
+      },
+      () => {
+        setDetectingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  }, [selected, loadFulfilment]);
+
   return (
     <div className="section">
       <div className="container">
@@ -179,7 +325,7 @@ export default function DiagnosticsPage() {
                 setQuery(e.target.value);
                 setSelected(null);
               }}
-              placeholder="Try “MRI”, “thyroid”, “CBC”, “sugar test”…"
+              placeholder="Try MRI, thyroid, CBC, sugar test..."
               style={{
                 flex: 2,
                 minWidth: 260,
@@ -189,20 +335,46 @@ export default function DiagnosticsPage() {
                 fontSize: "1rem",
               }}
             />
-            <input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              onBlur={() => selected && loadFulfilment(selected)}
-              placeholder="City"
-              style={{
-                flex: 1,
-                minWidth: 150,
-                padding: "14px 18px",
-                borderRadius: 12,
-                border: "1.5px solid #cbd5e1",
-                fontSize: "1rem",
-              }}
-            />
+            <div style={{ flex: 1, minWidth: 150, display: "flex", gap: 6 }}>
+              <input
+                value={city}
+                onChange={(e) => { setCity(e.target.value); setLocationDetected(false); }}
+                onBlur={() => selected && loadFulfilment(selected)}
+                placeholder="City"
+                style={{
+                  flex: 1,
+                  padding: "14px 18px",
+                  borderRadius: 12,
+                  border: locationDetected ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
+                  fontSize: "1rem",
+                  backgroundColor: locationDetected ? "#f0fdf4" : "#fff",
+                }}
+              />
+              <button
+                onClick={handleDetectLocation}
+                disabled={detectingLocation}
+                title="Auto-detect your location"
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: "1.5px solid #cbd5e1",
+                  background: detectingLocation ? "#f1f5f9" : locationDetected ? "#f0fdf4" : "#fff",
+                  cursor: detectingLocation ? "wait" : "pointer",
+                  fontSize: "1.1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  transition: "all 0.2s",
+                }}
+              >
+                {detectingLocation ? (
+                  <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>📡</span>
+                ) : locationDetected ? (
+                  "✅"
+                ) : (
+                  "📍"
+                )}
+              </button>
+            </div>
           </div>
 
           {suggestions.length > 0 && (
@@ -218,6 +390,8 @@ export default function DiagnosticsPage() {
                 border: "1px solid #e2e8f0",
                 boxShadow: "0 12px 32px rgba(15,23,42,0.12)",
                 overflow: "hidden",
+                maxHeight: 360,
+                overflowY: "auto",
               }}
             >
               {suggestions.map((t) => (
@@ -225,7 +399,7 @@ export default function DiagnosticsPage() {
                   key={t.id}
                   onClick={() => pick(t)}
                   style={{
-                    display: "block",
+                    display: "flex",
                     width: "100%",
                     textAlign: "left",
                     padding: "12px 18px",
@@ -234,16 +408,30 @@ export default function DiagnosticsPage() {
                     background: "#fff",
                     cursor: "pointer",
                     fontSize: "0.95rem",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  <span style={{ marginRight: 8 }}>{CATEGORY_ICON[t.category] || "🧪"}</span>
-                  <strong>{t.name}</strong>
-                  {t.synonyms?.length ? (
-                    <span style={{ color: "#94a3b8", fontSize: "0.82rem" }}>
-                      {" "}
-                      · {t.synonyms.slice(0, 3).join(", ")}
-                    </span>
-                  ) : null}
+                  <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{CATEGORY_ICON[t.category] || "🧪"}</span>
+                  <div style={{ flex: 1 }}>
+                    <strong>{t.name}</strong>
+                    {t.sub_category && (
+                      <span style={{ color: "#64748b", fontSize: "0.78rem", marginLeft: 6 }}>
+                        {t.sub_category}
+                      </span>
+                    )}
+                    {t.synonyms?.length ? (
+                      <span style={{ color: "#94a3b8", fontSize: "0.78rem", display: "block" }}>
+                        {t.synonyms.slice(0, 3).join(", ")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span style={{
+                    background: "#f1f5f9", color: "#64748b", padding: "2px 8px",
+                    borderRadius: 12, fontSize: "0.68rem", fontWeight: 600, whiteSpace: "nowrap",
+                  }}>
+                    {CATEGORIES.find(c => c.id === t.category)?.label || t.category}
+                  </span>
                 </button>
               ))}
             </div>
@@ -271,29 +459,79 @@ export default function DiagnosticsPage() {
 
         {/* ── Browse by category ─────────────────────────────────────── */}
         {!selected && (
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 24 }}>
-            {CATEGORIES.map((c) => {
-              const on = category === c.id;
-              return (
+          <>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 }}>
+              {CATEGORIES.map((c) => {
+                const on = category === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setCategory(on ? "" : c.id);
+                      setSubCategory("");
+                    }}
+                    style={{
+                      padding: "10px 20px", borderRadius: 999, cursor: "pointer",
+                      border: on ? "2px solid #1a2b4a" : "1px solid #cbd5e1",
+                      background: on ? "#1a2b4a" : "#fff",
+                      color: on ? "#fff" : "#475569",
+                      fontWeight: 600, fontSize: "0.88rem",
+                      transition: "all 0.2s ease",
+                      boxShadow: on ? "0 4px 12px rgba(26,43,74,0.25)" : "none",
+                    }}
+                  >
+                    {c.icon} {c.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Sub-category chips ─────────────────────────────────── */}
+            {category && SUB_CATEGORIES[category] && (
+              <div style={{
+                display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap",
+                marginBottom: 20, padding: "12px 16px",
+                background: "#f8fafc", borderRadius: 14, border: "1px solid #e2e8f0",
+              }}>
                 <button
-                  key={c.id}
-                  onClick={() => setCategory(on ? "" : c.id)}
+                  onClick={() => setSubCategory("")}
                   style={{
-                    padding: "8px 16px", borderRadius: 999, cursor: "pointer",
-                    border: on ? "2px solid #1a2b4a" : "1px solid #cbd5e1",
-                    background: on ? "#1a2b4a" : "#fff",
-                    color: on ? "#fff" : "#475569",
-                    fontWeight: 600, fontSize: "0.85rem",
+                    padding: "6px 14px", borderRadius: 20, cursor: "pointer",
+                    border: !subCategory ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                    background: !subCategory ? "#e0f2fe" : "#fff",
+                    color: !subCategory ? "#0369a1" : "#64748b",
+                    fontWeight: 600, fontSize: "0.78rem",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  {c.icon} {c.label}
+                  📋 All
                 </button>
-              );
-            })}
-          </div>
+                {SUB_CATEGORIES[category].map((sc) => {
+                  const active = subCategory === sc.id;
+                  return (
+                    <button
+                      key={sc.id}
+                      onClick={() => setSubCategory(active ? "" : sc.id)}
+                      style={{
+                        padding: "6px 14px", borderRadius: 20, cursor: "pointer",
+                        border: active ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                        background: active ? "#e0f2fe" : "#fff",
+                        color: active ? "#0369a1" : "#64748b",
+                        fontWeight: active ? 700 : 500, fontSize: "0.78rem",
+                        transition: "all 0.2s ease",
+                        boxShadow: active ? "0 2px 6px rgba(2,132,199,0.15)" : "none",
+                      }}
+                    >
+                      {sc.icon} {sc.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
 
-        {/* ── Category listing ───────────────────────────────────────── */}
+        {/* ── Category / Sub-category listing ───────────────────────── */}
         {!selected && category && (
           <div style={{ marginBottom: 28 }}>
             {loadingBrowse ? (
@@ -301,26 +539,47 @@ export default function DiagnosticsPage() {
             ) : (
               <>
                 <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 14 }}>
-                  {browse.length} {CATEGORIES.find((c) => c.id === category)?.label} service
-                  {browse.length === 1 ? "" : "s"}
+                  {browse.length}{" "}
+                  {subCategory
+                    ? SUB_CATEGORIES[category]?.find((sc) => sc.id === subCategory)?.label
+                    : CATEGORIES.find((c) => c.id === category)?.label}{" "}
+                  service{browse.length === 1 ? "" : "s"}
                 </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
                   {browse.map((t) => (
                     <button
                       key={t.id}
                       onClick={() => pick(t)}
                       style={{
-                        textAlign: "left", cursor: "pointer", padding: "10px 14px",
-                        borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff",
+                        textAlign: "left", cursor: "pointer", padding: "14px 16px",
+                        borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.target as HTMLElement).style.borderColor = "#0284c7";
+                        (e.target as HTMLElement).style.boxShadow = "0 4px 12px rgba(2,132,199,0.12)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.target as HTMLElement).style.borderColor = "#e2e8f0";
+                        (e.target as HTMLElement).style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
                       }}
                     >
-                      <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "#0f172a" }}>{t.name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: "1.1rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</span>
+                        <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "#0f172a" }}>{t.name}</div>
+                      </div>
                       {t.sub_category && (
-                        <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{t.sub_category}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4, marginLeft: 30 }}>{t.sub_category}</div>
                       )}
                     </button>
                   ))}
                 </div>
+                {browse.length === 0 && (
+                  <p style={{ textAlign: "center", color: "#94a3b8", marginTop: 16 }}>
+                    No tests found in this category. Try searching above.
+                  </p>
+                )}
               </>
             )}
           </div>
