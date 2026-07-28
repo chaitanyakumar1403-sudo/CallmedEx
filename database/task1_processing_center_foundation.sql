@@ -433,6 +433,70 @@ CREATE INDEX IF NOT EXISTS idx_service_area_requests_city
     ON service_area_requests(city, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 7. PHLEBOTOMIST <-> CENTRE BINDING AND ADVANCE ROSTERING
+--    Tomorrow's slots are assigned this evening, so live GPS is meaningless
+--    and assignment anchors on the phlebo's base location.
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_lat DOUBLE PRECISION;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_lng DOUBLE PRECISION;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_pincode TEXT DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_phlebotomists_pc ON phlebotomists(processing_center_id);
+
+CREATE TABLE IF NOT EXISTS phlebotomist_roster (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    phlebotomist_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    roster_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available'
+        CHECK (status IN ('available', 'unavailable', 'leave')),
+    max_jobs   INT DEFAULT 0,                 -- 0 = centre default
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (phlebotomist_user_id, roster_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_roster_centre_date
+    ON phlebotomist_roster(processing_center_id, roster_date);
+
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS assignment_mode TEXT DEFAULT 'realtime';
+ALTER TABLE dispatch_requests DROP CONSTRAINT IF EXISTS dispatch_requests_assignment_mode_check;
+ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_assignment_mode_check
+    CHECK (assignment_mode IN ('advance', 'realtime', 'urgent'));
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS scheduled_for DATE;
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS declined_by UUID[] DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS idx_dispatch_scheduled
+    ON dispatch_requests(scheduled_for, assignment_mode);
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_date DATE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_city TEXT DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_pincode TEXT DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_lat DOUBLE PRECISION;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_lng DOUBLE PRECISION;
+
+INSERT INTO platform_settings (key, value, description) VALUES
+ ('roster_cutoff',
+  '{"time":"18:00","timezone":"Asia/Kolkata"}',
+  'Evening cutoff at which the next day''s bookings are assigned to phlebotomists.')
+ON CONFLICT (key) DO NOTHING;
+
+-- dispatch_requests_status_check pre-exists (see database/complete_supabase_schema.sql)
+-- with values: searching, provider_notified, provider_accepted, en_route, arrived,
+-- in_progress, samples_delivered_to_lab, completed, cancelled, no_provider.
+-- Every one of those is retained below — only 'needs_manual_assignment' is new,
+-- for an advance job that every roster candidate has declined.
+ALTER TABLE dispatch_requests DROP CONSTRAINT IF EXISTS dispatch_requests_status_check;
+ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_status_check
+    CHECK (status IN (
+        'searching', 'provider_notified', 'provider_accepted', 'en_route',
+        'arrived', 'in_progress', 'samples_delivered_to_lab', 'completed',
+        'cancelled', 'no_provider', 'needs_manual_assignment'
+    ));
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -444,7 +508,8 @@ DECLARE
         'processing_center_areas', 'city_aliases',
         'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
         'family_members', 'booking_subjects', 'booking_tests',
-        'sample_batches', 'sample_tests', 'service_area_requests'
+        'sample_batches', 'sample_tests', 'service_area_requests',
+        'phlebotomist_roster'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP
