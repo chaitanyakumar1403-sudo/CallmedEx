@@ -265,3 +265,60 @@ def test_email_states_the_real_window(monkeypatch):
     )
     assert "10 minutes" in captured["html"]
     assert "5 minutes" not in captured["html"]
+
+
+# ── Centre-bound home collection ─────────────────────────────────────────────
+
+def _seed_phlebo_at_centre(fake, lat, lng, centre_id, name="Phlebo"):
+    uid = _seed_provider(fake, lat, lng, ptype="phlebotomist", name=name)
+    fake.db.setdefault("phlebotomists", []).append({
+        "user_id": uid, "processing_center_id": centre_id,
+        "base_lat": lat, "base_lng": lng,
+    })
+    return uid
+
+
+@pytest.mark.asyncio
+async def test_a_phlebo_of_another_centre_is_never_a_candidate(fake_db):
+    """They could not submit the tube afterwards, however close they are."""
+    mine, theirs = "centre-a", "centre-b"
+    _seed_phlebo_at_centre(fake_db, 17.3850, 78.4870, theirs, "Wrong centre")
+    ours = _seed_phlebo_at_centre(fake_db, 17.3900, 78.4900, mine, "Right centre")
+
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist", processing_center_id=mine)
+    assert [c["user_id"] for c in found] == [ours]
+
+
+@pytest.mark.asyncio
+async def test_urgent_ignores_the_distance_cap_within_the_centre(fake_db):
+    centre = "centre-a"
+    far = _seed_phlebo_at_centre(fake_db, 17.9000, 78.9000, centre, "Far but ours")
+
+    normal = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist", processing_center_id=centre)
+    urgent = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist",
+        processing_center_id=centre, ignore_radius=True)
+
+    assert [c["user_id"] for c in normal] == []
+    assert [c["user_id"] for c in urgent] == [far]
+
+
+@pytest.mark.asyncio
+async def test_urgent_still_never_crosses_a_centre_boundary(fake_db):
+    """'All of them' is centre-scoped: a Hyderabad phlebo cannot serve Vizag."""
+    _seed_phlebo_at_centre(fake_db, 17.3850, 78.4870, "centre-b", "Other centre")
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist",
+        processing_center_id="centre-a", ignore_radius=True)
+    assert found == []
+
+
+@pytest.mark.asyncio
+async def test_the_centre_filter_is_opt_in_so_other_provider_types_are_unaffected(fake_db):
+    """Nurses, doctors and ambulances keep today's behaviour exactly."""
+    uid = _seed_provider(fake_db, 17.3850, 78.4870, ptype="nurse", name="Nurse")
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "nurse")
+    assert [c["user_id"] for c in found] == [uid]
