@@ -22,8 +22,6 @@ def derive_tubes(subject_tests: List[dict]) -> List[dict]:
 
     for line in subject_tests:
         booking_test_id = line.get("booking_test_id")
-        if not booking_test_id:
-            continue
         # A service with no tube requirement (an ECG) draws no blood.
         for code in line.get("tube_type_codes") or []:
             ids = grouped.setdefault(code, [])

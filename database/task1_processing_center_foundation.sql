@@ -277,7 +277,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_pc ON bookings(processing_center_id, sta
 CREATE TABLE IF NOT EXISTS booking_subjects (
     id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     booking_id       UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    family_member_id UUID NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+    family_member_id UUID NOT NULL REFERENCES family_members(id),
     UNIQUE (booking_id, family_member_id)
 );
 

@@ -246,7 +246,7 @@ booking_tests (
   urgent_surcharge NUMERIC(10,2) DEFAULT 0.00,
   source TEXT NOT NULL DEFAULT 'booking'
       CHECK (source IN ('booking', 'doorstep_addon')),
-  added_by UUID REFERENCES users(id),    -- the phlebo, for doorstep add-ons
+  added_by UUID REFERENCES users(id) ON DELETE SET NULL,    -- the phlebo, for doorstep add-ons
   added_at TIMESTAMPTZ,
   UNIQUE (booking_subject_id, home_service_id)
 )
@@ -265,7 +265,7 @@ rule already expects to find.
 
 ```sql
 ALTER TABLE bookings
-  ADD COLUMN processing_center_id UUID REFERENCES processing_centers(id),
+  ADD COLUMN processing_center_id UUID REFERENCES processing_centers(id) ON DELETE SET NULL,
   ADD COLUMN booking_kind TEXT DEFAULT 'legacy'
       CHECK (booking_kind IN ('legacy', 'home_collection', 'walk_in'));
 ```

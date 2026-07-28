@@ -4,6 +4,7 @@ Home-service catalog tests.
 The catalog is CallMedex's. A diagnostic centre publishes walk-in imaging in
 provider_services; it does not publish anything a phlebotomist delivers.
 """
+import re
 from pathlib import Path
 
 MIGRATION = Path(__file__).resolve().parents[2] / "database" / "task1_processing_center_foundation.sql"
@@ -66,3 +67,19 @@ def test_doorstep_addons_are_representable():
     sql = _sql()
     assert "'doorstep_addon'" in sql
     assert "added_by" in sql
+
+
+def test_deleting_a_family_member_cannot_destroy_booking_history():
+    """A cascade here would silently wipe prices and the added_by audit trail
+    for every booking that person was ever part of."""
+    sql = _sql()
+    match = re.search(
+        r"CREATE TABLE IF NOT EXISTS booking_subjects\s*\((.*?)\);",
+        sql, re.S)
+    assert match, "booking_subjects table not found"
+    body = match.group(1)
+    fm_line = [l for l in body.splitlines() if "family_member_id" in l and "REFERENCES" in l]
+    assert fm_line, "family_member_id FK not found"
+    assert "ON DELETE CASCADE" not in fm_line[0], (
+        "booking_subjects.family_member_id must not cascade: deleting a family "
+        f"member would destroy booking history. Found: {fm_line[0].strip()}")
