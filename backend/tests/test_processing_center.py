@@ -497,3 +497,44 @@ def test_an_unserviced_booking_is_not_assigned_and_creates_no_samples(pc_db):
     _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
     assert assign_booking(bid) is None
     assert pc_db.db.get("samples", []) == []
+
+
+# ── Task 15: full-migration structural audit ────────────────────────────────
+#
+# Tasks 1-14 built database/task1_processing_center_foundation.sql up across
+# eight sections. These tests audit the *finished* file as a whole: every new
+# table is guarded by the RLS loop, the migration is exactly one transaction,
+# and statements that ALTER a table added by an earlier section only run
+# after that table exists.
+#
+# Note: a COMMIT-before-NOTIFY ordering check already lives in
+# test_migration_exists_and_is_transactional above (added during Task 1's fix
+# round) — it is not repeated here.
+
+def test_every_new_table_appears_in_the_rls_loop():
+    """Lint 0008: a table without a deny-all policy is reachable by anon."""
+    sql = _sql()
+    created = set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", sql))
+    rls_block = sql.split("new_tables TEXT[] := ARRAY[")[1].split("];")[0]
+    guarded = set(re.findall(r"'(\w+)'", rls_block))
+    assert created - guarded == set(), f"unguarded tables: {created - guarded}"
+
+
+def test_the_migration_has_exactly_one_transaction():
+    sql = _sql()
+    assert sql.count("BEGIN;") == 1
+    assert sql.count("COMMIT;") == 1
+    assert sql.index("BEGIN;") < sql.index("COMMIT;")
+
+
+def test_batches_are_created_before_samples_references_them():
+    """Statement order matters: the ALTER would fail otherwise."""
+    sql = _sql()
+    assert sql.index("CREATE TABLE IF NOT EXISTS sample_batches") < \
+           sql.index("ADD COLUMN IF NOT EXISTS batch_id")
+
+
+def test_booking_subjects_exists_before_samples_references_it():
+    sql = _sql()
+    assert sql.index("CREATE TABLE IF NOT EXISTS booking_subjects") < \
+           sql.index("ADD COLUMN IF NOT EXISTS booking_subject_id")
