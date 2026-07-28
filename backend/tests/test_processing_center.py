@@ -7,7 +7,15 @@ The centre is an internal operational entity. Three things must hold:
   3. No centre or laboratory identity ever reaches a patient.
 """
 import re
+import uuid
 from pathlib import Path
+
+import pytest
+from fastapi import HTTPException
+
+import app.middleware.pc_auth as pc_auth_mod
+from app.middleware.pc_auth import get_current_pc_staff, require_pc_admin
+from tests.test_sample_lifecycle import FakeSupabase
 
 MIGRATION = Path(__file__).resolve().parents[2] / "database" / "task1_processing_center_foundation.sql"
 
@@ -123,3 +131,61 @@ def test_seed_invents_no_laboratory_and_no_verified_status():
                 f"processing_centers.status must never be force-set to "
                 f"{bad_status.group(1)!r}: {stmt!r}"
             )
+
+
+# ── PC auth tests ────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def fake_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(pc_auth_mod, "supabase", fake)
+    return fake
+
+
+def _seed_staff(fake, pc_role="technician", is_active=True):
+    uid, cid = str(uuid.uuid4()), str(uuid.uuid4())
+    fake.db.setdefault("processing_center_staff", []).append({
+        "id": str(uuid.uuid4()), "processing_center_id": cid,
+        "user_id": uid, "pc_role": pc_role, "is_active": is_active,
+    })
+    return uid, cid
+
+
+@pytest.mark.asyncio
+async def test_staff_resolves_to_their_centre(fake_db):
+    uid, cid = _seed_staff(fake_db)
+    staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
+    assert staff["processing_center_id"] == cid
+    assert staff["pc_role"] == "technician"
+
+
+@pytest.mark.asyncio
+async def test_a_non_pc_role_is_rejected(fake_db):
+    uid, _ = _seed_staff(fake_db)
+    with pytest.raises(HTTPException) as exc:
+        await get_current_pc_staff({"sub": uid, "role": "patient"})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_a_deactivated_staff_member_is_rejected(fake_db):
+    uid, _ = _seed_staff(fake_db, is_active=False)
+    with pytest.raises(HTTPException) as exc:
+        await get_current_pc_staff({"sub": uid, "role": "processing_center"})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_technician_cannot_pass_the_admin_gate(fake_db):
+    uid, cid = _seed_staff(fake_db, pc_role="technician")
+    staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
+    with pytest.raises(HTTPException) as exc:
+        await require_pc_admin(staff)
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_pc_admin_passes_the_admin_gate(fake_db):
+    uid, cid = _seed_staff(fake_db, pc_role="admin")
+    staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
+    assert (await require_pc_admin(staff))["processing_center_id"] == cid
