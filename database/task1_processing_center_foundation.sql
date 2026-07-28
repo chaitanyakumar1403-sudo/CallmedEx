@@ -60,6 +60,11 @@ CREATE TABLE IF NOT EXISTS processing_center_staff (
     UNIQUE (processing_center_id, user_id)
 );
 
+-- Granting PC access overwrites users.role to 'processing_center'. Without
+-- remembering what it replaced, removing access has no way back — the user
+-- is 403'd out of /api/pc/* AND out of whatever role they held before.
+ALTER TABLE processing_center_staff ADD COLUMN IF NOT EXISTS prior_role TEXT DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_pc_staff_user ON processing_center_staff(user_id) WHERE is_active;
 
 -- Serviceable areas. Today one city row per centre reproduces the

@@ -92,11 +92,22 @@ async def add_staff(center_id: str, payload: StaffIn,
     _require_admin(user)
     if payload.pc_role not in ("admin", "technician"):
         raise HTTPException(status_code=400, detail="pc_role must be admin or technician.")
+
+    # Record whatever role the user held BEFORE this grant overwrites it, so
+    # remove_staff has somewhere to put it back. Without this, revoking PC
+    # access permanently locks the user out of both /api/pc/* and whatever
+    # role (doctor, phlebotomist, ...) they held beforehand.
+    existing_user = _rows(
+        supabase.table("users").select("role").eq("id", payload.user_id).limit(1).execute()
+    )
+    prior_role = existing_user[0].get("role") if existing_user else ""
+
     supabase.table("processing_center_staff").insert({
         "processing_center_id": center_id,
         "user_id": payload.user_id,
         "pc_role": payload.pc_role,
         "is_active": True,
+        "prior_role": prior_role,
     }).execute()
     supabase.table("users").update({"role": "processing_center"}) \
         .eq("id", payload.user_id).execute()
@@ -107,8 +118,25 @@ async def add_staff(center_id: str, payload: StaffIn,
 async def remove_staff(center_id: str, user_id: str,
                        user: dict = Depends(get_current_user)):
     _require_admin(user)
+    staff_rows = _rows(
+        supabase.table("processing_center_staff").select("prior_role")
+        .eq("processing_center_id", center_id).eq("user_id", user_id)
+        .limit(1).execute()
+    )
     supabase.table("processing_center_staff").update({"is_active": False}) \
         .eq("processing_center_id", center_id).eq("user_id", user_id).execute()
+
+    # Restore the role this grant overwrote — but only if the user isn't
+    # still active staff at another centre, which would otherwise demote them
+    # out of a role ('processing_center') they still legitimately hold.
+    still_pc_staff = _rows(
+        supabase.table("processing_center_staff").select("id")
+        .eq("user_id", user_id).eq("is_active", True).limit(1).execute()
+    )
+    prior_role = staff_rows[0].get("prior_role") if staff_rows else ""
+    if not still_pc_staff and prior_role:
+        supabase.table("users").update({"role": prior_role}) \
+            .eq("id", user_id).execute()
     return {"ok": True}
 
 

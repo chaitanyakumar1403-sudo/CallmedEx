@@ -538,3 +538,74 @@ def test_booking_subjects_exists_before_samples_references_it():
     sql = _sql()
     assert sql.index("CREATE TABLE IF NOT EXISTS booking_subjects") < \
            sql.index("ADD COLUMN IF NOT EXISTS booking_subject_id")
+
+
+def test_prior_role_column_lands_before_the_rls_block_and_commit():
+    """I4: prior_role must exist before section 99 (RLS) and before COMMIT,
+    and be added idempotently (ADD COLUMN IF NOT EXISTS) so re-running the
+    migration against an already-provisioned database is still safe."""
+    sql = _sql()
+    assert "ALTER TABLE processing_center_staff ADD COLUMN IF NOT EXISTS prior_role" in sql
+    prior_role_pos = sql.index(
+        "ALTER TABLE processing_center_staff ADD COLUMN IF NOT EXISTS prior_role"
+    )
+    rls_block_pos = sql.index("-- 99. RLS")
+    commit_pos = sql.rindex("COMMIT;")
+    assert prior_role_pos < rls_block_pos < commit_pos
+
+
+# ── I4: removing PC staff must restore the role it overwrote ───────────────
+
+import app.routers.processing_center_admin as pca_mod
+from app.routers.processing_center_admin import add_staff, remove_staff, StaffIn
+
+
+@pytest.fixture
+def pca_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(pca_mod, "supabase", fake)
+    return fake
+
+
+@pytest.mark.asyncio
+async def test_granting_pc_access_records_the_users_prior_role(pca_db):
+    center_id, target_user = str(uuid.uuid4()), str(uuid.uuid4())
+    pca_db.db["users"] = [{"id": target_user, "role": "phlebotomist"}]
+
+    await add_staff(
+        center_id, StaffIn(user_id=target_user, pc_role="technician"),
+        user={"role": "admin"},
+    )
+
+    user_row = next(u for u in pca_db.db["users"] if u["id"] == target_user)
+    assert user_row["role"] == "processing_center"
+
+    staff_row = next(
+        s for s in pca_db.db["processing_center_staff"] if s["user_id"] == target_user
+    )
+    assert staff_row["prior_role"] == "phlebotomist"
+
+
+@pytest.mark.asyncio
+async def test_removing_pc_access_restores_the_prior_role(pca_db):
+    center_id, target_user = str(uuid.uuid4()), str(uuid.uuid4())
+    pca_db.db["users"] = [{"id": target_user, "role": "phlebotomist"}]
+
+    await add_staff(
+        center_id, StaffIn(user_id=target_user, pc_role="technician"),
+        user={"role": "admin"},
+    )
+    user_row = next(u for u in pca_db.db["users"] if u["id"] == target_user)
+    assert user_row["role"] == "processing_center"        # sanity: grant applied
+
+    await remove_staff(center_id, target_user, user={"role": "admin"})
+
+    user_row = next(u for u in pca_db.db["users"] if u["id"] == target_user)
+    assert user_row["role"] == "phlebotomist", (
+        "removing staff access must restore the role it overwrote, not "
+        "leave the user permanently locked into 'processing_center'"
+    )
+    staff_row = next(
+        s for s in pca_db.db["processing_center_staff"] if s["user_id"] == target_user
+    )
+    assert staff_row["is_active"] is False
