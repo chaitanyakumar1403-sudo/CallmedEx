@@ -189,3 +189,53 @@ async def test_pc_admin_passes_the_admin_gate(fake_db):
     uid, cid = _seed_staff(fake_db, pc_role="admin")
     staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
     assert (await require_pc_admin(staff))["processing_center_id"] == cid
+
+
+@pytest.mark.asyncio
+async def test_one_centres_staff_never_resolves_to_another_centre(fake_db):
+    """The isolation boundary: HYD-01's technician must never see VSP-01."""
+    uid_a, cid_a = _seed_staff(fake_db, pc_role="technician")
+    uid_b, cid_b = _seed_staff(fake_db, pc_role="admin")
+    assert cid_a != cid_b
+
+    staff_a = await get_current_pc_staff({"sub": uid_a, "role": "processing_center"})
+    assert staff_a["processing_center_id"] == cid_a
+    assert staff_a["pc_role"] == "technician"
+
+    staff_b = await get_current_pc_staff({"sub": uid_b, "role": "processing_center"})
+    assert staff_b["processing_center_id"] == cid_b
+    assert staff_b["pc_role"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_missing_jwt_user_id_and_sub_is_rejected(fake_db):
+    """Missing both sub and user_id in JWT payload must raise HTTPException 403."""
+    uid, cid = _seed_staff(fake_db)
+    with pytest.raises(HTTPException) as exc:
+        await get_current_pc_staff({"role": "processing_center"})
+    assert exc.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_user_with_deactivated_and_active_rows_resolves_to_active(fake_db):
+    """When a user has both deactivated and active staff rows, resolve to the active one."""
+    uid = str(uuid.uuid4())
+    cid_inactive = str(uuid.uuid4())
+    cid_active = str(uuid.uuid4())
+
+    # Seed deactivated row first (at cid_inactive)
+    fake_db.db.setdefault("processing_center_staff", []).append({
+        "id": str(uuid.uuid4()), "processing_center_id": cid_inactive,
+        "user_id": uid, "pc_role": "technician", "is_active": False,
+    })
+
+    # Then seed active row (at cid_active)
+    fake_db.db.setdefault("processing_center_staff", []).append({
+        "id": str(uuid.uuid4()), "processing_center_id": cid_active,
+        "user_id": uid, "pc_role": "admin", "is_active": True,
+    })
+
+    # Must resolve to the active row, not the deactivated one
+    staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
+    assert staff["processing_center_id"] == cid_active
+    assert staff["pc_role"] == "admin"
