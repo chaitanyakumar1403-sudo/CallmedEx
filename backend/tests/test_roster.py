@@ -149,5 +149,50 @@ def test_a_declined_job_is_never_re_offered_to_the_same_phlebo(db):
     assert req["declined_by"] == [only]
 
 
+def test_declining_a_realtime_job_is_rejected_not_silently_queued(db):
+    """decline_job is the advance-roster decline path only.
+
+    A realtime/urgent dispatch_requests row never has scheduled_for set — that
+    column is only populated by run_roster_pass. Passing one to decline_job
+    must not silently fall through to "needs_manual_assignment"; that status
+    is supposed to mean "every roster candidate declined or was out of
+    radius", which is not what happened here.
+    """
+    centre = str(uuid.uuid4())
+    phlebo = _phlebo(db, centre, 17.385, 78.487)
+    booking_id = _booking(db, centre, 17.386, 78.488)
+    req_id = str(uuid.uuid4())
+    db.db.setdefault("dispatch_requests", []).append({
+        "id": req_id, "booking_id": booking_id,
+        "assignment_mode": "realtime", "scheduled_for": None,
+        "status": "provider_accepted", "declined_by": [],
+    })
+
+    with pytest.raises(ValueError):
+        decline_job(req_id, phlebo)
+
+    req = db.db["dispatch_requests"][0]
+    assert req["status"] != "needs_manual_assignment"
+    assert req["status"] == "provider_accepted"
+
+
+def test_an_advance_request_with_no_scheduled_for_is_rejected_not_reassigned(db):
+    """Belt and braces: even with assignment_mode='advance', a missing
+    scheduled_for means _available_phlebos would query roster_date=None and
+    match nothing — silently reassigning to nobody. Refuse instead."""
+    centre = str(uuid.uuid4())
+    phlebo = _phlebo(db, centre, 17.385, 78.487)
+    booking_id = _booking(db, centre, 17.386, 78.488)
+    req_id = str(uuid.uuid4())
+    db.db.setdefault("dispatch_requests", []).append({
+        "id": req_id, "booking_id": booking_id,
+        "assignment_mode": "advance", "scheduled_for": None,
+        "status": "provider_accepted", "declined_by": [],
+    })
+
+    with pytest.raises(ValueError):
+        decline_job(req_id, phlebo)
+
+
 def test_the_advance_radius_is_ten_kilometres(db):
     assert ADVANCE_RADIUS_KM == 10.0

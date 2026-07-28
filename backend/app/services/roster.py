@@ -165,6 +165,19 @@ def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional
         return None
     request = rows[0]
 
+    if request.get("assignment_mode") != "advance" or not request.get("scheduled_for"):
+        # Realtime and urgent jobs are declined through the offer flow in
+        # dispatch_engine, which has its own reassignment path. Routing one
+        # here would mark it needs_manual_assignment for a reason that isn't
+        # true — "every roster candidate declined" — when in fact this was
+        # never a roster job in the first place.
+        raise ValueError(
+            f"decline_job is for advance assignments only; dispatch request "
+            f"{dispatch_request_id} has assignment_mode="
+            f"{request.get('assignment_mode')!r} scheduled_for="
+            f"{request.get('scheduled_for')!r}"
+        )
+
     declined = list(request.get("declined_by") or [])
     if phlebotomist_user_id not in declined:
         declined.append(phlebotomist_user_id)
