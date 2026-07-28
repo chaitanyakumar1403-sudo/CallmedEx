@@ -57,3 +57,22 @@ def test_duplicate_test_lines_do_not_duplicate_a_booking_test_id():
     ])
     assert len(tubes) == 1
     assert tubes[0]["booking_test_ids"] == ["bt1"]
+
+
+def test_a_line_with_no_booking_test_id_is_skipped():
+    """A malformed row must not be grouped into a tube it can never resolve to."""
+    assert derive_tubes([{"booking_test_id": "", "home_service_id": "cbc",
+                          "tube_type_codes": ["edta_lavender"]}]) == []
+    assert derive_tubes([{"booking_test_id": None, "home_service_id": "cbc",
+                          "tube_type_codes": ["edta_lavender"]}]) == []
+    assert derive_tubes([{"home_service_id": "cbc",
+                          "tube_type_codes": ["edta_lavender"]}]) == []
+
+
+def test_a_malformed_line_does_not_poison_its_valid_siblings():
+    """One bad row must not cost the patient a tube they legitimately need."""
+    tubes = derive_tubes([
+        {"booking_test_id": "", "home_service_id": "x", "tube_type_codes": ["sst_gold"]},
+        {"booking_test_id": "bt1", "home_service_id": "cbc", "tube_type_codes": ["edta_lavender"]},
+    ])
+    assert tubes == [{"tube_type_code": "edta_lavender", "booking_test_ids": ["bt1"]}]
