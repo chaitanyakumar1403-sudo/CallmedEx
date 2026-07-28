@@ -51,6 +51,7 @@ async def set_roster(date: str, entries: List[RosterEntry],
         existing = _rows(
             supabase.table("phlebotomist_roster").select("id")
             .eq("phlebotomist_user_id", entry.phlebotomist_user_id)
+            .eq("processing_center_id", centre)
             .eq("roster_date", date).limit(1).execute()
         )
         body = {"status": entry.status, "max_jobs": entry.max_jobs}
@@ -58,6 +59,22 @@ async def set_roster(date: str, entries: List[RosterEntry],
             supabase.table("phlebotomist_roster").update(body) \
                 .eq("id", existing[0]["id"]).execute()
         else:
+            # No roster row for this phlebotomist at THIS centre. Before
+            # inserting, confirm the phlebotomist actually belongs here —
+            # otherwise a phlebo of another centre with an existing row
+            # there would silently fail the unique (phlebotomist_user_id,
+            # roster_date) constraint on insert, or worse, if that centre
+            # had no row yet, this would create a roster entry for someone
+            # who isn't staff here at all.
+            phlebo_rows = _rows(
+                supabase.table("phlebotomists").select("processing_center_id")
+                .eq("user_id", entry.phlebotomist_user_id).limit(1).execute()
+            )
+            if not phlebo_rows or phlebo_rows[0]["processing_center_id"] != centre:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Phlebotomist does not belong to this processing centre.",
+                )
             body.update({
                 "processing_center_id": centre,
                 "phlebotomist_user_id": entry.phlebotomist_user_id,

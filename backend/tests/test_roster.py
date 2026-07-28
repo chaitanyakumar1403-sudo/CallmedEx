@@ -203,8 +203,11 @@ def test_the_advance_radius_is_ten_kilometres(db):
 from fastapi import HTTPException
 
 import app.routers.family_members as fm_mod
+import app.routers.roster as roster_router_mod
 from app.routers.family_members import ensure_self_member
+from app.routers.roster import RosterEntry
 from app.routers.roster import decline as decline_endpoint
+from app.routers.roster import set_roster
 
 
 @pytest.fixture
@@ -263,3 +266,96 @@ async def test_declining_a_realtime_job_via_the_endpoint_returns_400_not_500(ros
 
     req = roster_router_db.db["dispatch_requests"][0]
     assert req["status"] == "provider_accepted"  # untouched, not silently queued
+
+
+# ── set_roster is centre-scoped (Fix round 1) ───────────────────────────────
+
+
+@pytest.fixture
+def roster_put_db(monkeypatch):
+    """set_roster reads/writes via `app.routers.roster`'s own `supabase` name
+    (imported straight from app.database), not the services module's — so
+    that's what has to be patched here."""
+    fake = FakeSupabase()
+    monkeypatch.setattr(roster_router_mod, "supabase", fake)
+    return fake
+
+
+async def test_an_admin_cannot_edit_another_centres_roster_row(roster_put_db):
+    """HYD-01's admin passing a VSP-01 phlebotomist must not touch VSP-01's row."""
+    mine, theirs = str(uuid.uuid4()), str(uuid.uuid4())
+    theirs_phlebo = _phlebo(roster_put_db, theirs, 17.385, 78.487, available=True)
+
+    with pytest.raises(HTTPException):
+        await set_roster(
+            DATE,
+            [RosterEntry(phlebotomist_user_id=theirs_phlebo, status="leave")],
+            staff={"processing_center_id": mine},
+        )
+
+    row = next(
+        r for r in roster_put_db.db["phlebotomist_roster"]
+        if r["phlebotomist_user_id"] == theirs_phlebo
+    )
+    assert row["status"] == "available"
+    assert row["processing_center_id"] == theirs
+
+
+async def test_the_cross_centre_attempt_raises_403(roster_put_db):
+    mine, theirs = str(uuid.uuid4()), str(uuid.uuid4())
+    theirs_phlebo = _phlebo(roster_put_db, theirs, 17.385, 78.487, available=True)
+
+    with pytest.raises(HTTPException) as exc:
+        await set_roster(
+            DATE,
+            [RosterEntry(phlebotomist_user_id=theirs_phlebo, status="leave")],
+            staff={"processing_center_id": mine},
+        )
+    assert exc.value.status_code == 403
+
+
+async def test_an_admin_can_still_update_their_own_centres_existing_row(roster_put_db):
+    centre = str(uuid.uuid4())
+    mine_phlebo = _phlebo(roster_put_db, centre, 17.385, 78.487, available=True)
+
+    await set_roster(
+        DATE,
+        [RosterEntry(phlebotomist_user_id=mine_phlebo, status="leave", max_jobs=3)],
+        staff={"processing_center_id": centre},
+    )
+
+    row = next(
+        r for r in roster_put_db.db["phlebotomist_roster"]
+        if r["phlebotomist_user_id"] == mine_phlebo
+    )
+    assert row["status"] == "leave"
+    assert row["max_jobs"] == 3
+    # still exactly one row for this phlebo/date — an update, not a second insert
+    assert len([
+        r for r in roster_put_db.db["phlebotomist_roster"]
+        if r["phlebotomist_user_id"] == mine_phlebo
+    ]) == 1
+
+
+async def test_an_admin_can_still_insert_a_new_roster_row_for_their_own_phlebo(roster_put_db):
+    centre = str(uuid.uuid4())
+    uid = str(uuid.uuid4())
+    roster_put_db.db.setdefault("phlebotomists", []).append({
+        "user_id": uid, "processing_center_id": centre,
+        "base_lat": 17.385, "base_lng": 78.487, "base_pincode": "",
+    })
+    # No existing phlebotomist_roster row for this phlebo/date yet.
+
+    await set_roster(
+        DATE,
+        [RosterEntry(phlebotomist_user_id=uid, status="available", max_jobs=2)],
+        staff={"processing_center_id": centre},
+    )
+
+    rows = [
+        r for r in roster_put_db.db["phlebotomist_roster"]
+        if r["phlebotomist_user_id"] == uid
+    ]
+    assert len(rows) == 1
+    assert rows[0]["status"] == "available"
+    assert rows[0]["processing_center_id"] == centre
