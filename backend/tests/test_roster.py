@@ -196,3 +196,70 @@ def test_an_advance_request_with_no_scheduled_for_is_rejected_not_reassigned(db)
 
 def test_the_advance_radius_is_ten_kilometres(db):
     assert ADVANCE_RADIUS_KM == 10.0
+
+
+# ── Family members and roster HTTP endpoints (Task 12) ──────────────────────
+
+from fastapi import HTTPException
+
+import app.routers.family_members as fm_mod
+from app.routers.family_members import ensure_self_member
+from app.routers.roster import decline as decline_endpoint
+
+
+@pytest.fixture
+def fm_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(fm_mod, "supabase", fake)
+    return fake
+
+
+def test_the_account_holder_becomes_a_family_member_row(fm_db):
+    """Uniform subjects are what make per-person barcodes fall out of the schema."""
+    uid = str(uuid.uuid4())
+    member = ensure_self_member(uid, "Chaitanya")
+    assert member["is_self"] is True
+    assert member["account_user_id"] == uid
+    assert len(fm_db.db["family_members"]) == 1
+
+
+def test_ensuring_self_twice_creates_one_row(fm_db):
+    uid = str(uuid.uuid4())
+    first = ensure_self_member(uid, "Chaitanya")
+    second = ensure_self_member(uid, "Chaitanya")
+    assert first["id"] == second["id"]
+    assert len(fm_db.db["family_members"]) == 1
+
+
+@pytest.fixture
+def roster_router_db(monkeypatch):
+    """Task 9's carry-forward: decline_job raises ValueError for a non-advance
+    dispatch request. The /decline endpoint must turn that into HTTP 400, not
+    a 500 — this fixture patches the supabase client the ROUTER module sees
+    (app.routers.roster imports decline_job/run_roster_pass directly from
+    app.services.roster, but that service module reads its own `supabase`
+    name, so it must be patched there too)."""
+    fake = FakeSupabase()
+    monkeypatch.setattr(roster_mod, "supabase", fake)
+    return fake
+
+
+async def test_declining_a_realtime_job_via_the_endpoint_returns_400_not_500(roster_router_db):
+    """A phlebotomist declining a realtime (non-roster) job must get a clean
+    400 explaining why, never an unhandled 500 from the service's ValueError."""
+    centre = str(uuid.uuid4())
+    phlebo = _phlebo(roster_router_db, centre, 17.385, 78.487)
+    booking_id = _booking(roster_router_db, centre, 17.386, 78.488)
+    req_id = str(uuid.uuid4())
+    roster_router_db.db.setdefault("dispatch_requests", []).append({
+        "id": req_id, "booking_id": booking_id,
+        "assignment_mode": "realtime", "scheduled_for": None,
+        "status": "provider_accepted", "declined_by": [],
+    })
+
+    with pytest.raises(HTTPException) as exc:
+        await decline_endpoint(req_id, {"sub": phlebo, "role": "phlebotomist"})
+    assert exc.value.status_code == 400
+
+    req = roster_router_db.db["dispatch_requests"][0]
+    assert req["status"] == "provider_accepted"  # untouched, not silently queued

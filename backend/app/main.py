@@ -269,6 +269,10 @@ app.include_router(processing_center_admin.router)
 app.include_router(processing_center_admin.me_router)
 from app.routers import home_services
 app.include_router(home_services.router)
+from app.routers import family_members
+app.include_router(family_members.router)
+from app.routers import roster
+app.include_router(roster.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")
