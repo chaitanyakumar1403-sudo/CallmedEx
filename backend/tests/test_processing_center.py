@@ -358,3 +358,36 @@ def test_coverage_leaks_nothing_but_a_boolean(pc_db):
     _seed_area(pc_db, cid, city="hyderabad")
     assert check_coverage(city="Hyderabad") == {"serviceable": True}
     assert check_coverage(city="Rajahmundry") == {"serviceable": False}
+
+
+def test_geo_fallback_breaks_ties_on_priority_then_distance(pc_db):
+    """Two centres cover the point. Priority wins even when it is the farther
+    one — this is what lets a second centre be added as a row, not a code change."""
+    _seed_aliases(pc_db)
+    near = _seed_centre(pc_db, "HYD-01", "hyderabad", lat=17.3850, lng=78.4870)
+    far = _seed_centre(pc_db, "HYD-02", "hyderabad", lat=17.4500, lng=78.5500)
+    _seed_area(pc_db, near, radius_km=50, priority=200)
+    _seed_area(pc_db, far, radius_km=50, priority=50)
+
+    # Priority 50 beats priority 200 despite being farther away.
+    assert resolve_center(city="Unknownpur", lat=17.3851, lng=78.4871)["code"] == "HYD-02"
+
+
+def test_geo_fallback_uses_distance_when_priority_is_equal(pc_db):
+    """With priority tied, the nearer centre must win, deterministically."""
+    _seed_aliases(pc_db)
+    near = _seed_centre(pc_db, "HYD-01", "hyderabad", lat=17.3850, lng=78.4870)
+    far = _seed_centre(pc_db, "HYD-02", "hyderabad", lat=17.4500, lng=78.5500)
+    _seed_area(pc_db, near, radius_km=50, priority=100)
+    _seed_area(pc_db, far, radius_km=50, priority=100)
+
+    assert resolve_center(city="Unknownpur", lat=17.3851, lng=78.4871)["code"] == "HYD-01"
+    # Deterministic across repeated calls, not incidentally ordered.
+    assert resolve_center(city="Unknownpur", lat=17.3851, lng=78.4871)["code"] == "HYD-01"
+
+
+def test_normalise_city_handles_none_and_blank_input(pc_db):
+    _seed_aliases(pc_db)
+    assert normalise_city(None) == ""
+    assert normalise_city("") == ""
+    assert normalise_city("   ") == ""
