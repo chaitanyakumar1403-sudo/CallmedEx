@@ -120,6 +120,128 @@ ALTER TABLE users ADD CONSTRAINT users_role_check
                   'processing_center'));
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 3. HOME-SERVICE CATALOG — owned by CallMedex, not by any centre
+--
+--    Two service families, deliberately kept apart:
+--      home services (here)   blood tests, ECG, vitals — CallMedex prices them,
+--                             a phlebotomist delivers them, the patient never
+--                             sees a provider.
+--      walk-in services       MRI, CT, X-ray — the diagnostic centre publishes
+--      (provider_services)    and prices them, and the patient picks a centre.
+--                             UNCHANGED by this migration.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS tube_types (
+    code              TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    cap_colour        TEXT DEFAULT '',
+    additive          TEXT DEFAULT '',
+    typical_volume_ml NUMERIC(5,2),
+    is_active         BOOLEAN DEFAULT true
+);
+
+INSERT INTO tube_types (code, name, cap_colour, additive, typical_volume_ml) VALUES
+ ('edta_lavender', 'EDTA (Lavender)',   'lavender', 'K2/K3 EDTA',     3.0),
+ ('sst_gold',      'SST (Gold)',        'gold',     'Clot activator + gel', 5.0),
+ ('citrate_blue',  'Citrate (Blue)',    'blue',     'Sodium citrate', 2.7),
+ ('fluoride_grey', 'Fluoride (Grey)',   'grey',     'Sodium fluoride', 2.0),
+ ('plain_red',     'Plain (Red)',       'red',      'None',           5.0)
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS home_services (
+    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Reuses the existing synonym dictionary so "Haemogram" still finds CBC.
+    catalog_id   UUID REFERENCES service_catalog(id) ON DELETE SET NULL,
+    code         TEXT NOT NULL UNIQUE,
+    service_kind TEXT NOT NULL DEFAULT 'blood_test'
+        CHECK (service_kind IN ('blood_test', 'ecg', 'vitals')),
+    name        TEXT NOT NULL,
+    category    TEXT NOT NULL DEFAULT 'blood_test',
+    description TEXT DEFAULT '',
+
+    base_price                NUMERIC(10,2) NOT NULL,
+    urgent_surcharge_override NUMERIC(10,2),   -- NULL => platform_settings knob
+
+    home_collection_available BOOLEAN DEFAULT true,
+    fasting_required          BOOLEAN DEFAULT false,
+    fasting_hours             INT DEFAULT 0,
+    preparation_instructions  TEXT DEFAULT '',
+    estimated_report_hours    INT,
+
+    is_active  BOOLEAN DEFAULT true,           -- the enable/disable switch
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_services_active ON home_services(service_kind) WHERE is_active;
+
+CREATE TABLE IF NOT EXISTS home_service_tubes (
+    home_service_id UUID NOT NULL REFERENCES home_services(id) ON DELETE CASCADE,
+    tube_type_code  TEXT NOT NULL REFERENCES tube_types(code),
+    volume_ml       NUMERIC(5,2),
+    PRIMARY KEY (home_service_id, tube_type_code)
+);
+
+CREATE TABLE IF NOT EXISTS home_service_city_pricing (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    home_service_id UUID NOT NULL REFERENCES home_services(id) ON DELETE CASCADE,
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    price      NUMERIC(10,2) NOT NULL,
+    is_active  BOOLEAN DEFAULT true,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (home_service_id, processing_center_id)
+);
+
+-- ESR and CRP are not yet in service_catalog; add them so every home service
+-- has a synonym entry to search against.
+INSERT INTO service_catalog (name, slug, category, synonyms, home_collection_possible, typical_turnaround_hours) VALUES
+ ('ESR', 'esr', 'lab_test', ARRAY['Erythrocyte Sedimentation Rate','Sed Rate'], true, 6),
+ ('CRP', 'crp', 'lab_test', ARRAY['C-Reactive Protein','C Reactive Protein'],   true, 6)
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO home_services
+    (catalog_id, code, service_kind, name, category, base_price,
+     fasting_required, fasting_hours, preparation_instructions, estimated_report_hours)
+SELECT sc.id, v.code, 'blood_test', v.name, 'blood_test', v.price,
+       v.fasting, v.fasting_hours, v.prep, v.tat
+  FROM (VALUES
+    ('CBC',     'cbc',             'Complete Blood Count', 350.00, false,  0, '', 6),
+    ('LFT',     'lft',             'Liver Function Test',  650.00, true,   8, 'Fast for 8 hours. Water is allowed.', 8),
+    ('KFT',     'kft',             'Kidney Function Test', 650.00, true,   8, 'Fast for 8 hours. Water is allowed.', 8),
+    ('LIPID',   'lipid-profile',   'Lipid Profile',        600.00, true,  12, 'Fast for 12 hours. Water is allowed.', 8),
+    ('HBA1C',   'hba1c',           'HbA1c',                500.00, false,  0, '', 6),
+    ('THYROID', 'thyroid-profile', 'Thyroid Profile',      550.00, false,  0, 'Take the sample before any thyroid medication.', 12),
+    ('VITD',    'vitamin-d',       'Vitamin D',            1200.00, false, 0, '', 24),
+    ('VITB12',  'vitamin-b12',     'Vitamin B12',          1100.00, false, 0, '', 24),
+    ('ESR',     'esr',             'ESR',                  200.00, false,  0, '', 6),
+    ('CRP',     'crp',             'CRP',                  450.00, false,  0, '', 6)
+  ) AS v(code, slug, name, price, fasting, fasting_hours, prep, tat)
+  LEFT JOIN service_catalog sc ON sc.slug = v.slug
+ WHERE NOT EXISTS (SELECT 1 FROM home_services hs WHERE hs.code = v.code);
+
+INSERT INTO home_service_tubes (home_service_id, tube_type_code, volume_ml)
+SELECT hs.id, v.tube, v.vol
+  FROM (VALUES
+    ('CBC',     'edta_lavender', 3.0),
+    ('ESR',     'citrate_blue',  2.7),
+    ('HBA1C',   'edta_lavender', 3.0),
+    ('LFT',     'sst_gold',      5.0),
+    ('KFT',     'sst_gold',      5.0),
+    ('LIPID',   'sst_gold',      5.0),
+    ('THYROID', 'sst_gold',      5.0),
+    ('VITD',    'sst_gold',      5.0),
+    ('VITB12',  'sst_gold',      5.0),
+    ('CRP',     'sst_gold',      5.0)
+  ) AS v(code, tube, vol)
+  JOIN home_services hs ON hs.code = v.code
+ WHERE NOT EXISTS (
+    SELECT 1 FROM home_service_tubes t
+     WHERE t.home_service_id = hs.id AND t.tube_type_code = v.tube
+ );
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -128,7 +250,8 @@ DECLARE
     t TEXT;
     new_tables TEXT[] := ARRAY[
         'processing_centers', 'processing_center_staff',
-        'processing_center_areas', 'city_aliases'
+        'processing_center_areas', 'city_aliases',
+        'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP
