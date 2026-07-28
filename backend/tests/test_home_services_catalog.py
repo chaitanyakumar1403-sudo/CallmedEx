@@ -47,3 +47,22 @@ def test_pricing_override_is_keyed_on_centre():
     """CallMedex may price Vizag differently from Hyderabad. The centre may not."""
     sql = _sql()
     assert "UNIQUE (home_service_id, processing_center_id)" in sql
+
+
+def test_family_and_booking_tables_are_created():
+    sql = _sql()
+    for table in ("family_members", "booking_subjects", "booking_tests"):
+        assert f"CREATE TABLE IF NOT EXISTS {table}" in sql, table
+
+
+def test_bookings_gains_an_explicit_centre_reference():
+    sql = _sql()
+    assert "ADD COLUMN IF NOT EXISTS processing_center_id" in sql
+    assert "booking_kind" in sql
+
+
+def test_doorstep_addons_are_representable():
+    """Spec 3 adds tests at the doorstep; the incentive rules already expect it."""
+    sql = _sql()
+    assert "'doorstep_addon'" in sql
+    assert "added_by" in sql

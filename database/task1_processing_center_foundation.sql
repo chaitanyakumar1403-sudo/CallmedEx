@@ -242,6 +242,64 @@ SELECT hs.id, v.tube, v.vol
  );
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 4. FAMILY MEMBERS, BOOKING SUBJECTS AND TEST LINES
+--    "Separate barcode, separate sample, separate report" per person falls out
+--    of the schema once every subject — including the account holder — is a
+--    family_members row.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS family_members (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    full_name       TEXT NOT NULL,
+    relationship    TEXT DEFAULT '',
+    gender          TEXT DEFAULT '',
+    date_of_birth   DATE,
+    mobile          TEXT DEFAULT '',
+    abha_number     TEXT DEFAULT '',        -- future per-member ABHA linkage
+    is_self         BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_members_account ON family_members(account_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_family_members_self
+    ON family_members(account_user_id) WHERE is_self;
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_kind TEXT DEFAULT 'legacy';
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_kind_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_booking_kind_check
+    CHECK (booking_kind IN ('legacy', 'home_collection', 'walk_in'));
+
+CREATE INDEX IF NOT EXISTS idx_bookings_pc ON bookings(processing_center_id, status);
+
+CREATE TABLE IF NOT EXISTS booking_subjects (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id       UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    family_member_id UUID NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+    UNIQUE (booking_id, family_member_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_subjects_booking ON booking_subjects(booking_id);
+
+CREATE TABLE IF NOT EXISTS booking_tests (
+    id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id         UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    booking_subject_id UUID NOT NULL REFERENCES booking_subjects(id) ON DELETE CASCADE,
+    home_service_id    UUID NOT NULL REFERENCES home_services(id),
+    price_charged      NUMERIC(10,2) NOT NULL,
+    urgent_surcharge   NUMERIC(10,2) DEFAULT 0.00,
+    source TEXT NOT NULL DEFAULT 'booking'
+        CHECK (source IN ('booking', 'doorstep_addon')),
+    added_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    added_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (booking_subject_id, home_service_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_tests_subject ON booking_tests(booking_subject_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -251,7 +309,8 @@ DECLARE
     new_tables TEXT[] := ARRAY[
         'processing_centers', 'processing_center_staff',
         'processing_center_areas', 'city_aliases',
-        'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing'
+        'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
+        'family_members', 'booking_subjects', 'booking_tests'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP
