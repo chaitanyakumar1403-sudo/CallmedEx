@@ -1,5 +1,3 @@
-BEGIN;
-
 -- ============================================================================
 -- CallMedex Task 1 — Processing Center Foundation
 --
@@ -9,10 +7,12 @@ BEGIN;
 -- partner laboratories. The patient books from CallMedex and never sees a
 -- centre, a laboratory or a diagnostic centre anywhere in this flow.
 --
--- Idempotent — safe to re-run. New functions pin search_path (lint 0011) and
--- every new table gets an explicit deny-all policy (lint 0008): the FastAPI
--- backend uses the service key and bypasses RLS.
+-- Idempotent — safe to re-run. Every new table gets an explicit deny-all
+-- policy (lint 0008): the FastAPI backend uses the service key and bypasses
+-- RLS.
 -- ============================================================================
+
+BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

@@ -11,6 +11,15 @@ from pathlib import Path
 
 MIGRATION = Path(__file__).resolve().parents[2] / "database" / "task1_processing_center_foundation.sql"
 
+NOTIFY_STMT = "NOTIFY pgrst, 'reload schema';"
+
+# Any statement that writes to processing_centers (the house style seeds via
+# INSERT ... ON CONFLICT DO NOTHING, but this also catches a later UPDATE).
+PC_WRITE_STMT_RE = re.compile(
+    r"(INSERT INTO processing_centers\b.*?;|UPDATE processing_centers\b.*?;)",
+    re.S,
+)
+
 
 def _sql() -> str:
     return MIGRATION.read_text(encoding="utf-8")
@@ -18,9 +27,34 @@ def _sql() -> str:
 
 def test_migration_exists_and_is_transactional():
     sql = _sql()
-    assert sql.lstrip().startswith("BEGIN;")
+
+    # House style (database/phase1_sample_lifecycle.sql) puts a header comment
+    # block before BEGIN;. Strip leading blank lines and `--` comment lines so
+    # the first *real* statement is what gets checked, rather than requiring
+    # the raw file to start with the literal text "BEGIN;".
+    lines = sql.splitlines()
+    i = 0
+    while i < len(lines) and (not lines[i].strip() or lines[i].strip().startswith("--")):
+        i += 1
+    first_statement = "\n".join(lines[i:]).lstrip()
+    assert first_statement.startswith("BEGIN;"), "first real statement must be BEGIN;"
+
     assert "COMMIT;" in sql
-    assert "NOTIFY pgrst, 'reload schema';" in sql
+    assert NOTIFY_STMT in sql
+
+    # NOTIFY must fire only after the transaction lands, never inside it.
+    commit_pos = sql.index("COMMIT;")
+    notify_pos = sql.index(NOTIFY_STMT)
+    assert commit_pos < notify_pos, "NOTIFY must come after COMMIT, not inside the transaction"
+
+    # NOTIFY must be the final statement: nothing but blank lines/comments
+    # may trail it.
+    after_notify = sql[notify_pos + len(NOTIFY_STMT):]
+    for line in after_notify.splitlines():
+        stripped = line.strip()
+        assert not stripped or stripped.startswith("--"), (
+            f"NOTIFY must be the final statement; found trailing content: {stripped!r}"
+        )
 
 
 def test_centre_tables_are_created():
@@ -46,12 +80,19 @@ def test_every_new_table_has_a_deny_all_rls_policy():
 
 
 def test_seed_invents_no_laboratory_and_no_verified_status():
-    """Commits c5d0fb3 and 68ea5eb: never seed a fake verified facility."""
+    """Commits c5d0fb3 and 68ea5eb: never seed a fake verified facility.
+
+    Checked two ways:
+      1. The seed INSERT's own column list/values (catches a laboratory name
+         or a pre-verified status sneaking into the seed itself).
+      2. Every statement anywhere in the migration that writes to
+         processing_centers (catches a later UPDATE that fabricates a lab
+         name or flips a centre to 'active'/'verified' after a clean seed).
+    """
     sql = _sql()
     assert "'HYD-01'" in sql and "'VSP-01'" in sql
 
-    # Isolate the seed INSERT and assert on ITS column list and values, so this
-    # test can actually fail if someone adds a laboratory name later.
+    # --- 1. The seed INSERT's column list and values ---
     seed = re.search(
         r"INSERT INTO processing_centers\s*\(([^)]*)\)\s*VALUES(.*?);",
         sql, re.S)
@@ -63,3 +104,22 @@ def test_seed_invents_no_laboratory_and_no_verified_status():
     assert "'onboarding'" in values, "centres must seed as onboarding"
     for forbidden in ("'active'", "'verified'"):
         assert forbidden not in values, f"seed must not pre-{forbidden.strip(chr(39))}"
+
+    # --- 2. Every INSERT/UPDATE against processing_centers, anywhere ---
+    write_statements = PC_WRITE_STMT_RE.findall(sql)
+    assert write_statements, "expected at least the seed INSERT against processing_centers"
+
+    for stmt in write_statements:
+        for col in ("partner_lab_name", "partner_lab_reference"):
+            m = re.search(col + r"\s*=\s*'([^']*)'", stmt)
+            if m:
+                assert m.group(1) == "", (
+                    f"{col} must never be assigned a non-empty value: {stmt!r}"
+                )
+
+        bad_status = re.search(r"\bstatus\s*=\s*'(active|verified)'", stmt)
+        if bad_status:
+            raise AssertionError(
+                f"processing_centers.status must never be force-set to "
+                f"{bad_status.group(1)!r}: {stmt!r}"
+            )
