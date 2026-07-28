@@ -202,12 +202,16 @@ def test_the_advance_radius_is_ten_kilometres(db):
 
 from fastapi import HTTPException
 
+import inspect
+
 import app.routers.family_members as fm_mod
 import app.routers.roster as roster_router_mod
-from app.routers.family_members import ensure_self_member
+from app.middleware.pc_auth import require_pc_admin
+from app.routers.family_members import delete_member, ensure_self_member
+from app.routers.family_members import list_members, update_member
 from app.routers.roster import RosterEntry
 from app.routers.roster import decline as decline_endpoint
-from app.routers.roster import set_roster
+from app.routers.roster import run_pass, set_roster
 
 
 @pytest.fixture
@@ -232,6 +236,106 @@ def test_ensuring_self_twice_creates_one_row(fm_db):
     second = ensure_self_member(uid, "Chaitanya")
     assert first["id"] == second["id"]
     assert len(fm_db.db["family_members"]) == 1
+
+
+def _member(fake, account_id, is_self=False, full_name="Member"):
+    """Seed a family_members row directly, bypassing add_member, so tests can
+    set up two accounts' data without going through the endpoint under test."""
+    mid = str(uuid.uuid4())
+    fake.db.setdefault("family_members", []).append({
+        "id": mid, "account_user_id": account_id, "full_name": full_name,
+        "relationship": "self" if is_self else "", "gender": "", "mobile": "",
+        "date_of_birth": None, "is_self": is_self,
+    })
+    return mid
+
+
+# ── Cross-account family-member isolation (Fix round 2) ─────────────────────
+
+
+async def test_account_a_cannot_update_account_bs_family_member(fm_db):
+    a, b = str(uuid.uuid4()), str(uuid.uuid4())
+    b_member_id = _member(fm_db, b, full_name="Bob")
+
+    with pytest.raises(HTTPException) as exc:
+        await update_member(b_member_id, {"full_name": "Hacked"}, {"sub": a})
+    assert exc.value.status_code == 404
+
+    row = next(r for r in fm_db.db["family_members"] if r["id"] == b_member_id)
+    assert row["full_name"] == "Bob"          # B's row untouched
+
+
+async def test_account_a_cannot_delete_account_bs_family_member(fm_db):
+    a, b = str(uuid.uuid4()), str(uuid.uuid4())
+    b_member_id = _member(fm_db, b, full_name="Bob")
+
+    with pytest.raises(HTTPException) as exc:
+        await delete_member(b_member_id, {"sub": a})
+    assert exc.value.status_code == 404
+
+    assert any(r["id"] == b_member_id for r in fm_db.db["family_members"])  # still exists
+
+
+async def test_account_as_list_never_returns_account_bs_members(fm_db):
+    a, b = str(uuid.uuid4()), str(uuid.uuid4())
+    _member(fm_db, a, full_name="A-side")
+    _member(fm_db, b, full_name="B-side")
+
+    result = await list_members({"sub": a, "full_name": "A"})
+    names = {m["full_name"] for m in result["members"]}
+    assert "B-side" not in names
+    assert all(m["account_user_id"] == a for m in result["members"])
+
+
+async def test_update_member_cannot_reassign_is_self_or_account_user_id(fm_db):
+    a, other = str(uuid.uuid4()), str(uuid.uuid4())
+    mid = _member(fm_db, a, is_self=False, full_name="A-member")
+
+    result = await update_member(
+        mid,
+        {"is_self": True, "account_user_id": other, "full_name": "Renamed"},
+        {"sub": a},
+    )
+
+    row = next(r for r in fm_db.db["family_members"] if r["id"] == mid)
+    assert row["is_self"] is False
+    assert row["account_user_id"] == a
+    assert row["full_name"] == "Renamed"      # the legitimate field still applies
+    assert result["member"]["is_self"] is False
+
+
+async def test_the_account_holders_self_row_cannot_be_deleted(fm_db):
+    a = str(uuid.uuid4())
+    self_id = _member(fm_db, a, is_self=True, full_name="Self")
+
+    with pytest.raises(HTTPException) as exc:
+        await delete_member(self_id, {"sub": a})
+    assert exc.value.status_code == 400
+
+    assert any(r["id"] == self_id for r in fm_db.db["family_members"])
+
+
+# ── The roster write endpoints are actually admin-gated (Fix round 2) ───────
+
+
+async def test_require_pc_admin_rejects_a_technician():
+    staff = {"processing_center_id": str(uuid.uuid4()), "pc_role": "technician"}
+    with pytest.raises(HTTPException) as exc:
+        await require_pc_admin(staff)
+    assert exc.value.status_code == 403
+
+
+def test_the_roster_write_endpoints_are_wired_to_require_pc_admin():
+    """The existing roster tests call set_roster/run_pass directly with a
+    hand-built staff dict, which bypasses FastAPI's dependency resolution
+    entirely — nothing else proves these routes actually declare
+    require_pc_admin rather than the weaker get_current_pc_staff. Inspect the
+    real signature default instead of assuming the wiring is correct."""
+    for fn in (set_roster, run_pass):
+        staff_param = inspect.signature(fn).parameters["staff"]
+        assert staff_param.default.dependency is require_pc_admin, (
+            f"{fn.__name__} is not gated by require_pc_admin"
+        )
 
 
 @pytest.fixture
