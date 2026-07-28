@@ -13,9 +13,13 @@ import uuid
 
 import pytest
 
+import app.routers.bookings as bookings_mod
 import app.routers.home_services as hs_mod
 import app.services.processing_center as pc_mod
+import app.services.samples as samples_mod
+from app.routers.bookings import get_my_bookings
 from app.routers.home_services import coverage, patient_search
+from app.routers.samples import track_sample
 from tests.test_sample_lifecycle import FakeSupabase
 
 FORBIDDEN = (
@@ -110,3 +114,135 @@ def test_home_services_and_walk_in_services_are_different_tables():
     router = (Path(__file__).resolve().parents[1] / "app" / "routers"
               / "home_services.py").read_text(encoding="utf-8")
     assert "provider_services" not in router
+
+
+# ── C2: pre-existing patient endpoints leaking columns THIS migration added ──
+#
+# home_services.py's PATIENT_FIELDS guard only ever covered the two brand-new
+# patient endpoints. Nobody re-checked the PRE-EXISTING /api/samples/{id}/track
+# and /api/bookings/my endpoints against the centre/laboratory columns this
+# migration bolted onto `samples`, `sample_events` and `bookings`.
+
+@pytest.fixture
+def samples_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(samples_mod, "supabase", fake)
+    return fake
+
+
+@pytest.mark.asyncio
+async def test_patient_sample_tracking_leaks_no_centre_or_lab_reference(samples_db):
+    patient_id = str(uuid.uuid4())
+    centre_id = str(uuid.uuid4())
+    batch_id = str(uuid.uuid4())
+    sample_id = str(uuid.uuid4())
+
+    samples_db.db["samples"] = [{
+        "id": sample_id, "barcode": "CMX-000001-ABCDEF",
+        "patient_id": patient_id, "phlebotomist_user_id": str(uuid.uuid4()),
+        "destination_org_user_id": str(uuid.uuid4()),
+        "processing_center_id": centre_id, "batch_id": batch_id,
+        "lab_reference": "LABREF-XYZ-999",
+        "status": "received", "sample_type": "blood",
+    }]
+    samples_db.db["sample_events"] = [{
+        "id": str(uuid.uuid4()), "sample_id": sample_id, "event": "received",
+        "processing_center_id": centre_id, "location_label": "Bench 3, HYD-01",
+        "actor_role": "staff", "created_at": "2026-07-28T00:00:00Z",
+    }]
+
+    result = await track_sample(sample_id, current_user={"sub": patient_id, "role": "patient"})
+
+    blob = json.dumps(result, default=str)
+    assert "LABREF-XYZ-999" not in blob
+    assert centre_id not in blob
+    assert batch_id not in blob
+    assert "processing_center" not in blob
+    assert "lab_reference" not in blob
+    assert "batch_id" not in blob
+    assert "location_label" not in blob
+
+    # The guard must not pass by returning nothing useful.
+    assert result["sample"]["status"] == "received"
+    assert result["sample"]["barcode"] == "CMX-000001-ABCDEF"
+    assert len(result["sample"]["events"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_non_patient_callers_still_get_the_full_custody_trail(samples_db):
+    """Staff/phlebotomist/admin callers are NOT patients — narrowing the leak
+    fix to the patient path must not blind the centre or the collector."""
+    patient_id = str(uuid.uuid4())
+    phlebo_id = str(uuid.uuid4())
+    centre_id = str(uuid.uuid4())
+    sample_id = str(uuid.uuid4())
+
+    samples_db.db["samples"] = [{
+        "id": sample_id, "barcode": "CMX-000002-ABCDEF",
+        "patient_id": patient_id, "phlebotomist_user_id": phlebo_id,
+        "destination_org_user_id": str(uuid.uuid4()),
+        "processing_center_id": centre_id, "batch_id": str(uuid.uuid4()),
+        "lab_reference": "LABREF-INTERNAL-001",
+        "status": "received", "sample_type": "blood",
+    }]
+    samples_db.db["sample_events"] = []
+
+    result = await track_sample(sample_id, current_user={"sub": phlebo_id, "role": "phlebotomist"})
+    assert result["sample"]["processing_center_id"] == centre_id
+    assert result["sample"]["lab_reference"] == "LABREF-INTERNAL-001"
+
+
+@pytest.fixture
+def bookings_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(bookings_mod, "supabase", fake)
+    return fake
+
+
+@pytest.mark.asyncio
+async def test_patient_bookings_list_leaks_no_centre_identity(bookings_db):
+    patient_id = str(uuid.uuid4())
+    centre_id = str(uuid.uuid4())
+
+    bookings_db.db["bookings"] = [{
+        "id": str(uuid.uuid4()), "patient_id": patient_id,
+        "provider_id": centre_id, "provider_type": "processing_center",
+        "processing_center_id": centre_id,
+        "service_type": "lab_test", "status": "confirmed",
+        "slot_start": "2026-07-29T08:00:00", "slot_end": "2026-07-29T08:30:00",
+        "created_at": "2026-07-28T00:00:00Z",
+    }]
+
+    result = await get_my_bookings(current_user={"sub": patient_id})
+
+    blob = json.dumps(result.model_dump() if hasattr(result, "model_dump") else result, default=str)
+    assert centre_id not in blob
+    assert "processing_center" not in blob
+
+    bookings_out = (
+        result.data["bookings"] if hasattr(result, "data") else result["data"]["bookings"]
+    )
+    assert len(bookings_out) == 1
+    assert bookings_out[0]["status"] == "confirmed"          # still usable
+
+
+@pytest.mark.asyncio
+async def test_a_non_processing_center_booking_keeps_its_provider_fields(bookings_db):
+    """The fix targets the processing-centre abstraction specifically — a
+    walk-in organization booking's provider_id/provider_type must survive."""
+    patient_id = str(uuid.uuid4())
+    org_id = str(uuid.uuid4())
+
+    bookings_db.db["bookings"] = [{
+        "id": str(uuid.uuid4()), "patient_id": patient_id,
+        "provider_id": org_id, "provider_type": "organization",
+        "service_type": "lab_test", "status": "pending_review",
+        "created_at": "2026-07-28T00:00:00Z",
+    }]
+
+    result = await get_my_bookings(current_user={"sub": patient_id})
+    bookings_out = (
+        result.data["bookings"] if hasattr(result, "data") else result["data"]["bookings"]
+    )
+    assert bookings_out[0]["provider_id"] == org_id
+    assert bookings_out[0]["provider_type"] == "organization"

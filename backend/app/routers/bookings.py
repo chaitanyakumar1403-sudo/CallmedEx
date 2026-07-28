@@ -21,6 +21,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
 
 
+def _strip_centre_identity(booking: dict) -> dict:
+    """A home-collection booking's provider IS the internal processing
+    centre — never a partner the patient chose, unlike a walk-in
+    organization booking. `processing_center_id` must never reach the
+    patient, and neither should provider_id/provider_type when they resolve
+    to that centre (assign_booking sets provider_id to the centre's own UUID
+    and provider_type='processing_center'). Other provider types (e.g. a
+    walk-in organization the patient was told about via `allocated_centre`)
+    are left untouched."""
+    booking = dict(booking)
+    booking.pop("processing_center_id", None)
+    if booking.get("provider_type") == "processing_center":
+        booking.pop("provider_id", None)
+        booking.pop("provider_type", None)
+    return booking
+
+
 def _reveal_walkin_centre(provider_user_id: str) -> Optional[dict]:
     """
     Name + address of the allocated partner centre, for a CONFIRMED walk-in
@@ -351,6 +368,7 @@ async def get_my_bookings(current_user: dict = Depends(get_current_user)):
         merged[sb["id"]] = sb
         
     sorted_bookings = sorted(merged.values(), key=lambda x: x.get("created_at", ""), reverse=True)
+    sorted_bookings = [_strip_centre_identity(b) for b in sorted_bookings]
 
     return APIResponse(
         success=True,
