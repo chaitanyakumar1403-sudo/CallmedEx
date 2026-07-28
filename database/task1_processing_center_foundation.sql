@@ -412,6 +412,27 @@ CREATE INDEX IF NOT EXISTS idx_handovers_pc
     ON sample_handovers(destination_processing_center_id, status);
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 6. COVERAGE DEMAND CAPTURE
+--    A patient in an unserviced city is refused BEFORE payment. Capturing the
+--    ask turns a refusal into the demand list that decides the next city — and
+--    the second centre in an existing one.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS service_area_requests (
+    id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,   -- guests may ask
+    mobile  TEXT NOT NULL,
+    city    TEXT DEFAULT '',
+    pincode TEXT DEFAULT '',
+    lat     DOUBLE PRECISION,
+    lng     DOUBLE PRECISION,
+    requested_service_ids UUID[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_area_requests_city
+    ON service_area_requests(city, created_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -423,7 +444,7 @@ DECLARE
         'processing_center_areas', 'city_aliases',
         'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
         'family_members', 'booking_subjects', 'booking_tests',
-        'sample_batches', 'sample_tests'
+        'sample_batches', 'sample_tests', 'service_area_requests'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP

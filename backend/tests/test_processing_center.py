@@ -239,3 +239,122 @@ async def test_user_with_deactivated_and_active_rows_resolves_to_active(fake_db)
     staff = await get_current_pc_staff({"sub": uid, "role": "processing_center"})
     assert staff["processing_center_id"] == cid_active
     assert staff["pc_role"] == "admin"
+
+
+# ── Centre resolution and coverage ──────────────────────────────────────────
+
+import app.services.processing_center as pc_mod
+from app.services.processing_center import check_coverage, normalise_city, resolve_center
+
+
+@pytest.fixture
+def pc_db(monkeypatch):
+    fake = FakeSupabase()
+    monkeypatch.setattr(pc_mod, "supabase", fake)
+    return fake
+
+
+def _seed_centre(fake, code, city, lat=None, lng=None, status="active"):
+    cid = str(uuid.uuid4())
+    fake.db.setdefault("processing_centers", []).append({
+        "id": cid, "code": code, "name": code, "city": city,
+        "lat": lat, "lng": lng, "status": status,
+        "partner_lab_name": "", "daily_capacity": 0,
+    })
+    return cid
+
+
+def _seed_area(fake, cid, city=None, pincode=None, radius_km=None, priority=100, active=True):
+    fake.db.setdefault("processing_center_areas", []).append({
+        "id": str(uuid.uuid4()), "processing_center_id": cid,
+        "city": city, "pincode": pincode, "radius_km": radius_km,
+        "priority": priority, "is_active": active,
+    })
+
+
+def _seed_aliases(fake):
+    for alias, canon in (("vizag", "visakhapatnam"),
+                         ("visakhapatnam", "visakhapatnam"),
+                         ("hyderabad", "hyderabad")):
+        fake.db.setdefault("city_aliases", []).append(
+            {"alias": alias, "canonical_city": canon})
+
+
+def test_city_normalisation_handles_the_vizag_problem(pc_db):
+    _seed_aliases(pc_db)
+    for raw in ("Vizag", "VIZAG", "  vizag  ", "Visakhapatnam"):
+        assert normalise_city(raw) == "visakhapatnam"
+
+
+def test_an_unknown_city_normalises_to_itself_lowercased(pc_db):
+    _seed_aliases(pc_db)
+    assert normalise_city("Rajahmundry") == "rajahmundry"
+
+
+def test_pincode_beats_city(pc_db):
+    _seed_aliases(pc_db)
+    a = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    b = _seed_centre(pc_db, "HYD-02", "hyderabad")
+    _seed_area(pc_db, a, city="hyderabad")
+    _seed_area(pc_db, b, pincode="500081")
+    assert resolve_center(city="Hyderabad", pincode="500081")["code"] == "HYD-02"
+
+
+def test_city_beats_geo(pc_db):
+    _seed_aliases(pc_db)
+    near = _seed_centre(pc_db, "HYD-01", "hyderabad", lat=17.4, lng=78.5)
+    far = _seed_centre(pc_db, "VSP-01", "visakhapatnam", lat=17.7, lng=83.2)
+    _seed_area(pc_db, far, city="visakhapatnam")
+    _seed_area(pc_db, near, radius_km=500)
+    got = resolve_center(city="Vizag", lat=17.4, lng=78.5)
+    assert got["code"] == "VSP-01"
+
+
+def test_geo_is_the_last_resort(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad", lat=17.385, lng=78.487)
+    _seed_area(pc_db, cid, radius_km=25)
+    got = resolve_center(city="Unknownpur", lat=17.40, lng=78.50)
+    assert got["code"] == "HYD-01"
+
+
+def test_a_point_outside_every_radius_resolves_to_nothing(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad", lat=17.385, lng=78.487)
+    _seed_area(pc_db, cid, radius_km=25)
+    assert resolve_center(city="Unknownpur", lat=19.0, lng=72.8) is None
+
+
+def test_a_paused_centre_is_never_selected(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad", status="paused")
+    _seed_area(pc_db, cid, city="hyderabad")
+    assert resolve_center(city="Hyderabad") is None
+
+
+def test_an_inactive_area_row_is_never_selected(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad", active=False)
+    assert resolve_center(city="Hyderabad") is None
+
+
+def test_two_centres_in_one_city_resolve_deterministically(pc_db):
+    """Proves HYD-02 needs no code change — only a row."""
+    _seed_aliases(pc_db)
+    a = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    b = _seed_centre(pc_db, "HYD-02", "hyderabad")
+    _seed_area(pc_db, a, city="hyderabad", priority=200)
+    _seed_area(pc_db, b, city="hyderabad", priority=50)
+    assert resolve_center(city="Hyderabad")["code"] == "HYD-02"
+    assert resolve_center(city="Hyderabad")["code"] == "HYD-02"
+
+
+def test_coverage_leaks_nothing_but_a_boolean(pc_db):
+    """This is the seam where a leak would be easiest, so it is a separate
+    function from resolve_center on purpose."""
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad")
+    assert check_coverage(city="Hyderabad") == {"serviceable": True}
+    assert check_coverage(city="Rajahmundry") == {"serviceable": False}
