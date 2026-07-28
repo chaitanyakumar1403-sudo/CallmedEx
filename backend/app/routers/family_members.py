@@ -96,6 +96,22 @@ async def delete_member(member_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Family member not found.")
     if rows[0].get("is_self"):
         raise HTTPException(status_code=400, detail="You cannot remove yourself.")
-    supabase.table("family_members").delete().eq("id", member_id) \
-        .eq("account_user_id", user.get("sub")).execute()
+    try:
+        supabase.table("family_members").delete().eq("id", member_id) \
+            .eq("account_user_id", user.get("sub")).execute()
+    except Exception as exc:
+        # booking_subjects.family_member_id is RESTRICT, by design: deleting a
+        # family member must never destroy booking history. Postgres refuses
+        # with a 23503 foreign-key violation, which without this handler
+        # surfaces as an unhandled 500 instead of a clean, explainable 409.
+        # Match on the error CODE and the constraint phrase rather than an
+        # exact message, since that's what survives across supabase-py /
+        # postgrest-py versions and error-wrapping layers.
+        msg = str(exc)
+        if "23503" in msg or "violates foreign key constraint" in msg.lower():
+            raise HTTPException(
+                status_code=409,
+                detail="This family member has booking history and cannot be removed.",
+            )
+        raise
     return {"ok": True}

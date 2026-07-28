@@ -335,6 +335,59 @@ async def test_the_account_holders_self_row_cannot_be_deleted(fm_db):
     assert any(r["id"] == self_id for r in fm_db.db["family_members"])
 
 
+# ── I3: a family member with booking history must 409, never 500 ───────────
+#
+# booking_subjects.family_member_id is RESTRICT by design — the DB refuses
+# the delete rather than orphaning booking history. FakeSupabase doesn't
+# enforce foreign keys at all, so the only way to exercise the handler is to
+# make the delete call itself raise, the way the real Supabase client surfaces
+# a 23503 from Postgres.
+
+def _raise_fk_violation():
+    raise Exception(
+        'update or delete on table "family_members" violates foreign key '
+        'constraint "booking_subjects_family_member_id_fkey" on table '
+        '"booking_subjects" (23503)'
+    )
+
+
+class _FKViolatingSupabase:
+    """Wraps a real FakeSupabase; every call behaves normally EXCEPT a
+    delete against family_members, which raises like real Postgres does."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def table(self, name):
+        query = self._inner.table(name)
+        if name == "family_members":
+            orig_delete = query.delete
+
+            def delete():
+                orig_delete()
+                query.execute = _raise_fk_violation
+                return query
+
+            query.delete = delete
+        return query
+
+
+async def test_deleting_a_family_member_with_booking_history_returns_409_not_500(fm_db):
+    a = str(uuid.uuid4())
+    member_id = _member(fm_db, a, full_name="Has Bookings")
+
+    fm_mod.supabase = _FKViolatingSupabase(fm_db)
+    try:
+        with pytest.raises(HTTPException) as exc:
+            await delete_member(member_id, {"sub": a})
+        assert exc.value.status_code == 409
+    finally:
+        fm_mod.supabase = fm_db
+
+    # Never actually removed — the row FakeSupabase holds is untouched.
+    assert any(r["id"] == member_id for r in fm_db.db["family_members"])
+
+
 # ── The roster write endpoints are actually admin-gated (Fix round 2) ───────
 
 
