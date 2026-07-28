@@ -497,6 +497,50 @@ ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_status_check
     ));
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 8. FUTURE REPORT AUTOMATION — TABLES ONLY
+--
+--    This task ends when a verified sample is handed to the laboratory. The
+--    browser agent that logs into MocDoc, searches by barcode and uploads the
+--    PDF is a LATER task. These tables and samples.report_status exist so it
+--    can be added without redesigning the workflow.
+--
+--    NOTHING here is implemented in this task. No worker, no endpoint.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS lab_reports (
+    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sample_id UUID REFERENCES samples(id) ON DELETE CASCADE,
+    booking_subject_id UUID REFERENCES booking_subjects(id) ON DELETE SET NULL,
+    barcode   TEXT,
+    source    TEXT DEFAULT 'mocdoc_automation',
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'fetching', 'ready', 'failed', 'manual')),
+    file_url   TEXT DEFAULT '',
+    fetched_at TIMESTAMPTZ,
+    attempts   INT DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lab_reports_sample  ON lab_reports(sample_id);
+CREATE INDEX IF NOT EXISTS idx_lab_reports_barcode ON lab_reports(barcode);
+
+CREATE TABLE IF NOT EXISTS report_fetch_jobs (
+    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sample_id UUID REFERENCES samples(id) ON DELETE CASCADE,
+    barcode TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'abandoned')),
+    scheduled_for TIMESTAMPTZ,
+    attempts   INT DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_jobs_status ON report_fetch_jobs(status, scheduled_for);
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -509,7 +553,7 @@ DECLARE
         'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
         'family_members', 'booking_subjects', 'booking_tests',
         'sample_batches', 'sample_tests', 'service_area_requests',
-        'phlebotomist_roster'
+        'phlebotomist_roster', 'lab_reports', 'report_fetch_jobs'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP

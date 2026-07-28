@@ -66,3 +66,27 @@ def test_batches_are_created_and_sealable():
     assert "CREATE TABLE IF NOT EXISTS sample_tests" in sql
     for status in ("'open'", "'sealed'", "'sent_to_lab'", "'acknowledged'"):
         assert status in sql, status
+
+
+def test_report_tables_exist_for_the_future_task():
+    sql = _sql()
+    assert "CREATE TABLE IF NOT EXISTS lab_reports" in sql
+    assert "CREATE TABLE IF NOT EXISTS report_fetch_jobs" in sql
+    for status in ("'pending'", "'fetching'", "'ready'", "'failed'", "'manual'"):
+        assert status in sql, status
+
+
+def test_the_barcode_is_the_lookup_key_the_future_agent_will_use():
+    sql = _sql()
+    assert "barcode TEXT NOT NULL" in sql   # on report_fetch_jobs
+
+
+def test_no_automation_is_implemented_in_this_task():
+    """Tables only. The MocDoc agent is a later task and must not appear here."""
+    from pathlib import Path
+    backend = Path(__file__).resolve().parents[1] / "app"
+    hits = [
+        p for p in backend.rglob("*.py")
+        if "mocdoc" in p.read_text(encoding="utf-8", errors="ignore").lower()
+    ]
+    assert hits == [], f"MocDoc automation leaked into: {hits}"
