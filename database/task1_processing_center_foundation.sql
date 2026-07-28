@@ -1,0 +1,576 @@
+-- ============================================================================
+-- CallMedex Task 1 — Processing Center Foundation
+--
+-- Spec: docs/superpowers/specs/2026-07-28-processing-center-foundation-design.md
+--
+-- The Processing Center is the operational layer between phlebotomists and
+-- partner laboratories. The patient books from CallMedex and never sees a
+-- centre, a laboratory or a diagnostic centre anywhere in this flow.
+--
+-- Idempotent — safe to re-run. Every new table gets an explicit deny-all
+-- policy (lint 0008): the FastAPI backend uses the service key and bypasses
+-- RLS.
+-- ============================================================================
+
+BEGIN;
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 1. PROCESSING CENTRES
+--    Created only by a CallMedex admin. There is deliberately no signup route,
+--    no MOU flow and no verification pipeline entry for a centre.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS processing_centers (
+    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code        TEXT NOT NULL UNIQUE,              -- 'HYD-01', 'VSP-01'
+    name        TEXT NOT NULL,
+    city        TEXT NOT NULL,
+    address     TEXT DEFAULT '',
+    pincode     TEXT DEFAULT '',
+    state       TEXT DEFAULT '',
+    lat         DOUBLE PRECISION,
+    lng         DOUBLE PRECISION,
+
+    -- Internal only. Must never appear in a patient-facing payload.
+    partner_lab_name      TEXT DEFAULT '',
+    partner_lab_reference TEXT DEFAULT '',
+
+    daily_capacity INT DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'onboarding'
+        CHECK (status IN ('onboarding', 'active', 'paused', 'closed')),
+
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pc_city   ON processing_centers(city) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_pc_status ON processing_centers(status);
+
+-- Several people work at HYD-01, so the custody actor is the person, not the
+-- centre. One shared login would make the chain of custody meaningless.
+CREATE TABLE IF NOT EXISTS processing_center_staff (
+    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    user_id              UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    pc_role              TEXT NOT NULL CHECK (pc_role IN ('admin', 'technician')),
+    is_active            BOOLEAN DEFAULT true,
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (processing_center_id, user_id)
+);
+
+-- Granting PC access overwrites users.role to 'processing_center'. Without
+-- remembering what it replaced, removing access has no way back — the user
+-- is 403'd out of /api/pc/* AND out of whatever role they held before.
+ALTER TABLE processing_center_staff ADD COLUMN IF NOT EXISTS prior_role TEXT DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_pc_staff_user ON processing_center_staff(user_id) WHERE is_active;
+
+-- Serviceable areas. Today one city row per centre reproduces the
+-- "one PC per city" rollout; adding HYD-02 later is a row, not a code change.
+CREATE TABLE IF NOT EXISTS processing_center_areas (
+    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    city      TEXT,                    -- normalised, lowercase
+    pincode   TEXT,                    -- when set, the strongest match
+    radius_km NUMERIC(6,2),            -- geo fallback around the centre
+    priority  INT NOT NULL DEFAULT 100,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS idx_pc_areas_pincode ON processing_center_areas(pincode) WHERE is_active;
+CREATE INDEX IF NOT EXISTS idx_pc_areas_city    ON processing_center_areas(city)    WHERE is_active;
+
+-- Without this, 'Vizag' / 'Visakhapatnam' / 'VISAKHAPATNAM' silently fail to
+-- resolve and the patient is told their city is unserviced.
+CREATE TABLE IF NOT EXISTS city_aliases (
+    alias          TEXT PRIMARY KEY,
+    canonical_city TEXT NOT NULL
+);
+
+INSERT INTO city_aliases (alias, canonical_city) VALUES
+ ('vizag',            'visakhapatnam'),
+ ('visakhapatnam',    'visakhapatnam'),
+ ('vishakhapatnam',   'visakhapatnam'),
+ ('hyd',              'hyderabad'),
+ ('hyderabad',        'hyderabad'),
+ ('secunderabad',     'hyderabad')
+ON CONFLICT (alias) DO NOTHING;
+
+-- Centres seed at 'onboarding' with no laboratory name. A real admin activates
+-- them and enters the real partner. Nothing here is pre-verified.
+INSERT INTO processing_centers (code, name, city, state, status)
+VALUES
+ ('HYD-01', 'Hyderabad Processing Centre 01',     'hyderabad',     'Telangana',      'onboarding'),
+ ('VSP-01', 'Visakhapatnam Processing Centre 01', 'visakhapatnam', 'Andhra Pradesh', 'onboarding')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO processing_center_areas (processing_center_id, city, priority)
+SELECT pc.id, pc.city, 100
+  FROM processing_centers pc
+ WHERE pc.code IN ('HYD-01', 'VSP-01')
+   AND NOT EXISTS (
+        SELECT 1 FROM processing_center_areas a
+         WHERE a.processing_center_id = pc.id AND a.city = pc.city
+   );
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 2. ROLE
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN ('patient','doctor','phlebotomist','organization','staff',
+                  'pharmacy','nurse','ambulance','admin','supervisor',
+                  'processing_center'));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 3. HOME-SERVICE CATALOG — owned by CallMedex, not by any centre
+--
+--    Two service families, deliberately kept apart:
+--      home services (here)   blood tests, ECG, vitals — CallMedex prices them,
+--                             a phlebotomist delivers them, the patient never
+--                             sees a provider.
+--      walk-in services       MRI, CT, X-ray — the diagnostic centre publishes
+--      (provider_services)    and prices them, and the patient picks a centre.
+--                             UNCHANGED by this migration.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS tube_types (
+    code              TEXT PRIMARY KEY,
+    name              TEXT NOT NULL,
+    cap_colour        TEXT DEFAULT '',
+    additive          TEXT DEFAULT '',
+    typical_volume_ml NUMERIC(5,2),
+    is_active         BOOLEAN DEFAULT true
+);
+
+INSERT INTO tube_types (code, name, cap_colour, additive, typical_volume_ml) VALUES
+ ('edta_lavender', 'EDTA (Lavender)',   'lavender', 'K2/K3 EDTA',     3.0),
+ ('sst_gold',      'SST (Gold)',        'gold',     'Clot activator + gel', 5.0),
+ ('citrate_blue',  'Citrate (Blue)',    'blue',     'Sodium citrate', 2.7),
+ ('fluoride_grey', 'Fluoride (Grey)',   'grey',     'Sodium fluoride', 2.0),
+ ('plain_red',     'Plain (Red)',       'red',      'None',           5.0)
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS home_services (
+    id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    -- Reuses the existing synonym dictionary so "Haemogram" still finds CBC.
+    catalog_id   UUID REFERENCES service_catalog(id) ON DELETE SET NULL,
+    code         TEXT NOT NULL UNIQUE,
+    service_kind TEXT NOT NULL DEFAULT 'blood_test'
+        CHECK (service_kind IN ('blood_test', 'ecg', 'vitals')),
+    name        TEXT NOT NULL,
+    category    TEXT NOT NULL DEFAULT 'blood_test',
+    description TEXT DEFAULT '',
+
+    base_price                NUMERIC(10,2) NOT NULL,
+    urgent_surcharge_override NUMERIC(10,2),   -- NULL => platform_settings knob
+
+    home_collection_available BOOLEAN DEFAULT true,
+    fasting_required          BOOLEAN DEFAULT false,
+    fasting_hours             INT DEFAULT 0,
+    preparation_instructions  TEXT DEFAULT '',
+    estimated_report_hours    INT,
+
+    is_active  BOOLEAN DEFAULT true,           -- the enable/disable switch
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_home_services_active ON home_services(service_kind) WHERE is_active;
+
+CREATE TABLE IF NOT EXISTS home_service_tubes (
+    home_service_id UUID NOT NULL REFERENCES home_services(id) ON DELETE CASCADE,
+    tube_type_code  TEXT NOT NULL REFERENCES tube_types(code),
+    volume_ml       NUMERIC(5,2),
+    PRIMARY KEY (home_service_id, tube_type_code)
+);
+
+CREATE TABLE IF NOT EXISTS home_service_city_pricing (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    home_service_id UUID NOT NULL REFERENCES home_services(id) ON DELETE CASCADE,
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    price      NUMERIC(10,2) NOT NULL,
+    is_active  BOOLEAN DEFAULT true,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (home_service_id, processing_center_id)
+);
+
+-- ESR and CRP are not yet in service_catalog; add them so every home service
+-- has a synonym entry to search against.
+INSERT INTO service_catalog (name, slug, category, synonyms, home_collection_possible, typical_turnaround_hours) VALUES
+ ('ESR', 'esr', 'lab_test', ARRAY['Erythrocyte Sedimentation Rate','Sed Rate'], true, 6),
+ ('CRP', 'crp', 'lab_test', ARRAY['C-Reactive Protein','C Reactive Protein'],   true, 6)
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO home_services
+    (catalog_id, code, service_kind, name, category, base_price,
+     fasting_required, fasting_hours, preparation_instructions, estimated_report_hours)
+SELECT sc.id, v.code, 'blood_test', v.name, 'blood_test', v.price,
+       v.fasting, v.fasting_hours, v.prep, v.tat
+  FROM (VALUES
+    ('CBC',     'cbc',             'Complete Blood Count', 350.00, false,  0, '', 6),
+    ('LFT',     'lft',             'Liver Function Test',  650.00, true,   8, 'Fast for 8 hours. Water is allowed.', 8),
+    ('KFT',     'kft',             'Kidney Function Test', 650.00, true,   8, 'Fast for 8 hours. Water is allowed.', 8),
+    ('LIPID',   'lipid-profile',   'Lipid Profile',        600.00, true,  12, 'Fast for 12 hours. Water is allowed.', 8),
+    ('HBA1C',   'hba1c',           'HbA1c',                500.00, false,  0, '', 6),
+    ('THYROID', 'thyroid-profile', 'Thyroid Profile',      550.00, false,  0, 'Take the sample before any thyroid medication.', 12),
+    ('VITD',    'vitamin-d',       'Vitamin D',            1200.00, false, 0, '', 24),
+    ('VITB12',  'vitamin-b12',     'Vitamin B12',          1100.00, false, 0, '', 24),
+    ('ESR',     'esr',             'ESR',                  200.00, false,  0, '', 6),
+    ('CRP',     'crp',             'CRP',                  450.00, false,  0, '', 6)
+  ) AS v(code, slug, name, price, fasting, fasting_hours, prep, tat)
+  LEFT JOIN service_catalog sc ON sc.slug = v.slug
+ WHERE NOT EXISTS (SELECT 1 FROM home_services hs WHERE hs.code = v.code);
+
+INSERT INTO home_service_tubes (home_service_id, tube_type_code, volume_ml)
+SELECT hs.id, v.tube, v.vol
+  FROM (VALUES
+    ('CBC',     'edta_lavender', 3.0),
+    ('ESR',     'citrate_blue',  2.7),
+    ('HBA1C',   'edta_lavender', 3.0),
+    ('LFT',     'sst_gold',      5.0),
+    ('KFT',     'sst_gold',      5.0),
+    ('LIPID',   'sst_gold',      5.0),
+    ('THYROID', 'sst_gold',      5.0),
+    ('VITD',    'sst_gold',      5.0),
+    ('VITB12',  'sst_gold',      5.0),
+    ('CRP',     'sst_gold',      5.0)
+  ) AS v(code, tube, vol)
+  JOIN home_services hs ON hs.code = v.code
+ WHERE NOT EXISTS (
+    SELECT 1 FROM home_service_tubes t
+     WHERE t.home_service_id = hs.id AND t.tube_type_code = v.tube
+ );
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 4. FAMILY MEMBERS, BOOKING SUBJECTS AND TEST LINES
+--    "Separate barcode, separate sample, separate report" per person falls out
+--    of the schema once every subject — including the account holder — is a
+--    family_members row.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS family_members (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    full_name       TEXT NOT NULL,
+    relationship    TEXT DEFAULT '',
+    gender          TEXT DEFAULT '',
+    date_of_birth   DATE,
+    mobile          TEXT DEFAULT '',
+    abha_number     TEXT DEFAULT '',        -- future per-member ABHA linkage
+    is_self         BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_members_account ON family_members(account_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_family_members_self
+    ON family_members(account_user_id) WHERE is_self;
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_kind TEXT DEFAULT 'legacy';
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_booking_kind_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_booking_kind_check
+    CHECK (booking_kind IN ('legacy', 'home_collection', 'walk_in'));
+
+CREATE INDEX IF NOT EXISTS idx_bookings_pc ON bookings(processing_center_id, status);
+
+CREATE TABLE IF NOT EXISTS booking_subjects (
+    id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id       UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    family_member_id UUID NOT NULL REFERENCES family_members(id),
+    UNIQUE (booking_id, family_member_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_subjects_booking ON booking_subjects(booking_id);
+
+CREATE TABLE IF NOT EXISTS booking_tests (
+    id                 UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id         UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    booking_subject_id UUID NOT NULL REFERENCES booking_subjects(id) ON DELETE CASCADE,
+    home_service_id    UUID NOT NULL REFERENCES home_services(id),
+    price_charged      NUMERIC(10,2) NOT NULL,
+    urgent_surcharge   NUMERIC(10,2) DEFAULT 0.00,
+    source TEXT NOT NULL DEFAULT 'booking'
+        CHECK (source IN ('booking', 'doorstep_addon')),
+    added_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    added_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (booking_subject_id, home_service_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_tests_subject ON booking_tests(booking_subject_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 5. SAMPLE LIFECYCLE — extended in place so the existing phlebo wallet payout
+--    (uq_wallet_tx_sample_reason) and tracking endpoints keep working.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- The centre -> laboratory leg. Created before the samples ALTER that
+-- references it.
+CREATE TABLE IF NOT EXISTS sample_batches (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    batch_code TEXT NOT NULL UNIQUE,           -- 'HYD-01/2026-07-28/001'
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    laboratory_name   TEXT DEFAULT '',         -- internal only
+    laboratory_org_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'sealed', 'sent_to_lab', 'acknowledged', 'cancelled')),
+    sample_count INT DEFAULT 0,
+    created_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    sealed_at    TIMESTAMPTZ,
+    sent_at      TIMESTAMPTZ,
+    sent_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    courier_reference TEXT DEFAULT '',
+    notes        TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_batches_centre ON sample_batches(processing_center_id, status);
+
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS booking_subject_id UUID
+    REFERENCES booking_subjects(id) ON DELETE CASCADE;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS tube_type_code TEXT
+    REFERENCES tube_types(code);
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS expected_tube_type_code TEXT
+    REFERENCES tube_types(code);
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS tube_mismatch_ack BOOLEAN DEFAULT false;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS batch_id UUID
+    REFERENCES sample_batches(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verified_by UUID
+    REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verification JSONB DEFAULT '{}';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS rejection_code TEXT;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS sent_to_lab_at TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS lab_reference TEXT DEFAULT '';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS report_status TEXT DEFAULT 'pending';
+
+-- A sample row is created at BOOKING time with its expected tube type, so the
+-- centre knows tomorrow's tube count before anything is collected. The barcode
+-- is bound when the phlebo scans a physical pre-printed sticker.
+ALTER TABLE samples ALTER COLUMN barcode DROP NOT NULL;
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_barcode_key;
+DROP INDEX IF EXISTS uq_samples_barcode;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_samples_barcode
+    ON samples(barcode) WHERE barcode IS NOT NULL;
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_status_check;
+ALTER TABLE samples ADD CONSTRAINT samples_status_check CHECK (status IN (
+    'pending_collection', 'collected', 'in_transit', 'received',
+    'verified', 'rejected', 'batched', 'sent_to_lab',
+    -- reserved for the future report-automation task
+    'report_pending', 'report_ready',
+    -- retained so pre-existing rows stay valid
+    'handover_requested', 'processing'
+));
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_rejection_code_check;
+ALTER TABLE samples ADD CONSTRAINT samples_rejection_code_check CHECK (
+    rejection_code IS NULL OR rejection_code IN (
+        'wrong_tube', 'barcode_missing', 'label_missing', 'broken_tube',
+        'leaking_tube', 'hemolyzed', 'insufficient_sample', 'other'
+    )
+);
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_report_status_check;
+ALTER TABLE samples ADD CONSTRAINT samples_report_status_check
+    CHECK (report_status IN ('pending', 'fetching', 'ready', 'failed', 'manual'));
+
+CREATE INDEX IF NOT EXISTS idx_samples_centre_status ON samples(processing_center_id, status);
+CREATE INDEX IF NOT EXISTS idx_samples_batch         ON samples(batch_id);
+
+-- Which ordered tests ride on which physical tube.
+CREATE TABLE IF NOT EXISTS sample_tests (
+    sample_id       UUID NOT NULL REFERENCES samples(id) ON DELETE CASCADE,
+    booking_test_id UUID NOT NULL REFERENCES booking_tests(id) ON DELETE CASCADE,
+    PRIMARY KEY (sample_id, booking_test_id)
+);
+
+-- ─── Chain of custody ────────────────────────────────────────────────────
+-- Append-only. No endpoint updates or deletes a row here.
+ALTER TABLE sample_events DROP CONSTRAINT IF EXISTS sample_events_event_check;
+ALTER TABLE sample_events ADD CONSTRAINT sample_events_event_check CHECK (event IN (
+    'registered', 'assigned', 'collected', 'barcode_bound', 'scanned_transit',
+    'in_transit', 'handover_requested', 'received', 'verified', 'rejected',
+    'batched', 'sent_to_lab',
+    -- retained for pre-existing rows
+    'processing_started', 'report_uploaded'
+));
+
+ALTER TABLE sample_events ADD COLUMN IF NOT EXISTS location_label TEXT DEFAULT '';
+ALTER TABLE sample_events ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+
+-- The inbound phlebo -> centre manifest. Kept separate from sample_batches
+-- because the two legs carry different fields: GPS and OTP inbound, courier
+-- reference outbound.
+ALTER TABLE sample_handovers ADD COLUMN IF NOT EXISTS destination_processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_handovers_pc
+    ON sample_handovers(destination_processing_center_id, status);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 6. COVERAGE DEMAND CAPTURE
+--    A patient in an unserviced city is refused BEFORE payment. Capturing the
+--    ask turns a refusal into the demand list that decides the next city — and
+--    the second centre in an existing one.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS service_area_requests (
+    id      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,   -- guests may ask
+    mobile  TEXT NOT NULL,
+    city    TEXT DEFAULT '',
+    pincode TEXT DEFAULT '',
+    lat     DOUBLE PRECISION,
+    lng     DOUBLE PRECISION,
+    requested_service_ids UUID[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_area_requests_city
+    ON service_area_requests(city, created_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. PHLEBOTOMIST <-> CENTRE BINDING AND ADVANCE ROSTERING
+--    Tomorrow's slots are assigned this evening, so live GPS is meaningless
+--    and assignment anchors on the phlebo's base location.
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_lat DOUBLE PRECISION;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_lng DOUBLE PRECISION;
+ALTER TABLE phlebotomists ADD COLUMN IF NOT EXISTS base_pincode TEXT DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_phlebotomists_pc ON phlebotomists(processing_center_id);
+
+CREATE TABLE IF NOT EXISTS phlebotomist_roster (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    phlebotomist_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    roster_date DATE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'available'
+        CHECK (status IN ('available', 'unavailable', 'leave')),
+    max_jobs   INT DEFAULT 0,                 -- 0 = centre default
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (phlebotomist_user_id, roster_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_roster_centre_date
+    ON phlebotomist_roster(processing_center_id, roster_date);
+
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS assignment_mode TEXT DEFAULT 'realtime';
+ALTER TABLE dispatch_requests DROP CONSTRAINT IF EXISTS dispatch_requests_assignment_mode_check;
+ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_assignment_mode_check
+    CHECK (assignment_mode IN ('advance', 'realtime', 'urgent'));
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS scheduled_for DATE;
+ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS declined_by UUID[] DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS idx_dispatch_scheduled
+    ON dispatch_requests(scheduled_for, assignment_mode);
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_date DATE;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_city TEXT DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_pincode TEXT DEFAULT '';
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_lat DOUBLE PRECISION;
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS collection_lng DOUBLE PRECISION;
+
+INSERT INTO platform_settings (key, value, description) VALUES
+ ('roster_cutoff',
+  '{"time":"18:00","timezone":"Asia/Kolkata"}',
+  'Evening cutoff at which the next day''s bookings are assigned to phlebotomists.')
+ON CONFLICT (key) DO NOTHING;
+
+-- dispatch_requests_status_check pre-exists (see database/complete_supabase_schema.sql)
+-- with values: searching, provider_notified, provider_accepted, en_route, arrived,
+-- in_progress, samples_delivered_to_lab, completed, cancelled, no_provider.
+-- Every one of those is retained below — only 'needs_manual_assignment' is new,
+-- for an advance job that every roster candidate has declined.
+ALTER TABLE dispatch_requests DROP CONSTRAINT IF EXISTS dispatch_requests_status_check;
+ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_status_check
+    CHECK (status IN (
+        'searching', 'provider_notified', 'provider_accepted', 'en_route',
+        'arrived', 'in_progress', 'samples_delivered_to_lab', 'completed',
+        'cancelled', 'no_provider', 'needs_manual_assignment'
+    ));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 8. FUTURE REPORT AUTOMATION — TABLES ONLY
+--
+--    This task ends when a verified sample is handed to the laboratory. The
+--    browser agent that logs into MocDoc, searches by barcode and uploads the
+--    PDF is a LATER task. These tables and samples.report_status exist so it
+--    can be added without redesigning the workflow.
+--
+--    NOTHING here is implemented in this task. No worker, no endpoint.
+-- ═══════════════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS lab_reports (
+    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sample_id UUID REFERENCES samples(id) ON DELETE CASCADE,
+    booking_subject_id UUID REFERENCES booking_subjects(id) ON DELETE SET NULL,
+    barcode   TEXT,
+    source    TEXT DEFAULT 'mocdoc_automation',
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'fetching', 'ready', 'failed', 'manual')),
+    file_url   TEXT DEFAULT '',
+    fetched_at TIMESTAMPTZ,
+    attempts   INT DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lab_reports_sample  ON lab_reports(sample_id);
+CREATE INDEX IF NOT EXISTS idx_lab_reports_barcode ON lab_reports(barcode);
+
+CREATE TABLE IF NOT EXISTS report_fetch_jobs (
+    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sample_id UUID REFERENCES samples(id) ON DELETE CASCADE,
+    barcode TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued'
+        CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'abandoned')),
+    scheduled_for TIMESTAMPTZ,
+    attempts   INT DEFAULT 0,
+    last_error TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_jobs_status ON report_fetch_jobs(status, scheduled_for);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 99. RLS — deny-all by default (lint 0008)
+--     This block is appended to as later sections add tables.
+-- ═══════════════════════════════════════════════════════════════════════════
+DO $$
+DECLARE
+    t TEXT;
+    new_tables TEXT[] := ARRAY[
+        'processing_centers', 'processing_center_staff',
+        'processing_center_areas', 'city_aliases',
+        'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
+        'family_members', 'booking_subjects', 'booking_tests',
+        'sample_batches', 'sample_tests', 'service_area_requests',
+        'phlebotomist_roster', 'lab_reports', 'report_fetch_jobs'
+    ];
+BEGIN
+    FOREACH t IN ARRAY new_tables LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Deny all access" ON public.%I', t);
+        EXECUTE format(
+            'CREATE POLICY "Deny all access" ON public.%I '
+            'FOR ALL TO public USING (false) WITH CHECK (false)', t);
+    END LOOP;
+END;
+$$;
+
+COMMIT;
+
+NOTIFY pgrst, 'reload schema';

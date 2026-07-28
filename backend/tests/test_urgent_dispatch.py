@@ -265,3 +265,131 @@ def test_email_states_the_real_window(monkeypatch):
     )
     assert "10 minutes" in captured["html"]
     assert "5 minutes" not in captured["html"]
+
+
+# ── Centre-bound home collection ─────────────────────────────────────────────
+
+def _seed_phlebo_at_centre(fake, lat, lng, centre_id, name="Phlebo"):
+    uid = _seed_provider(fake, lat, lng, ptype="phlebotomist", name=name)
+    fake.db.setdefault("phlebotomists", []).append({
+        "user_id": uid, "processing_center_id": centre_id,
+        "base_lat": lat, "base_lng": lng,
+    })
+    return uid
+
+
+@pytest.mark.asyncio
+async def test_a_phlebo_of_another_centre_is_never_a_candidate(fake_db):
+    """They could not submit the tube afterwards, however close they are."""
+    mine, theirs = "centre-a", "centre-b"
+    _seed_phlebo_at_centre(fake_db, 17.3850, 78.4870, theirs, "Wrong centre")
+    ours = _seed_phlebo_at_centre(fake_db, 17.3900, 78.4900, mine, "Right centre")
+
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist", processing_center_id=mine)
+    assert [c["user_id"] for c in found] == [ours]
+
+
+@pytest.mark.asyncio
+async def test_urgent_ignores_the_distance_cap_within_the_centre(fake_db):
+    centre = "centre-a"
+    far = _seed_phlebo_at_centre(fake_db, 17.9000, 78.9000, centre, "Far but ours")
+
+    normal = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist", processing_center_id=centre)
+    urgent = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist",
+        processing_center_id=centre, ignore_radius=True)
+
+    assert [c["user_id"] for c in normal] == []
+    assert [c["user_id"] for c in urgent] == [far]
+
+
+@pytest.mark.asyncio
+async def test_urgent_still_never_crosses_a_centre_boundary(fake_db):
+    """'All of them' is centre-scoped: a Hyderabad phlebo cannot serve Vizag."""
+    _seed_phlebo_at_centre(fake_db, 17.3850, 78.4870, "centre-b", "Other centre")
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "phlebotomist",
+        processing_center_id="centre-a", ignore_radius=True)
+    assert found == []
+
+
+@pytest.mark.asyncio
+async def test_the_centre_filter_is_opt_in_so_other_provider_types_are_unaffected(fake_db):
+    """Nurses, doctors and ambulances keep today's behaviour exactly."""
+    uid = _seed_provider(fake_db, 17.3850, 78.4870, ptype="nurse", name="Nurse")
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "nurse")
+    assert [c["user_id"] for c in found] == [uid]
+
+
+# ── Uncapped urgent centre-wide fan-out (Finding 1, review round 1) ─────────
+
+@pytest.mark.asyncio
+async def test_urgent_home_collection_notifies_every_phlebo_not_just_the_cap(fake_db):
+    """A surge with >URGENT_MAX_OFFERS on-duty phlebos must reach ALL of them.
+
+    All 15 are seeded well beyond the default 10 km radius, so only the
+    centre-wide, radius-ignoring, uncapped fan-out finds them.
+    """
+    centre = "centre-a"
+    ids = [
+        _seed_phlebo_at_centre(fake_db, 17.90 + i * 0.01, 78.90 + i * 0.01,
+                                centre, f"Phlebo {i}")
+        for i in range(15)
+    ]
+    assert len(ids) > URGENT_MAX_OFFERS
+
+    result = await UniversalDispatchEngine.create_dispatch(
+        patient_id=str(uuid.uuid4()), patient_lat=17.3851, patient_lng=78.4871,
+        patient_address="Test", provider_type="phlebotomist",
+        search_radius_km=10.0, processing_center_id=centre, priority="urgent",
+    )
+
+    assert result["all_candidates"] == 15
+
+
+# ── create_dispatch wiring coverage (Finding 2, review round 1) ─────────────
+
+@pytest.mark.asyncio
+async def test_create_dispatch_urgent_home_collection_uses_centre_fanout_not_the_multiplier(fake_db):
+    """The wiring, not just the primitive: urgent phlebo + centre must ignore
+    radius and leave search_radius_km unmultiplied, reaching a phlebo far
+    beyond even the doubled radius.
+    """
+    centre = "centre-a"
+    # ~70 km away — well past both the 10 km base radius and the 20 km
+    # doubled radius, so only ignore_radius=True can find it.
+    far = _seed_phlebo_at_centre(fake_db, 17.9000, 78.9000, centre, "Far but ours")
+
+    result = await UniversalDispatchEngine.create_dispatch(
+        patient_id=str(uuid.uuid4()), patient_lat=17.3851, patient_lng=78.4871,
+        patient_address="Test", provider_type="phlebotomist",
+        search_radius_km=10.0, processing_center_id=centre, priority="urgent",
+    )
+
+    assert result["all_candidates"] == 1
+    row = fake_db.db["dispatch_requests"][-1]
+    # Not doubled: the centre-wide fan-out relies on ignoring the radius cap
+    # entirely, not on a bigger radius.
+    assert row["search_radius_km"] == 10.0
+    assert far  # the seeded far phlebo is the one that had to be reached
+
+
+@pytest.mark.asyncio
+async def test_create_dispatch_urgent_nurse_still_uses_the_radius_multiplier(fake_db):
+    """Negative case: non-home-collection urgent dispatch is untouched."""
+    near = _seed_provider(fake_db, 17.71, 83.31, name="Near nurse")   # ~1.4 km
+    far = _seed_provider(fake_db, 17.82, 83.42, name="Far nurse")     # ~16 km
+
+    result = await UniversalDispatchEngine.create_dispatch(
+        patient_id=str(uuid.uuid4()), patient_lat=17.70, patient_lng=83.30,
+        patient_address="Test", provider_type="nurse",
+        search_radius_km=10.0, priority="urgent",
+    )
+
+    assert result["all_candidates"] == 2  # doubled radius reaches the far one
+    row = fake_db.db["dispatch_requests"][-1]
+    assert row["search_radius_km"] == 10.0 * URGENT_RADIUS_MULTIPLIER
+    assert near and far

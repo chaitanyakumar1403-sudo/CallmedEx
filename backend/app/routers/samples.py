@@ -33,6 +33,25 @@ router = APIRouter(prefix="/api/samples", tags=["Samples"])
 COLLECTOR_ROLES = {"phlebotomist", "nurse", "admin"}
 CENTRE_ROLES = {"organization", "staff", "admin"}
 
+# Never widen these. /track is shared by the patient, the collecting
+# phlebotomist, the destination centre and admins (see track_sample's
+# docstring) — but only the PATIENT gets filtered through this allowlist.
+# `samples` and `sample_events` both gained processing-centre/laboratory
+# columns (processing_center_id, batch_id, lab_reference, location_label) that
+# must never reach a patient's browser.
+PATIENT_SAMPLE_FIELDS = (
+    "id", "barcode", "booking_id", "dispatch_request_id", "patient_id",
+    "phlebotomist_user_id", "sample_type", "container_type", "test_names",
+    "status", "collected_at", "collection_photo_url",
+    "received_at", "rejection_reason", "report_url", "report_uploaded_at",
+    "notes", "created_at", "updated_at",
+)
+
+PATIENT_SAMPLE_EVENT_FIELDS = (
+    "id", "sample_id", "event", "actor_role", "photo_url", "notes",
+    "created_at",
+)
+
 
 # ─── Request models ───────────────────────────────────────────────────────
 
@@ -306,5 +325,13 @@ async def track_sample(
     }
     if role != "admin" and uid not in permitted:
         raise HTTPException(403, "You do not have access to this sample")
+
+    if role == "patient":
+        events = trail.get("events", [])
+        trail = {k: trail[k] for k in PATIENT_SAMPLE_FIELDS if k in trail}
+        trail["events"] = [
+            {k: e[k] for k in PATIENT_SAMPLE_EVENT_FIELDS if k in e}
+            for e in events
+        ]
 
     return {"success": True, "sample": trail}

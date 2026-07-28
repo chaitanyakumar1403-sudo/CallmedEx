@@ -9,7 +9,7 @@ Supports: provider matching, offer rotation, live tracking, and ETA calculation.
 import uuid
 import math
 from datetime import datetime, timezone, timedelta
-from typing import List
+from typing import List, Optional
 import logging
 from app.config import settings
 from app.database import supabase
@@ -119,15 +119,29 @@ class UniversalDispatchEngine:
         patient_lng: float,
         provider_type: str,
         radius_km: float = 10.0,
-        limit: int = 5,
+        limit: Optional[int] = 5,
         exclude_ids: List[str] = None,
+        processing_center_id: Optional[str] = None,
+        ignore_radius: bool = False,
     ) -> list:
         """
         Find online providers of the specified type within radius.
         Ranked by: distance → (future: rating → acceptance_rate → load).
-        
+
         Uses provider_locations table for a unified provider location store.
         Falls back to legacy role-specific tables if provider_locations is empty.
+
+        `processing_center_id` and `ignore_radius` are opt-in and only meaningful
+        for home collection (phlebotomist) dispatch: a phlebotomist may only be
+        offered work for their own processing centre, because they physically
+        could not submit the tubes anywhere else afterwards. When
+        `processing_center_id` is omitted (every existing caller), behaviour is
+        unchanged.
+
+        `limit` defaults to 5 for every existing caller. Passing `limit=None`
+        removes the cap entirely — used for urgent centre-wide home-collection
+        fan-out, where every on-duty phlebotomist of the centre must be
+        notified, not just the first N.
         """
         if provider_type not in VALID_PROVIDER_TYPES:
             logger.warning(f"Invalid provider type: {provider_type}")
@@ -159,11 +173,28 @@ class UniversalDispatchEngine:
                 provider_type, patient_lat, patient_lng
             )
 
+        # Home collection is centre-bound: a phlebo may only be offered work
+        # they could actually submit afterwards. Other provider types are
+        # unaffected — the filter only engages when a centre is supplied.
+        centre_members = None
+        if processing_center_id:
+            binding = supabase.table("phlebotomists") \
+                .select("user_id") \
+                .eq("processing_center_id", processing_center_id) \
+                .execute()
+            centre_members = {
+                r["user_id"] for r in (getattr(binding, "data", None) or [])
+                if isinstance(r, dict) and r.get("user_id")
+            }
+
         # Calculate distances and filter
         candidates = []
         for p in providers:
             user_id = p.get("user_id") or p.get("users", {}).get("id", "")
             if user_id in exclude_ids:
+                continue
+
+            if centre_members is not None and user_id not in centre_members:
                 continue
 
             p_lat = p.get("current_lat")
@@ -174,7 +205,7 @@ class UniversalDispatchEngine:
             dist = UniversalDispatchEngine.haversine_km(
                 patient_lat, patient_lng, float(p_lat), float(p_lng)
             )
-            if dist <= radius_km:
+            if ignore_radius or dist <= radius_km:
                 user_data = p.get("users", {})
                 candidates.append({
                     "user_id": user_id,
@@ -248,6 +279,7 @@ class UniversalDispatchEngine:
         booking_id: str = None,
         address_details: dict = None,
         search_radius_km: float = 10.0,
+        processing_center_id: str = None,
         priority: str = "normal",
     ) -> dict:
         """
@@ -256,20 +288,46 @@ class UniversalDispatchEngine:
         Urgent requests widen the search radius and notify more providers in
         parallel. They do NOT shorten the individual accept window, which is a
         contractual term in the provider MOUs.
+
+        Home collection (phlebotomist, with a processing_center_id) is
+        centre-bound, so an urgent request fans out to EVERY on-duty
+        phlebotomist of that centre instead of merely doubling the radius —
+        widening a radius is the wrong lever when the real constraint is the
+        centre, not the distance. That fan-out is uncapped (no URGENT_MAX_OFFERS
+        ceiling): during a surge, every candidate must actually be notified,
+        not just the first 12.
         """
         dispatch_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         urgent = priority == "urgent"
 
+        # Urgent home collection fans out to EVERY on-duty phlebo of the
+        # booking's centre. Widening the radius is not enough when the
+        # constraint is the centre, not the distance.
+        home_collection = provider_type == "phlebotomist" and processing_center_id
+        urgent_home_collection = bool(urgent and home_collection)
+        ignore_radius = urgent_home_collection
         effective_radius = (
-            search_radius_km * URGENT_RADIUS_MULTIPLIER if urgent else search_radius_km
+            search_radius_km * URGENT_RADIUS_MULTIPLIER
+            if urgent and not home_collection
+            else search_radius_km
         )
-        max_offers = URGENT_MAX_OFFERS if urgent else NORMAL_MAX_OFFERS
+        # Urgent home collection must reach every on-duty phlebo of the centre,
+        # not just the first URGENT_MAX_OFFERS of them — a surge is exactly
+        # the scenario where the cap would silently drop candidates. Every
+        # other path (including non-urgent home collection) keeps its cap.
+        max_offers = (
+            None if urgent_home_collection
+            else URGENT_MAX_OFFERS if urgent
+            else NORMAL_MAX_OFFERS
+        )
 
         # Find candidates
         candidates = await UniversalDispatchEngine.find_nearby_providers(
             patient_lat, patient_lng, provider_type,
             radius_km=effective_radius, limit=max_offers,
+            processing_center_id=processing_center_id,
+            ignore_radius=ignore_radius,
         )
 
         assigned_provider = None
