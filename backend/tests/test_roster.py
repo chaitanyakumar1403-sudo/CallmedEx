@@ -37,10 +37,11 @@ def _phlebo(fake, centre_id, lat, lng, available=True, date=DATE):
     return uid
 
 
-def _booking(fake, centre_id, lat, lng, date=DATE):
+def _booking(fake, centre_id, lat, lng, date=DATE, patient_id=None):
     bid = str(uuid.uuid4())
     fake.db.setdefault("bookings", []).append({
         "id": bid, "processing_center_id": centre_id,
+        "patient_id": patient_id or str(uuid.uuid4()),
         "booking_kind": "home_collection", "status": "confirmed",
         "collection_lat": lat, "collection_lng": lng,
         "collection_date": date, "priority": "normal",
@@ -196,6 +197,25 @@ def test_an_advance_request_with_no_scheduled_for_is_rejected_not_reassigned(db)
 
 def test_the_advance_radius_is_ten_kilometres(db):
     assert ADVANCE_RADIUS_KM == 10.0
+
+
+def test_the_inserted_dispatch_request_carries_patient_location_and_id(db):
+    """dispatch_requests.patient_lat/patient_lng are DOUBLE PRECISION NOT NULL
+    with no default against real Postgres (23502 otherwise). FakeSupabase
+    doesn't enforce that, so assert directly on what got inserted instead of
+    relying on an exception."""
+    centre = str(uuid.uuid4())
+    patient = str(uuid.uuid4())
+    _phlebo(db, centre, 17.385, 78.487)
+    booking_id = _booking(db, centre, 17.386, 78.488, patient_id=patient)
+
+    assigned = run_roster_pass(centre, DATE)
+    assert len(assigned) == 1
+
+    req = next(r for r in db.db["dispatch_requests"] if r["booking_id"] == booking_id)
+    assert req["patient_lat"] == 17.386
+    assert req["patient_lng"] == 78.488
+    assert req["patient_id"] == patient
 
 
 # ── Family members and roster HTTP endpoints (Task 12) ──────────────────────

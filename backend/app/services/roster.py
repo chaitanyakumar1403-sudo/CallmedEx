@@ -132,6 +132,7 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
         supabase.table("dispatch_requests").insert({
             "id": request_id,
             "booking_id": booking["id"],
+            "patient_id": booking.get("patient_id"),
             "provider_type": "phlebotomist",
             "assigned_provider_id": uid,
             "assignment_mode": "advance",
@@ -139,6 +140,13 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
             "status": "provider_accepted",
             "priority": booking.get("priority") or "normal",
             "declined_by": [],
+            # patient_lat/patient_lng are DOUBLE PRECISION NOT NULL with no
+            # default (database/complete_supabase_schema.sql:296-297) — every
+            # roster insert without them would raise 23502 against real
+            # Postgres. _unassigned_bookings already filters out bookings
+            # missing either, so these are always populated here.
+            "patient_lat": booking["collection_lat"],
+            "patient_lng": booking["collection_lng"],
         }).execute()
 
         load[uid] = load.get(uid, 0) + 1
