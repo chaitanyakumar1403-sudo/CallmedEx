@@ -23,9 +23,18 @@ def test_samples_gains_every_new_column():
 
 
 def test_barcode_becomes_nullable_with_a_partial_unique_index():
-    """A sample exists from booking time; the barcode is bound at scan."""
+    """A sample exists from booking time; the barcode is bound at scan.
+
+    The uniqueness must survive the change: two tubes sharing one barcode
+    means two patients' blood sharing an identity.
+    """
     sql = _sql()
     assert "ALTER COLUMN barcode DROP NOT NULL" in sql
+    # The old inline UNIQUE must go by its real Postgres-assigned name, or it
+    # silently survives and every NULL-barcode row after the first collides.
+    assert "DROP CONSTRAINT IF EXISTS samples_barcode_key" in sql
+    # Must stay UNIQUE — a plain CREATE INDEX would drop enforcement entirely.
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS uq_samples_barcode" in sql
     assert "WHERE barcode IS NOT NULL" in sql
 
 
