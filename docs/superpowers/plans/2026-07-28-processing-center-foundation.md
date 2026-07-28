@@ -125,8 +125,20 @@ def test_seed_invents_no_laboratory_and_no_verified_status():
     """Commits c5d0fb3 and 68ea5eb: never seed a fake verified facility."""
     sql = _sql()
     assert "'HYD-01'" in sql and "'VSP-01'" in sql
-    assert "'onboarding'" in sql
-    assert not re.search(r"partner_lab_name\s*\)?\s*VALUES[^;]*'[A-Za-z]", sql)
+
+    # Isolate the seed INSERT and assert on ITS column list and values, so this
+    # test can actually fail if someone adds a laboratory name later.
+    seed = re.search(
+        r"INSERT INTO processing_centers\s*\(([^)]*)\)\s*VALUES(.*?);",
+        sql, re.S)
+    assert seed, "processing_centers seed INSERT not found"
+    columns, values = seed.group(1), seed.group(2)
+
+    assert "partner_lab_name" not in columns, "seed must not name a laboratory"
+    assert "partner_lab_reference" not in columns
+    assert "'onboarding'" in values, "centres must seed as onboarding"
+    for forbidden in ("'active'", "'verified'"):
+        assert forbidden not in values, f"seed must not pre-{forbidden.strip(chr(39))}"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -3489,10 +3501,12 @@ async def test_an_unserviced_search_leaks_nothing_either(db):
 
 
 def test_the_patient_field_allowlist_excludes_every_internal_column():
+    """Match on name SEGMENTS, not substrings: 'available' contains 'lab'."""
     from app.routers.home_services import PATIENT_FIELDS
+    banned = {"center", "centre", "lab", "laboratory", "partner", "processing"}
     for field in PATIENT_FIELDS:
-        assert not any(bad in field for bad in
-                       ("center", "centre", "lab", "partner")), field
+        segments = set(field.split("_"))
+        assert not (segments & banned), f"{field} exposes {segments & banned}"
 
 
 def test_home_services_and_walk_in_services_are_different_tables():
