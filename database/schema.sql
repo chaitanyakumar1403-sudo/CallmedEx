@@ -15,7 +15,7 @@ CREATE TABLE users (
     email TEXT UNIQUE NOT NULL,
     mobile TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'phlebotomist', 'organization', 'staff', 'pharmacy', 'nurse', 'ambulance', 'admin', 'supervisor')),
+    role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'phlebotomist', 'organization', 'staff', 'pharmacy', 'nurse', 'ambulance', 'admin', 'supervisor', 'processing_center')),
 
     gender TEXT CHECK (gender IN ('male', 'female', 'other')),
     date_of_birth DATE,

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     mobile TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'phlebotomist', 'organization', 'staff', 'pharmacy', 'nurse', 'ambulance', 'admin', 'supervisor')),
+    role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'phlebotomist', 'organization', 'staff', 'pharmacy', 'nurse', 'ambulance', 'admin', 'supervisor', 'processing_center')),
     gender TEXT CHECK (gender IN ('male', 'female', 'other')),
     date_of_birth DATE,
     address TEXT DEFAULT '',
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('patient','doctor','phlebotomist','organization','staff','pharmacy','nurse','ambulance','admin','supervisor'));
+  CHECK (role IN ('patient','doctor','phlebotomist','organization','staff','pharmacy','nurse','ambulance','admin','supervisor','processing_center'));
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
