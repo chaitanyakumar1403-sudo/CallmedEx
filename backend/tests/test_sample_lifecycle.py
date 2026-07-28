@@ -125,6 +125,7 @@ class FakeQuery:
                     )
                     if dup:
                         raise Exception("duplicate key value violates unique constraint (23505)")
+                rec.setdefault("id", str(uuid.uuid4()))
                 rows.append(dict(rec))
             return FakeResult(records)
 

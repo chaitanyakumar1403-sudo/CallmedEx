@@ -391,3 +391,109 @@ def test_normalise_city_handles_none_and_blank_input(pc_db):
     assert normalise_city(None) == ""
     assert normalise_city("") == ""
     assert normalise_city("   ") == ""
+
+
+# ── Booking assignment ──────────────────────────────────────────────────────
+
+from app.services.processing_center import assign_booking
+
+
+def _seed_booking(fake, city="hyderabad", pincode="", lat=None, lng=None):
+    bid = str(uuid.uuid4())
+    fake.db.setdefault("bookings", []).append({
+        "id": bid, "patient_id": str(uuid.uuid4()), "provider_id": None,
+        "provider_type": "", "service_type": "lab_test", "status": "pending",
+        "booking_kind": "home_collection", "processing_center_id": None,
+        "collection_city": city, "collection_pincode": pincode,
+        "collection_lat": lat, "collection_lng": lng,
+    })
+    return bid
+
+
+def _seed_subject_with_tests(fake, booking_id, services):
+    """services: [(home_service_id, [tube_code, ...])]"""
+    sid = str(uuid.uuid4())
+    fake.db.setdefault("booking_subjects", []).append({
+        "id": sid, "booking_id": booking_id, "family_member_id": str(uuid.uuid4()),
+    })
+    for svc_id, tubes in services:
+        bt_id = str(uuid.uuid4())
+        fake.db.setdefault("booking_tests", []).append({
+            "id": bt_id, "booking_id": booking_id, "booking_subject_id": sid,
+            "home_service_id": svc_id, "price_charged": 100.0, "source": "booking",
+        })
+        for tube in tubes:
+            fake.db.setdefault("home_service_tubes", []).append({
+                "home_service_id": svc_id, "tube_type_code": tube, "volume_ml": 3.0,
+            })
+    return sid
+
+
+def test_assignment_creates_one_sample_per_subject_and_tube(pc_db):
+    """The spec's worked example: patient CBC+LFT+KFT, mother CBC => 3 tubes."""
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad")
+    bid = _seed_booking(pc_db)
+    _seed_subject_with_tests(pc_db, bid, [
+        ("cbc", ["edta_lavender"]), ("lft", ["sst_gold"]), ("kft", ["sst_gold"])])
+    _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
+
+    assert assign_booking(bid) == cid
+
+    samples = pc_db.db["samples"]
+    assert len(samples) == 3
+    assert all(s["status"] == "pending_collection" for s in samples)
+    assert all(s["barcode"] is None for s in samples)
+    assert all(s["processing_center_id"] == cid for s in samples)
+    assert sorted(s["expected_tube_type_code"] for s in samples) == [
+        "edta_lavender", "edta_lavender", "sst_gold"]
+
+
+def test_assignment_writes_a_registered_custody_event_per_sample(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad")
+    bid = _seed_booking(pc_db)
+    _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
+
+    assign_booking(bid)
+    events = pc_db.db["sample_events"]
+    assert len(events) == 1
+    assert events[0]["event"] == "registered"
+    assert events[0]["processing_center_id"] == cid
+
+
+def test_assignment_sets_provider_id_without_loosening_the_not_null(pc_db):
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad")
+    bid = _seed_booking(pc_db)
+    _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
+
+    assign_booking(bid)
+    booking = pc_db.db["bookings"][0]
+    assert booking["processing_center_id"] == cid
+    assert booking["provider_id"] == cid
+    assert booking["provider_type"] == "processing_center"
+
+
+def test_assignment_is_idempotent(pc_db):
+    """A retried booking creation must not double the tubes."""
+    _seed_aliases(pc_db)
+    cid = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, cid, city="hyderabad")
+    bid = _seed_booking(pc_db)
+    _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
+
+    assert assign_booking(bid) == cid
+    assert assign_booking(bid) == cid
+    assert len(pc_db.db["samples"]) == 1
+
+
+def test_an_unserviced_booking_is_not_assigned_and_creates_no_samples(pc_db):
+    _seed_aliases(pc_db)
+    bid = _seed_booking(pc_db, city="rajahmundry")
+    _seed_subject_with_tests(pc_db, bid, [("cbc", ["edta_lavender"])])
+    assert assign_booking(bid) is None
+    assert pc_db.db.get("samples", []) == []

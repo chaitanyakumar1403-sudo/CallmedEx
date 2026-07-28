@@ -132,3 +132,111 @@ def check_coverage(city=None, pincode=None, lat=None, lng=None) -> dict:
     """
     return {"serviceable": resolve_center(city=city, pincode=pincode,
                                           lat=lat, lng=lng) is not None}
+
+
+from app.services.tube_derivation import derive_tubes
+
+
+def _tube_map(service_ids: List[str]) -> dict:
+    """home_service_id -> [tube_type_code]. A service with no row draws no blood."""
+    if not service_ids:
+        return {}
+    rows = _rows(
+        supabase.table("home_service_tubes")
+        .select("home_service_id, tube_type_code")
+        .in_("home_service_id", list(set(service_ids)))
+        .execute()
+    )
+    out: dict = {}
+    for r in rows:
+        out.setdefault(r["home_service_id"], []).append(r["tube_type_code"])
+    return out
+
+
+def assign_booking(booking_id: str) -> Optional[str]:
+    """Assign a home-collection booking to a centre and register its tubes.
+
+    Idempotent: re-running on an already-assigned booking returns the same
+    centre and creates nothing, so a retried booking cannot double the tubes a
+    phlebotomist is told to draw.
+    """
+    booking_rows = _rows(
+        supabase.table("bookings").select("*").eq("id", booking_id).limit(1).execute()
+    )
+    if not booking_rows:
+        return None
+    booking = booking_rows[0]
+
+    if booking.get("processing_center_id"):
+        return booking["processing_center_id"]
+
+    centre = resolve_center(
+        city=booking.get("collection_city"),
+        pincode=booking.get("collection_pincode"),
+        lat=booking.get("collection_lat"),
+        lng=booking.get("collection_lng"),
+    )
+    if centre is None:
+        # Coverage is checked at the location step, long before this. Reaching
+        # here means the centre was paused between search and payment.
+        logger.warning("No processing centre for booking %s", booking_id)
+        return None
+
+    centre_id = centre["id"]
+
+    supabase.table("bookings").update({
+        "processing_center_id": centre_id,
+        "provider_id": centre_id,          # keeps the existing NOT NULL satisfied
+        "provider_type": "processing_center",
+    }).eq("id", booking_id).execute()
+
+    subjects = _rows(
+        supabase.table("booking_subjects").select("*").eq("booking_id", booking_id).execute()
+    )
+    tests = _rows(
+        supabase.table("booking_tests").select("*").eq("booking_id", booking_id).execute()
+    )
+    tube_map = _tube_map([t["home_service_id"] for t in tests])
+
+    for subject in subjects:
+        lines = [
+            {
+                "booking_test_id": t["id"],
+                "home_service_id": t["home_service_id"],
+                "tube_type_codes": tube_map.get(t["home_service_id"], []),
+            }
+            for t in tests
+            if t.get("booking_subject_id") == subject["id"]
+        ]
+
+        for tube in derive_tubes(lines):
+            inserted = _rows(
+                supabase.table("samples").insert({
+                    "barcode": None,                    # bound when the phlebo scans
+                    "booking_id": booking_id,
+                    "patient_id": booking.get("patient_id"),
+                    "booking_subject_id": subject["id"],
+                    "processing_center_id": centre_id,
+                    "expected_tube_type_code": tube["tube_type_code"],
+                    "status": "pending_collection",
+                }).execute()
+            )
+            if not inserted:
+                continue
+            sample_id = inserted[0].get("id")
+
+            for booking_test_id in tube["booking_test_ids"]:
+                supabase.table("sample_tests").insert({
+                    "sample_id": sample_id,
+                    "booking_test_id": booking_test_id,
+                }).execute()
+
+            supabase.table("sample_events").insert({
+                "sample_id": sample_id,
+                "event": "registered",
+                "actor_role": "system",
+                "processing_center_id": centre_id,
+                "location_label": "booking",
+            }).execute()
+
+    return centre_id
