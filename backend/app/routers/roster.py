@@ -114,6 +114,11 @@ async def decline(dispatch_id: str, user: dict = Depends(get_current_user)):
         # in dispatch_engine instead) — surface that as a client error, not a
         # 500.
         raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        # decline_job raises when the caller is not the phlebotomist actually
+        # assigned to this job — never let a phlebotomist decline (and so
+        # reassign) another centre's work by guessing a dispatch_id.
+        raise HTTPException(status_code=403, detail=str(exc))
     if result is None:
         # Nobody left. The centre picks it up manually rather than it vanishing.
         return {"reassigned": False, "needs_manual_assignment": True}

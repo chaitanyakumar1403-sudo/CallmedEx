@@ -186,6 +186,16 @@ def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional
             f"{request.get('scheduled_for')!r}"
         )
 
+    if request.get("assigned_provider_id") != phlebotomist_user_id:
+        # Ownership check lives here, not just in the router: this is the
+        # single place every caller of decline_job passes through, and it
+        # already has the row loaded. Without it, any phlebotomist could
+        # decline any advance job by ID and reassign another centre's work.
+        raise PermissionError(
+            f"dispatch request {dispatch_request_id} is not assigned to "
+            f"phlebotomist {phlebotomist_user_id}"
+        )
+
     declined = list(request.get("declined_by") or [])
     if phlebotomist_user_id not in declined:
         declined.append(phlebotomist_user_id)

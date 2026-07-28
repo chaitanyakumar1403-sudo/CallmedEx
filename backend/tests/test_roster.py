@@ -371,6 +371,30 @@ def roster_router_db(monkeypatch):
     return fake
 
 
+async def test_a_phlebotomist_cannot_decline_another_phlebotomists_job(roster_router_db):
+    """I2: nothing verified the caller was actually assigned to the job, so
+    any phlebotomist could decline (and reassign) any advance job by ID."""
+    centre = str(uuid.uuid4())
+    a = _phlebo(roster_router_db, centre, 17.385, 78.487)
+    b = _phlebo(roster_router_db, centre, 17.390, 78.490)
+    booking_id = _booking(roster_router_db, centre, 17.386, 78.488)
+    req_id = str(uuid.uuid4())
+    roster_router_db.db.setdefault("dispatch_requests", []).append({
+        "id": req_id, "booking_id": booking_id,
+        "assignment_mode": "advance", "scheduled_for": DATE,
+        "status": "provider_accepted", "declined_by": [],
+        "assigned_provider_id": a,
+    })
+
+    with pytest.raises(HTTPException) as exc:
+        await decline_endpoint(req_id, {"sub": b, "role": "phlebotomist"})
+    assert exc.value.status_code == 403
+
+    req = roster_router_db.db["dispatch_requests"][0]
+    assert req["assigned_provider_id"] == a          # unchanged, not reassigned
+    assert req["declined_by"] == []                  # not even recorded as declined
+
+
 async def test_declining_a_realtime_job_via_the_endpoint_returns_400_not_500(roster_router_db):
     """A phlebotomist declining a realtime (non-roster) job must get a clean
     400 explaining why, never an unhandled 500 from the service's ValueError."""
