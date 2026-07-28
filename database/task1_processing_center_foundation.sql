@@ -300,6 +300,118 @@ CREATE TABLE IF NOT EXISTS booking_tests (
 CREATE INDEX IF NOT EXISTS idx_booking_tests_subject ON booking_tests(booking_subject_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- 5. SAMPLE LIFECYCLE — extended in place so the existing phlebo wallet payout
+--    (uq_wallet_tx_sample_reason) and tracking endpoints keep working.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- The centre -> laboratory leg. Created before the samples ALTER that
+-- references it.
+CREATE TABLE IF NOT EXISTS sample_batches (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    batch_code TEXT NOT NULL UNIQUE,           -- 'HYD-01/2026-07-28/001'
+    processing_center_id UUID NOT NULL REFERENCES processing_centers(id) ON DELETE CASCADE,
+    laboratory_name   TEXT DEFAULT '',         -- internal only
+    laboratory_org_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'sealed', 'sent_to_lab', 'acknowledged', 'cancelled')),
+    sample_count INT DEFAULT 0,
+    created_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    sealed_at    TIMESTAMPTZ,
+    sent_at      TIMESTAMPTZ,
+    sent_by      UUID REFERENCES users(id) ON DELETE SET NULL,
+    courier_reference TEXT DEFAULT '',
+    notes        TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_batches_centre ON sample_batches(processing_center_id, status);
+
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS booking_subject_id UUID
+    REFERENCES booking_subjects(id) ON DELETE CASCADE;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS tube_type_code TEXT
+    REFERENCES tube_types(code);
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS expected_tube_type_code TEXT
+    REFERENCES tube_types(code);
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS tube_mismatch_ack BOOLEAN DEFAULT false;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS batch_id UUID
+    REFERENCES sample_batches(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verified_by UUID
+    REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS verification JSONB DEFAULT '{}';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS rejection_code TEXT;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS sent_to_lab_at TIMESTAMPTZ;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS lab_reference TEXT DEFAULT '';
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS report_status TEXT DEFAULT 'pending';
+
+-- A sample row is created at BOOKING time with its expected tube type, so the
+-- centre knows tomorrow's tube count before anything is collected. The barcode
+-- is bound when the phlebo scans a physical pre-printed sticker.
+ALTER TABLE samples ALTER COLUMN barcode DROP NOT NULL;
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_barcode_key;
+DROP INDEX IF EXISTS uq_samples_barcode;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_samples_barcode
+    ON samples(barcode) WHERE barcode IS NOT NULL;
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_status_check;
+ALTER TABLE samples ADD CONSTRAINT samples_status_check CHECK (status IN (
+    'pending_collection', 'collected', 'in_transit', 'received',
+    'verified', 'rejected', 'batched', 'sent_to_lab',
+    -- reserved for the future report-automation task
+    'report_pending', 'report_ready',
+    -- retained so pre-existing rows stay valid
+    'handover_requested', 'processing'
+));
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_rejection_code_check;
+ALTER TABLE samples ADD CONSTRAINT samples_rejection_code_check CHECK (
+    rejection_code IS NULL OR rejection_code IN (
+        'wrong_tube', 'barcode_missing', 'label_missing', 'broken_tube',
+        'leaking_tube', 'hemolyzed', 'insufficient_sample', 'other'
+    )
+);
+
+ALTER TABLE samples DROP CONSTRAINT IF EXISTS samples_report_status_check;
+ALTER TABLE samples ADD CONSTRAINT samples_report_status_check
+    CHECK (report_status IN ('pending', 'fetching', 'ready', 'failed', 'manual'));
+
+CREATE INDEX IF NOT EXISTS idx_samples_centre_status ON samples(processing_center_id, status);
+CREATE INDEX IF NOT EXISTS idx_samples_batch         ON samples(batch_id);
+
+-- Which ordered tests ride on which physical tube.
+CREATE TABLE IF NOT EXISTS sample_tests (
+    sample_id       UUID NOT NULL REFERENCES samples(id) ON DELETE CASCADE,
+    booking_test_id UUID NOT NULL REFERENCES booking_tests(id) ON DELETE CASCADE,
+    PRIMARY KEY (sample_id, booking_test_id)
+);
+
+-- ─── Chain of custody ────────────────────────────────────────────────────
+-- Append-only. No endpoint updates or deletes a row here.
+ALTER TABLE sample_events DROP CONSTRAINT IF EXISTS sample_events_event_check;
+ALTER TABLE sample_events ADD CONSTRAINT sample_events_event_check CHECK (event IN (
+    'registered', 'assigned', 'collected', 'barcode_bound', 'scanned_transit',
+    'in_transit', 'handover_requested', 'received', 'verified', 'rejected',
+    'batched', 'sent_to_lab',
+    -- retained for pre-existing rows
+    'processing_started', 'report_uploaded'
+));
+
+ALTER TABLE sample_events ADD COLUMN IF NOT EXISTS location_label TEXT DEFAULT '';
+ALTER TABLE sample_events ADD COLUMN IF NOT EXISTS processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE SET NULL;
+
+-- The inbound phlebo -> centre manifest. Kept separate from sample_batches
+-- because the two legs carry different fields: GPS and OTP inbound, courier
+-- reference outbound.
+ALTER TABLE sample_handovers ADD COLUMN IF NOT EXISTS destination_processing_center_id UUID
+    REFERENCES processing_centers(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_handovers_pc
+    ON sample_handovers(destination_processing_center_id, status);
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 --     This block is appended to as later sections add tables.
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -310,7 +422,8 @@ DECLARE
         'processing_centers', 'processing_center_staff',
         'processing_center_areas', 'city_aliases',
         'tube_types', 'home_services', 'home_service_tubes', 'home_service_city_pricing',
-        'family_members', 'booking_subjects', 'booking_tests'
+        'family_members', 'booking_subjects', 'booking_tests',
+        'sample_batches', 'sample_tests'
     ];
 BEGIN
     FOREACH t IN ARRAY new_tables LOOP

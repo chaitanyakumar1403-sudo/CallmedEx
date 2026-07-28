@@ -112,7 +112,9 @@ class FakeQuery:
             for rec in records:
                 # Enforce the DB's uniqueness guarantees that the code relies on.
                 if self.table_name == "samples":
-                    if any(r["barcode"] == rec["barcode"] for r in rows):
+                    # Barcode is nullable now — bound at scan, not at booking.
+                    bc = rec.get("barcode")
+                    if bc is not None and any(r.get("barcode") == bc for r in rows):
                         raise Exception('duplicate key value violates unique constraint (23505)')
                 if self.table_name == "wallet_transactions" and rec.get("sample_id") and rec.get("direction") == "credit":
                     dup = any(
