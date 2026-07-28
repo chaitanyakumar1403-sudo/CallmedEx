@@ -16,9 +16,16 @@ from app.models.schemas import (
 from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.marketplace import MarketplaceService
+from app.services.processing_center import assign_booking
+from app.routers.family_members import ensure_self_member
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
+
+
+def _rows(result) -> list:
+    data = getattr(result, "data", None) or []
+    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _strip_centre_identity(booking: dict) -> dict:
@@ -100,6 +107,91 @@ def _record_booking_history(
         except Exception as e:
             logger.warning(f"Failed to record booking history: {e}")
     logger.info(f"Booking {booking_id}: {old_status} → {new_status}")
+
+
+def _resolve_home_service(entry: str, by_id: dict, by_code: dict, by_name: dict) -> Optional[dict]:
+    """Match one `selected_tests` entry against a home_services row.
+
+    `selected_tests` is a free-form list of strings the frontend has sent as
+    either the service's id, its code ("CBC"), or its display name ("Lipid
+    Profile") depending on which picker produced it — there is no single
+    reliable key. Try all three rather than assuming one.
+    """
+    if entry in by_id:
+        return by_id[entry]
+    key = entry.strip().lower()
+    if key in by_code:
+        return by_code[key]
+    if key in by_name:
+        return by_name[key]
+    return None
+
+
+def _provision_home_collection(
+    booking_id: str, patient_id: str, full_name: str, selected_tests: list
+) -> None:
+    """Bridge `bookings.selected_tests` (a list of test name/code strings) into
+    the `booking_subjects`/`booking_tests` rows `assign_booking` actually reads,
+    then hand off to it.
+
+    `assign_booking` derives tubes by iterating `booking_subjects` and
+    `booking_tests` — NOT `bookings.selected_tests`. Called without this bridge
+    it would create zero samples and silently look like it worked, which is
+    worse than not calling it at all.
+
+    An entry that cannot be matched to a home_services row (by id, code, or
+    name) is never guessed at — that would risk drawing the wrong test. It is
+    logged loudly instead and simply produces no sample; failing the entire
+    booking over one unmatched test name would take a booking (and payment)
+    the patient already committed to and destroy it over what is often a
+    stale/renamed catalog entry, which is worse for the patient than a gap an
+    operator can catch from the log and follow up on manually.
+    """
+    self_member = ensure_self_member(patient_id, full_name)
+    if not self_member or not self_member.get("id"):
+        logger.warning(
+            f"Home-collection booking {booking_id}: could not resolve the "
+            "account holder's family_members row; no subject/tests created."
+        )
+        return
+
+    subject_rows = _rows(
+        supabase.table("booking_subjects").insert({
+            "booking_id": booking_id,
+            "family_member_id": self_member["id"],
+        }).execute()
+    )
+    if not subject_rows:
+        logger.warning(f"Home-collection booking {booking_id}: booking_subjects insert returned no row.")
+        return
+    subject_id = subject_rows[0]["id"]
+
+    services = _rows(
+        supabase.table("home_services").select("id, code, name, base_price").execute()
+    )
+    by_id = {s["id"]: s for s in services}
+    by_code = {(s.get("code") or "").strip().lower(): s for s in services}
+    by_name = {(s.get("name") or "").strip().lower(): s for s in services}
+
+    for entry in selected_tests or []:
+        svc = _resolve_home_service(str(entry), by_id, by_code, by_name)
+        if not svc:
+            logger.warning(
+                f"Home-collection booking {booking_id}: selected test {entry!r} "
+                "did not match any home_services row (checked id/code/name) — "
+                "no sample will be created for it. A phlebotomist will NOT be "
+                "told to draw this test; needs manual follow-up."
+            )
+            continue
+        supabase.table("booking_tests").insert({
+            "booking_id": booking_id,
+            "booking_subject_id": subject_id,
+            "home_service_id": svc["id"],
+            "price_charged": svc.get("base_price") or 0,
+            "source": "booking",
+        }).execute()
+
+    assign_booking(booking_id)
 
 # ─── In-memory stores for local dev ──────────────────────────────────────
 _local_slots = []
@@ -273,6 +365,16 @@ async def create_booking(
             except Exception as e:
                 logger.warning(f"organization lookup for allocation failed: {e}")
 
+    # Home-collection signal: the patient asked for home collection AND at
+    # least one verified partner in this city can actually do it at home.
+    # `walk_in_required` is the walk-in path's own marker — a booking routed
+    # to a walk-in-only partner (even when the patient's `home` flag was set)
+    # must be left completely alone; that is the existing org-review/allot-slot
+    # workflow and none of the processing-centre machinery below applies to it.
+    is_home_collection = bool(
+        booking.home and allocation and not allocation["fulfilment"].get("walk_in_required")
+    )
+
     if is_diagnostic_review:
         # Diagnostic booking: patient selects date only, org allots time
         booking_data = {
@@ -309,9 +411,29 @@ async def create_booking(
             "created_at": now,
         }
 
+    if is_home_collection:
+        booking_data["booking_kind"] = "home_collection"
+        booking_data["collection_city"] = booking.city
+
     if supabase:
         try:
             supabase.table("bookings").insert(booking_data).execute()
+            if is_home_collection:
+                # Processing-centre assignment and sample creation must never
+                # break checkout. The booking row above is already committed;
+                # anything below is best-effort and fully logged, never raised.
+                try:
+                    _provision_home_collection(
+                        booking_id,
+                        current_user["sub"],
+                        current_user.get("full_name") or current_user.get("name") or "",
+                        booking.selected_tests or [],
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Home-collection processing-centre assignment failed "
+                        f"for booking {booking_id}, booking still created: {e}"
+                    )
         except Exception as e:
             print(f"Supabase insert failed, falling back to local: {e}")
             _local_bookings.append(booking_data)
