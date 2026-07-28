@@ -119,7 +119,7 @@ class UniversalDispatchEngine:
         patient_lng: float,
         provider_type: str,
         radius_km: float = 10.0,
-        limit: int = 5,
+        limit: Optional[int] = 5,
         exclude_ids: List[str] = None,
         processing_center_id: Optional[str] = None,
         ignore_radius: bool = False,
@@ -137,6 +137,11 @@ class UniversalDispatchEngine:
         could not submit the tubes anywhere else afterwards. When
         `processing_center_id` is omitted (every existing caller), behaviour is
         unchanged.
+
+        `limit` defaults to 5 for every existing caller. Passing `limit=None`
+        removes the cap entirely — used for urgent centre-wide home-collection
+        fan-out, where every on-duty phlebotomist of the centre must be
+        notified, not just the first N.
         """
         if provider_type not in VALID_PROVIDER_TYPES:
             logger.warning(f"Invalid provider type: {provider_type}")
@@ -288,7 +293,9 @@ class UniversalDispatchEngine:
         centre-bound, so an urgent request fans out to EVERY on-duty
         phlebotomist of that centre instead of merely doubling the radius —
         widening a radius is the wrong lever when the real constraint is the
-        centre, not the distance.
+        centre, not the distance. That fan-out is uncapped (no URGENT_MAX_OFFERS
+        ceiling): during a surge, every candidate must actually be notified,
+        not just the first 12.
         """
         dispatch_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -298,13 +305,22 @@ class UniversalDispatchEngine:
         # booking's centre. Widening the radius is not enough when the
         # constraint is the centre, not the distance.
         home_collection = provider_type == "phlebotomist" and processing_center_id
-        ignore_radius = bool(urgent and home_collection)
+        urgent_home_collection = bool(urgent and home_collection)
+        ignore_radius = urgent_home_collection
         effective_radius = (
             search_radius_km * URGENT_RADIUS_MULTIPLIER
             if urgent and not home_collection
             else search_radius_km
         )
-        max_offers = URGENT_MAX_OFFERS if urgent else NORMAL_MAX_OFFERS
+        # Urgent home collection must reach every on-duty phlebo of the centre,
+        # not just the first URGENT_MAX_OFFERS of them — a surge is exactly
+        # the scenario where the cap would silently drop candidates. Every
+        # other path (including non-urgent home collection) keeps its cap.
+        max_offers = (
+            None if urgent_home_collection
+            else URGENT_MAX_OFFERS if urgent
+            else NORMAL_MAX_OFFERS
+        )
 
         # Find candidates
         candidates = await UniversalDispatchEngine.find_nearby_providers(
