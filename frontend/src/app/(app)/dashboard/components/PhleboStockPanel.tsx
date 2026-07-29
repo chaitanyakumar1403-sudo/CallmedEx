@@ -158,21 +158,20 @@ export default function PhleboStockPanel() {
                     key={item.code}
                     className={`stock-card${isLow ? " stock-card--low" : ""}`}
                   >
-                    {/* Colour dot for tubes/containers */}
-                    {(item.category === "tube" || item.category === "container") &&
-                    item.cap_colour ? (
-                      <div
-                        className="stock-card__dot"
-                        style={{
-                          backgroundColor: CAP_COLOUR_MAP[item.cap_colour] || "#ccc",
-                        }}
-                      />
-                    ) : (
-                      <div className="stock-card__dot" style={{ backgroundColor: "#e5e7eb" }} />
-                    )}
-
+                    {/* Top: colour dot + full item name */}
                     <div className="stock-card__info">
-                      <div className="stock-card__name">{item.name}</div>
+                      {(item.category === "tube" || item.category === "container") &&
+                      item.cap_colour ? (
+                        <div
+                          className="stock-card__dot"
+                          style={{
+                            backgroundColor: CAP_COLOUR_MAP[item.cap_colour] || "#ccc",
+                          }}
+                        />
+                      ) : (
+                        <div className="stock-card__dot" style={{ backgroundColor: "#e5e7eb" }} />
+                      )}
+                      <span className="stock-card__name">{item.name}</span>
                       <div className="stock-card__meta">
                         {item.used_today > 0
                           ? `${item.used_today} used today`
@@ -180,35 +179,38 @@ export default function PhleboStockPanel() {
                       </div>
                     </div>
 
-                    <div
-                      className={`stock-card__count${isLow ? " stock-card__count--low" : ""}`}
-                    >
-                      {editVal}
-                    </div>
-
-                    <div className="stock-card__controls">
-                      <input
-                        className="stock-card__input"
-                        type="number"
-                        min={0}
-                        value={editVal}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [item.code]: e.target.value,
-                          }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSave(item.code);
-                        }}
-                      />
-                      <button
-                        className="stock-card__save"
-                        disabled={saving[item.code]}
-                        onClick={() => handleSave(item.code)}
+                    {/* Bottom: count + adjust controls */}
+                    <div className="stock-card__bottom">
+                      <div
+                        className={`stock-card__count${isLow ? " stock-card__count--low" : ""}`}
                       >
-                        {saving[item.code] ? "..." : "Save"}
-                      </button>
+                        {editVal}
+                      </div>
+
+                      <div className="stock-card__controls">
+                        <input
+                          className="stock-card__input"
+                          type="number"
+                          min={0}
+                          value={editVal}
+                          onChange={(e) =>
+                            setEdits((prev) => ({
+                              ...prev,
+                              [item.code]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSave(item.code);
+                          }}
+                        />
+                        <button
+                          className="stock-card__save"
+                          disabled={saving[item.code]}
+                          onClick={() => handleSave(item.code)}
+                        >
+                          {saving[item.code] ? "..." : "Save"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
