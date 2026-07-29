@@ -309,12 +309,16 @@ export const pcAPI = {
   getQueue: () => api.get('/pc/queue'),
   getSamples: (status?: string) =>
     api.get(`/pc/samples${status ? `?status=${status}` : ''}`),
+  getSampleByBarcode: (barcode: string) =>
+    api.get(`/pc/samples/by-barcode/${encodeURIComponent(barcode)}`),
   receiveSample: (sampleId: string) =>
     api.post(`/pc/samples/${sampleId}/receive`),
   verifySample: (sampleId: string, checks: Record<string, boolean>) =>
     api.post(`/pc/samples/${sampleId}/verify`, checks),
   rejectSample: (sampleId: string, code: string, notes?: string) =>
     api.post(`/pc/samples/${sampleId}/reject`, { rejection_code: code, notes }),
+  publishReport: (sampleId: string, reportUrl: string, notes?: string) =>
+    api.post(`/samples/${sampleId}/report`, { report_url: reportUrl, notes }),
   listBatches: (status?: string) =>
     api.get(`/pc/batches${status ? `?status=${status}` : ''}`),
   createBatch: () => api.post('/pc/batches'),

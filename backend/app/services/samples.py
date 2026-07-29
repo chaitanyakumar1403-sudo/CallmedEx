@@ -673,8 +673,16 @@ class SampleService:
         uploader_user_id: str,
         report_url: str,
         notes: str = "",
+        processing_center_id: Optional[str] = None,
     ) -> dict:
-        """Attach the finished report to a received sample and notify the patient."""
+        """Attach the finished report to a received sample and notify the patient.
+
+        Ownership check: if *processing_center_id* is provided the sample's
+        ``processing_center_id`` must match it (PC report-upload path); otherwise
+        the sample's ``destination_org_user_id`` must match *uploader_user_id*
+        (diagnostic centre path).  Both paths share the same status transition
+        (``report_ready``) and patient notification.
+        """
         if not supabase:
             return {"success": False, "message": "Database not configured"}
 
@@ -686,13 +694,25 @@ class SampleService:
             return {"success": False, "message": "Sample not found"}
 
         sample = rows[0]
-        if sample.get("destination_org_user_id") != uploader_user_id:
-            return {"success": False, "message": "This sample was not delivered to your centre."}
-        if sample.get("status") not in ("received", "processing"):
-            return {
-                "success": False,
-                "message": f"Cannot publish a report for a sample that is '{sample.get('status')}'.",
-            }
+
+        # Ownership: PC path or org path
+        if processing_center_id:
+            if sample.get("processing_center_id") != processing_center_id:
+                return {"success": False, "message": "This sample does not belong to your processing centre."}
+            # PC samples may be in verified/batched/sent_to_lab
+            if sample.get("status") not in ("received", "processing", "verified", "batched", "sent_to_lab"):
+                return {
+                    "success": False,
+                    "message": f"Cannot publish a report for a sample that is '{sample.get('status')}'.",
+                }
+        else:
+            if sample.get("destination_org_user_id") != uploader_user_id:
+                return {"success": False, "message": "This sample was not delivered to your centre."}
+            if sample.get("status") not in ("received", "processing"):
+                return {
+                    "success": False,
+                    "message": f"Cannot publish a report for a sample that is '{sample.get('status')}'.",
+                }
 
         now = datetime.now(timezone.utc).isoformat()
         try:

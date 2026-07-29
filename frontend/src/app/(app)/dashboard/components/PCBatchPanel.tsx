@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { Icon } from "@/components/ui";
-import { Boxes, Plus, Truck, Package, CheckCircle2 } from "@/components/ui/icons";
+import { Boxes, Plus, Truck, Package, CheckCircle2, FileText } from "@/components/ui/icons";
 import { pcAPI } from "@/lib/api";
 
 export default function PCBatchPanel() {
@@ -28,6 +28,11 @@ export default function PCBatchPanel() {
   const [showSendModal, setShowSendModal] = useState(false);
   const [sendBatchId, setSendBatchId] = useState("");
   const [courierRef, setCourierRef] = useState("");
+
+  // Upload result
+  const [uploadSampleId, setUploadSampleId] = useState("");
+  const [uploadUrl, setUploadUrl] = useState("");
+  const [uploadedIds, setUploadedIds] = useState<Record<string, boolean>>({});
 
   // Seal confirm
   const [showSealConfirm, setShowSealConfirm] = useState(false);
@@ -130,6 +135,23 @@ export default function PCBatchPanel() {
     }
   }
 
+  async function handleUploadResult() {
+    if (!uploadSampleId || !uploadUrl.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await pcAPI.publishReport(uploadSampleId, uploadUrl.trim());
+      setMsg({ kind: "ok", text: "Report sent to patient ✓" });
+      setUploadedIds(prev => ({ ...prev, [uploadSampleId]: true }));
+      setUploadSampleId("");
+      setUploadUrl("");
+    } catch (e: any) {
+      setMsg({ kind: "err", text: e.message || "Failed to upload report" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const openBatches = batches.filter(b => b.status === "open");
   const sealedBatches = batches.filter(b => b.status === "sealed");
   const sentBatches = batches.filter(b => b.status === "sent_to_lab");
@@ -174,12 +196,12 @@ export default function PCBatchPanel() {
           <>
             <div style={{ display: "grid", gap: 6 }}>
               {unbatched.map((s) => (
-                <label
+                <div
                   key={s.id}
                   style={{
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "10px 14px", borderRadius: 8,
-                    border: "1px solid #e2e8f0", cursor: "pointer",
+                    border: "1px solid #e2e8f0",
                     background: selectedSamples[s.id] ? "#f0f9ff" : "#f8fafc",
                   }}
                 >
@@ -189,6 +211,7 @@ export default function PCBatchPanel() {
                     onChange={(e) => setSelectedSamples(prev => ({
                       ...prev, [s.id]: e.target.checked,
                     }))}
+                    style={{ cursor: "pointer" }}
                   />
                   <div style={{ flex: 1 }}>
                     <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: "0.88rem" }}>
@@ -199,7 +222,27 @@ export default function PCBatchPanel() {
                       {s.subject_name ? ` • ${s.subject_name}` : ""}
                     </span>
                   </div>
-                </label>
+                  {!s.report_url && !uploadedIds[s.id] && (
+                    <button
+                      onClick={() => {
+                        setUploadSampleId(s.id);
+                        setUploadUrl("");
+                      }}
+                      style={{
+                        padding: "4px 12px", borderRadius: 6, border: "1px solid #16a34a",
+                        background: "#f0fdf4", color: "#166534", fontSize: "0.75rem",
+                        fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Icon as={FileText} size={14} /> Upload Result
+                    </button>
+                  )}
+                  {uploadedIds[s.id] && (
+                    <span style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600 }}>
+                      Report sent ✓
+                    </span>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -428,6 +471,48 @@ export default function PCBatchPanel() {
           }}
         />
       </Modal>
+
+      {/* ── Upload result inline form ─────────────────────────────── */}
+      {uploadSampleId && (
+        <div className="card" style={{
+          padding: 20, border: "1.5px solid #16a34a",
+          background: "#f0fdf4",
+        }}>
+          <h4 style={{ margin: "0 0 10px 0", fontSize: "0.95rem", color: "#166534" }}>
+            <Icon as={FileText} size={16} /> Upload Report Result
+          </h4>
+          <p style={{ margin: "0 0 12px 0", fontSize: "0.82rem", color: "#475569" }}>
+            Paste the report URL for this sample. The patient will be notified.
+          </p>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              value={uploadUrl}
+              onChange={(e) => setUploadUrl(e.target.value)}
+              placeholder="https://reports.example.com/CMX-…"
+              style={{
+                flex: 1, padding: "10px 14px", borderRadius: 8,
+                border: "1px solid #86efac", fontSize: "0.9rem",
+              }}
+            />
+            <Button
+              variant="primary"
+              onClick={handleUploadResult}
+              disabled={busy || !uploadUrl.trim()}
+            >
+              {busy ? "Uploading…" : "Publish Report"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setUploadSampleId("");
+                setUploadUrl("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

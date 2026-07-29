@@ -221,6 +221,98 @@ async def list_samples(
     return {"samples": samples, "count": len(samples)}
 
 
+# ─── By-barcode lookup ─────────────────────────────────────────────────────
+
+@router.get("/samples/by-barcode/{barcode}")
+async def get_sample_by_barcode(
+    barcode: str,
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """Resolve a scanned barcode to a sample at this centre.
+
+    Returns the sample ONLY if it belongs to the caller's processing centre.
+    404 otherwise — no cross-centre leakage.
+    Includes patient name via users join.
+    """
+    centre_id = staff["processing_center_id"]
+
+    rows = _rows(
+        supabase.table("samples")
+        .select("*")
+        .eq("barcode", barcode.strip().upper())
+        .eq("processing_center_id", centre_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Sample not found at this centre.")
+
+    sample = rows[0]
+
+    # Enrich with patient name
+    patient_name = ""
+    patient_id = sample.get("patient_id")
+    if patient_id:
+        user = _first(
+            supabase.table("users")
+            .select("full_name")
+            .eq("id", patient_id)
+            .limit(1)
+            .execute()
+        )
+        patient_name = user.get("full_name", "")
+
+    # Enrich with tube type info
+    tube_types = _rows(
+        supabase.table("tube_types")
+        .select("code, name, cap_colour")
+        .eq("is_active", True)
+        .execute()
+    )
+    tube_map = {t["code"]: t for t in tube_types}
+    expected = sample.get("expected_tube_type_code", "")
+    tube_info = tube_map.get(expected, {})
+
+    # Enrich with subject name
+    subject_name = ""
+    subject_id = sample.get("booking_subject_id")
+    if subject_id:
+        subjects = _rows(
+            supabase.table("booking_subjects")
+            .select("id, family_member_id")
+            .eq("id", subject_id)
+            .limit(1)
+            .execute()
+        )
+        if subjects:
+            fm_id = subjects[0].get("family_member_id")
+            if fm_id:
+                member = _first(
+                    supabase.table("family_members")
+                    .select("full_name, relationship")
+                    .eq("id", fm_id)
+                    .limit(1)
+                    .execute()
+                )
+                subject_name = member.get("full_name", "")
+
+    return {
+        "id": sample["id"],
+        "barcode": sample.get("barcode", ""),
+        "status": sample.get("status", ""),
+        "test_names": sample.get("test_names", []),
+        "tube_type_code": sample.get("tube_type_code", ""),
+        "expected_tube_type_code": expected,
+        "expected_tube_name": tube_info.get("name", expected),
+        "expected_cap_colour": tube_info.get("cap_colour", ""),
+        "patient_name": patient_name,
+        "subject_name": subject_name,
+        "booking_id": sample.get("booking_id", ""),
+        "processing_center_id": sample.get("processing_center_id", ""),
+        "report_url": sample.get("report_url"),
+    }
+
+
 # ─── Receive ──────────────────────────────────────────────────────────────
 
 class ReceiveRequest(BaseModel):

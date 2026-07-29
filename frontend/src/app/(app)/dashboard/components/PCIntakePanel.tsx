@@ -12,8 +12,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { Icon } from "@/components/ui";
-import { ScanLine, ShieldCheck, Ban, CheckCircle2, XCircle, RefreshCw } from "@/components/ui/icons";
+import { ScanLine, ShieldCheck, Camera, Ban, CheckCircle2, XCircle, RefreshCw } from "@/components/ui/icons";
 import { pcAPI } from "@/lib/api";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 
 const REJECTION_CODES = [
   { code: "broken_tube", label: "Broken tube", emoji: "💔" },
@@ -54,6 +55,8 @@ export default function PCIntakePanel() {
   // Scan
   const [scanInput, setScanInput] = useState("");
   const [scannedSample, setScannedSample] = useState<any>(null);
+  const [showScanner, setShowScanner] = useState(false);
+  const [serverVerified, setServerVerified] = useState(false);
 
   // 5-point check
   const [checks, setChecks] = useState<Record<CheckKey, boolean>>({
@@ -86,34 +89,55 @@ export default function PCIntakePanel() {
   function resetScan() {
     setScanInput("");
     setScannedSample(null);
+    setServerVerified(false);
     setChecks({
       tube_received: false, barcode_match: false, tube_type_correct: false,
       label_present: false, quality_acceptable: false,
     });
   }
 
-  async function handleScan() {
-    if (!scanInput.trim()) return;
+  async function handleScanWithCode(code: string) {
     setBusy(true);
     setMsg(null);
+    setServerVerified(false);
     try {
-      // Search for the sample by barcode in the received list
-      const allData = await pcAPI.getSamples("received");
-      const found = (allData.samples || []).find(
-        (s: any) => (s.barcode || "").toUpperCase() === scanInput.trim().toUpperCase()
-      );
-      if (!found) {
-        setMsg({ kind: "err", text: `No received sample found with barcode "${scanInput.trim()}"` });
-        return;
+      // First try server-side by-barcode lookup
+      const sample = await pcAPI.getSampleByBarcode(code);
+      setScannedSample(sample);
+      setServerVerified(true);
+      setChecks(prev => ({ ...prev, tube_received: true, barcode_match: true }));
+    } catch (_serverErr: any) {
+      // Server 404 — fall back to client-side match against received list
+      try {
+        const allData = await pcAPI.getSamples("received");
+        const found = (allData.samples || []).find(
+          (s: any) => (s.barcode || "").toUpperCase() === code.trim().toUpperCase()
+        );
+        if (!found) {
+          setMsg({
+            kind: "err",
+            text: `No sample found with barcode "${code}" at this centre.`,
+          });
+          return;
+        }
+        setScannedSample(found);
+        setChecks(prev => ({ ...prev, tube_received: true }));
+      } catch (e: any) {
+        setMsg({ kind: "err", text: e.message || "Scan failed" });
       }
-      setScannedSample(found);
-      // Pre-fill tube_received since we found it
-      setChecks(prev => ({ ...prev, tube_received: true }));
-    } catch (e: any) {
-      setMsg({ kind: "err", text: e.message || "Scan failed" });
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleScan() {
+    if (!scanInput.trim()) return;
+    await handleScanWithCode(scanInput.trim());
+  }
+
+  async function handleCameraScan(code: string) {
+    setScanInput(code);
+    await handleScanWithCode(code);
   }
 
   async function submitVerification() {
@@ -196,12 +220,22 @@ export default function PCIntakePanel() {
           <Button variant="primary" onClick={handleScan} disabled={busy || !scanInput.trim()}>
             {busy ? "Scanning…" : "Scan"}
           </Button>
+          <Button variant="secondary" onClick={() => setShowScanner(true)} disabled={busy}>
+            <Icon as={Camera} size={14} /> Camera
+          </Button>
           {scannedSample && (
             <Button variant="secondary" onClick={resetScan}>
               <Icon as={RefreshCw} size={14} /> Clear
             </Button>
           )}
         </div>
+
+        <BarcodeScannerModal
+          open={showScanner}
+          onClose={() => setShowScanner(false)}
+          onScan={handleCameraScan}
+          title="Scan tube barcode"
+        />
       </div>
 
       {/* ── 5-point checklist ────────────────────────────────────── */}
@@ -267,6 +301,11 @@ export default function PCIntakePanel() {
                 <div>
                   <div style={{ fontWeight: 700, color: checks[key] ? "#166534" : "#0f172a" }}>
                     {checks[key] ? "✓ " : ""}{label}
+                    {key === "barcode_match" && serverVerified && (
+                      <span style={{ fontWeight: 400, fontSize: "0.78rem", color: "#16a34a", marginLeft: 6 }}>
+                        Verified by scan ✓
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{desc}</div>
                 </div>

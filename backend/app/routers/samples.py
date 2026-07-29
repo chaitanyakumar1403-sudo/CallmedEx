@@ -21,6 +21,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.services.audit import AuditService
 from app.services.samples import SampleService
@@ -32,6 +33,13 @@ router = APIRouter(prefix="/api/samples", tags=["Samples"])
 
 COLLECTOR_ROLES = {"phlebotomist", "nurse", "admin"}
 CENTRE_ROLES = {"organization", "staff", "admin"}
+
+
+def _rows(result) -> list:
+    """Coerce a Supabase response into a plain list of dicts."""
+    data = getattr(result, "data", None) or []
+    return [dict(r) for r in data if isinstance(r, dict)]
+
 
 # Never widen these. /track is shared by the patient, the collecting
 # phlebotomist, the destination centre and admins (see track_sample's
@@ -277,17 +285,38 @@ async def publish_report(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """Attach the finished report to a received sample and notify the patient."""
-    if current_user.get("role") not in CENTRE_ROLES:
-        raise HTTPException(403, "Only diagnostic centres can publish reports")
+    """Attach the finished report to a received sample and notify the patient.
+
+    Role gate: diagnostic centre roles (organization, staff, admin) OR
+    processing centre staff whose centre owns the sample.
+    """
+    if current_user.get("role") not in CENTRE_ROLES and current_user.get("role") != "processing_center":
+        raise HTTPException(403, "Only diagnostic centres or processing centres can publish reports")
     if not body.report_url.strip():
         raise HTTPException(400, "report_url is required")
+
+    # Resolve processing_center_id for PC staff callers
+    processing_center_id = None
+    if current_user.get("role") == "processing_center":
+        user_id = current_user.get("sub") or current_user.get("user_id")
+        pc_rows = _rows(
+            supabase.table("processing_center_staff")
+            .select("processing_center_id")
+            .eq("user_id", user_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if not pc_rows:
+            raise HTTPException(403, "Not an active Processing Center staff account.")
+        processing_center_id = pc_rows[0]["processing_center_id"]
 
     result = await SampleService.upload_report(
         sample_id=sample_id,
         uploader_user_id=current_user["sub"],
         report_url=body.report_url.strip(),
         notes=body.notes,
+        processing_center_id=processing_center_id,
     )
     if not result.get("success"):
         raise HTTPException(400, result.get("message", "Failed to publish report"))
