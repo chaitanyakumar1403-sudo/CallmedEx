@@ -14,7 +14,6 @@ import uuid
 
 import pytest
 
-from app.database import supabase as real_supabase
 from app.routers import phlebo_doorstep as router_mod
 from tests.test_sample_lifecycle import FakeSupabase
 

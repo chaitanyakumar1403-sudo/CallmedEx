@@ -838,6 +838,22 @@ class SampleService:
         )
 
         centre_name = SampleService._org_display_name(uploader_user_id)
+        # If this is a processing-centre report upload, use the centre's
+        # name from the processing_centers table instead of the staff
+        # member's personal name.
+        if processing_center_id:
+            try:
+                pc_rows = _rows(
+                    supabase.table("processing_centers")
+                    .select("name")
+                    .eq("id", processing_center_id)
+                    .limit(1)
+                    .execute()
+                )
+                if pc_rows and pc_rows[0].get("name"):
+                    centre_name = str(pc_rows[0]["name"])
+            except Exception:
+                pass  # fall through to the already-resolved centre_name
         try:
             from app.services.notification_engine import NotificationEngine
             await NotificationEngine.send(

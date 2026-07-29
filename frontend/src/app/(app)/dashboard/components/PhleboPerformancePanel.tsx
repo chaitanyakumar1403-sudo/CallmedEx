@@ -87,12 +87,26 @@ export default function PhleboPerformancePanel() {
         const token = getToken();
         if (!token) return;
         const today = formatDate(new Date());
-        const res = await fetch(`${apiBase}/api/phlebo/jobs?date=${today}`, {
+        const future = new Date();
+        future.setDate(future.getDate() + 6);
+        const to = formatDate(future);
+        const res = await fetch(`${apiBase}/api/phlebo/roster?from=${today}&to=${to}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();
-          // We use the performance endpoint data; roster is just for availability
+          const rosterMap: Record<string, string> = {};
+          if (data.roster) {
+            for (const row of data.roster) {
+              rosterMap[row.roster_date] = row.status;
+            }
+          }
+          setAvailability((prev) =>
+            prev.map((d) => ({
+              ...d,
+              status: (rosterMap[d.date] as AvailabilityDay["status"]) || "available",
+            }))
+          );
         }
       } catch (e) {
         // Non-critical

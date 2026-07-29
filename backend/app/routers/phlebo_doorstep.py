@@ -192,10 +192,17 @@ def _bind_barcode(
 
     existing = sample.get("barcode")
     if existing is None:
-        # First bind — write the barcode
-        supabase.table("samples").update({
-            "barcode": scanned_barcode,
-        }).eq("id", sample["id"]).execute()
+        # Normalise: strip whitespace and uppercase
+        scanned_barcode = scanned_barcode.strip().upper()
+
+        # First bind — write the barcode (best-effort: unique-index collision
+        # from concurrent same-sticker scan is handled gracefully)
+        try:
+            supabase.table("samples").update({
+                "barcode": scanned_barcode,
+            }).eq("id", sample["id"]).execute()
+        except Exception:
+            return {"barcode_warning": None, "barcode_bound": False}
 
         # Log the custody event
         try:

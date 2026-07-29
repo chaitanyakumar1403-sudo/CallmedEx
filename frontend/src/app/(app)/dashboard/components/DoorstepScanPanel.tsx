@@ -86,7 +86,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
         setMismatchResult(result);
       } else {
         const label = result.barcode_bound
-          ? `✓ ${result.barcode} — type matches.`
+          ? `✓ ${barcode} — type matches.`
           : `✓ ${sample.barcode || "Tube"} — type matches.`;
         setMsg({ kind: "ok", text: label });
       }

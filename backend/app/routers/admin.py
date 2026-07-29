@@ -70,7 +70,7 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
 @router.get("/users")
 async def get_users(role: Optional[str] = None, q: Optional[str] = None, current_user: dict = Depends(get_current_user)):
     """List users, filtered by city for Supervisors. Accepts optional q search
-    param that filters by email or full_name (case-insensitive)."""
+    param that filters by email (case-insensitive)."""
     admin_data = check_admin_access(current_user)
     city = admin_data.get("managed_city")
 

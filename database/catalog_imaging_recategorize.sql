@@ -26,14 +26,18 @@ UPDATE service_catalog
 SET category = 'imaging',
     sub_category = 'xray'
 WHERE category = 'lab_test'
-  AND UPPER(name) LIKE 'X-RAY%';
+  AND (UPPER(name) LIKE 'X-RAY%'
+    OR UPPER(name) LIKE '% X-RAY%'
+    OR UPPER(name) LIKE '% XRAY%');
 
 -- X-Ray (XRAY prefix without hyphen) — expected ~2-5
 UPDATE service_catalog
 SET category = 'imaging',
     sub_category = 'xray'
 WHERE category = 'lab_test'
-  AND UPPER(name) LIKE 'XRAY%';
+  AND (UPPER(name) LIKE 'XRAY%'
+    OR UPPER(name) LIKE '% X-RAY%'
+    OR UPPER(name) LIKE '% XRAY%');
 
 -- Ultrasound / USG — expected ~10-20
 UPDATE service_catalog

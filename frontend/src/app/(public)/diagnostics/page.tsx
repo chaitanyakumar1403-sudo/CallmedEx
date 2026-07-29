@@ -87,11 +87,15 @@ function lookupFixedRate(testName: string): { mrp: number; price: number } | nul
   // 1. Exact normalised match
   let hit = FIXED_RATE_CATALOG.find((e) => normName(e.name) === target);
   if (hit) return hit;
-  // 2. One-way contains
-  hit = FIXED_RATE_CATALOG.find(
+  // 2. Contains-fallback — when multiple candidates contain the target,
+  //    prefer the one with the SHORTEST normalised name (closest to query).
+  const candidates = FIXED_RATE_CATALOG.filter(
     (e) => target.includes(normName(e.name)) || normName(e.name).includes(target)
   );
-  if (hit) return hit;
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => normName(a.name).length - normName(b.name).length);
+    return candidates[0];
+  }
   return null;
 }
 
@@ -695,7 +699,7 @@ export default function DiagnosticsPage() {
               </div>
             ) : (
               <p style={{ textAlign: "center", color: "#94a3b8" }}>
-                {curatedLoading ? "Loading the test catalogue…" : "Loading the test catalogue…"}
+                {curatedLoading ? "Loading the test catalogue…" : "No tests match your search."}
               </p>
             )}
           </>

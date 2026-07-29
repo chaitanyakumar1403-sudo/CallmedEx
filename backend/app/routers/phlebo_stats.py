@@ -4,6 +4,8 @@ Phlebo performance stats + availability self-service (DoctorC profile model).
   - GET /api/phlebo/performance  — current-month scorecard from real tables only.
   - POST /api/phlebo/availability — phlebo sets their own roster status for
     today/future dates (own rows only).
+  - GET /api/phlebo/roster       — phlebo fetches their own roster rows for
+    a date window (default next 7 days).
 
 Every number traces to a real table or the tile is omitted.
 """
@@ -11,7 +13,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.database import supabase
@@ -194,3 +196,39 @@ async def set_availability(body: AvailabilityRequest, user: dict = Depends(get_c
         }).execute()
 
     return {"ok": True, "date": body.date, "status": body.status}
+
+
+@router.get("/roster")
+async def get_roster(
+    user: dict = Depends(get_current_user),
+    from_date: str = Query("", alias="from"),
+    to_date: str = Query("", alias="to"),
+):
+    """Fetch the caller's own roster rows for a date window.
+
+    Both *from* and *to* are required (YYYY-MM-DD).  Returns a list of
+    ``{roster_date, status}`` dicts.  Days without a row are treated as
+    Available by the frontend.
+    """
+    if user.get("role") != "phlebotomist":
+        raise HTTPException(status_code=403, detail="Phlebotomists only.")
+    if not from_date or not to_date:
+        raise HTTPException(status_code=400, detail="from and to query params are required (YYYY-MM-DD).")
+
+    user_id = user.get("sub")
+    rows: List[dict] = []
+    if supabase:
+        try:
+            result = (
+                supabase.table("phlebotomist_roster")
+                .select("roster_date, status")
+                .eq("phlebotomist_user_id", user_id)
+                .gte("roster_date", from_date)
+                .lte("roster_date", to_date)
+                .execute()
+            )
+            rows = _rows(result)
+        except Exception as e:
+            logger.error(f"roster fetch failed: {e}")
+
+    return {"roster": rows}

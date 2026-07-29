@@ -24,10 +24,14 @@ from tests.test_sample_lifecycle import FakeQuery, FakeSupabase, FakeResult
 # ── Extended Fake with gte support ──────────────────────────────────────────
 
 class FakeQueryWithGte(FakeQuery):
-    """Extends FakeQuery with .gte() support."""
+    """Extends FakeQuery with .gte() and .lte() support."""
 
     def gte(self, col, val):
         self.filters.append(("gte", col, val))
+        return self
+
+    def lte(self, col, val):
+        self.filters.append(("lte", col, val))
         return self
 
     def _matches(self, row):
@@ -60,6 +64,10 @@ class FakeQueryWithGte(FakeQuery):
             if kind == "gte":
                 rv = row.get(col)
                 if rv is None or rv < val:
+                    return False
+            if kind == "lte":
+                rv = row.get(col)
+                if rv is None or rv > val:
                     return False
         return True
 
@@ -315,3 +323,75 @@ async def test_availability_rejects_non_phlebo(fake_db):
             user=user,
         )
     assert "Phlebotomists only" in str(exc.value)
+
+
+# ── 10. Roster fetch returns own rows for a date window ───────────────────────
+
+@pytest.mark.asyncio
+async def test_roster_fetch_own_rows(fake_db):
+    phlebo_id = str(uuid.uuid4())
+    user = _phlebo_user(phlebo_id)
+
+    # Seed a few roster rows for the phlebo
+    fake_db.db.setdefault("phlebotomist_roster", []).extend([
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-01", "status": "available"},
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-02", "status": "leave"},
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-05", "status": "unavailable"},
+    ])
+    # A different phlebo's row — should NOT be returned
+    other_id = str(uuid.uuid4())
+    fake_db.db["phlebotomist_roster"].append({
+        "phlebotomist_user_id": other_id, "roster_date": "2026-08-01", "status": "available",
+    })
+
+    result = await stats_mod.get_roster(
+        user=user,
+        from_date="2026-08-01",
+        to_date="2026-08-07",
+    )
+    assert "roster" in result
+    assert len(result["roster"]) == 3
+    dates = {r["roster_date"] for r in result["roster"]}
+    assert dates == {"2026-08-01", "2026-08-02", "2026-08-05"}
+
+
+# ── 11. Roster fetch respects window filter ───────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_roster_window_filter(fake_db):
+    phlebo_id = str(uuid.uuid4())
+    user = _phlebo_user(phlebo_id)
+
+    fake_db.db.setdefault("phlebotomist_roster", []).extend([
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-01", "status": "available"},
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-10", "status": "leave"},
+        {"phlebotomist_user_id": phlebo_id, "roster_date": "2026-08-15", "status": "unavailable"},
+    ])
+
+    result = await stats_mod.get_roster(
+        user=user,
+        from_date="2026-08-05",
+        to_date="2026-08-12",
+    )
+    assert len(result["roster"]) == 1
+    assert result["roster"][0]["roster_date"] == "2026-08-10"
+
+
+# ── 12. Roster fetch rejects non-phlebo users ─────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_roster_rejects_non_phlebo(fake_db):
+    user = _non_phlebo_user()
+    with pytest.raises(Exception) as exc:
+        await stats_mod.get_roster(user=user, from_date="2026-08-01", to_date="2026-08-07")
+    assert "Phlebotomists only" in str(exc.value)
+
+
+# ── 13. Roster fetch requires both date params ────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_roster_requires_params(fake_db):
+    user = _phlebo_user()
+    with pytest.raises(Exception) as exc:
+        await stats_mod.get_roster(user=user, from_date="", to_date="2026-08-07")
+    assert "from and to" in str(exc.value).lower()
