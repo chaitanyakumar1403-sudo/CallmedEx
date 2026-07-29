@@ -27,7 +27,6 @@ export interface DispatchTask {
   notes?: string;
   created_at: string;
   priority?: string;
-  booking_id?: string;
 }
 
 type StatusMsg = { tone: "done" | "urgent" | "active"; text: string } | null;
