@@ -459,6 +459,10 @@ async def add_doorstep_test(
                         pass  # duplicate key — already linked
                     break
 
+    # ── Upsell incentive accrual ────────────────────────────────────────
+    # Best-effort: if the rule row is missing, log and skip — never fail the addon.
+    _accrue_upsell_incentive(phlebo_id, body.booking_id, bt_id, float(service.get("base_price", 0)))
+
     return {
         "success": True,
         "booking_test_id": bt_id,
@@ -469,3 +473,71 @@ async def add_doorstep_test(
             + (f" {len(new_samples)} new tube(s) required." if new_samples else "")
         ),
     }
+
+
+# ── Upsell incentive helpers ───────────────────────────────────────────────────
+
+
+def _accrue_upsell_incentive(
+    phlebo_id: str,
+    booking_id: str,
+    booking_test_id: str,
+    price_charged: float,
+) -> None:
+    """
+    Create a pending incentive_ledger entry for a doorstep upsell.
+
+    Best-effort — if the rule row is missing or inactive, log and skip
+    so the addon never fails when the incentive tables are unwired.
+    """
+    if price_charged <= 0:
+        return
+
+    try:
+        rules = _rows(
+            supabase.table("incentive_rules")
+            .select("id, code, reward_type, reward_value, is_active")
+            .eq("code", "PHLEBO_UPSELL_SVC")
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        logger.info("incentive_rules table not available — skipping upsell incentive.")
+        return
+
+    if not rules:
+        logger.info("PHLEBO_UPSELL_SVC rule not found — skipping upsell incentive.")
+        return
+
+    rule = rules[0]
+    if not rule.get("is_active", True):
+        logger.info("PHLEBO_UPSELL_SVC rule is inactive — skipping upsell incentive.")
+        return
+
+    reward_type = rule.get("reward_type", "percent")
+    reward_value = float(rule.get("reward_value", 0))
+
+    if reward_type == "percent":
+        reward_amount = round(price_charged * reward_value / 100.0, 2)
+    else:
+        reward_amount = round(reward_value, 2)  # flat
+
+    if reward_amount <= 0:
+        return
+
+    try:
+        supabase.table("incentive_ledger").insert({
+            "provider_user_id": phlebo_id,
+            "rule_id": rule["id"],
+            "booking_id": booking_id,
+            "base_amount": round(price_charged, 2),
+            "reward_amount": reward_amount,
+            "status": "pending",
+            "notes": f"Doorstep upsell — booking_test {booking_test_id}",
+        }).execute()
+        logger.info(
+            "Accrued upsell incentive: phlebo=%s bt=%s amount=%s",
+            phlebo_id, booking_test_id, reward_amount,
+        )
+    except Exception as e:
+        logger.error("Failed to accrue upsell incentive: %s", e)

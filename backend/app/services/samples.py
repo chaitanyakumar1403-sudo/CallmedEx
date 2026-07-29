@@ -587,35 +587,137 @@ class SampleService:
         Part-time phlebotomists carry a per-collection rate (Rs150 by default);
         full-time are salaried and carry 0, so `WalletService.credit` no-ops.
         Credits are keyed to the sample, so a retried acceptance cannot double-pay.
+
+        Also settles any pending upsell incentives for the accepted bookings.
+        Full-time phlebos still earn upsell incentives (they are sales incentives,
+        not collection pay).
         """
         if not phlebotomist_user_id or not accepted_ids:
             return {"credited": 0, "amount": 0.0}
 
         profile = SampleService._phlebo_profile(phlebotomist_user_id)
         rate = float(profile.get("per_collection_rate") or 0.0)
-        if rate <= 0:
-            return {
-                "credited": 0,
-                "amount": 0.0,
-                "note": "Salaried phlebotomist — no per-collection accrual.",
-            }
 
         credited = 0
-        for sid in accepted_ids:
-            sample = by_id.get(sid, {})
+        per_collection_amt = 0.0
+        if rate > 0:
+            for sid in accepted_ids:
+                sample = by_id.get(sid, {})
+                result = WalletService.credit(
+                    provider_user_id=phlebotomist_user_id,
+                    amount=rate,
+                    reason="collection_payout",
+                    sample_id=sid,
+                    booking_id=sample.get("booking_id"),
+                    notes=f"Verified collection {sample.get('barcode', '')}",
+                    created_by=responder_user_id,
+                )
+                if result.get("success") and not result.get("duplicate"):
+                    credited += 1
+            per_collection_amt = round(credited * rate, 2)
+
+        # Settle upsell incentives — runs for both part-time and full-time.
+        incentive_count = SampleService._settle_incentives_for_accepted(
+            phlebotomist_user_id, accepted_ids, by_id, responder_user_id,
+        )
+
+        result = {
+            "credited": credited,
+            "rate": rate,
+            "amount": per_collection_amt,
+            "incentives_settled": incentive_count,
+        }
+        if rate <= 0:
+            result["note"] = "Salaried phlebotomist — no per-collection accrual."
+        return result
+
+    @staticmethod
+    def _settle_incentives_for_accepted(
+        phlebotomist_user_id: str,
+        accepted_ids: List[str],
+        by_id: dict,
+        responder_user_id: str,
+    ) -> int:
+        """
+        Settle any pending incentive_ledger rows for the accepted samples' bookings.
+
+        Looks up pending incentives linked to the same booking(s) and credits
+        the phlebotomist's wallet. Idempotent: only processes rows where
+        status = 'pending'; flips to 'credited' after settling.
+        """
+        if not supabase or not accepted_ids:
+            return 0
+
+        # Collect unique booking_ids from accepted samples.
+        booking_ids = list({
+            by_id[sid].get("booking_id") for sid in accepted_ids
+            if by_id.get(sid, {}).get("booking_id")
+        })
+        if not booking_ids:
+            return 0
+
+        try:
+            pending = _rows(
+                supabase.table("incentive_ledger")
+                .select("*")
+                .in_("booking_id", booking_ids)
+                .eq("provider_user_id", phlebotomist_user_id)
+                .eq("status", "pending")
+                .execute()
+            )
+        except Exception:
+            logger.info("incentive_ledger table not available — skipping incentive settlement.")
+            return 0
+
+        if not pending:
+            return 0
+
+        settled = 0
+        for entry in pending:
+            reward = float(entry.get("reward_amount", 0))
+            if reward <= 0:
+                continue
+
+            # Pick a sample_id from the accepted ones for this booking.
+            booking_id = entry.get("booking_id")
+            sample_id = None
+            for sid in accepted_ids:
+                if by_id.get(sid, {}).get("booking_id") == booking_id:
+                    sample_id = sid
+                    break
+
+            # Credit the wallet. The unique index on (sample_id, reason) for
+            # credits guards against double-pay on retry. Since multiple
+            # incentives can share the same sample, we use the incentive_ledger
+            # id as a pseudo-sample_id to keep the index unique per incentive.
             result = WalletService.credit(
                 provider_user_id=phlebotomist_user_id,
-                amount=rate,
-                reason="collection_payout",
-                sample_id=sid,
-                booking_id=sample.get("booking_id"),
-                notes=f"Verified collection {sample.get('barcode', '')}",
+                amount=reward,
+                reason="incentive",
+                sample_id=entry["id"],  # use incentive_ledger id as unique key
+                booking_id=booking_id,
+                notes=f"Upsell incentive — booking_test {entry.get('notes', '')}",
                 created_by=responder_user_id,
             )
-            if result.get("success") and not result.get("duplicate"):
-                credited += 1
+            if not result.get("success"):
+                logger.error("Failed to credit incentive %s: %s", entry["id"], result.get("message"))
+                continue
 
-        return {"credited": credited, "rate": rate, "amount": round(credited * rate, 2)}
+            # Flip status to credited (idempotent guard: only pending rows are fetched).
+            try:
+                supabase.table("incentive_ledger").update({
+                    "status": "credited",
+                    "credited_at": datetime.now(timezone.utc).isoformat(),
+                    "wallet_transaction_id": result.get("transaction_id"),
+                    "sample_id": sample_id,
+                }).eq("id", entry["id"]).execute()
+            except Exception as e:
+                logger.error("Failed to update incentive_ledger %s: %s", entry["id"], e)
+                continue
+
+            settled += 1
+
+        return settled
 
     @staticmethod
     async def _notify_patients_received(accepted_ids: List[str], by_id: dict, centre_name: str) -> None:

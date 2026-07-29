@@ -251,6 +251,7 @@ class WalletService:
         wallet = WalletService.ensure_wallet(provider_user_id)
 
         transactions = []
+        incentive_month = 0.0
         if supabase:
             try:
                 transactions = _rows(
@@ -264,6 +265,26 @@ class WalletService:
             except Exception as e:
                 logger.error(f"get_summary failed for {provider_user_id}: {e}")
 
+            # Compute incentive_month from the full ledger, not just the recent 50.
+            try:
+                now = datetime.now(timezone.utc)
+                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                all_txns = _rows(
+                    supabase.table("wallet_transactions")
+                    .select("amount, reason, direction, created_at")
+                    .eq("provider_user_id", provider_user_id)
+                    .execute()
+                )
+                incentive_month = sum(
+                    _num(t.get("amount"))
+                    for t in all_txns
+                    if t.get("reason") == "incentive"
+                    and t.get("direction") == "credit"
+                    and t.get("created_at", "") >= month_start.isoformat()
+                )
+            except Exception:
+                pass  # best-effort; incentive_month stays 0
+
         return {
             "balance": _num(wallet.get("balance")),
             "lifetime_earned": _num(wallet.get("lifetime_earned")),
@@ -271,6 +292,7 @@ class WalletService:
             "on_hold": bool(wallet.get("on_hold")),
             "hold_reason": wallet.get("hold_reason") or "",
             "last_settled_at": wallet.get("last_settled_at"),
+            "incentive_month": round(incentive_month, 2),
             "transactions": transactions,
         }
 

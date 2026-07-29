@@ -21,7 +21,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Banner, Icon, Panel, Pill, SkeletonRows, Stat, StatGrid } from "@/components/ui";
-import { CheckCircle2, IndianRupee, Wallet } from "@/components/ui/icons";
+import { Award, CheckCircle2, IndianRupee, Wallet } from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -112,6 +112,12 @@ export default function PhleboWalletPanel() {
           value={inr(earnedThisMonth)}
           meta={`${collectionsThisMonth} verified collection${collectionsThisMonth === 1 ? "" : "s"}`}
           icon={IndianRupee}
+        />
+        <Stat
+          label="Upsell incentives this month"
+          value={inr(wallet.incentive_month || 0)}
+          meta="Doorstep add-test rewards"
+          icon={Award}
         />
         <Stat
           label="Lifetime earned"

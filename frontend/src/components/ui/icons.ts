@@ -12,6 +12,6 @@ export {
   Package, FlaskConical, FileText, Phone, ChevronRight, ChevronDown, X,
   Search, Plus, Trash2, Pencil, Eye, Download, RefreshCw, Menu, Building2,
   Mail, GraduationCap, ScanLine, Boxes, CalendarDays, Truck, ShieldCheck,
-  Ban, BarChart3, CircleDot, ArrowRight,
+  Ban, BarChart3, CircleDot, ArrowRight, Award,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";
