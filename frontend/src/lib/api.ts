@@ -250,5 +250,62 @@ export const dispatchAPI = {
     api.post(`/dispatch/${dispatchId}/cancel`),
 };
 
+// ─── Processing Centre API (Spec 2) ──────────────────────────────────────
+export const pcAPI = {
+  getMe: () => api.get('/pc/me'),
+  getQueue: () => api.get('/pc/queue'),
+  getSamples: (status?: string) =>
+    api.get(`/pc/samples${status ? `?status=${status}` : ''}`),
+  receiveSample: (sampleId: string) =>
+    api.post(`/pc/samples/${sampleId}/receive`),
+  verifySample: (sampleId: string, checks: Record<string, boolean>) =>
+    api.post(`/pc/samples/${sampleId}/verify`, checks),
+  rejectSample: (sampleId: string, code: string, notes?: string) =>
+    api.post(`/pc/samples/${sampleId}/reject`, { rejection_code: code, notes }),
+  listBatches: (status?: string) =>
+    api.get(`/pc/batches${status ? `?status=${status}` : ''}`),
+  createBatch: () => api.post('/pc/batches'),
+  addToBatch: (batchId: string, sampleId: string) =>
+    api.post(`/pc/batches/${batchId}/add-sample`, { sample_id: sampleId }),
+  sealBatch: (batchId: string) =>
+    api.post(`/pc/batches/${batchId}/seal`),
+  sendBatch: (batchId: string, courierRef?: string) =>
+    api.post(`/pc/batches/${batchId}/send`, { courier_reference: courierRef }),
+  getRosterSummary: (date?: string) =>
+    api.get(`/pc/roster-summary${date ? `?date=${date}` : ''}`),
+  getRoster: (date: string) =>
+    api.get(`/pc/roster?date=${date}`),
+  setRoster: (date: string, entries: any[]) =>
+    api.put(`/pc/roster/${date}`, entries),
+  runRosterPass: (date: string) =>
+    api.post(`/pc/roster/${date}/run`),
+  getCatalog: () => api.get('/pc/home-services'),
+};
+
+// ─── Phlebotomist doorstep API (Spec 3) ──────────────────────────────────
+export const phleboAPI = {
+  getBookingSamples: (bookingId: string) =>
+    api.get(`/phlebo/booking-samples/${bookingId}`),
+  scanTube: (sampleId: string, tubeTypeCode: string) =>
+    api.post('/phlebo/scan-tube', { sample_id: sampleId, scanned_tube_type_code: tubeTypeCode }),
+  ackMismatch: (sampleId: string) =>
+    api.post(`/phlebo/scan-tube/${sampleId}/ack-mismatch`),
+  addDoorstepTest: (bookingId: string, homeServiceId: string, subjectId?: string) =>
+    api.post('/phlebo/doorstep-addon', {
+      booking_id: bookingId,
+      home_service_id: homeServiceId,
+      booking_subject_id: subjectId,
+    }),
+  getJobs: (date: string) =>
+    api.get(`/phlebo/jobs?date=${date}`),
+  declineJob: (dispatchId: string) =>
+    api.post(`/phlebo/jobs/${dispatchId}/decline`),
+};
+
+// ─── Patient sample status API (Spec 3) ──────────────────────────────────
+export const patientSamplesAPI = {
+  getMySamples: () => api.get('/patient/my-samples'),
+};
+
 export { APIError };
 export default api;

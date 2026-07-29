@@ -273,6 +273,12 @@ from app.routers import family_members
 app.include_router(family_members.router)
 from app.routers import roster
 app.include_router(roster.router)
+from app.routers import pc_operations
+app.include_router(pc_operations.router)
+from app.routers import phlebo_doorstep
+app.include_router(phlebo_doorstep.router)
+from app.routers import patient_samples
+app.include_router(patient_samples.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")

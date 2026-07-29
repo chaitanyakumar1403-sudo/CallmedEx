@@ -6,9 +6,10 @@ import DashboardProfile from "../components/DashboardProfile";
 import SampleCollectionPanel from "../components/SampleCollectionPanel";
 import PhleboWalletPanel from "../components/PhleboWalletPanel";
 import AttendanceCard from "../components/AttendanceCard";
+import DoorstepScanPanel from "../components/DoorstepScanPanel";
 import { useRouter } from "next/navigation";
 import { Button, Icon } from "@/components/ui";
-import { MapPin, TestTube, Wallet, User } from "@/components/ui/icons";
+import { MapPin, TestTube, Wallet, User, ScanLine } from "@/components/ui/icons";
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
@@ -46,8 +47,11 @@ export default function PhlebotomistDashboard() {
     fetchProfile();
   }, [router]);
 
+  const [collectionBookingId, setCollectionBookingId] = useState("");
+
   const TABS = [
     { id: "dispatch", label: "Live Dispatch", icon: MapPin },
+    { id: "collection", label: "Collection", icon: ScanLine },
     { id: "samples", label: "Samples & Handover", icon: TestTube },
     { id: "wallet", label: "Wallet", icon: Wallet },
     { id: "profile", label: "Profile", icon: User },
@@ -93,6 +97,31 @@ export default function PhlebotomistDashboard() {
               embedded
               earningsRate={200}
             />
+          </div>
+        )}
+
+        {activeTab === "collection" && (
+          <div className="cm-stack">
+            <div className="card" style={{ padding: 16 }}>
+              <label style={{ fontWeight: 600, fontSize: "0.9rem", color: "#475569" }}>
+                Enter Booking ID for doorstep collection
+              </label>
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <input
+                  value={collectionBookingId}
+                  onChange={(e) => setCollectionBookingId(e.target.value)}
+                  placeholder="Booking ID or scan…"
+                  style={{
+                    flex: 1, padding: "10px 14px", borderRadius: 8,
+                    border: "1.5px solid #cbd5e1", fontFamily: "monospace",
+                    fontSize: "0.9rem",
+                  }}
+                />
+              </div>
+            </div>
+            {collectionBookingId.trim() && (
+              <DoorstepScanPanel bookingId={collectionBookingId.trim()} />
+            )}
           </div>
         )}
 
