@@ -223,10 +223,12 @@ async def pc_catalog(staff: dict = Depends(get_current_pc_staff)):
 @router.get("/home-services")
 async def patient_search(city: Optional[str] = None, pincode: Optional[str] = None,
                          lat: Optional[float] = None, lng: Optional[float] = None,
+                         district: Optional[str] = None,
                          q: Optional[str] = Query(default=None)):
     """Patient-facing search. The resolved centre is used for pricing and then
     discarded — it never appears in the response."""
-    centre = resolve_center(city=city, pincode=pincode, lat=lat, lng=lng)
+    centre = resolve_center(city=city, pincode=pincode, lat=lat, lng=lng,
+                            district=district)
     if centre is None:
         return {"serviceable": False, "services": []}
 
@@ -251,9 +253,11 @@ async def patient_search(city: Optional[str] = None, pincode: Optional[str] = No
 
 @router.get("/coverage")
 async def coverage(city: Optional[str] = None, pincode: Optional[str] = None,
-                   lat: Optional[float] = None, lng: Optional[float] = None):
+                   lat: Optional[float] = None, lng: Optional[float] = None,
+                   district: Optional[str] = None):
     """Checked at the location step, before slots, address or payment."""
-    return check_coverage(city=city, pincode=pincode, lat=lat, lng=lng)
+    return check_coverage(city=city, pincode=pincode, lat=lat, lng=lng,
+                          district=district)
 
 
 @router.post("/service-area-requests")

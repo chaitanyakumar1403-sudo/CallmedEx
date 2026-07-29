@@ -185,7 +185,7 @@ function BookingPageContent() {
         }
       }
     }
-  }, [typeParam, orgParam, serviceParam, bookingType]);
+  }, [typeParam, orgParam, serviceParam, packageParam, bookingType]);
 
   // Fetch real registered organizations or doctors when step === 2.
   // Lab/diagnostics no longer has a centre-selection step (partner-blind —
