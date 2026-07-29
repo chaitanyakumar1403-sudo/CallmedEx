@@ -121,14 +121,14 @@ export default function StateDistrictPicker({
   const background = detected ? "#f0fdf4" : "#fff";
 
   return (
-    <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 260, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 140, flexWrap: "nowrap" }}>
       <select
         value={stateValue}
         onChange={(e) => onChange({ state: e.target.value, district: "", detected: false })}
         aria-label="State"
         style={{
           flex: 1,
-          minWidth: 110,
+          minWidth: 140,
           padding: "14px 12px",
           borderRadius: 12,
           border,
@@ -153,7 +153,7 @@ export default function StateDistrictPicker({
         aria-label="District"
         style={{
           flex: 1,
-          minWidth: 110,
+          minWidth: 140,
           padding: "14px 12px",
           borderRadius: 12,
           border,

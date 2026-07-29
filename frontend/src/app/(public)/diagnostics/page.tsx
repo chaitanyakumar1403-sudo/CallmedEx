@@ -1,24 +1,29 @@
 "use client";
 
 /**
- * Diagnostics — test-first, partner-blind marketplace.
+ * Diagnostics — two-model marketplace: blood tests are partner-blind (CallMedex
+ * fixed rate, home collection); walk-in/imaging tests show every verified centre
+ * with prices, ratings, and direct booking per provider.
  *
- * The patient searches for a TEST, not a centre. Someone who needs an MRI does
- * not know or care which lab they end up at; they care what it costs, how far
- * it is and when they can be seen.
+ * Blood tests (lab_test category): the patient books with CallMedex, who
+ * allocates a partner centre internally. The partner is never named, rated or
+ * compared on this screen — only the CallMedex rate, MRP saving, home vs walk-in
+ * coverage, and partner count are shown. Prices are cross-checked against the
+ * fixed-rate catalogue (lab-test-prices.json) for the "CallMedex fixed rate"
+ * display, falling back to the API fulfilment price when the test has no
+ * entry in the fixed-rate catalogue.
  *
- * A blood test booked here is between CallMedex and the patient only.
- * CallMedex links to partner centres internally to fulfil it, but that
- * partner is never named, rated or compared on this screen — only the
- * CallMedex price, the real saving against MRP, and whether the test is
- * home-serviceable or requires a walk-in visit (see CLAUDE.md, "partner-blind
- * diagnostics booking"). The allocated centre is still recorded on the
- * booking server-side so dispatch/samples/settlement work unchanged; it is
- * only ever revealed to the patient once a walk-in booking is confirmed.
+ * Imaging and walk-in tests (imaging category): the patient browses every
+ * verified partner centre that offers the test, with price, MRP strike, rating,
+ * and a Book button that links directly to that centre's booking page.
+ *
+ * See CLAUDE.md §7 — Tier A (home-serviceable, partner-blind) vs Tier B
+ * (centre-visible, slot-based) model.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
+import FIXED_PRICES from "@/data/lab-test-prices.json";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -47,6 +52,56 @@ type Fulfilment = {
   urgent_surcharge: number;
   partner_count: number;
 };
+
+// A partner-centre offer for imaging/walk-in tests. Here the provider IS
+// visible — the patient picks the centre they want.
+type Offer = {
+  service_id: string;
+  service_name: string;
+  provider_user_id: string;
+  provider_name: string;
+  provider_type?: string;
+  city: string;
+  state: string;
+  rating: number;
+  home_available: boolean;
+  urgent_available: boolean;
+  turnaround_hours?: number;
+  price: number;
+  mrp: number;
+  savings: number;
+  payable: number;
+  urgent_surcharge: number;
+};
+
+// Fixed-rate catalogue — names may differ from the search catalog so we
+// normalise and fuzzy-match on both sides.
+const FIXED_RATE_CATALOG = FIXED_PRICES as Array<{ name: string; mrp: number; price: number }>;
+
+function normName(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function lookupFixedRate(testName: string): { mrp: number; price: number } | null {
+  const target = normName(testName);
+  // 1. Exact normalised match
+  let hit = FIXED_RATE_CATALOG.find((e) => normName(e.name) === target);
+  if (hit) return hit;
+  // 2. One-way contains
+  hit = FIXED_RATE_CATALOG.find(
+    (e) => target.includes(normName(e.name)) || normName(e.name).includes(target)
+  );
+  if (hit) return hit;
+  return null;
+}
+
+// Curated list shown when the popular endpoint returns nothing bookable (all
+// provider_count 0 or empty response).
+const CURATED_NAMES = [
+  "CBC", "HbA1c", "Thyroid Profile", "Lipid Profile", "Vitamin D",
+  "Vitamin B12", "KFT", "LFT", "Fasting Blood Sugar", "Urine Routine",
+  "ECG", "Chest X-Ray",
+];
 
 // Walk-in-only services (dental, physiotherapy) are deliberately NOT here —
 // a root canal can't be home-collected. They are discoverable under
@@ -120,6 +175,16 @@ export default function DiagnosticsPage() {
 
   const [fulfilment, setFulfilment] = useState<Fulfilment | null>(null);
   const [loadingFulfilment, setLoadingFulfilment] = useState(false);
+
+  // Offers for imaging tests (centre-visible, Tier B)
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [loadingOffers, setLoadingOffers] = useState(false);
+
+  // Curated fallback grid when popular returns nothing bookable
+  const [curatedTests, setCuratedTests] = useState<Test[]>([]);
+  const [curatedLoading, setCuratedLoading] = useState(false);
+  const curatedAttempted = useRef(false);
+
   // Location is a State → District cascade (never free text) so the value
   // always resolves against processing-centre serviceable areas server-side.
   const [locState, setLocState] = useState("");
@@ -140,8 +205,44 @@ export default function DiagnosticsPage() {
       .catch(() => setPopular([]));
   }, []);
 
-  // Debounced type-ahead: a request per keystroke would hammer the API and can
-  // deliver results out of order.
+  // ── Curated popular fallback ─────────────────────────────────────────
+  // When the popular endpoint returns nothing bookable (all provider_count 0
+  // or empty), resolve the curated name list via the search API so the grid
+  // never goes blank.
+  useEffect(() => {
+    if (curatedAttempted.current) return;
+    if (popular.length === 0 && !curatedAttempted.current) {
+      // Still loading — wait for a second tick to be sure.
+      const t = setTimeout(() => {
+        if (popular.length === 0 && !curatedAttempted.current) {
+          curatedAttempted.current = true;
+          fetchCurated();
+        }
+      }, 2000);
+      return () => clearTimeout(t);
+    }
+    if (!curatedAttempted.current && popular.every((t) => !t.provider_count)) {
+      curatedAttempted.current = true;
+      fetchCurated();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popular]);
+
+  async function fetchCurated() {
+    setCuratedLoading(true);
+    const results = await Promise.all(
+      CURATED_NAMES.map((name) =>
+        fetch(`${API}/api/marketplace/tests/search?q=${encodeURIComponent(name)}&limit=1`)
+          .then((r) => r.json())
+          .then((d) => d.tests?.[0] || null)
+          .catch(() => null)
+      )
+    );
+    setCuratedTests(results.filter(Boolean));
+    setCuratedLoading(false);
+  }
+
+  // Debounced type-ahead
   useEffect(() => {
     if (!query.trim()) {
       setSuggestions([]);
@@ -156,24 +257,20 @@ export default function DiagnosticsPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Browsing a category lists what CallMedex actually carries for it, so a
-  // patient can pick "Root Canal Treatment" without knowing to type it.
+  // Browsing a category lists what CallMedex actually carries for it
   useEffect(() => {
     if (!category) {
       setBrowse([]);
       return;
     }
 
-    // If a sub-category is selected, search using its keywords instead of the full category
     if (subCategory && SUB_CATEGORY_KEYWORDS[subCategory]) {
       setLoadingBrowse(true);
       const keywords = SUB_CATEGORY_KEYWORDS[subCategory];
-      // Search using the first keyword as the main query, filtered by category
       const searchQ = keywords[0];
       fetch(`${API}/api/marketplace/tests/search?q=${encodeURIComponent(searchQ)}&category=${encodeURIComponent(category)}&limit=200`)
         .then((r) => r.json())
         .then((d) => {
-          // Client-side filter: keep tests that match any of the sub-category keywords
           const tests = (d.tests || []) as Test[];
           const filtered = tests.filter((t: Test) => {
             const name = t.name.toLowerCase();
@@ -202,8 +299,6 @@ export default function DiagnosticsPage() {
       try {
         const url = new URL(`${API}/api/marketplace/fulfilment`);
         url.searchParams.set("catalog_id", test.id);
-        // The fulfilment endpoint substring-matches `city` against a partner's
-        // city + state, so the district alone is the strongest single token.
         if (district.trim()) url.searchParams.set("city", district.trim());
         if (homeOnly) url.searchParams.set("home", "true");
         if (urgent) url.searchParams.set("urgent", "true");
@@ -220,23 +315,51 @@ export default function DiagnosticsPage() {
     [district, homeOnly, urgent]
   );
 
+  // Fetch offers for imaging tests from the offers endpoint
+  const loadOffers = useCallback(
+    async (test: Test) => {
+      setLoadingOffers(true);
+      try {
+        const url = new URL(`${API}/api/marketplace/offers`);
+        url.searchParams.set("catalog_id", test.id);
+        if (district.trim()) url.searchParams.set("city", district.trim());
+        const res = await fetch(url.toString());
+        const data = await res.json();
+        setOffers(data.offers || []);
+      } catch {
+        setOffers([]);
+      } finally {
+        setLoadingOffers(false);
+      }
+    },
+    [district]
+  );
+
   function pick(test: Test) {
     setSelected(test);
     setSuggestions([]);
     setQuery(test.name);
-    loadFulfilment(test);
+    setFulfilment(null);
+    setOffers([]);
+    if (test.category === "imaging") {
+      loadOffers(test);
+    } else {
+      loadFulfilment(test);
+    }
   }
 
-  // Re-price when a filter changes, so toggling "urgent" updates the numbers in
-  // place rather than making the patient search again.
+  // Re-price when a filter changes
   useEffect(() => {
-    if (selected) loadFulfilment(selected);
+    if (selected) {
+      if (selected.category === "imaging") {
+        loadOffers(selected);
+      } else {
+        loadFulfilment(selected);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOnly, urgent]);
 
-  // State → District cascade (auto-detect included) lives in the shared
-  // StateDistrictPicker; when the district changes we re-price the selected
-  // test for the new location.
   const handleLocationChange = useCallback(
     (next: { state: string; district: string; detected: boolean }) => {
       setLocState(next.state);
@@ -247,9 +370,21 @@ export default function DiagnosticsPage() {
   );
 
   useEffect(() => {
-    if (selected) loadFulfilment(selected);
+    if (selected) {
+      if (selected.category === "imaging") {
+        loadOffers(selected);
+      } else {
+        loadFulfilment(selected);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [district]);
+
+  // Compute whether to show the curated fallback
+  const isPopularBookable = popular.length > 0 && popular.some((t) => t.provider_count && t.provider_count > 0);
+
+  // Fixed rate price for the selected test (blood tests only)
+  const fixedRate = selected && selected.category === "lab_test" ? lookupFixedRate(selected.name) : null;
 
   return (
     <div className="section">
@@ -257,32 +392,32 @@ export default function DiagnosticsPage() {
         <div className="section-title">
           <h1>Book a lab test or imaging — home collection or verified walk-in centre</h1>
           <p>
-            Search across lab tests and imaging. Book at the CallMedex rate —
-            home collection where possible, or we&apos;ll allocate a verified
-            partner centre for tests that need one. Looking for dental or
-            physiotherapy? See Consultation → Walk-in.
+            Search across lab tests and imaging. Lab tests are booked at the CallMedex
+            fixed rate with home collection where possible. Imaging and walk-in tests
+            let you choose from verified partner centres in your area.
           </p>
         </div>
 
         {/* ── Search ─────────────────────────────────────────────────── */}
         <div style={{ maxWidth: 780, margin: "0 auto 28px", position: "relative" }}>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSelected(null);
-              }}
-              placeholder="Try MRI, thyroid, CBC, sugar test..."
-              style={{
-                flex: 2,
-                minWidth: 260,
-                padding: "14px 18px",
-                borderRadius: 12,
-                border: "1.5px solid #cbd5e1",
-                fontSize: "1rem",
-              }}
-            />
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelected(null);
+            }}
+            placeholder="Try MRI, thyroid, CBC, sugar test..."
+            style={{
+              width: "100%",
+              padding: "14px 18px",
+              borderRadius: 12,
+              border: "1.5px solid #cbd5e1",
+              fontSize: "1rem",
+              boxSizing: "border-box",
+            }}
+          />
+
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
             <StateDistrictPicker
               stateValue={locState}
               districtValue={district}
@@ -499,45 +634,74 @@ export default function DiagnosticsPage() {
           </div>
         )}
 
-        {/* ── Popular grid ───────────────────────────────────────────── */}
+        {/* ── Popular grid / Curated fallback ────────────────────────── */}
         {!selected && !category && (
           <>
             <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
               Frequently booked
             </h3>
-            <div className="grid-3">
-              {popular.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => pick(t)}
-                  className="card"
-                  style={{
-                    padding: 20,
-                    textAlign: "left",
-                    cursor: "pointer",
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                  }}
-                >
-                  <div style={{ fontSize: "1.5rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</div>
-                  <h4 style={{ margin: "8px 0 4px", fontSize: "1rem" }}>{t.name}</h4>
-                  <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                    {t.provider_count
-                      ? `${t.provider_count} partner centre${t.provider_count === 1 ? "" : "s"}`
-                      : "Coming soon in your city"}
-                  </div>
-                </button>
-              ))}
-            </div>
-            {popular.length === 0 && (
+
+            {isPopularBookable ? (
+              /* Authentic popular grid from the API */
+              <div className="grid-3">
+                {popular.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => pick(t)}
+                    className="card"
+                    style={{
+                      padding: 20,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                    }}
+                  >
+                    <div style={{ fontSize: "1.5rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</div>
+                    <h4 style={{ margin: "8px 0 4px", fontSize: "1rem" }}>{t.name}</h4>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                      {t.provider_count
+                        ? `${t.provider_count} partner centre${t.provider_count === 1 ? "" : "s"}`
+                        : "Coming soon in your city"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : curatedTests.length > 0 ? (
+              /* Curated fallback — search API resolved names */
+              <div className="grid-3">
+                {curatedTests.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => pick(t)}
+                    className="card"
+                    style={{
+                      padding: 20,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                    }}
+                  >
+                    <div style={{ fontSize: "1.5rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</div>
+                    <h4 style={{ margin: "8px 0 4px", fontSize: "1rem" }}>{t.name}</h4>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                      {t.provider_count && t.provider_count > 0
+                        ? `${t.provider_count} partner centre${t.provider_count === 1 ? "" : "s"}`
+                        : "Coming soon in your city"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
               <p style={{ textAlign: "center", color: "#94a3b8" }}>
-                Loading the test catalogue…
+                {curatedLoading ? "Loading the test catalogue…" : "Loading the test catalogue…"}
               </p>
             )}
           </>
         )}
 
-        {/* ── Offers ─────────────────────────────────────────────────── */}
+        {/* ── Selected test — two-model display ──────────────────────── */}
         {selected && (
           <div>
             <div
@@ -558,6 +722,7 @@ export default function DiagnosticsPage() {
                   setSelected(null);
                   setQuery("");
                   setFulfilment(null);
+                  setOffers([]);
                 }}
                 style={{
                   background: "none",
@@ -586,92 +751,183 @@ export default function DiagnosticsPage() {
               </div>
             )}
 
-            {loadingFulfilment ? (
-              <p style={{ textAlign: "center", color: "#64748b" }}>Checking availability…</p>
-            ) : !fulfilment ? (
-              <div className="card" style={{ padding: 32, textAlign: "center" }}>
-                <p style={{ margin: 0, color: "#64748b" }}>
-                  CallMedex doesn&apos;t cover this test{district ? ` in ${district}${locState ? `, ${locState}` : ""}` : ""} yet.
-                </p>
-              </div>
-            ) : (
-              <div className="card" style={{ padding: 24, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-                <div style={{ flex: 1, minWidth: 240 }}>
-                  <h4 style={{ margin: "0 0 4px", fontSize: "1.05rem" }}>Booked with CallMedex</h4>
-                  <p style={{ margin: 0, fontSize: "0.88rem", color: "#475569", lineHeight: 1.5 }}>
-                    {fulfilment.walk_in_required
-                      ? "This test needs lab equipment. Book a slot and we'll confirm your nearest CallMedex partner centre."
-                      : "Home collection — a CallMedex phlebotomist comes to you."}
-                  </p>
-                  {/* The processing centre itself is never named — the patient
-                      only learns whether home collection covers their district. */}
-                  {district && (
-                    <p
-                      style={{
-                        margin: "8px 0 0",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        color: fulfilment.walk_in_required ? "#92400e" : "#166534",
-                      }}
-                    >
-                      {fulfilment.walk_in_required
-                        ? `⚠️ Walk-in centre will be assigned in ${district}${locState ? `, ${locState}` : ""}`
-                        : `✅ Home collection available in ${district}${locState ? `, ${locState}` : ""}`}
+            {/* ── Model A: Blood test (partner-blind) ──────────────── */}
+            {selected.category === "lab_test" && (
+              <>
+                {loadingFulfilment ? (
+                  <p style={{ textAlign: "center", color: "#64748b" }}>Checking availability…</p>
+                ) : !fulfilment ? (
+                  <div className="card" style={{ padding: 32, textAlign: "center" }}>
+                    <p style={{ margin: 0, color: "#64748b" }}>
+                      CallMedex doesn&apos;t cover this test{district ? ` in ${district}${locState ? `, ${locState}` : ""}` : ""} yet.
                     </p>
-                  )}
-                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    {!fulfilment.walk_in_required && <span style={tag}>🏠 Home collection</span>}
-                    {fulfilment.walk_in_required && <span style={tag}>🏥 Walk-in visit</span>}
-                    {selected.typical_turnaround_hours ? (
-                      <span style={tag}>⏱ {selected.typical_turnaround_hours}h report</span>
-                    ) : null}
-                    {urgent && fulfilment.urgent_available && (
-                      <span style={{ ...tag, background: "#fee2e2", color: "#991b1b" }}>
-                        🔴 Priority
-                      </span>
-                    )}
-                    {fulfilment.partner_count > 0 && (
-                      <span style={tag}>
-                        {fulfilment.partner_count} CallMedex partner{fulfilment.partner_count === 1 ? "" : "s"} in your area
-                      </span>
-                    )}
                   </div>
-                </div>
+                ) : (
+                  <div className="card" style={{ padding: 24, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 240 }}>
+                      <h4 style={{ margin: "0 0 4px", fontSize: "1.05rem" }}>Booked with CallMedex</h4>
+                      <p style={{ margin: 0, fontSize: "0.88rem", color: "#475569", lineHeight: 1.5 }}>
+                        {fulfilment.walk_in_required
+                          ? "This test needs lab equipment. Book a slot and we'll confirm your nearest CallMedex partner centre."
+                          : "Home collection — a CallMedex phlebotomist comes to you."}
+                      </p>
+                      {district && (
+                        <p
+                          style={{
+                            margin: "8px 0 0",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            color: fulfilment.walk_in_required ? "#92400e" : "#166534",
+                          }}
+                        >
+                          {fulfilment.walk_in_required
+                            ? `⚠️ Walk-in centre will be assigned in ${district}${locState ? `, ${locState}` : ""}`
+                            : `✅ Home collection available in ${district}${locState ? `, ${locState}` : ""}`}
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                        {!fulfilment.walk_in_required && <span style={tag}>🏠 Home collection</span>}
+                        {fulfilment.walk_in_required && <span style={tag}>🏥 Walk-in visit</span>}
+                        {selected.typical_turnaround_hours ? (
+                          <span style={tag}>⏱ {selected.typical_turnaround_hours}h report</span>
+                        ) : null}
+                        {urgent && fulfilment.urgent_available && (
+                          <span style={{ ...tag, background: "#fee2e2", color: "#991b1b" }}>
+                            🔴 Priority
+                          </span>
+                        )}
+                        {fulfilment.partner_count > 0 && (
+                          <span style={tag}>
+                            {fulfilment.partner_count} CallMedex partner{fulfilment.partner_count === 1 ? "" : "s"} in your area
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                <div style={{ textAlign: "right", minWidth: 170 }}>
-                  {fulfilment.savings > 0 && (
-                    <div
-                      style={{
-                        color: "#94a3b8",
-                        textDecoration: "line-through",
-                        fontSize: "0.9rem",
-                      }}
-                    >
-                      {inr(fulfilment.mrp)}
+                    <div style={{ textAlign: "right", minWidth: 170 }}>
+                      {fixedRate ? (
+                        <>
+                          <div style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.9rem" }}>
+                            {inr(fixedRate.mrp)}
+                          </div>
+                          <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a" }}>
+                            {inr(fixedRate.price)}
+                          </div>
+                          <div style={{ color: "#16a34a", fontSize: "0.76rem", fontWeight: 700 }}>
+                            CallMedex fixed rate — save {inr(fixedRate.mrp - fixedRate.price)}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {fulfilment.savings > 0 && (
+                            <div style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.9rem" }}>
+                              {inr(fulfilment.mrp)}
+                            </div>
+                          )}
+                          <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a" }}>
+                            {inr(fulfilment.price)}
+                          </div>
+                          {fulfilment.savings > 0 && (
+                            <div style={{ color: "#16a34a", fontSize: "0.82rem", fontWeight: 700 }}>
+                              You save {inr(fulfilment.savings)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {urgent && fulfilment.urgent_surcharge > 0 && (
+                        <div style={{ color: "#b91c1c", fontSize: "0.8rem", marginTop: 4 }}>
+                          + {inr(fulfilment.urgent_surcharge)} priority · pay {inr(fulfilment.price + fulfilment.urgent_surcharge)}
+                        </div>
+                      )}
+                      <a
+                        href={`/booking?service=${selected.id}&mode=${fulfilment.walk_in_required ? "walkin" : "home"}${urgent ? "&priority=urgent" : ""}`}
+                        className="btn btn-primary"
+                        style={{ marginTop: 10, display: "inline-block" }}
+                      >
+                        Book
+                      </a>
                     </div>
-                  )}
-                  <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "#0f172a" }}>
-                    {inr(fulfilment.price)}
                   </div>
-                  {fulfilment.savings > 0 && (
-                    <div style={{ color: "#16a34a", fontSize: "0.82rem", fontWeight: 700 }}>
-                      You save {inr(fulfilment.savings)}
-                    </div>
-                  )}
-                  {urgent && fulfilment.urgent_surcharge > 0 && (
-                    <div style={{ color: "#b91c1c", fontSize: "0.8rem", marginTop: 4 }}>
-                      + {inr(fulfilment.urgent_surcharge)} priority · pay {inr(fulfilment.price + fulfilment.urgent_surcharge)}
-                    </div>
-                  )}
-                  <a
-                    href={`/booking?service=${selected.id}&mode=${fulfilment.walk_in_required ? "walkin" : "home"}${urgent ? "&priority=urgent" : ""}`}
-                    className="btn btn-primary"
-                    style={{ marginTop: 10, display: "inline-block" }}
-                  >
-                    Book
-                  </a>
-                </div>
-              </div>
+                )}
+              </>
+            )}
+
+            {/* ── Model B: Imaging / walk-in (centre-visible) ───────── */}
+            {selected.category === "imaging" && (
+              <>
+                <h3 style={{ margin: "0 0 10px", fontSize: "1.05rem", color: "#0f172a" }}>
+                  Available at these verified centres
+                </h3>
+                {loadingOffers ? (
+                  <p style={{ textAlign: "center", color: "#64748b" }}>Loading centre offers…</p>
+                ) : offers.length === 0 ? (
+                  <div className="card" style={{ padding: 32, textAlign: "center" }}>
+                    <p style={{ margin: 0, color: "#64748b" }}>
+                      No partner centre has listed this test in your district{district ? ` (${district})` : ""} yet — we&apos;ll notify you as centres onboard.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {offers.map((offer) => (
+                      <div
+                        key={offer.service_id}
+                        className="card"
+                        style={{
+                          padding: "16px 20px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 16,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                          <div style={{ fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                            {offer.provider_name}
+                          </div>
+                          <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 2 }}>
+                            {offer.city}{offer.state ? `, ${offer.state}` : ""}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            {offer.rating > 0 && (
+                              <span style={{ fontSize: "0.82rem", color: "#d97706", fontWeight: 600 }}>
+                                ★ {offer.rating.toFixed(1)}
+                              </span>
+                            )}
+                            {offer.home_available && <span style={tag}>🏠 Home available</span>}
+                            {offer.turnaround_hours && (
+                              <span style={tag}>⏱ {offer.turnaround_hours}h</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: "right", minWidth: 150 }}>
+                          {offer.savings > 0 && (
+                            <div style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.85rem" }}>
+                              {inr(offer.mrp)}
+                            </div>
+                          )}
+                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#0f172a" }}>
+                            {inr(offer.price)}
+                          </div>
+                          {offer.savings > 0 && (
+                            <div style={{ color: "#16a34a", fontSize: "0.78rem", fontWeight: 700 }}>
+                              Save {inr(offer.savings)}
+                            </div>
+                          )}
+                          <a
+                            href={`/booking?type=lab&org=${offer.provider_user_id}&service=${selected.id}`}
+                            className="btn btn-primary"
+                            style={{ marginTop: 8, display: "inline-block", fontSize: "0.85rem" }}
+                          >
+                            Book
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
