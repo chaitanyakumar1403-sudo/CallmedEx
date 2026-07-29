@@ -6,6 +6,7 @@ import DashboardProfile from "../components/DashboardProfile";
 import SampleCollectionPanel from "../components/SampleCollectionPanel";
 import PhleboWalletPanel from "../components/PhleboWalletPanel";
 import PhleboStockPanel from "../components/PhleboStockPanel";
+import PhleboPerformancePanel from "../components/PhleboPerformancePanel";
 import AttendanceCard from "../components/AttendanceCard";
 import DoorstepScanPanel from "../components/DoorstepScanPanel";
 import { useRouter } from "next/navigation";
@@ -199,7 +200,10 @@ export default function PhlebotomistDashboard() {
         {activeTab === "wallet" && <PhleboWalletPanel />}
 
       {activeTab === "profile" && (
-        <DashboardProfile profile={profile} role="phlebotomist" />
+        <>
+          <PhleboPerformancePanel />
+          <DashboardProfile profile={profile} role="phlebotomist" />
+        </>
       )}
     </DashboardShell>
   );

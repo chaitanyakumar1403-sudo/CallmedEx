@@ -281,6 +281,8 @@ from app.routers import patient_samples
 app.include_router(patient_samples.router)
 from app.routers import phlebo_stock
 app.include_router(phlebo_stock.router)
+from app.routers import phlebo_stats
+app.include_router(phlebo_stats.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")
