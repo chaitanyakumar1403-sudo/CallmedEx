@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.routers.phlebo_stock import decrement_for_collection
 from app.services.tube_derivation import derive_tubes
 
 logger = logging.getLogger(__name__)
@@ -259,6 +260,10 @@ async def scan_tube(
 
     # Bind barcode (if provided)
     barcode_result = _bind_barcode(sample, body.scanned_barcode, actor_id=user.get("sub", ""))
+
+    # Auto-decrement stock (best-effort, never blocks)
+    phlebo_id = user.get("sub", "")
+    decrement_for_collection(phlebo_id, scanned)
 
     # Get display names
     tube_types = _rows(

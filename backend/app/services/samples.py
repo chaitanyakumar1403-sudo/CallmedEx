@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from app.database import supabase
+from app.routers.phlebo_stock import decrement_for_collection
 from app.services.wallet import WalletService
 
 logger = logging.getLogger(__name__)
@@ -321,6 +322,11 @@ class SampleService:
             lat=lat, lng=lng, photo_url=photo_url,
             notes=notes or f"Collected {sample_type}",
         )
+
+        # Auto-decrement stock (best-effort, never blocks).
+        # Per-tube decrement happens in the scan-tube path where the tube type
+        # is known; here we only decrement per-collection consumables.
+        decrement_for_collection(phlebotomist_user_id, "")
 
         return {
             "success": True,
