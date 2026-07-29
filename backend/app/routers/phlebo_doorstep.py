@@ -166,6 +166,65 @@ async def get_booking_samples(
 class ScanTubeRequest(BaseModel):
     sample_id: str
     scanned_tube_type_code: str
+    scanned_barcode: Optional[str] = None
+
+
+def _bind_barcode(
+    sample: dict,
+    scanned_barcode: Optional[str],
+    actor_id: str = "",
+) -> dict:
+    """
+    Bind a physical barcode to a sample record.
+
+    Called from scan-tube (and later from the auto-decrement stock hook).
+    The barcode is the sample's unique sticker ID; the existing tube-type
+    comparison is unchanged.
+
+    Returns a dict with keys:
+      - barcode_warning: str | None  — set when a *different* barcode
+        already exists on the sample (possible tube swap)
+      - barcode_bound: bool           — True when we just wrote the barcode
+    """
+    if not scanned_barcode:
+        return {"barcode_warning": None, "barcode_bound": False}
+
+    existing = sample.get("barcode")
+    if existing is None:
+        # First bind — write the barcode
+        supabase.table("samples").update({
+            "barcode": scanned_barcode,
+        }).eq("id", sample["id"]).execute()
+
+        # Log the custody event
+        try:
+            supabase.table("sample_events").insert({
+                "id": str(uuid.uuid4()),
+                "sample_id": sample["id"],
+                "event": "barcode_bound",
+                "actor_id": actor_id,
+                "actor_role": "phlebotomist",
+                "notes": f"Barcode {scanned_barcode} bound to sample",
+                "created_at": _now_iso(),
+            }).execute()
+        except Exception:
+            pass  # log is non-critical for the state transition
+
+        return {"barcode_warning": None, "barcode_bound": True}
+
+    if existing != scanned_barcode:
+        # Different barcode already set — warn, don't overwrite
+        return {
+            "barcode_warning": (
+                f"Sample already has barcode {existing}. "
+                f"The scanned barcode {scanned_barcode} does not match. "
+                f"Verify the tube label."
+            ),
+            "barcode_bound": False,
+        }
+
+    # Same barcode already set — no-op
+    return {"barcode_warning": None, "barcode_bound": False}
 
 
 @router.post("/scan-tube")
@@ -173,7 +232,10 @@ async def scan_tube(
     body: ScanTubeRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Compare scanned tube against expected. Warns on mismatch but does NOT block."""
+    """Compare scanned tube against expected. Warns on mismatch but does NOT block.
+
+    Also binds the physical barcode to the sample record when `scanned_barcode`
+    is provided (camera scan from the phlebotomist's device)."""
     _require_phlebo(user)
 
     sample = _first(
@@ -195,6 +257,9 @@ async def scan_tube(
         "tube_type_code": scanned,
     }).eq("id", body.sample_id).execute()
 
+    # Bind barcode (if provided)
+    barcode_result = _bind_barcode(sample, body.scanned_barcode, actor_id=user.get("sub", ""))
+
     # Get display names
     tube_types = _rows(
         supabase.table("tube_types")
@@ -214,6 +279,9 @@ async def scan_tube(
         "scanned_code": scanned,
         "scanned_name": scanned_info.get("name", scanned),
         "scanned_colour": scanned_info.get("cap_colour", ""),
+        # Barcode binding fields
+        "barcode_bound": barcode_result["barcode_bound"],
+        "barcode_warning": barcode_result["barcode_warning"],
     }
 
     if not match:

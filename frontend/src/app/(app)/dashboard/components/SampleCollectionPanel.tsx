@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { StatusPill } from "../../../components/StatusSpine";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -34,6 +35,9 @@ export default function SampleCollectionPanel() {
   const [containerType, setContainerType] = useState("");
   const [testNames, setTestNames] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Barcode scanner modal
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
 
   // Handover
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -434,12 +438,25 @@ export default function SampleCollectionPanel() {
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
           <div>
             <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Barcode</label>
-            <input
-              value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              placeholder="Scan or leave blank"
-              style={inputStyle}
-            />
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="Scan or leave blank"
+                style={{ ...inputStyle, marginTop: 4, flex: 1 }}
+              />
+              <button
+                onClick={() => setBarcodeScannerOpen(true)}
+                title="Scan barcode with camera"
+                style={{
+                  marginTop: 4, padding: "10px 12px", borderRadius: 8,
+                  border: "1px solid #cbd5e1", background: "#fff",
+                  cursor: "pointer", display: "flex", alignItems: "center",
+                }}
+              >
+                📷
+              </button>
+            </div>
           </div>
           <div>
             <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Sample type</label>
@@ -607,6 +624,17 @@ export default function SampleCollectionPanel() {
           </div>
         </div>
       )}
+
+      {/* ── Barcode scanner modal ──────────────────────────────── */}
+      <BarcodeScannerModal
+        open={barcodeScannerOpen}
+        onClose={() => setBarcodeScannerOpen(false)}
+        onScan={(code) => {
+          setBarcode(code);
+          setBarcodeScannerOpen(false);
+        }}
+        title="Scan tube barcode"
+      />
     </div>
   );
 }

@@ -14,8 +14,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Modal, Button, Banner } from "@/components/ui";
 import { Icon } from "@/components/ui";
 import {
-  ScanLine, CheckCircle2, AlertTriangle, Plus, TestTube, XCircle,
+  ScanLine, CheckCircle2, AlertTriangle, Plus, TestTube, XCircle, Camera,
 } from "@/components/ui/icons";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 import { phleboAPI } from "@/lib/api";
 
 const TUBE_COLOURS: Record<string, string> = {
@@ -36,6 +37,10 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
   // Scan state per sample
   const [scanInputs, setScanInputs] = useState<Record<string, string>>({});
   const [scanResults, setScanResults] = useState<Record<string, any>>({});
+  const [scannedBarcodes, setScannedBarcodes] = useState<Record<string, string>>({});
+
+  // Barcode scanner modal state
+  const [barcodeScanSampleId, setBarcodeScanSampleId] = useState<string | null>(null);
 
   // Add-on modal
   const [showAddonModal, setShowAddonModal] = useState(false);
@@ -60,21 +65,30 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
 
   useEffect(() => { load(); }, [load]);
 
-  async function scanTube(sample: any) {
+  async function scanTube(sample: any, barcodeOverride?: string) {
     const scannedCode = (scanInputs[sample.id] || "").trim();
     if (!scannedCode) return;
 
     setBusy(sample.id);
     setMsg(null);
     try {
-      const result = await phleboAPI.scanTube(sample.id, scannedCode);
+      const barcode = barcodeOverride || scannedBarcodes[sample.id] || undefined;
+      const result = await phleboAPI.scanTube(sample.id, scannedCode, barcode);
       setScanResults(prev => ({ ...prev, [sample.id]: result }));
+
+      if (result.barcode_bound && barcode) {
+        // Store the scanned barcode for display
+        setScannedBarcodes(prev => ({ ...prev, [sample.id]: barcode }));
+      }
 
       if (!result.match) {
         setMismatchSample(sample);
         setMismatchResult(result);
       } else {
-        setMsg({ kind: "ok", text: `✓ ${sample.barcode || "Tube"} — type matches.` });
+        const label = result.barcode_bound
+          ? `✓ ${result.barcode} — type matches.`
+          : `✓ ${sample.barcode || "Tube"} — type matches.`;
+        setMsg({ kind: "ok", text: label });
       }
     } catch (e: any) {
       setMsg({ kind: "err", text: e.message || "Scan failed" });
@@ -268,6 +282,18 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                         fontSize: "0.9rem",
                       }}
                     />
+                    <button
+                      onClick={() => setBarcodeScanSampleId(s.id)}
+                      title="Scan barcode sticker"
+                      style={{
+                        padding: "10px 12px", borderRadius: 8,
+                        border: "1px solid #cbd5e1", background: "#fff",
+                        cursor: "pointer", display: "flex", alignItems: "center",
+                        lineHeight: 1,
+                      }}
+                    >
+                      <Icon as={Camera} size={16} />
+                    </button>
                     <Button
                       variant="primary"
                       onClick={() => scanTube(s)}
@@ -275,6 +301,19 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                     >
                       {busy === s.id ? "…" : "Scan"}
                     </Button>
+                  </div>
+                )}
+
+                {/* Bound barcode display */}
+                {scanned && scannedBarcodes[s.id] && (
+                  <div style={{
+                    marginTop: 8, display: "flex", alignItems: "center", gap: 6,
+                    fontSize: "0.8rem", color: "#166534",
+                  }}>
+                    <Icon as={CheckCircle2} size={14} />
+                    <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                      {scannedBarcodes[s.id]}
+                    </span>
                   </div>
                 )}
               </div>
@@ -415,6 +454,24 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
           </div>
         )}
       </Modal>
+
+      {/* ── Barcode scanner modal ──────────────────────────────── */}
+      <BarcodeScannerModal
+        open={!!barcodeScanSampleId}
+        onClose={() => setBarcodeScanSampleId(null)}
+        onScan={(code) => {
+          if (barcodeScanSampleId) {
+            setScannedBarcodes(prev => ({ ...prev, [barcodeScanSampleId]: code }));
+            // Find the sample and trigger scan with barcode
+            const sample = samples.find(s => s.id === barcodeScanSampleId);
+            if (sample) {
+              scanTube(sample, code);
+            }
+          }
+          setBarcodeScanSampleId(null);
+        }}
+        title="Scan tube barcode sticker"
+      />
     </div>
   );
 }

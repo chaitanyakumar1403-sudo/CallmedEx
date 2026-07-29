@@ -339,8 +339,12 @@ export const pcAPI = {
 export const phleboAPI = {
   getBookingSamples: (bookingId: string) =>
     api.get(`/phlebo/booking-samples/${bookingId}`),
-  scanTube: (sampleId: string, tubeTypeCode: string) =>
-    api.post('/phlebo/scan-tube', { sample_id: sampleId, scanned_tube_type_code: tubeTypeCode }),
+  scanTube: (sampleId: string, tubeTypeCode: string, scannedBarcode?: string) =>
+    api.post('/phlebo/scan-tube', {
+      sample_id: sampleId,
+      scanned_tube_type_code: tubeTypeCode,
+      scanned_barcode: scannedBarcode || null,
+    }),
   ackMismatch: (sampleId: string) =>
     api.post(`/phlebo/scan-tube/${sampleId}/ack-mismatch`),
   addDoorstepTest: (bookingId: string, homeServiceId: string, subjectId?: string) =>
