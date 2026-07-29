@@ -842,12 +842,22 @@ async def org_add_service(
         try:
             provider_user_id = current_user["sub"]
             slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
+            # First try exact slug match, then parameterised name ILIKE.
+            # Do NOT use .or_() with inline name — comma in the name breaks
+            # PostgREST or-filter parsing.
             catalog = _rows(
                 supabase.table("service_catalog")
                 .select("id, name")
-                .or_(f"slug.eq.{slug},name.ilike.%{body.name}%")
+                .eq("slug", slug)
                 .limit(1).execute()
             )
+            if not catalog:
+                catalog = _rows(
+                    supabase.table("service_catalog")
+                    .select("id, name")
+                    .ilike("name", f"%{body.name}%")
+                    .limit(1).execute()
+                )
             if catalog:
                 cat_id = catalog[0]["id"]
                 # Check existing row to decide insert vs update
@@ -859,23 +869,35 @@ async def org_add_service(
                     .limit(1).execute()
                 )
                 mrp = body.price  # org's price is the MRP
-                ps_row = {
-                    "provider_user_id": provider_user_id,
-                    "catalog_id": cat_id,
-                    "name": body.name,
-                    "category": body.service_type,
-                    "base_price": body.price,
-                    "mrp": mrp,
-                    "home_available": bool(body.home_collection_available),
-                    "is_active": True,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
+                # provider_services DDL columns (layer0_foundation.sql + phase1 ALTERs):
+                #   id, provider_user_id, branch_id, name, category, base_price,
+                #   home_available, is_active, created_at, mrp, urgent_available,
+                #   catalog_id, turnaround_hours
+                # NO updated_at column — see layer0_foundation.sql:47-57.
                 if existing:
-                    supabase.table("provider_services").update(ps_row).eq("id", existing[0]["id"]).execute()
+                    supabase.table("provider_services").update({
+                        "provider_user_id": provider_user_id,
+                        "catalog_id": cat_id,
+                        "name": body.name,
+                        "category": body.service_type,
+                        "base_price": body.price,
+                        "mrp": mrp,
+                        "home_available": bool(body.home_collection_available),
+                        "is_active": True,
+                    }).eq("id", existing[0]["id"]).execute()
                 else:
-                    ps_row["id"] = str(uuid.uuid4())
-                    ps_row["created_at"] = datetime.now(timezone.utc).isoformat()
-                    supabase.table("provider_services").insert(ps_row).execute()
+                    supabase.table("provider_services").insert({
+                        "id": str(uuid.uuid4()),
+                        "provider_user_id": provider_user_id,
+                        "catalog_id": cat_id,
+                        "name": body.name,
+                        "category": body.service_type,
+                        "base_price": body.price,
+                        "mrp": mrp,
+                        "home_available": bool(body.home_collection_available),
+                        "is_active": True,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }).execute()
                 logger.info("dual-wrote service '%s' to provider_services (catalog=%s)", body.name, cat_id)
             else:
                 logger.info("no catalog match for '%s' — skipping dual-write (org-local only)", body.name)
