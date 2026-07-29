@@ -68,8 +68,9 @@ async def get_metrics(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/users")
-async def get_users(role: Optional[str] = None, current_user: dict = Depends(get_current_user)):
-    """List users, filtered by city for Supervisors."""
+async def get_users(role: Optional[str] = None, q: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """List users, filtered by city for Supervisors. Accepts optional q search
+    param that filters by email or full_name (case-insensitive)."""
     admin_data = check_admin_access(current_user)
     city = admin_data.get("managed_city")
 
@@ -77,11 +78,15 @@ async def get_users(role: Optional[str] = None, current_user: dict = Depends(get
         return {"success": True, "users": []}
 
     query = supabase.table("users").select("id, full_name, email, role, city, is_active, created_at, managed_city").order("created_at", desc=True)
-    
+
     if city:
         query = query.eq("city", city)
     if role:
         query = query.eq("role", role)
+    if q:
+        q_escaped = q.replace("%", "\\%").replace("_", "\\_")
+        # Filter by email (case-insensitive contains) — primary use case: staff lookup
+        query = query.ilike("email", f"%{q_escaped}%")
 
     result = query.execute()
     return {"success": True, "city_scope": city or "Global", "users": result.data or []}

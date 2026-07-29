@@ -77,6 +77,28 @@ class FakeQuery:
         self._negate_next = True
         return self
 
+    def ilike(self, col, pattern):
+        self.filters.append(("ilike", col, pattern))
+        return self
+
+    def or_(self, *args):
+        """Accepts the PostgREST or_ string syntax:
+        query.or_("email.ilike.%val%,full_name.ilike.%val%")
+        or the positional form: query.or_("col.ilike.%val%", "col2.ilike.%val2%")
+        """
+        # The first positional arg is the filter string when called as
+        # query.or_("email.ilike.%foo%")
+        for arg in args:
+            clauses = arg.split(",") if isinstance(arg, str) else [arg]
+            for clause in clauses:
+                clause = clause.strip()
+                if ".ilike." in clause:
+                    col, _, pattern = clause.partition(".ilike.")
+                    # Strip surrounding quotes or parens if any
+                    pattern = pattern.strip("'\"()")
+                    self.filters.append(("ilike", col.strip(), pattern))
+        return self
+
     def order(self, *_a, **_k):
         return self
 
@@ -102,6 +124,21 @@ class FakeQuery:
                 return False
             if kind == "negated_is" and val == "null" and row.get(col) is None:
                 return False
+            if kind == "ilike":
+                # Case-insensitive pattern matching: % matches any string
+                pattern = str(val).lower()
+                cell = str(row.get(col, "") or "").lower()
+                if pattern.startswith("%") and pattern.endswith("%"):
+                    if pattern[1:-1] not in cell:
+                        return False
+                elif pattern.startswith("%"):
+                    if not cell.endswith(pattern[1:]):
+                        return False
+                elif pattern.endswith("%"):
+                    if not cell.startswith(pattern[:-1]):
+                        return False
+                elif cell != pattern:
+                    return False
         return True
 
     def execute(self):

@@ -105,6 +105,19 @@ export default function AdminDashboard() {
   const [weeklyReportData, setWeeklyReportData] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Processing Centres State
+  const [centres, setCentres] = useState<any[]>([]);
+  const [pcLoading, setPcLoading] = useState(false);
+  const [showPcForm, setShowPcForm] = useState(false);
+  const [pcForm, setPcForm] = useState({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0 });
+  const [pcFormMsg, setPcFormMsg] = useState('');
+  const [selectedCentre, setSelectedCentre] = useState<any>(null);
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffRole, setStaffRole] = useState('technician');
+  const [staffMsg, setStaffMsg] = useState('');
+  const [areaForm, setAreaForm] = useState({ city: '', pincode: '', radius_km: '', priority: 100 });
+  const [areaMsg, setAreaMsg] = useState('');
+
   const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -166,6 +179,32 @@ export default function AdminDashboard() {
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [router, fetchData]);
+
+  // ─── Processing Centre: fetch on tab switch ───────────────────────────
+
+  const fetchCentres = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setPcLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCentres(data.centers || []);
+      }
+    } catch { /* silent */ } finally {
+      setPcLoading(false);
+    }
+  }, [apiBase]);
+
+  // Fetch centres when the Processing Centres tab becomes active
+  useEffect(() => {
+    if (activeTab === 'processing-centres') {
+      fetchCentres();
+    }
+  }, [activeTab, fetchCentres]);
 
   const handleCreateSupervisor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,6 +280,116 @@ export default function AdminDashboard() {
     }
   };
 
+  // ─── Processing Centre handlers ────────────────────────────────────────
+
+  const handleCreateCentre = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPcFormMsg('Creating...');
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(pcForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPcFormMsg(`✅ Created ${pcForm.code}`);
+        setPcForm({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0 });
+        setShowPcForm(false);
+        fetchCentres();
+      } else {
+        setPcFormMsg(`❌ ${data.detail || 'Failed'}`);
+      }
+    } catch { setPcFormMsg('❌ Error creating centre'); }
+  };
+
+  const handleUpdateCentreStatus = async (centreId: string, status: string) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) fetchCentres();
+    } catch { /* silent */ }
+  };
+
+  const handleAddStaff = async (centreId: string) => {
+    if (!staffEmail.trim()) return;
+    setStaffMsg('Looking up user...');
+    const token = getToken();
+    if (!token) return;
+    try {
+      // First, find the user by email
+      const userRes = await fetch(`${apiBase}/api/admin/users?q=${encodeURIComponent(staffEmail.trim())}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!userRes.ok) { setStaffMsg('❌ Failed to search users'); return; }
+      const userData = await userRes.json();
+      const matched = (userData.users || []).filter((u: any) => u.email.toLowerCase() === staffEmail.trim().toLowerCase());
+      if (matched.length === 0) { setStaffMsg('❌ No user found with that email'); return; }
+      const userId = matched[0].id;
+
+      // Add staff
+      const addRes = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ user_id: userId, pc_role: staffRole }),
+      });
+      if (addRes.ok) {
+        setStaffMsg(`✅ ${matched[0].full_name} added as ${staffRole}`);
+        setStaffEmail('');
+        fetchCentres();
+      } else {
+        const d = await addRes.json();
+        setStaffMsg(`❌ ${d.detail || 'Failed'}`);
+      }
+    } catch { setStaffMsg('❌ Error adding staff'); }
+  };
+
+  const handleRemoveStaff = async (centreId: string, userId: string) => {
+    if (!confirm('Remove this staff member from the centre?')) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/staff/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      fetchCentres();
+    } catch { /* silent */ }
+  };
+
+  const handleAddArea = async (centreId: string) => {
+    setAreaMsg('Adding area...');
+    const token = getToken();
+    if (!token) return;
+    try {
+      const body: any = {};
+      if (areaForm.city.trim()) body.city = areaForm.city.trim();
+      if (areaForm.pincode.trim()) body.pincode = areaForm.pincode.trim();
+      if (areaForm.radius_km) body.radius_km = parseFloat(areaForm.radius_km);
+      if (areaForm.priority !== 100) body.priority = areaForm.priority;
+
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/areas`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        setAreaMsg('✅ Area added');
+        setAreaForm({ city: '', pincode: '', radius_km: '', priority: 100 });
+        fetchCentres();
+      } else {
+        const d = await res.json();
+        setAreaMsg(`❌ ${d.detail || 'Failed'}`);
+      }
+    } catch { setAreaMsg('❌ Error adding area'); }
+  };
 
   if (loading) {
     return (
@@ -261,6 +410,7 @@ export default function AdminDashboard() {
     { id: 'analytics', label: 'Analytics', icon: '📈' },
     { id: 'providers', label: 'Providers', icon: '👥' },
     { id: 'users', label: 'User Management', icon: '🗂️' },
+    { id: 'processing-centres', label: 'Processing Centres', icon: '🏭' },
     { id: 'delegation', label: 'Delegation', icon: '🏛️' },
   ];
 
@@ -843,6 +993,243 @@ export default function AdminDashboard() {
                 <li>Super Admins have full access across all regions.</li>
               </ul>
             </div>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════ */}
+        {/* PROCESSING CENTRES TAB */}
+        {/* ════════════════════════════════════════════════════════════ */}
+        {activeTab === 'processing-centres' && (
+          <div>
+            {/* ── Explainer ───────────────────────────────────────────── */}
+            <div style={{
+              backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10,
+              padding: '14px 18px', marginBottom: 20, fontSize: '0.85rem', color: '#0369a1', lineHeight: 1.6,
+            }}>
+              <strong>🏭 How it works:</strong> Centres are created by CallMedex (no self-signup).
+              Create → Activate → Add staff → Add areas. Active centres receive bookings
+              automatically by pincode / city / district / radius.
+            </div>
+
+            {/* ── Header + Create button ──────────────────────────────── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, color: '#1a2b4a' }}>
+                Processing Centres
+                <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.85rem', marginLeft: 8 }}>
+                  ({centres.length})
+                </span>
+              </h3>
+              <button
+                onClick={() => { setShowPcForm(!showPcForm); setPcFormMsg(''); }}
+                style={{
+                  backgroundColor: '#1a2b4a', color: 'white', border: 'none',
+                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600,
+                }}
+              >{showPcForm ? 'Close' : '+ New Centre'}</button>
+            </div>
+
+            {/* ── New Centre Form ─────────────────────────────────────── */}
+            {showPcForm && (
+              <form onSubmit={handleCreateCentre} style={{
+                display: 'grid', gap: 12, backgroundColor: '#f8fafc',
+                padding: 20, borderRadius: 8, marginBottom: 24,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <input required placeholder="Code (e.g. HYD-01)" value={pcForm.code}
+                    onChange={e => setPcForm({ ...pcForm, code: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <input required placeholder="Name" value={pcForm.name}
+                    onChange={e => setPcForm({ ...pcForm, name: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <input required placeholder="City" value={pcForm.city}
+                    onChange={e => setPcForm({ ...pcForm, city: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
+                  <input placeholder="State" value={pcForm.state}
+                    onChange={e => setPcForm({ ...pcForm, state: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <input placeholder="Pincode" value={pcForm.pincode}
+                    onChange={e => setPcForm({ ...pcForm, pincode: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <input placeholder="Address" value={pcForm.address}
+                    onChange={e => setPcForm({ ...pcForm, address: e.target.value })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <input type="number" placeholder="Daily Capacity" value={pcForm.daily_capacity || ''}
+                    onChange={e => setPcForm({ ...pcForm, daily_capacity: parseInt(e.target.value) || 0 })}
+                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                </div>
+                <button type="submit" style={{
+                  backgroundColor: '#059669', color: 'white', border: 'none',
+                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700,
+                }}>Create Processing Centre</button>
+                {pcFormMsg && <p style={{ color: pcFormMsg.startsWith('✅') ? '#059669' : '#dc2626', fontWeight: 600, margin: 0 }}>{pcFormMsg}</p>}
+              </form>
+            )}
+
+            {/* ── Centres Table ───────────────────────────────────────── */}
+            {pcLoading ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>Loading centres...</p>
+            ) : centres.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>
+                No processing centres yet. Create one to get started.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {centres.map((c: any) => {
+                  const statusColor = c.status === 'active' ? '#059669' : c.status === 'paused' ? '#d97706' : '#6b7280';
+                  const statusBg = c.status === 'active' ? '#d1fae5' : c.status === 'paused' ? '#fef3c7' : '#f3f4f6';
+                  const staffList = c.staff || [];
+                  const areaList = c.areas || [];
+                  return (
+                    <div key={c.id} style={{
+                      backgroundColor: 'white', borderRadius: 12, padding: 20,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb',
+                    }}>
+                      {/* ── Centre header row ─────────────────────────── */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                            <strong style={{ fontSize: '1rem', color: '#1a2b4a' }}>{c.code}</strong>
+                            <span style={{
+                              padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600,
+                              backgroundColor: statusBg, color: statusColor, textTransform: 'uppercase',
+                            }}>{c.status}</span>
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
+                            {c.name} &middot; {c.city}{c.state ? `, ${c.state}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {c.status === 'onboarding' && (
+                            <button onClick={() => handleUpdateCentreStatus(c.id, 'active')}
+                              style={{
+                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
+                                border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
+                                color: '#065f46', fontWeight: 600,
+                              }}>Activate</button>
+                          )}
+                          {c.status === 'active' && (
+                            <button onClick={() => handleUpdateCentreStatus(c.id, 'paused')}
+                              style={{
+                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
+                                border: '1px solid #d97706', borderRadius: 6, backgroundColor: '#fef3c7',
+                                color: '#92400e', fontWeight: 600,
+                              }}>Pause</button>
+                          )}
+                          {c.status === 'paused' && (
+                            <button onClick={() => handleUpdateCentreStatus(c.id, 'active')}
+                              style={{
+                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
+                                border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
+                                color: '#065f46', fontWeight: 600,
+                              }}>Reactivate</button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── Staff section ─────────────────────────────── */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                          Staff ({staffList.length})
+                        </div>
+                        {staffList.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                            {staffList.map((s: any) => (
+                              <span key={s.id || s.user_id} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
+                                backgroundColor: '#eef2ff', color: '#4f46e5',
+                              }}>
+                                {s.user_id?.slice(0, 8)}...
+                                <button onClick={() => handleRemoveStaff(c.id, s.user_id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.7rem', padding: 0, marginLeft: 2 }}
+                                  title="Remove staff">✕</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            placeholder="Staff email"
+                            value={selectedCentre === c.id ? staffEmail : ''}
+                            onChange={e => { setSelectedCentre(c.id); setStaffEmail(e.target.value); setStaffMsg(''); }}
+                            onFocus={() => setSelectedCentre(c.id)}
+                            style={{
+                              flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
+                              fontSize: '0.8rem', maxWidth: 240,
+                            }}
+                          />
+                          <select
+                            value={selectedCentre === c.id ? staffRole : 'technician'}
+                            onChange={e => { setSelectedCentre(c.id); setStaffRole(e.target.value); }}
+                            style={{
+                              padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
+                              fontSize: '0.8rem', backgroundColor: 'white',
+                            }}
+                          >
+                            <option value="technician">Technician</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          <button onClick={() => { setSelectedCentre(c.id); handleAddStaff(c.id); }}
+                            style={{
+                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
+                              border: '1px solid #6366f1', borderRadius: 6, backgroundColor: '#eef2ff',
+                              color: '#4f46e5', fontWeight: 600,
+                            }}>Add Staff</button>
+                        </div>
+                        {selectedCentre === c.id && staffMsg && (
+                          <p style={{ fontSize: '0.78rem', color: staffMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{staffMsg}</p>
+                        )}
+                      </div>
+
+                      {/* ── Areas section ─────────────────────────────── */}
+                      <div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                          Service Areas ({areaList.length})
+                        </div>
+                        {areaList.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                            {areaList.map((a: any) => (
+                              <span key={a.id} style={{
+                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
+                                backgroundColor: '#f0fdf4', color: '#166534',
+                              }}>
+                                {a.city || a.pincode || `${a.radius_km}km`} {a.priority !== 100 ? `(p${a.priority})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input placeholder="City" value={selectedCentre === c.id ? areaForm.city : ''}
+                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, city: e.target.value }); setAreaMsg(''); }}
+                            onFocus={() => setSelectedCentre(c.id)}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 120 }} />
+                          <input placeholder="Pincode" value={selectedCentre === c.id ? areaForm.pincode : ''}
+                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, pincode: e.target.value }); }}
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 100 }} />
+                          <input placeholder="Radius (km)" value={selectedCentre === c.id ? areaForm.radius_km : ''}
+                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, radius_km: e.target.value }); }}
+                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 100 }} />
+                          <input placeholder="Priority" value={selectedCentre === c.id ? areaForm.priority : 100}
+                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, priority: parseInt(e.target.value) || 100 }); }}
+                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 80 }} />
+                          <button onClick={() => { setSelectedCentre(c.id); handleAddArea(c.id); }}
+                            style={{
+                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
+                              border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
+                              color: '#065f46', fontWeight: 600,
+                            }}>Add Area</button>
+                        </div>
+                        {selectedCentre === c.id && areaMsg && (
+                          <p style={{ fontSize: '0.78rem', color: areaMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{areaMsg}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

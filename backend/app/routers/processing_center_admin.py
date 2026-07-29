@@ -69,7 +69,18 @@ async def create_center(payload: CenterIn, user: dict = Depends(get_current_user
 @router.get("")
 async def list_centers(user: dict = Depends(get_current_user)):
     _require_admin(user)
-    return {"centers": _rows(supabase.table("processing_centers").select("*").execute())}
+    centers = _rows(supabase.table("processing_centers").select("*").execute())
+    # Attach staff and areas for each centre
+    for c in centers:
+        c["staff"] = _rows(
+            supabase.table("processing_center_staff").select("*")
+            .eq("processing_center_id", c["id"]).eq("is_active", True).execute()
+        )
+        c["areas"] = _rows(
+            supabase.table("processing_center_areas").select("*")
+            .eq("processing_center_id", c["id"]).eq("is_active", True).execute()
+        )
+    return {"centers": centers}
 
 
 @router.patch("/{center_id}")
