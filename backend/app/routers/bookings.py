@@ -375,8 +375,9 @@ async def create_booking(
         booking.home and allocation and not allocation["fulfilment"].get("walk_in_required")
     )
 
-    if is_diagnostic_review:
-        # Diagnostic booking: patient selects date only, org allots time
+    if is_diagnostic_review and not resolved_provider_id:
+        # Partner-blind diagnostic booking: no centre chosen, patient selects
+        # date only — the org reviews and allots a time slot later.
         booking_data = {
             "id": booking_id,
             "patient_id": current_user["sub"],
@@ -454,7 +455,7 @@ async def create_booking(
 
     status_msg = (
         "Booking submitted for review. The diagnostic centre will allot your time slot."
-        if is_diagnostic_review
+        if is_diagnostic_review and not resolved_provider_id
         else "Booking confirmed"
     )
 
@@ -826,11 +827,26 @@ async def get_booking_history(
 
 @router.get("/org-services/{org_id}", response_model=APIResponse)
 async def get_org_services_for_booking(org_id: str):
-    """Fetch tests, packages, and doctors for a specific organization."""
+    """Fetch tests, packages, and doctors for a specific organization.
+
+    Accepts either organizations.id (the org's internal UUID) or users.id
+    (the provider_user_id from the marketplace). When given a user_id, resolves
+    the correct org_id transparently.
+    """
     if not supabase:
         return APIResponse(success=True, message="Services fetched", data={"services": [], "packages": [], "doctors": []})
-        
+
     try:
+        # Resolve org_id from user_id if needed — the marketplace search pages
+        # link with ?org=<provider_user_id>, but the org tables key on
+        # organizations.id.
+        try:
+            resolved = supabase.table("organizations").select("id").eq("user_id", org_id).limit(1).execute()
+            if resolved.data:
+                org_id = resolved.data[0]["id"]
+        except Exception:
+            pass
+
         # Fetch active services
         services_res = supabase.table("organization_services").select("*").eq("organization_id", org_id).eq("is_active", True).execute()
         services = services_res.data or []

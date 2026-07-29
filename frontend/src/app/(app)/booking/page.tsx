@@ -102,6 +102,10 @@ function BookingPageContent() {
   const [deepLinkedTest, setDeepLinkedTest] = useState<any>(null);
   const [deepLinkedLoading, setDeepLinkedLoading] = useState(false);
   const [deepLinkedChecked, setDeepLinkedChecked] = useState(false);
+  // Org catalog for lab-with-org: services/packages fetched from
+  // /api/providers/{id}/catalog when an org is selected.
+  const [orgCatalog, setOrgCatalog] = useState<any>(null);
+  const [orgCatalogLoading, setOrgCatalogLoading] = useState(false);
 
   // Multi-test toggle helper
   const toggleTest = (test: any) => {
@@ -176,8 +180,10 @@ function BookingPageContent() {
       if (validTypes.includes(targetType)) {
         setBookingType(targetType);
         if (orgParam) {
+          // For lab-with-org: set the org and go to step 2 (test selection).
+          // The org-services fetch below populates the org name and timings.
           setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Provider" });
-          setStep(3);
+          setStep(targetType === "lab" ? 2 : 3);
         } else {
           // Lab/diagnostics is partner-blind: there is no centre step to land
           // on, so this goes straight to "Choose Tests" at step 2.
@@ -276,6 +282,25 @@ function BookingPageContent() {
         });
     }
   }, [selectedOrg]);
+
+  // Fetch the marketplace catalog for lab-with-org: services and packages
+  // from the public provider catalog endpoint (keyed by provider_user_id).
+  useEffect(() => {
+    if (selectedOrg?.id && bookingType === "lab") {
+      setOrgCatalogLoading(true);
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/${selectedOrg.id}/catalog`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success) {
+            setOrgCatalog(data);
+          } else {
+            setOrgCatalog(null);
+          }
+        })
+        .catch(() => setOrgCatalog(null))
+        .finally(() => setOrgCatalogLoading(false));
+    }
+  }, [selectedOrg?.id, bookingType]);
 
   // Generate dynamic time slots based on organization's configured operating hours
   const getDynamicSlots = (dateStr: string): string[] => {
@@ -380,7 +405,10 @@ function BookingPageContent() {
           // the backend resolves the allocation itself from these. catalog_id
           // covers the test carried over from /diagnostics; query is a
           // name-match fallback for tests picked from the generic list below.
-          ...(bookingType === "lab"
+          // When an org is explicitly selected, omit these fields — the patient
+          // chose a specific centre, so the backend routes to CONFIRMED with
+          // provider_id + slot_id (not PENDING_REVIEW).
+          ...(bookingType === "lab" && !selectedOrg?.isReal
             ? {
                 catalog_id: deepLinkedTest?.catalog_id || undefined,
                 query: !deepLinkedTest?.catalog_id ? selectedTests[0]?.name : undefined,
@@ -998,17 +1026,23 @@ function BookingPageContent() {
           </div>
         )}
 
-        {/* ─── STEP 2 (Lab flow): Choose Tests — partner-blind ───
-             No centre is chosen here or anywhere in this flow. CallMedex
-             allocates the fulfilling partner server-side at booking time
-             (see handleConfirm); the patient only ever sees the test and the
-             price they already saw on /diagnostics. ─── */}
+        {/* ─── STEP 2 (Lab flow): Choose Tests ───
+             Two modes: partner-blind (no org — CallMedex allocates server-side)
+             and org-specific (patient picked a centre from the marketplace). */}
         {step === 2 && bookingType === "lab" && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>Choose Your Tests</h3>
-            <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
-              Booked with CallMedex — we allocate the right centre internally. Select one or more tests or health panels.
-            </p>
+
+            {selectedOrg?.isReal ? (
+              <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
+                Booking at <strong>{selectedOrg.organization_name || selectedOrg.name || "Selected Centre"}</strong>.
+                Pick the tests or health packages you need.
+              </p>
+            ) : (
+              <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
+                Booked with CallMedex — we allocate the right centre internally. Select one or more tests or health panels.
+              </p>
+            )}
 
             {packageParam && (
               <div
@@ -1039,21 +1073,24 @@ function BookingPageContent() {
               </div>
             )}
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
-                Your location — helps us allocate the nearest partner centre
-              </label>
-              <StateDistrictPicker
-                stateValue={labState}
-                districtValue={labDistrict}
-                detected={labLocationDetected}
-                onChange={(next) => {
-                  setLabState(next.state);
-                  setLabDistrict(next.district);
-                  setLabLocationDetected(next.detected);
-                }}
-              />
-            </div>
+            {/* Location picker: only for partner-blind flow */}
+            {!selectedOrg?.isReal && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
+                  Your location — helps us allocate the nearest partner centre
+                </label>
+                <StateDistrictPicker
+                  stateValue={labState}
+                  districtValue={labDistrict}
+                  detected={labLocationDetected}
+                  onChange={(next) => {
+                    setLabState(next.state);
+                    setLabDistrict(next.district);
+                    setLabLocationDetected(next.detected);
+                  }}
+                />
+              </div>
+            )}
 
             {serviceParam && (
               <div style={{ marginBottom: 20 }}>
@@ -1079,102 +1116,123 @@ function BookingPageContent() {
               </div>
             )}
 
-            <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {DEFAULT_DIAGNOSTIC_PACKAGES.map((pkg, i) => {
-                const isSelected = selectedTests.some((t) => t.name === pkg.name);
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      padding: 14,
-                      cursor: "pointer",
-                      borderRadius: 10,
-                      border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
-                      backgroundColor: isSelected ? "#faf5ff" : "white",
-                      transition: "all 0.2s",
-                    }}
-                    onClick={() => toggleTest(pkg)}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <div
-                          style={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: 4,
-                            border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
-                            backgroundColor: isSelected ? "#805ad5" : "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "0.75rem",
-                            color: "white",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {isSelected ? "✓" : ""}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
-                          <div style={{ fontSize: "0.72rem", color: "#718096" }}>{pkg.tests.join(", ")}</div>
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {/* Determine which packages and tests to show */}
+            {(() => {
+              const catalogSvcs = orgCatalog?.services || [];
+              const catalogPkgs = orgCatalog?.packages || [];
+              const hasOrgCatalog = selectedOrg?.isReal && catalogSvcs.length > 0;
 
-            <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>🔬 Individual Lab Tests</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {DEFAULT_DIAGNOSTIC_TESTS.map((test, i) => {
-                const isSelected = selectedTests.some((t) => t.name === test.name);
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      padding: 12,
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      borderRadius: 10,
-                      border: isSelected ? "2px solid #0284c7" : "2px solid #e2e8f0",
-                      backgroundColor: isSelected ? "#f0f9ff" : "white",
-                      transition: "all 0.2s",
-                    }}
-                    onClick={() => toggleTest(test)}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 4,
-                          border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e0",
-                          backgroundColor: isSelected ? "#0284c7" : "white",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.75rem",
-                          color: "white",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {isSelected ? "✓" : ""}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: "#1a2b4a" }}>{test.name}</div>
-                        {test.description && <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{test.description}</div>}
-                      </div>
-                    </div>
-                    <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{test.price}</div>
+              const displayPackages = hasOrgCatalog ? catalogPkgs : DEFAULT_DIAGNOSTIC_PACKAGES;
+              const displayTests = hasOrgCatalog ? catalogSvcs : DEFAULT_DIAGNOSTIC_TESTS;
+
+              return (
+                <>
+                  <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                    {displayPackages.length > 0 ? displayPackages.map((pkg: any, i: number) => {
+                      const isSelected = selectedTests.some((t) => t.name === pkg.name);
+                      return (
+                        <div
+                          key={pkg.id || i}
+                          style={{
+                            padding: 14,
+                            cursor: "pointer",
+                            borderRadius: 10,
+                            border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
+                            backgroundColor: isSelected ? "#faf5ff" : "white",
+                            transition: "all 0.2s",
+                          }}
+                          onClick={() => toggleTest(pkg)}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div
+                                style={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 4,
+                                  border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
+                                  backgroundColor: isSelected ? "#805ad5" : "white",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "0.75rem",
+                                  color: "white",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {isSelected ? "✓" : ""}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
+                                <div style={{ fontSize: "0.72rem", color: "#718096" }}>
+                                  {pkg.tests_included ? pkg.tests_included.join(", ") : pkg.tests?.join(", ") || ""}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price || pkg.base_price || 0}</div>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No health packages available.</p>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+
+                  <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>🔬 Individual Lab Tests</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                    {displayTests.length > 0 ? displayTests.map((test: any, i: number) => {
+                      const isSelected = selectedTests.some((t) => t.name === test.name);
+                      const testPrice = test.price || test.base_price || 0;
+                      return (
+                        <div
+                          key={test.id || i}
+                          style={{
+                            padding: 12,
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            borderRadius: 10,
+                            border: isSelected ? "2px solid #0284c7" : "2px solid #e2e8f0",
+                            backgroundColor: isSelected ? "#f0f9ff" : "white",
+                            transition: "all 0.2s",
+                          }}
+                          onClick={() => toggleTest({ ...test, price: testPrice })}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 4,
+                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e0",
+                                backgroundColor: isSelected ? "#0284c7" : "white",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "0.75rem",
+                                color: "white",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {isSelected ? "✓" : ""}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, color: "#1a2b4a" }}>{test.name}</div>
+                              {test.description && <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{test.description}</div>}
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{testPrice}</div>
+                        </div>
+                      );
+                    }) : (
+                      <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No tests available.</p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Total summary */}
             {selectedTests.length > 0 && (
@@ -1204,11 +1262,11 @@ function BookingPageContent() {
         {step === 4 && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
-              {bookingType === "lab" ? "Select Your Preferred Date" : "Select Preferred Date & Time Slot"}
+              {bookingType === "lab" && !selectedOrg?.isReal ? "Select Your Preferred Date" : "Select Preferred Date & Time Slot"}
             </h3>
 
-            {/* Info banner for lab bookings */}
-            {bookingType === "lab" && (
+            {/* Info banner for partner-blind lab bookings (no org selected) */}
+            {bookingType === "lab" && !selectedOrg?.isReal && (
               <div style={{ padding: 16, backgroundColor: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe", marginBottom: 20 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                   <span style={{ fontSize: "1.3rem" }}>🏥</span>
@@ -1264,8 +1322,8 @@ function BookingPageContent() {
               })}
             </div>
 
-            {/* For LAB bookings: no time slot picker — center assigns slot */}
-            {bookingType === "lab" && selectedDate && !isDayClosed(selectedDate) && (
+            {/* For partner-blind LAB bookings: no time slot picker — center assigns slot */}
+            {bookingType === "lab" && !selectedOrg?.isReal && selectedDate && !isDayClosed(selectedDate) && (
               <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
@@ -1281,8 +1339,8 @@ function BookingPageContent() {
               </div>
             )}
 
-            {/* For LAB bookings: show closed message if date is closed */}
-            {bookingType === "lab" && selectedDate && isDayClosed(selectedDate) && (
+            {/* For partner-blind LAB bookings: show closed message if date is closed */}
+            {bookingType === "lab" && !selectedOrg?.isReal && selectedDate && isDayClosed(selectedDate) && (
               <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
                 <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
                 <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Center Closed on This Day</h4>
@@ -1290,8 +1348,8 @@ function BookingPageContent() {
               </div>
             )}
 
-            {/* For DOCTOR bookings: show time slot picker */}
-            {bookingType !== "lab" && selectedDate && (() => {
+            {/* For DOCTOR bookings or lab-with-org: show time slot picker */}
+            {(bookingType !== "lab" || selectedOrg?.isReal) && selectedDate && (() => {
               const dynamicSlots = getDynamicSlots(selectedDate);
               const closed = isDayClosed(selectedDate);
               const morningSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) < 12);
@@ -1405,8 +1463,8 @@ function BookingPageContent() {
               );
             })()}
 
-            {/* Total Fee & Summary for doctor bookings */}
-            {bookingType !== "lab" && selectedDate && selectedSlot && (
+            {/* Total Fee & Summary for doctor bookings and lab-with-org */}
+            {(bookingType !== "lab" || selectedOrg?.isReal) && selectedDate && selectedSlot && (
               <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
@@ -1414,7 +1472,7 @@ function BookingPageContent() {
                       📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
                     </div>
                     <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
-                      {selectedDoctor ? selectedDoctor.name : "Appointment"}
+                      {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || "Appointment"}
                     </div>
                   </div>
                   <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
@@ -1429,10 +1487,10 @@ function BookingPageContent() {
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}
-                disabled={!selectedDate || (bookingType !== "lab" && !selectedSlot) || isDayClosed(selectedDate) || loading}
+                disabled={!selectedDate || (bookingType === "lab" ? (!selectedOrg?.isReal ? false : !selectedSlot) : (bookingType !== "lab" && !selectedSlot)) || isDayClosed(selectedDate) || loading}
                 onClick={handleConfirm}
               >
-                {loading ? "Confirming..." : bookingType === "lab" ? `Submit Booking Request · ₹${fee}` : `Confirm Booking & Pay ₹${fee}`}
+                {loading ? "Confirming..." : bookingType === "lab" && !selectedOrg?.isReal ? `Submit Booking Request · ₹${fee}` : `Confirm Booking & Pay ₹${fee}`}
               </button>
             </div>
           </div>

@@ -5,6 +5,7 @@ Doctors: set availability, manage slots, view appointments.
 Organizations: add doctors, set services/fees, manage calendar.
 """
 import uuid
+import re
 import logging
 from datetime import datetime, timezone, date, timedelta, time
 from typing import Any, Optional, List
@@ -15,6 +16,11 @@ from app.database import supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
+
+
+def _rows(result) -> list:
+    data = getattr(result, "data", None) or []
+    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 # ─── Request Models ───────────────────────────────────────────────────────
@@ -828,6 +834,54 @@ async def org_add_service(
         }
 
         supabase.table("organization_services").insert(record).execute()
+
+        # ── Best-effort dual-write to provider_services ────────────────────
+        # The marketplace reads provider_services, not organization_services,
+        # so every org service must also appear in the marketplace table for
+        # patients to find it. This is best-effort: never fail the main write.
+        try:
+            provider_user_id = current_user["sub"]
+            slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
+            catalog = _rows(
+                supabase.table("service_catalog")
+                .select("id, name")
+                .or_(f"slug.eq.{slug},name.ilike.%{body.name}%")
+                .limit(1).execute()
+            )
+            if catalog:
+                cat_id = catalog[0]["id"]
+                # Check existing row to decide insert vs update
+                existing = _rows(
+                    supabase.table("provider_services")
+                    .select("id")
+                    .eq("provider_user_id", provider_user_id)
+                    .eq("catalog_id", cat_id)
+                    .limit(1).execute()
+                )
+                mrp = body.price  # org's price is the MRP
+                ps_row = {
+                    "provider_user_id": provider_user_id,
+                    "catalog_id": cat_id,
+                    "name": body.name,
+                    "category": body.service_type,
+                    "base_price": body.price,
+                    "mrp": mrp,
+                    "home_available": bool(body.home_collection_available),
+                    "is_active": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if existing:
+                    supabase.table("provider_services").update(ps_row).eq("id", existing[0]["id"]).execute()
+                else:
+                    ps_row["id"] = str(uuid.uuid4())
+                    ps_row["created_at"] = datetime.now(timezone.utc).isoformat()
+                    supabase.table("provider_services").insert(ps_row).execute()
+                logger.info("dual-wrote service '%s' to provider_services (catalog=%s)", body.name, cat_id)
+            else:
+                logger.info("no catalog match for '%s' — skipping dual-write (org-local only)", body.name)
+        except Exception as dw_err:
+            logger.warning("dual-write to provider_services failed for '%s': %s", body.name, dw_err)
+
         return {"success": True, "message": f"Service '{body.name}' added", "service": record}
     except HTTPException:
         raise
