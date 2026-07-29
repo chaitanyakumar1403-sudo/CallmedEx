@@ -74,7 +74,7 @@ export default function NurseDashboard() {
     >
       <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
-        <div style={{ display: activeTab === "dispatch" ? "block" : "none" }}>
+        <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
           <ProviderDispatchTracker
             title="Nurse Care Station"
             providerType="nurse"

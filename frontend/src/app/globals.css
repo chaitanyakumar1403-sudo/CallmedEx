@@ -931,3 +931,23 @@ img { max-width: 100%; height: auto; }
   .prescription__med-info { flex-direction: column; gap: 4px; }
   .precall-header__content { flex-wrap: wrap; justify-content: center; }
 }
+
+/* ── Dashboard tab panels — keep the tracker MOUNTED across tab switches
+     (unmounting would lose duty status / live dispatch state) while staying
+     inside the ui-lint gate: visibility toggles via class, never inline style. */
+.tab-panel-hidden { display: none; }
+
+/* ── Doorstep Collection run picker (phlebotomist dashboard) ── */
+.run-picker { padding: 16px; }
+.run-picker__title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.95rem; color: var(--color-gray-900); margin-bottom: 10px; }
+.run-picker__grid { display: grid; gap: 8px; }
+.run-picker__run { text-align: left; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--color-gray-200); background: var(--color-white); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.run-picker__run--selected { border: 2px solid var(--color-navy); background: #f0f9ff; }
+.run-picker__run-name { font-weight: 700; font-size: 0.9rem; color: var(--color-gray-900); }
+.run-picker__run-addr { font-size: 0.8rem; color: var(--color-gray-500); margin-top: 2px; }
+.run-picker__pill { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: var(--color-gray-100); color: var(--color-gray-600); }
+.run-picker__pill--selected { background: var(--color-navy); color: var(--color-white); }
+.run-picker__label { font-weight: 600; font-size: 0.85rem; color: var(--color-gray-600); }
+.run-picker__input-row { display: flex; gap: 10px; margin-top: 6px; }
+.run-picker__input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1.5px solid var(--color-gray-200); font-family: monospace; font-size: 0.9rem; }
+.run-picker__empty { padding: 24px; text-align: center; color: var(--color-gray-500); }
