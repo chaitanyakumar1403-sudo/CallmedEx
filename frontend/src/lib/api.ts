@@ -245,6 +245,59 @@ export const bookingsAPI = {
     api.post(`/bookings/${bookingId}/cancel`),
 };
 
+// ─── Provider discovery (public search — Consultation page modes) ─────────
+// These wrap the public /api/providers/search/* endpoints used by the
+// location-based discovery flows (Walk-in / Home Visit).
+export const discoveryAPI = {
+  searchDoctors: (opts: {
+    specialization?: string;
+    city?: string;
+    consultation_mode?: string;
+    q?: string;
+    limit?: number;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.specialization) params.set('specialization', opts.specialization);
+    if (opts.city) params.set('city', opts.city);
+    if (opts.consultation_mode) params.set('consultation_mode', opts.consultation_mode);
+    if (opts.q) params.set('q', opts.q);
+    params.set('limit', String(opts.limit ?? 50));
+    return api.get(`/providers/search/doctors?${params.toString()}`);
+  },
+
+  searchOrganizations: (opts: {
+    org_type?: string;
+    city?: string;
+    q?: string;
+    exclude_diagnostic?: boolean;
+    limit?: number;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.org_type) params.set('org_type', opts.org_type);
+    if (opts.city) params.set('city', opts.city);
+    if (opts.q) params.set('q', opts.q);
+    if (opts.exclude_diagnostic) params.set('exclude_diagnostic', 'true');
+    params.set('limit', String(opts.limit ?? 50));
+    return api.get(`/providers/search/organizations?${params.toString()}`);
+  },
+
+  searchProviders: (opts: {
+    type?: string;
+    city?: string;
+    home_service?: boolean;
+    q?: string;
+    limit?: number;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.type) params.set('type', opts.type);
+    if (opts.city) params.set('city', opts.city);
+    if (opts.home_service) params.set('home_service', 'true');
+    if (opts.q) params.set('q', opts.q);
+    params.set('limit', String(opts.limit ?? 50));
+    return api.get(`/providers/search/providers?${params.toString()}`);
+  },
+};
+
 export const dispatchAPI = {
   cancelDispatch: (dispatchId: string) =>
     api.post(`/dispatch/${dispatchId}/cancel`),

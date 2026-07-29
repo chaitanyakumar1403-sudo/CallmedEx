@@ -7,7 +7,7 @@ Organizations: add doctors, set services/fees, manage calendar.
 import uuid
 import logging
 from datetime import datetime, timezone, date, timedelta, time
-from typing import Optional, List
+from typing import Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user
@@ -1157,7 +1157,7 @@ async def search_doctors(
         # Enrich with fees
         enriched = []
         for doc in doctors:
-            user = doc.get("users", {})
+            user: Any = doc.get("users", {})
             doc_user_id = user.get("id", doc.get("user_id", ""))
 
             # Get fees
@@ -1187,6 +1187,11 @@ async def search_doctors(
                 "experience_years": doc.get("years_of_experience", 0),
                 "consultation_mode": doc.get("consultation_mode", "both"),
                 "city": user.get("city", ""),
+                # Already fetched by the users!inner join above — surfaced so
+                # location-based discovery (State → District) can filter
+                # client-side without a second round-trip.
+                "district": user.get("district", ""),
+                "state": user.get("state", ""),
                 "fees": fees,
                 "languages": doc.get("languages_spoken", ["English"]),
             })
@@ -1290,6 +1295,9 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
         "name": p["display_name"], "organization_name": p["display_name"],
         "type": p["subtype"], "organization_type": p["subtype"],
         "city": p.get("city", ""), "state": p.get("state", ""),
+        # Present once the provider_directory district migration runs; "" until
+        # then and the client falls back to city matching.
+        "district": p.get("district", ""),
         "verification_status": p["verification_status"], "min_price": p.get("min_price"),
     } for p in res["providers"]
         if (p["provider_type"] == "organization" or (org_type and org_type != "doctor"))

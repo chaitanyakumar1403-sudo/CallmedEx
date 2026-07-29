@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import LocationPicker from "../../../components/LocationPicker";
+import StateDistrictPicker from "@/components/StateDistrictPicker";
 
 // Nursing care types a nurse can be dispatched for. Mirrors nurses.specializations
 // and the dedicated /booking/nurse flow.
@@ -90,11 +91,13 @@ function BookingPageContent() {
   // On-demand dispatch fields
   const [dispatchAddress, setDispatchAddress] = useState("");
 
-  // Lab flow (partner-blind): the patient's city, used only to let CallMedex
-  // allocate the nearest covering partner server-side — never to let the
-  // patient pick a centre. deepLinkedTest is the single test carried over
+  // Lab flow (partner-blind): the patient's State → District, used only to let
+  // CallMedex allocate the nearest covering partner server-side — never to let
+  // the patient pick a centre. deepLinkedTest is the single test carried over
   // from the diagnostics fulfilment card via ?service=<catalog_id>.
-  const [labCity, setLabCity] = useState("");
+  const [labState, setLabState] = useState("");
+  const [labDistrict, setLabDistrict] = useState("");
+  const [labLocationDetected, setLabLocationDetected] = useState(false);
   const [deepLinkedTest, setDeepLinkedTest] = useState<any>(null);
   const [deepLinkedLoading, setDeepLinkedLoading] = useState(false);
   const [deepLinkedChecked, setDeepLinkedChecked] = useState(false);
@@ -121,7 +124,9 @@ function BookingPageContent() {
     setDeepLinkedLoading(true);
     const url = new URL(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/marketplace/fulfilment`);
     url.searchParams.set("catalog_id", serviceParam);
-    if (labCity.trim()) url.searchParams.set("city", labCity.trim());
+    // The fulfilment endpoint substring-matches `city` against a partner's
+    // city + state — the district alone is the strongest single token.
+    if (labDistrict.trim()) url.searchParams.set("city", labDistrict.trim());
     url.searchParams.set("home", modeParam === "home" ? "true" : "false");
 
     fetch(url.toString())
@@ -146,7 +151,7 @@ function BookingPageContent() {
         setDeepLinkedLoading(false);
         setDeepLinkedChecked(true);
       });
-  }, [serviceParam, labCity, modeParam]);
+  }, [serviceParam, labDistrict, modeParam]);
 
   useEffect(() => {
     if (step === 2 && bookingType === "lab" && serviceParam && !deepLinkedChecked) {
@@ -154,6 +159,13 @@ function BookingPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, bookingType, serviceParam, deepLinkedChecked]);
+
+  // Re-check availability when the district changes after the initial check —
+  // replaces the old free-text input's onBlur refetch.
+  useEffect(() => {
+    if (serviceParam && deepLinkedChecked) fetchDeepLinkedTest();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labDistrict]);
 
   // Pre-select booking type & organization from URL params
   useEffect(() => {
@@ -371,8 +383,14 @@ function BookingPageContent() {
             ? {
                 catalog_id: deepLinkedTest?.catalog_id || undefined,
                 query: !deepLinkedTest?.catalog_id ? selectedTests[0]?.name : undefined,
-                city: labCity.trim() || undefined,
-                home: false,
+                city: labDistrict.trim() || undefined,
+                // Drives processing-centre assignment server-side
+                // (bookings.collection_district → resolve_center district match).
+                district: labDistrict.trim() || undefined,
+                // Was hardcoded false — a patient arriving from a "Home
+                // collection" card on /diagnostics (?mode=home) silently got a
+                // walk-in booking and never reached dispatch assignment.
+                home: modeParam === "home",
               }
             : {}),
         }),
@@ -992,16 +1010,17 @@ function BookingPageContent() {
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>
-                Your city
+                Your location — helps us allocate the nearest partner centre
               </label>
-              <input
-                type="text"
-                className="input-field"
-                style={{ width: "100%" }}
-                placeholder="e.g. Visakhapatnam — helps us allocate the nearest partner centre"
-                value={labCity}
-                onChange={(e) => setLabCity(e.target.value)}
-                onBlur={() => serviceParam && fetchDeepLinkedTest()}
+              <StateDistrictPicker
+                stateValue={labState}
+                districtValue={labDistrict}
+                detected={labLocationDetected}
+                onChange={(next) => {
+                  setLabState(next.state);
+                  setLabDistrict(next.district);
+                  setLabLocationDetected(next.detected);
+                }}
               />
             </div>
 
@@ -1465,7 +1484,9 @@ function BookingPageContent() {
                   setSelectedDate("");
                   setSelectedSlot("");
                   setError("");
-                  setLabCity("");
+                  setLabState("");
+                  setLabDistrict("");
+                  setLabLocationDetected(false);
                   setDeepLinkedTest(null);
                   setDeepLinkedChecked(false);
                 }}

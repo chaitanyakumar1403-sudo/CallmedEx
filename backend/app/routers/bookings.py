@@ -414,6 +414,9 @@ async def create_booking(
     if is_home_collection:
         booking_data["booking_kind"] = "home_collection"
         booking_data["collection_city"] = booking.city
+        # District-level centre resolution (see processing_center.resolve_center).
+        # Column added by database/processing_center_area_districts.sql.
+        booking_data["collection_district"] = booking.district or ""
 
     if supabase:
         try:

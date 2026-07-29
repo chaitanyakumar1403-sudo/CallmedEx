@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import StateDistrictPicker from "@/components/StateDistrictPicker";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -47,11 +48,12 @@ type Fulfilment = {
   partner_count: number;
 };
 
+// Walk-in-only services (dental, physiotherapy) are deliberately NOT here —
+// a root canal can't be home-collected. They are discoverable under
+// Consultation → Walk-in instead.
 const CATEGORIES = [
   { id: "lab_test", label: "Lab Tests", icon: "🧪" },
   { id: "imaging", label: "Imaging", icon: "📷" },
-  { id: "dental", label: "Dental", icon: "🦷" },
-  { id: "physiotherapy", label: "Physiotherapy", icon: "🧘" },
 ];
 
 // Sub-categories for organized browsing within each category
@@ -76,22 +78,6 @@ const SUB_CATEGORIES: Record<string, { id: string; label: string; icon: string }
     { id: "ecg_echo", label: "ECG & Echo", icon: "💓" },
     { id: "dexa", label: "DEXA / Bone Density", icon: "🦴" },
   ],
-  dental: [
-    { id: "cleaning", label: "Cleaning & Polishing", icon: "✨" },
-    { id: "root_canal", label: "Root Canal", icon: "🦷" },
-    { id: "extraction", label: "Tooth Extraction", icon: "🔧" },
-    { id: "orthodontics", label: "Orthodontics", icon: "😁" },
-    { id: "dental_xray", label: "Dental X-Ray", icon: "📸" },
-    { id: "cavity", label: "Cavity & Fillings", icon: "🪥" },
-  ],
-  physiotherapy: [
-    { id: "back_pain", label: "Back & Spine", icon: "🔙" },
-    { id: "sports_rehab", label: "Sports Rehab", icon: "🏃" },
-    { id: "post_surgery", label: "Post-Surgery", icon: "🏥" },
-    { id: "joint_mobility", label: "Joint & Mobility", icon: "🦿" },
-    { id: "neuro_rehab", label: "Neuro Rehab", icon: "🧠" },
-    { id: "geriatric", label: "Elderly Care", icon: "👴" },
-  ],
 };
 
 // Maps sub-category IDs to search keywords for the API
@@ -112,25 +98,11 @@ const SUB_CATEGORY_KEYWORDS: Record<string, string[]> = {
   ultrasound: ["ultrasound", "usg", "sonography", "doppler"],
   ecg_echo: ["ecg", "echo", "echocardiogram", "electrocardiogram", "2d echo", "treadmill"],
   dexa: ["dexa", "bone density", "bmd", "bone mineral"],
-  cleaning: ["cleaning", "scaling", "polishing", "prophylaxis"],
-  root_canal: ["root canal", "rct", "endodontic"],
-  extraction: ["extraction", "tooth removal"],
-  orthodontics: ["orthodontic", "braces", "aligner", "invisalign"],
-  dental_xray: ["dental x-ray", "opg", "iopa", "panoramic"],
-  cavity: ["cavity", "filling", "restoration", "composite"],
-  back_pain: ["back pain", "spine", "lumbar", "cervical", "sciatica", "disc"],
-  sports_rehab: ["sports", "athletic", "ligament", "acl", "muscle strain", "sprain"],
-  post_surgery: ["post surgery", "post operative", "post-op", "rehabilitation"],
-  joint_mobility: ["joint", "knee", "shoulder", "hip", "arthritis", "frozen shoulder"],
-  neuro_rehab: ["neuro", "stroke", "paralysis", "parkinson", "neuropathy"],
-  geriatric: ["elderly", "geriatric", "balance", "fall prevention", "senior"],
 };
 
 const CATEGORY_ICON: Record<string, string> = {
   lab_test: "🧪",
   imaging: "📷",
-  dental: "🦷",
-  physiotherapy: "🧘",
   procedure: "🔬",
   health_package: "📦",
   consultation: "🩺",
@@ -148,8 +120,10 @@ export default function DiagnosticsPage() {
 
   const [fulfilment, setFulfilment] = useState<Fulfilment | null>(null);
   const [loadingFulfilment, setLoadingFulfilment] = useState(false);
-  const [city, setCity] = useState("");
-  const [detectingLocation, setDetectingLocation] = useState(false);
+  // Location is a State → District cascade (never free text) so the value
+  // always resolves against processing-centre serviceable areas server-side.
+  const [locState, setLocState] = useState("");
+  const [district, setDistrict] = useState("");
   const [locationDetected, setLocationDetected] = useState(false);
   const [homeOnly, setHomeOnly] = useState(false);
   const [urgent, setUrgent] = useState(false);
@@ -228,7 +202,9 @@ export default function DiagnosticsPage() {
       try {
         const url = new URL(`${API}/api/marketplace/fulfilment`);
         url.searchParams.set("catalog_id", test.id);
-        if (city.trim()) url.searchParams.set("city", city.trim());
+        // The fulfilment endpoint substring-matches `city` against a partner's
+        // city + state, so the district alone is the strongest single token.
+        if (district.trim()) url.searchParams.set("city", district.trim());
         if (homeOnly) url.searchParams.set("home", "true");
         if (urgent) url.searchParams.set("urgent", "true");
 
@@ -241,7 +217,7 @@ export default function DiagnosticsPage() {
         setLoadingFulfilment(false);
       }
     },
-    [city, homeOnly, urgent]
+    [district, homeOnly, urgent]
   );
 
   function pick(test: Test) {
@@ -258,61 +234,33 @@ export default function DiagnosticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeOnly, urgent]);
 
-  // Auto-detect location using browser geolocation
-  const handleDetectLocation = useCallback(async () => {
-    if (!navigator.geolocation) return;
-    setDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
-          let detectedCity = "";
+  // State → District cascade (auto-detect included) lives in the shared
+  // StateDistrictPicker; when the district changes we re-price the selected
+  // test for the new location.
+  const handleLocationChange = useCallback(
+    (next: { state: string; district: string; detected: boolean }) => {
+      setLocState(next.state);
+      setDistrict(next.district);
+      setLocationDetected(next.detected);
+    },
+    []
+  );
 
-          if (geoapifyKey) {
-            const res = await fetch(
-              `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${geoapifyKey}&format=json`
-            );
-            const json = await res.json();
-            const result = json.results?.[0] || {};
-            detectedCity = result.city || result.town || result.village || result.county || "";
-          } else {
-            const res = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
-              { headers: { "Accept-Language": "en", "User-Agent": "CallMedex/2.0" } }
-            );
-            const data = await res.json();
-            const addr = data.address || {};
-            detectedCity = addr.city || addr.town || addr.village || addr.county || "";
-          }
-
-          if (detectedCity) {
-            setCity(detectedCity);
-            setLocationDetected(true);
-            if (selected) loadFulfilment(selected);
-          }
-        } catch {
-          // Silent failure — user can still type manually
-        } finally {
-          setDetectingLocation(false);
-        }
-      },
-      () => {
-        setDetectingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-    );
-  }, [selected, loadFulfilment]);
+  useEffect(() => {
+    if (selected) loadFulfilment(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [district]);
 
   return (
     <div className="section">
       <div className="container">
         <div className="section-title">
-          <h1>Book a test, treatment or therapy</h1>
+          <h1>Book a lab test or imaging — home collection or verified walk-in centre</h1>
           <p>
-            Search across lab tests, imaging, dental and physiotherapy. Book at
-            the CallMedex rate — home collection where possible, or we&apos;ll
-            allocate a verified partner centre for tests that need one.
+            Search across lab tests and imaging. Book at the CallMedex rate —
+            home collection where possible, or we&apos;ll allocate a verified
+            partner centre for tests that need one. Looking for dental or
+            physiotherapy? See Consultation → Walk-in.
           </p>
         </div>
 
@@ -335,46 +283,12 @@ export default function DiagnosticsPage() {
                 fontSize: "1rem",
               }}
             />
-            <div style={{ flex: 1, minWidth: 150, display: "flex", gap: 6 }}>
-              <input
-                value={city}
-                onChange={(e) => { setCity(e.target.value); setLocationDetected(false); }}
-                onBlur={() => selected && loadFulfilment(selected)}
-                placeholder="City"
-                style={{
-                  flex: 1,
-                  padding: "14px 18px",
-                  borderRadius: 12,
-                  border: locationDetected ? "1.5px solid #22c55e" : "1.5px solid #cbd5e1",
-                  fontSize: "1rem",
-                  backgroundColor: locationDetected ? "#f0fdf4" : "#fff",
-                }}
-              />
-              <button
-                onClick={handleDetectLocation}
-                disabled={detectingLocation}
-                title="Auto-detect your location"
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "1.5px solid #cbd5e1",
-                  background: detectingLocation ? "#f1f5f9" : locationDetected ? "#f0fdf4" : "#fff",
-                  cursor: detectingLocation ? "wait" : "pointer",
-                  fontSize: "1.1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  transition: "all 0.2s",
-                }}
-              >
-                {detectingLocation ? (
-                  <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>📡</span>
-                ) : locationDetected ? (
-                  "✅"
-                ) : (
-                  "📍"
-                )}
-              </button>
-            </div>
+            <StateDistrictPicker
+              stateValue={locState}
+              districtValue={district}
+              detected={locationDetected}
+              onChange={handleLocationChange}
+            />
           </div>
 
           {suggestions.length > 0 && (
@@ -677,7 +591,7 @@ export default function DiagnosticsPage() {
             ) : !fulfilment ? (
               <div className="card" style={{ padding: 32, textAlign: "center" }}>
                 <p style={{ margin: 0, color: "#64748b" }}>
-                  CallMedex doesn&apos;t cover this test{city ? ` in ${city}` : ""} yet.
+                  CallMedex doesn&apos;t cover this test{district ? ` in ${district}${locState ? `, ${locState}` : ""}` : ""} yet.
                 </p>
               </div>
             ) : (
@@ -689,6 +603,22 @@ export default function DiagnosticsPage() {
                       ? "This test needs lab equipment. Book a slot and we'll confirm your nearest CallMedex partner centre."
                       : "Home collection — a CallMedex phlebotomist comes to you."}
                   </p>
+                  {/* The processing centre itself is never named — the patient
+                      only learns whether home collection covers their district. */}
+                  {district && (
+                    <p
+                      style={{
+                        margin: "8px 0 0",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: fulfilment.walk_in_required ? "#92400e" : "#166534",
+                      }}
+                    >
+                      {fulfilment.walk_in_required
+                        ? `⚠️ Walk-in centre will be assigned in ${district}${locState ? `, ${locState}` : ""}`
+                        : `✅ Home collection available in ${district}${locState ? `, ${locState}` : ""}`}
+                    </p>
+                  )}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                     {!fulfilment.walk_in_required && <span style={tag}>🏠 Home collection</span>}
                     {fulfilment.walk_in_required && <span style={tag}>🏥 Walk-in visit</span>}

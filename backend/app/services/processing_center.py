@@ -80,7 +80,8 @@ def _priority(area: dict) -> int:
         return 100
 
 
-def resolve_center(city=None, pincode=None, lat=None, lng=None) -> Optional[dict]:
+def resolve_center(city=None, pincode=None, lat=None, lng=None,
+                   district=None) -> Optional[dict]:
     """Return the full centre row that should fulfil this location, or None."""
     centres = _active_centres()
     if not centres:
@@ -103,6 +104,18 @@ def resolve_center(city=None, pincode=None, lat=None, lng=None) -> Optional[dict
             matches.sort(key=_priority)
             return centres[matches[0]["processing_center_id"]]
 
+    # 2b. District — the wider net after city misses: a patient in a small town
+    # inside a covered district (e.g. Bheemunipatnam, Visakhapatnam district)
+    # still resolves to the district's centre. `district` is None for every
+    # caller predating the column, so this is a no-op until data lands.
+    if district:
+        key = str(district).strip().lower()
+        if key:
+            matches = [a for a in areas if (a.get("district") or "") == key]
+            if matches:
+                matches.sort(key=_priority)
+                return centres[matches[0]["processing_center_id"]]
+
     # 3. Nearest covering centre.
     if lat is not None and lng is not None:
         candidates = []
@@ -124,14 +137,16 @@ def resolve_center(city=None, pincode=None, lat=None, lng=None) -> Optional[dict
     return None
 
 
-def check_coverage(city=None, pincode=None, lat=None, lng=None) -> dict:
+def check_coverage(city=None, pincode=None, lat=None, lng=None,
+                   district=None) -> dict:
     """Patient-facing. Returns a boolean and NOTHING else.
 
     Deliberately a separate function from resolve_center: the centre row it
     returns carries partner_lab_name, and this is the one call a patient makes.
     """
     return {"serviceable": resolve_center(city=city, pincode=pincode,
-                                          lat=lat, lng=lng) is not None}
+                                          lat=lat, lng=lng,
+                                          district=district) is not None}
 
 
 from app.services.tube_derivation import derive_tubes
@@ -175,6 +190,9 @@ def assign_booking(booking_id: str) -> Optional[str]:
         pincode=booking.get("collection_pincode"),
         lat=booking.get("collection_lat"),
         lng=booking.get("collection_lng"),
+        # Key absent until the collection_district migration + booking-form
+        # wiring land — .get returns None and resolution is unchanged.
+        district=booking.get("collection_district"),
     )
     if centre is None:
         # Coverage is checked at the location step, long before this. Reaching

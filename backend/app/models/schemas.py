@@ -336,6 +336,10 @@ class BookingCreate(BaseModel):
     catalog_id: Optional[str] = None
     query: Optional[str] = None
     city: Optional[str] = None
+    # State → District picker value. Written to bookings.collection_district
+    # for home-collection bookings so processing-centre resolution can match
+    # at district level when the patient's town isn't an exact city row.
+    district: Optional[str] = None
     home: Optional[bool] = None
 
 
