@@ -1,8 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../../components/DashboardShell";
+import { patientSamplesAPI } from "@/lib/api";
+
+interface Sample {
+  id: string;
+  barcode: string;
+  status: string;
+  stage: string;
+  step: number;
+  step_label: string;
+  test_names: string[];
+  subject_name: string;
+  report_url: string | null;
+  report_status: string | null;
+  report_uploaded_at: string | null;
+  collected_at: string | null;
+  created_at: string;
+}
 
 export default function AIReportInterpreter() {
   const router = useRouter();
@@ -10,6 +27,30 @@ export default function AIReportInterpreter() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [analysis, setAnalysis] = useState<any>(null);
+  const [samples, setSamples] = useState<Sample[]>([]);
+  const [samplesLoading, setSamplesLoading] = useState(true);
+  const [showInProgress, setShowInProgress] = useState(false);
+
+  useEffect(() => {
+    setSamplesLoading(true);
+    patientSamplesAPI.getMySamples()
+      .then((data: any) => {
+        setSamples(data.samples || []);
+      })
+      .catch(() => {
+        // Silently fail — the AI tool below still works.
+      })
+      .finally(() => setSamplesLoading(false));
+  }, []);
+
+  function formatDate(iso: string | null): string {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  const readyReports = samples.filter((s) => s.report_url);
+  const inProgress = samples.filter((s) => !s.report_url);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,12 +100,173 @@ export default function AIReportInterpreter() {
       onTabChange={() => {}}
     >
       <div>
-        
-        {/* Header */}
-        <div style={{ marginBottom: 32, textAlign: "center" }}>
-          <p style={{ margin: "0 0 10px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-            <span className="badge-ai">NMC 2026 AI Engine</span>
+
+        {/* ── Your CallMedex Lab Results ───────────────────────────────── */}
+        <div style={{ marginBottom: 40 }}>
+          <h2 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#0f172a", margin: "0 0 6px 0" }}>
+            Your CallMedex Lab Results
+          </h2>
+          <p style={{ color: "#64748b", fontSize: "0.95rem", margin: "0 0 20px 0" }}>
+            Reports linked to your doorstep-collected samples.
           </p>
+
+          {samplesLoading && (
+            <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: "0.9rem" }}>
+              Loading your reports...
+            </div>
+          )}
+
+          {!samplesLoading && samples.length === 0 && (
+            <div style={{ padding: "40px 24px", textAlign: "center", background: "#f8fafc", borderRadius: 16, border: "1px dashed #cbd5e1" }}>
+              <p style={{ color: "#64748b", fontSize: "1rem", margin: 0, fontWeight: 500 }}>
+                No lab results yet — when your sample is processed, your report appears here.
+              </p>
+            </div>
+          )}
+
+          {!samplesLoading && readyReports.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {readyReports.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    background: "white",
+                    borderRadius: 16,
+                    padding: "20px 24px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                    border: "1px solid #e2e8f0",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 16,
+                  }}
+                >
+                  <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: "1rem", color: "#0f172a", marginBottom: 4 }}>
+                      {s.test_names?.join(", ") || "Lab Test"}
+                    </div>
+                    <div style={{ fontSize: "0.8rem", fontFamily: "monospace", color: "#64748b", marginBottom: 2 }}>
+                      {s.barcode || ""}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                      {s.subject_name ? `${s.subject_name} · ` : ""}{formatDate(s.report_uploaded_at || s.collected_at || s.created_at)}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "4px 12px",
+                        borderRadius: 20,
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.03em",
+                        background: s.report_status === "final" ? "#dcfce7" : "#fef3c7",
+                        color: s.report_status === "final" ? "#166534" : "#92400e",
+                      }}
+                    >
+                      {s.report_status || "Ready"}
+                    </span>
+                    <a
+                      href={s.report_url!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "8px 18px",
+                        background: "#0f172a",
+                        color: "white",
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        textDecoration: "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      View / Download Report
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!samplesLoading && inProgress.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <button
+                onClick={() => setShowInProgress(!showInProgress)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#64748b",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 0",
+                }}
+              >
+                {showInProgress ? "▾" : "▸"} {inProgress.length} sample{inProgress.length > 1 ? "s" : ""} in progress
+              </button>
+              {showInProgress && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                  {inProgress.map((s) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        background: "#f8fafc",
+                        borderRadius: 12,
+                        padding: "12px 18px",
+                        border: "1px solid #e2e8f0",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 12,
+                        opacity: 0.8,
+                      }}
+                    >
+                      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#334155" }}>
+                          {s.test_names?.join(", ") || "Lab Test"}
+                        </div>
+                        <div style={{ fontSize: "0.78rem", fontFamily: "monospace", color: "#94a3b8" }}>
+                          {s.barcode || ""}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "3px 10px",
+                          borderRadius: 16,
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          background: "#e2e8f0",
+                          color: "#475569",
+                        }}
+                      >
+                        {s.step_label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Divider ─────────────────────────────────────────────────── */}
+        <hr style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "0 0 32px 0" }} />
+
+        {/* ── AI Report Upload Tool ───────────────────────────────────── */}
+        <div style={{ marginBottom: 32, textAlign: "center" }}>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#0f172a", margin: "0 0 6px 0" }}>
+            Have an external report? Let AI explain it
+          </h2>
           <p style={{ color: "#64748b", fontSize: "1.05rem", maxWidth: 700, margin: "0 auto" }}>
             Upload your raw medical lab PDF. CallMedex AI translates medical jargon into a plain-language health story, flags abnormal values, and provides tailored diet & doctor recommendations.
           </p>

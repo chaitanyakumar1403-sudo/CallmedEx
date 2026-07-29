@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/patient", tags=["Patient Samples"])
 PATIENT_SAFE_FIELDS = {
     "id", "barcode", "booking_id", "status", "expected_tube_type_code",
     "created_at", "collected_at", "verified_at", "sent_to_lab_at",
+    "report_url", "report_status", "report_uploaded_at",
 }
 
 # Status → stage mapping for the 5-step rail
