@@ -48,6 +48,7 @@ export default function SmartNavbar() {
         </a>
         <ul className="navbar__nav">
           <li><a href="/about">About</a></li>
+          <li><a href="/packages">Health Packages</a></li>
           {(!user || user.role === "patient") && (
             <>
               {/* "Find a centre" is deliberately not a top-level destination.

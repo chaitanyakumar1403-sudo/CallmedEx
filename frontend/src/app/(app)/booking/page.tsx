@@ -61,6 +61,7 @@ function BookingPageContent() {
   const orgParam = searchParams.get("org");
   const serviceParam = searchParams.get("service");
   const packageParam = searchParams.get("package");
+  const priceParam = searchParams.get("price");
   const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
 
   const [step, setStep] = useState(1);
@@ -169,7 +170,7 @@ function BookingPageContent() {
 
   // Pre-select booking type & organization from URL params
   useEffect(() => {
-    const targetType = typeParam || (orgParam ? "lab" : serviceParam ? "lab" : "");
+    const targetType = typeParam || (orgParam ? "lab" : serviceParam ? "lab" : packageParam ? "lab" : "");
     if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];
       if (validTypes.includes(targetType)) {
@@ -371,9 +372,9 @@ function BookingPageContent() {
           provider_type: providerType,
           service_type: serviceType,
           slot_id: slotKey,
-          notes: selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes,
+          notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
-          total_price: selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0,
+          total_price: packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0),
           preferred_date: selectedDate,
           // Lab is partner-blind: no centre was chosen (providerId is ""), so
           // the backend resolves the allocation itself from these. catalog_id
@@ -390,7 +391,8 @@ function BookingPageContent() {
                 // Was hardcoded false — a patient arriving from a "Home
                 // collection" card on /diagnostics (?mode=home) silently got a
                 // walk-in booking and never reached dispatch assignment.
-                home: modeParam === "home",
+                // Packages are always home collection; otherwise trust the mode param.
+                home: packageParam ? true : modeParam === "home",
               }
             : {}),
         }),
@@ -1007,6 +1009,35 @@ function BookingPageContent() {
             <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
               Booked with CallMedex — we allocate the right centre internally. Select one or more tests or health panels.
             </p>
+
+            {packageParam && (
+              <div
+                style={{
+                  padding: "14px 18px",
+                  borderRadius: 10,
+                  border: "2px solid #0284c7",
+                  background: "#f0f9ff",
+                  marginBottom: 20,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.92rem" }}>
+                    📦 Booking package: {packageParam}
+                  </span>
+                  <span style={{ display: "block", fontSize: "0.82rem", color: "#0284c7", marginTop: 2 }}>
+                    Fixed CallMedex rate — home collection included
+                  </span>
+                </div>
+                <span style={{ fontWeight: 800, color: "#059669", fontSize: "1.1rem" }}>
+                  ₹{Number(priceParam || 0).toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: 6 }}>

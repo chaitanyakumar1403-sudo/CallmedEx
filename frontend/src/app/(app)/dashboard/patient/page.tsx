@@ -4,7 +4,6 @@ import DashboardProfile from "../components/DashboardProfile";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
-import OffersStrip from "../components/OffersStrip";
 import SampleStatusRail from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
@@ -532,8 +531,6 @@ export default function PatientDashboard() {
         </>
       }
     >
-
-        <OffersStrip city={profile?.city} />
 
         {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
         <div style={{ marginBottom: 24 }}>
