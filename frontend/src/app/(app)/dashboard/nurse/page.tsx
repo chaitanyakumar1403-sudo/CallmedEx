@@ -74,16 +74,14 @@ export default function NurseDashboard() {
     >
       <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
-        {activeTab === "dispatch" && (
-          <div>
-            <ProviderDispatchTracker
-              title="Nurse Care Station"
-              providerType="nurse"
-              embedded
-              earningsRate={350}
-            />
-          </div>
-        )}
+        <div style={{ display: activeTab === "dispatch" ? "block" : "none" }}>
+          <ProviderDispatchTracker
+            title="Nurse Care Station"
+            providerType="nurse"
+            embedded
+            earningsRate={350}
+          />
+        </div>
 
       {activeTab === "profile" && (
         <DashboardProfile profile={profile} role="nurse" />

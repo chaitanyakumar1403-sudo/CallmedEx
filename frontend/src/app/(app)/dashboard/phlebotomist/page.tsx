@@ -89,16 +89,14 @@ export default function PhlebotomistDashboard() {
     >
       <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
-        {activeTab === "dispatch" && (
-          <div>
-            <ProviderDispatchTracker
-              title="Phlebotomist Hub"
-              providerType="phlebotomist"
-              embedded
-              earningsRate={200}
-            />
-          </div>
-        )}
+        <div style={{ display: activeTab === "dispatch" ? "block" : "none" }}>
+          <ProviderDispatchTracker
+            title="Phlebotomist Hub"
+            providerType="phlebotomist"
+            embedded
+            earningsRate={200}
+          />
+        </div>
 
         {activeTab === "collection" && (
           <div className="cm-stack">

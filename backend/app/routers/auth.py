@@ -539,6 +539,42 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         if result.data:
             user = result.data[0]
             user.pop("password_hash", None)
+
+            # Enrich with online/duty status from provider_locations or role tables
+            try:
+                prov_res = (
+                    supabase.table("provider_locations")
+                    .select("is_online")
+                    .eq("user_id", current_user["sub"])
+                    .limit(1)
+                    .execute()
+                )
+                if prov_res.data and prov_res.data[0].get("is_online") is not None:
+                    user["is_online"] = bool(prov_res.data[0].get("is_online"))
+                else:
+                    if user.get("role") == "phlebotomist":
+                        phleb_res = (
+                            supabase.table("phlebotomists")
+                            .select("on_duty")
+                            .eq("user_id", current_user["sub"])
+                            .limit(1)
+                            .execute()
+                        )
+                        user["is_online"] = bool(phleb_res.data[0].get("on_duty")) if phleb_res.data else False
+                    elif user.get("role") == "nurse":
+                        nurse_res = (
+                            supabase.table("nurses")
+                            .select("is_online")
+                            .eq("user_id", current_user["sub"])
+                            .limit(1)
+                            .execute()
+                        )
+                        user["is_online"] = bool(nurse_res.data[0].get("is_online")) if nurse_res.data else False
+                    else:
+                        user["is_online"] = False
+            except Exception:
+                user["is_online"] = False
+
             return APIResponse(success=True, message="User profile", data=user)
 
     # Local fallback
