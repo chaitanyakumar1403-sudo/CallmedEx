@@ -32,17 +32,29 @@ interface LiveOps {
 
 // ─── KPI Card Component ─────────────────────────────────────────────────
 
-function KPICard({ icon, label, value, color, subtitle }: {
-  icon: string; label: string; value: number | string; color: string; subtitle?: string;
+function KPICard({ icon, label, value, color, subtitle, onClick }: {
+  icon: string; label: string; value: number | string; color: string; subtitle?: string; onClick?: () => void;
 }) {
+  const clickable = !!onClick;
   return (
-    <div className="cm-stat-card" style={{ borderLeft: `4px solid ${color}`, cursor: 'default' }}>
+    <div
+      className="cm-stat-card"
+      style={{
+        borderLeft: `4px solid ${color}`,
+        cursor: clickable ? 'pointer' : 'default',
+        transition: 'transform 0.15s, box-shadow 0.15s',
+      }}
+      onClick={onClick}
+      onMouseEnter={e => { if (clickable) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; } }}
+      onMouseLeave={e => { if (clickable) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; } }}
+    >
       <div style={{ flex: 1 }}>
         <div className="cm-stat-card__label">{label}</div>
         <div className="cm-stat-card__value">{typeof value === 'number' ? value.toLocaleString() : value}</div>
         {subtitle && <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-faint)', marginTop: 2 }}>{subtitle}</div>}
       </div>
       <div style={{ fontSize: '2rem', opacity: 0.7 }}>{icon}</div>
+      {clickable && <div style={{ fontSize: '0.65rem', color: '#9ca3af', position: 'absolute', bottom: 6, right: 10 }}>Click to view →</div>}
     </div>
   );
 }
@@ -446,18 +458,18 @@ export default function AdminDashboard() {
           <>
             {/* KPI Grid */}
             <div className="cm-stats-grid">
-              <KPICard icon="👥" label="Total Users" value={m.total_users || 0} color="#2563eb" />
-              <KPICard icon="🧑‍🦱" label="Patients" value={m.total_patients || 0} color="#059669" />
-              <KPICard icon="👨‍⚕️" label="Doctors" value={m.total_doctors || 0} color="#7c3aed" />
-              <KPICard icon="👩‍⚕️" label="Nurses" value={m.total_nurses || 0} color="#db2777" />
-              <KPICard icon="💉" label="Phlebotomists" value={m.total_phlebotomists || 0} color="#ea580c" />
-              <KPICard icon="🏥" label="Organizations" value={m.total_organizations || 0} color="#0891b2" />
-              <KPICard icon="💊" label="Pharmacies" value={m.total_pharmacys || 0} color="#65a30d" />
-              <KPICard icon="📋" label="Total Bookings" value={m.total_bookings || 0} color="#1d4ed8" />
-              <KPICard icon="📅" label="Bookings Today" value={m.bookings_today || 0} color="#059669" subtitle="Last 24 hours" />
-              <KPICard icon="🚀" label="Active Dispatches" value={m.active_dispatches || 0} color="#dc2626" subtitle="In progress" />
-              <KPICard icon="⏳" label="Pending KYC" value={m.pending_kyc || 0} color="#d97706" subtitle="Awaiting verification" />
-              <KPICard icon="📝" label="Pending MOU" value={m.pending_mou || 0} color="#9333ea" subtitle="Awaiting acceptance" />
+              <KPICard icon="👥" label="Total Users" value={m.total_users || 0} color="#2563eb" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
+              <KPICard icon="🧑‍🦱" label="Patients" value={m.total_patients || 0} color="#059669" onClick={() => { setActiveTab('users'); setUserRoleFilter('patient'); }} />
+              <KPICard icon="👨‍⚕️" label="Doctors" value={m.total_doctors || 0} color="#7c3aed" onClick={() => { setActiveTab('users'); setUserRoleFilter('doctor'); }} />
+              <KPICard icon="👩‍⚕️" label="Nurses" value={m.total_nurses || 0} color="#db2777" onClick={() => { setActiveTab('users'); setUserRoleFilter('nurse'); }} />
+              <KPICard icon="💉" label="Phlebotomists" value={m.total_phlebotomists || 0} color="#ea580c" onClick={() => { setActiveTab('users'); setUserRoleFilter('phlebotomist'); }} />
+              <KPICard icon="🏥" label="Organizations" value={m.total_organizations || 0} color="#0891b2" onClick={() => { setActiveTab('users'); setUserRoleFilter('organization'); }} />
+              <KPICard icon="💊" label="Pharmacies" value={m.total_pharmacys || 0} color="#65a30d" onClick={() => { setActiveTab('users'); setUserRoleFilter('pharmacy'); }} />
+              <KPICard icon="📋" label="Total Bookings" value={m.total_bookings || 0} color="#1d4ed8" onClick={() => { setActiveTab('analytics'); }} />
+              <KPICard icon="📅" label="Bookings Today" value={m.bookings_today || 0} color="#059669" subtitle="Last 24 hours" onClick={() => { setActiveTab('analytics'); }} />
+              <KPICard icon="🚀" label="Active Dispatches" value={m.active_dispatches || 0} color="#dc2626" subtitle="In progress" onClick={() => { setActiveTab('operations'); }} />
+              <KPICard icon="⏳" label="Pending KYC" value={m.pending_kyc || 0} color="#d97706" subtitle="Awaiting verification" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
+              <KPICard icon="📝" label="Pending MOU" value={m.pending_mou || 0} color="#9333ea" subtitle="Awaiting acceptance" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
             </div>
 
             {/* Registration Trends (simple bar visualization) */}
@@ -520,6 +532,7 @@ export default function AdminDashboard() {
                   <thead>
                     <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
                       <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>ID</th>
+                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Patient</th>
                       <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Type</th>
                       <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
                       <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Address</th>
@@ -529,6 +542,7 @@ export default function AdminDashboard() {
                     {(liveOps?.active_dispatches || []).map((d: any, i: number) => (
                       <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                         <td style={{ padding: 10, fontSize: '0.85rem', fontFamily: 'monospace' }}>{(d.id || d.dispatch_id || '').slice(0, 8)}...</td>
+                        <td style={{ padding: 10, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{d.patient_name || 'N/A'}</td>
                         <td style={{ padding: 10, fontSize: '0.85rem', textTransform: 'capitalize' }}>{(d.provider_type || '').replace('_', ' ')}</td>
                         <td style={{ padding: 10 }}><StatusBadge status={d.status} /></td>
                         <td style={{ padding: 10, fontSize: '0.85rem', color: '#4b5563' }}>{d.patient_address || 'N/A'}</td>

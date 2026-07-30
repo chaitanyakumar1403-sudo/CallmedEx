@@ -41,7 +41,8 @@ export default function LoginPage() {
 
       // Redirect to role-specific dashboard
       const role = data.user.role;
-      router.push(`/dashboard/${role}`);
+      const slug = role === 'processing_center' ? 'processing-center' : role;
+      router.push(`/dashboard/${slug}`);
     } catch (err: unknown) {
       console.error("Login error:", err);
       setError(err instanceof Error ? err.message : "Login failed");

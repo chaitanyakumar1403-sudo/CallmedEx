@@ -4,6 +4,7 @@ import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../components/DashboardShell";
+import SelfieVerificationCard from "../components/SelfieVerificationCard";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -1105,6 +1106,14 @@ export default function DoctorDashboard() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ═══ PROFILE TAB ═══ */}
+        {activeTab === "profile" && (
+          <div>
+            <SelfieVerificationCard />
+            <DashboardProfile profile={profile} role="doctor" />
           </div>
         )}
       </div>

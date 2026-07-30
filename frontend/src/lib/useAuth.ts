@@ -104,7 +104,8 @@ export function useAuth(): UseAuthReturn {
 
   const getDashboardPath = useCallback(() => {
     if (!state.user) return '/';
-    return `/dashboard/${state.user.role}`;
+    const slug = state.user.role === 'processing_center' ? 'processing-center' : state.user.role;
+    return `/dashboard/${slug}`;
   }, [state.user]);
 
   const requireAuth = useCallback(

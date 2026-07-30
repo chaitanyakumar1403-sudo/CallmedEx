@@ -251,3 +251,152 @@ class AIOCRService:
                 return []
 
         return images
+
+
+# ─── Aadhaar & Selfie prompts ────────────────────────────────────────────────
+
+AADHAAR_PROMPT = """
+You are a highly accurate Indian identity document verification AI.
+You are analyzing an uploaded image of an Aadhaar card (front or back)
+issued by UIDAI (Unique Identification Authority of India).
+
+Extract the following information. Be extremely precise with names and numbers.
+For privacy, only extract the LAST 4 DIGITS of the Aadhaar number.
+Output ONLY valid JSON, no markdown, no backticks:
+{
+    "is_legible": true if the document text is clearly readable, false if blurry/dark/cut-off,
+    "is_valid_document": true if this appears to be a genuine Aadhaar card, false otherwise,
+    "extracted_name": "Full name as printed on the Aadhaar card, or null",
+    "aadhaar_last4": "Last 4 digits of the Aadhaar number, or null",
+    "date_of_birth": "DOB as printed (YYYY-MM-DD or DD/MM/YYYY format), or null",
+    "gender": "Male/Female/Other as printed, or null",
+    "address": "Address if visible (back side), or null",
+    "confidence_score": a number from 0.0 to 1.0 indicating your confidence in the extraction accuracy
+}
+"""
+
+SELFIE_PROMPT = """
+You are an identity verification AI performing a liveness check on a selfie photo.
+Analyze the uploaded image and determine:
+
+1. Is this a real photograph taken by a camera (not a photo of a screen, printout, or mask)?
+2. Does it show exactly one clearly visible human face?
+3. Is the face well-lit, in focus, and not obscured?
+
+Output ONLY valid JSON, no markdown, no backticks:
+{
+    "is_real_photo": true if this appears to be a genuine camera-taken photo (not a screen/printout),
+    "has_single_face": true if exactly one human face is clearly visible,
+    "is_well_lit": true if the face is adequately lit and in focus,
+    "liveness_passed": true if ALL above checks pass (real photo + single face + well lit),
+    "confidence_score": a number from 0.0 to 1.0 indicating your confidence,
+    "rejection_reason": "Reason for failure if liveness_passed is false, or null"
+}
+"""
+
+
+class AadhaarOCRService:
+    """Aadhaar card OCR and selfie liveness verification using Gemini Vision."""
+
+    @staticmethod
+    def extract_aadhaar_data(file_bytes: bytes, mime_type: str) -> Dict[str, Any]:
+        """Extract structured data from an Aadhaar card image."""
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY not configured.")
+
+        images = AIOCRService._prepare_images(file_bytes, mime_type)
+        if not images:
+            return {"is_legible": False, "is_valid_document": False,
+                    "error": "Could not read the uploaded file."}
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+
+            for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+                try:
+                    model = genai.GenerativeModel(m_name)
+                    response = model.generate_content([AADHAAR_PROMPT, images[0]])
+                    if response:
+                        break
+                except Exception:
+                    continue
+
+            text = (response.text or "").strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            extracted = json.loads(text)
+            logger.info(f"Aadhaar OCR: legible={extracted.get('is_legible')}, "
+                        f"name={extracted.get('extracted_name')}, "
+                        f"confidence={extracted.get('confidence_score')}")
+            return extracted
+
+        except json.JSONDecodeError:
+            return {"is_legible": False, "is_valid_document": False,
+                    "error": "AI could not parse the Aadhaar card."}
+        except Exception as e:
+            logger.error(f"Aadhaar OCR failed: {e}")
+            raise ValueError(f"AI Aadhaar analysis failed: {str(e)}")
+
+    @staticmethod
+    def verify_selfie(file_bytes: bytes, mime_type: str) -> Dict[str, Any]:
+        """Verify liveness of a selfie photo using Gemini Vision."""
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY not configured.")
+
+        images = AIOCRService._prepare_images(file_bytes, mime_type)
+        if not images:
+            return {"liveness_passed": False, "error": "Could not read the selfie image."}
+
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+
+            for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
+                try:
+                    model = genai.GenerativeModel(m_name)
+                    response = model.generate_content([SELFIE_PROMPT, images[0]])
+                    if response:
+                        break
+                except Exception:
+                    continue
+
+            text = (response.text or "").strip()
+            if text.startswith("```json"):
+                text = text[7:]
+            if text.startswith("```"):
+                text = text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            result = json.loads(text)
+            logger.info(f"Selfie liveness: passed={result.get('liveness_passed')}, "
+                        f"confidence={result.get('confidence_score')}")
+            return result
+
+        except json.JSONDecodeError:
+            return {"liveness_passed": False, "error": "AI could not analyze the selfie."}
+        except Exception as e:
+            logger.error(f"Selfie verification failed: {e}")
+            raise ValueError(f"AI selfie analysis failed: {str(e)}")
+
+
+def fuzzy_name_match(name1: str, name2: str) -> float:
+    """
+    Compare two names using SequenceMatcher. Returns a ratio 0.0–1.0.
+    Normalizes whitespace and case before comparison.
+    """
+    from difflib import SequenceMatcher
+    if not name1 or not name2:
+        return 0.0
+    a = " ".join(name1.lower().split())
+    b = " ".join(name2.lower().split())
+    return SequenceMatcher(None, a, b).ratio()
+

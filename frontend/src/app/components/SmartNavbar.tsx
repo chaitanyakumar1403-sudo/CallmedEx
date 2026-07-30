@@ -27,7 +27,8 @@ export default function SmartNavbar() {
 
   const getDashboardLink = () => {
     if (!user) return "/";
-    return `/dashboard/${user.role}`;
+    const slug = user.role === 'processing_center' ? 'processing-center' : user.role;
+    return `/dashboard/${slug}`;
   };
 
   const roleLabel: Record<string, string> = {

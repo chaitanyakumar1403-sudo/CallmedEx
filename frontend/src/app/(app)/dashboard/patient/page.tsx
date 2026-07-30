@@ -6,6 +6,7 @@ import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
 import SampleStatusRail from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
+import FamilyMembersPanel from "../components/FamilyMembersPanel";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
 
 interface UserData {
@@ -767,6 +768,9 @@ export default function PatientDashboard() {
             <h4 style={{ color: '#553c9a' }}>AI Reports</h4>
           </a>
         </div>
+
+        {/* Family Members */}
+        <FamilyMembersPanel />
 
         {/* Recent Bookings */}
         <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem" }}>Recent Bookings</h3>

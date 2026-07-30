@@ -995,6 +995,45 @@ export default function SignupPage() {
             </div>
           )}
 
+          {/* ─── Aadhaar Card Upload (mandatory for doctor, nurse, phlebo) ─── */}
+          {(role === "doctor" || role === "nurse" || role === "phlebotomist") && (
+            <div className="card-section">
+              <h4>🪪 Identity Verification — Aadhaar Card</h4>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
+                Upload your Aadhaar card (front side) for AI-based identity verification.
+                Your name on the Aadhaar must match your registered name above.
+                <strong style={{ color: '#dc2626' }}> (Mandatory)</strong>
+              </p>
+              <div className="form-group" style={{ padding: 16, backgroundColor: '#fffbeb', borderRadius: 8, border: '1px dashed #f59e0b' }}>
+                <label className="form-label">Upload Aadhaar Card (Front Side) *</label>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="form-input" style={{ flex: 1 }} required />
+                  {verificationStatus['aadhaar'] === 'verified' ? (
+                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                  ) : verificationStatus['aadhaar'] === 'verifying' ? (
+                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                  ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('aadhaar')}>
+                          Verify via AI
+                      </button>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#92400e', marginTop: 8 }}>
+                  ⚠️ Our AI will verify your Aadhaar card is genuine and your name matches your registration.
+                  Only the last 4 digits of your Aadhaar number are stored for privacy.
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8,
+                padding: '12px 16px', marginTop: 16, fontSize: '0.8rem', color: '#0369a1',
+              }}>
+                📸 <strong>Live Selfie Verification</strong> will be done after registration from your dashboard.
+                This is not required at signup.
+              </div>
+            </div>
+          )}
+
           {/* ─── MOU Notice (non-patient roles) ─── */}
           {role !== "patient" && (
             <div className="card-section">

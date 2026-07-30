@@ -11,9 +11,11 @@ import AttendanceCard from "../components/AttendanceCard";
 import DoorstepScanPanel from "../components/DoorstepScanPanel";
 import { useRouter } from "next/navigation";
 import { Button, Icon } from "@/components/ui";
-import { MapPin, TestTube, Wallet, User, ScanLine, Package } from "@/components/ui/icons";
+import { MapPin, TestTube, Wallet, User, ScanLine, Package, CalendarDays } from "@/components/ui/icons";
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
+import PhleboSchedulePanel from "../components/PhleboSchedulePanel";
+import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -84,6 +86,7 @@ export default function PhlebotomistDashboard() {
     { id: "dispatch", label: "Live Dispatch", icon: MapPin },
     { id: "collection", label: "Doorstep Collection", icon: ScanLine },
     { id: "samples", label: "Samples & Handover", icon: TestTube },
+    { id: "schedule", label: "Schedule", icon: CalendarDays },
     { id: "stock", label: "Kit & Stock", icon: Package },
     { id: "wallet", label: "Wallet", icon: Wallet },
     { id: "profile", label: "Profile", icon: User },
@@ -197,10 +200,13 @@ export default function PhlebotomistDashboard() {
 
         {activeTab === "stock" && <PhleboStockPanel />}
 
+        {activeTab === "schedule" && <PhleboSchedulePanel />}
+
         {activeTab === "wallet" && <PhleboWalletPanel />}
 
       {activeTab === "profile" && (
         <>
+          <SelfieVerificationCard />
           <PhleboPerformancePanel />
           <DashboardProfile profile={profile} role="phlebotomist" />
         </>

@@ -285,19 +285,22 @@ async def geospatial_data(current_user: dict = Depends(get_current_user)):
     except Exception:
         pass
 
-    # Active dispatches
+    # Active dispatches — join with users for patient name
     try:
         dispatches = (
             supabase.table("dispatch_requests")
-            .select("*")
+            .select("*, users!dispatch_requests_patient_id_fkey(full_name)")
             .in_("status", ["searching", "provider_accepted", "en_route", "arrived", "in_progress"])
             .execute()
         )
         for d in dispatches.data or []:
+            user_join = d.get("users") or {}
             data["active_dispatches"].append({
                 "dispatch_id": d.get("id"),
+                "patient_name": user_join.get("full_name", ""),
                 "provider_type": d.get("provider_type"),
                 "status": d.get("status"),
+                "patient_address": d.get("patient_address", ""),
                 "patient_lat": d.get("patient_lat"),
                 "patient_lng": d.get("patient_lng"),
             })
