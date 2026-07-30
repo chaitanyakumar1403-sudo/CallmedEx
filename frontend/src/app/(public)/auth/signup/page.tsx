@@ -77,7 +77,15 @@ export default function SignupPage() {
     const formData = new FormData(e.currentTarget);
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirm_password") as string;
-    if (password !== confirmPassword) { setError("Passwords do not match"); setLoading(false); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match"); setLoading(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+
+    // Client-side DOB validation (non-org roles require a valid date)
+    if (!isOrgLike && !dob) {
+      setError("Please select your full Date of Birth (Year, Month, and Day).");
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
     try {
       const body: Record<string, unknown> = {
@@ -182,10 +190,28 @@ export default function SignupPage() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Signup failed");
+      if (!res.ok) {
+        // Handle Pydantic validation errors (detail is an array of objects)
+        let errorMsg = "Signup failed";
+        if (typeof data.detail === "string") {
+          errorMsg = data.detail;
+        } else if (Array.isArray(data.detail)) {
+          errorMsg = data.detail
+            .map((e: { loc?: string[]; msg?: string }) => {
+              const field = e.loc ? e.loc[e.loc.length - 1] : "field";
+              return `${field}: ${e.msg || "invalid"}`;
+            })
+            .join(". ");
+        } else if (data.message) {
+          errorMsg = data.message;
+        }
+        throw new Error(errorMsg);
+      }
       setSuccess(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Signup failed");
+      const msg = err instanceof Error ? err.message : "Signup failed";
+      setError(msg);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setLoading(false);
     }
