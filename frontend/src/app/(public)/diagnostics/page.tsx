@@ -21,9 +21,10 @@
  * (centre-visible, slot-based) model.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import FIXED_PRICES from "@/data/lab-test-prices.json";
+import HEALTH_PACKAGES from "@/data/health-packages.json";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -628,7 +629,58 @@ export default function DiagnosticsPage() {
                     </button>
                   ))}
                 </div>
-                {browse.length === 0 && (
+                {browse.length === 0 && category === "lab_test" && (() => {
+                  const keywords = subCategory ? (SUB_CATEGORY_KEYWORDS[subCategory] || []) : [];
+                  const matchedTests = keywords.length > 0
+                    ? FIXED_RATE_CATALOG.filter((t) =>
+                        keywords.some((kw) => t.name.toLowerCase().includes(kw.toLowerCase())))
+                    : FIXED_RATE_CATALOG.slice(0, 40);
+                  return matchedTests.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10, marginTop: 12 }}>
+                      {matchedTests.map((t, i) => {
+                        const pct = t.mrp > 0 ? Math.round((1 - t.price / t.mrp) * 100) : 0;
+                        return (
+                          <a
+                            key={i}
+                            href="/booking?type=lab"
+                            style={{
+                              textAlign: "left", padding: "14px 16px",
+                              borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff",
+                              textDecoration: "none", color: "inherit",
+                              transition: "all 0.2s ease",
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.88rem" }}>{t.name}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                              <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.75rem" }}>
+                                ₹{t.mrp.toLocaleString("en-IN")}
+                              </span>
+                              <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.95rem" }}>
+                                ₹{t.price.toLocaleString("en-IN")}
+                              </span>
+                              {pct > 0 && (
+                                <span style={{
+                                  background: "#dcfce7", color: "#166534",
+                                  padding: "2px 6px", borderRadius: 999,
+                                  fontSize: "0.62rem", fontWeight: 700,
+                                }}>{pct}% off</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
+                              CallMedex rate · Home collection
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p style={{ textAlign: "center", color: "#94a3b8", marginTop: 16 }}>
+                      No tests found in this category. Try searching above.
+                    </p>
+                  );
+                })()}
+                {browse.length === 0 && category !== "lab_test" && (
                   <p style={{ textAlign: "center", color: "#94a3b8", marginTop: 16 }}>
                     No tests found in this category. Try searching above.
                   </p>
@@ -638,70 +690,130 @@ export default function DiagnosticsPage() {
           </div>
         )}
 
-        {/* ── Popular grid / Curated fallback ────────────────────────── */}
+        {/* ── Popular grid / Fixed-rate catalog ────────────────────── */}
         {!selected && !category && (
           <>
+            {/* Health Packages section */}
             <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
-              Frequently booked
+              📦 Health Packages
             </h3>
+            <div className="grid-3" style={{ marginBottom: 32 }}>
+              {(HEALTH_PACKAGES as any[]).slice(0, 6).map((pkg) => {
+                const pct = pkg.mrp > 0 ? Math.round((1 - pkg.price / pkg.mrp) * 100) : 0;
+                return (
+                  <a
+                    key={pkg.id}
+                    href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.price}`}
+                    className="card"
+                    style={{
+                      padding: 20,
+                      textAlign: "left",
+                      border: "1px solid #e9d5ff",
+                      background: "#faf5ff",
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <h4 style={{ margin: "0 0 6px", fontSize: "0.95rem", color: "#0f172a" }}>{pkg.name}</h4>
+                      <div style={{ fontSize: "0.72rem", color: "#7c3aed", lineHeight: 1.5, marginBottom: 8 }}>
+                        {pkg.tests.split(",").slice(0, 4).map((t: string) => t.trim()).join(" · ")}
+                        {pkg.tests.split(",").length > 4 ? " …" : ""}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                      <div>
+                        <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.8rem" }}>
+                          ₹{pkg.mrp.toLocaleString("en-IN")}
+                        </span>
+                        <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "1.1rem", marginLeft: 6 }}>
+                          ₹{pkg.price.toLocaleString("en-IN")}
+                        </span>
+                        {pct > 0 && (
+                          <span style={{
+                            background: "#dcfce7", color: "#166534",
+                            padding: "2px 8px", borderRadius: 999,
+                            fontSize: "0.68rem", fontWeight: 700, marginLeft: 6,
+                          }}>{pct}% off</span>
+                        )}
+                      </div>
+                      <span className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.78rem", borderRadius: 8 }}>Book</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <a
+                href="/packages"
+                style={{
+                  color: "#0284c7", fontWeight: 600, fontSize: "0.88rem",
+                  textDecoration: "none", borderBottom: "1px dashed #0284c7",
+                }}
+              >
+                View all {(HEALTH_PACKAGES as any[]).length} health packages →
+              </a>
+            </div>
 
-            {isPopularBookable ? (
-              /* Authentic popular grid from the API */
-              <div className="grid-3">
-                {popular.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => pick(t)}
+            {/* Frequently booked lab tests with prices */}
+            <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
+              🧪 Frequently Booked Lab Tests
+            </h3>
+            <div className="grid-3">
+              {(FIXED_RATE_CATALOG as any[]).slice(0, 12).map((t, i) => {
+                const pct = t.mrp > 0 ? Math.round((1 - t.price / t.mrp) * 100) : 0;
+                return (
+                  <a
+                    key={i}
+                    href={`/booking?type=lab`}
                     className="card"
                     style={{
                       padding: 20,
                       textAlign: "left",
-                      cursor: "pointer",
                       border: "1px solid #e2e8f0",
                       background: "#fff",
+                      textDecoration: "none",
+                      color: "inherit",
                     }}
                   >
-                    <div style={{ fontSize: "1.5rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</div>
-                    <h4 style={{ margin: "8px 0 4px", fontSize: "1rem" }}>{t.name}</h4>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                      {t.provider_count
-                        ? `${t.provider_count} partner centre${t.provider_count === 1 ? "" : "s"}`
-                        : "Coming soon in your city"}
+                    <div style={{ fontSize: "1.2rem", marginBottom: 4 }}>🧪</div>
+                    <h4 style={{ margin: "0 0 6px", fontSize: "0.92rem", color: "#0f172a" }}>{t.name}</h4>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.78rem" }}>
+                        ₹{t.mrp.toLocaleString("en-IN")}
+                      </span>
+                      <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>
+                        ₹{t.price.toLocaleString("en-IN")}
+                      </span>
+                      {pct > 0 && (
+                        <span style={{
+                          background: "#dcfce7", color: "#166534",
+                          padding: "2px 6px", borderRadius: 999,
+                          fontSize: "0.65rem", fontWeight: 700,
+                        }}>{pct}% off</span>
+                      )}
                     </div>
-                  </button>
-                ))}
-              </div>
-            ) : curatedTests.length > 0 ? (
-              /* Curated fallback — search API resolved names */
-              <div className="grid-3">
-                {curatedTests.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => pick(t)}
-                    className="card"
-                    style={{
-                      padding: 20,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      border: "1px solid #e2e8f0",
-                      background: "#fff",
-                    }}
-                  >
-                    <div style={{ fontSize: "1.5rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</div>
-                    <h4 style={{ margin: "8px 0 4px", fontSize: "1rem" }}>{t.name}</h4>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                      {t.provider_count && t.provider_count > 0
-                        ? `${t.provider_count} partner centre${t.provider_count === 1 ? "" : "s"}`
-                        : "Coming soon in your city"}
+                    <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
+                      CallMedex fixed rate · Home collection
                     </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p style={{ textAlign: "center", color: "#94a3b8" }}>
-                {curatedLoading ? "Loading the test catalogue…" : "No tests match your search."}
-              </p>
-            )}
+                  </a>
+                );
+              })}
+            </div>
+            <div style={{ textAlign: "center", marginTop: 16 }}>
+              <a
+                href="/packages"
+                style={{
+                  color: "#0284c7", fontWeight: 600, fontSize: "0.88rem",
+                  textDecoration: "none", borderBottom: "1px dashed #0284c7",
+                }}
+              >
+                View all {FIXED_RATE_CATALOG.length} lab tests with prices →
+              </a>
+            </div>
           </>
         )}
 

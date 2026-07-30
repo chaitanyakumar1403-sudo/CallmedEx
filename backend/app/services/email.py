@@ -269,19 +269,22 @@ class EmailService:
                     logger.warning(f"Resend primary send failed ({http_err.code}): {err_body}")
                     # If failed due to domain verification, retry with onboarding@resend.dev
                     if "domain" in err_body.lower() or "not verified" in err_body.lower():
-                        payload["from"] = "CallMedex <onboarding@resend.dev>"
-                        req_retry = urllib.request.Request(
-                            url,
-                            data=json.dumps(payload).encode("utf-8"),
-                            headers=headers,
-                            method="POST",
-                        )
-                        with urllib.request.urlopen(req_retry) as resp_retry:
-                            if resp_retry.status in (200, 201):
-                                logger.info(f"Resend email delivered to {to_email} via fallback sender")
-                                return True
+                        try:
+                            payload["from"] = "CallMedex <onboarding@resend.dev>"
+                            req_retry = urllib.request.Request(
+                                url,
+                                data=json.dumps(payload).encode("utf-8"),
+                                headers=headers,
+                                method="POST",
+                            )
+                            with urllib.request.urlopen(req_retry) as resp_retry:
+                                if resp_retry.status in (200, 201):
+                                    logger.info(f"Resend email delivered to {to_email} via fallback sender")
+                                    return True
+                        except Exception as retry_err:
+                            logger.error(f"Resend fallback retry also failed for {to_email}: {retry_err}")
             except Exception as e:
-                logger.error(f"Resend API email sending failed: {e}")
+                logger.error(f"Resend API email sending failed for {to_email}: {e}")
 
         # 2. Try SMTP fallback if SMTP_HOST and SMTP_USERNAME are configured
         if settings.SMTP_HOST and settings.SMTP_USERNAME:

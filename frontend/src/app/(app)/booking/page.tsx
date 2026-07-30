@@ -1,9 +1,11 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import LocationPicker from "../../../components/LocationPicker";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
+import labTestCatalog from "@/data/lab-test-prices.json";
+import healthPackagesCatalog from "@/data/health-packages.json";
 
 // Nursing care types a nurse can be dispatched for. Mirrors nurses.specializations
 // and the dedicated /booking/nurse flow.
@@ -84,6 +86,7 @@ function BookingPageContent() {
   const [fetchingOrgs, setFetchingOrgs] = useState(false);
   const [error, setError] = useState("");
   const [bookingResult, setBookingResult] = useState<any>(null);
+  const [labTestSearch, setLabTestSearch] = useState("");
   
   // Real dynamic data state
   const [realOrgs, setRealOrgs] = useState<any[]>([]);
@@ -192,6 +195,21 @@ function BookingPageContent() {
       }
     }
   }, [typeParam, orgParam, serviceParam, packageParam, bookingType]);
+
+  // Auto-add package to selectedTests when arriving from /packages page
+  useEffect(() => {
+    if (packageParam && bookingType === "lab" && step === 2) {
+      const pkgPrice = Number(priceParam) || 0;
+      const alreadyAdded = selectedTests.some((t) => t.name === packageParam);
+      if (!alreadyAdded) {
+        setSelectedTests((prev) => [
+          ...prev,
+          { name: packageParam, price: pkgPrice, description: "Health Package", isPackage: true },
+        ]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packageParam, bookingType, step]);
 
   // Fetch real registered organizations or doctors when step === 2.
   // Lab/diagnostics no longer has a centre-selection step (partner-blind —
@@ -1122,8 +1140,35 @@ function BookingPageContent() {
               const catalogPkgs = orgCatalog?.packages || [];
               const hasOrgCatalog = selectedOrg?.isReal && catalogSvcs.length > 0;
 
-              const displayPackages = hasOrgCatalog ? catalogPkgs : DEFAULT_DIAGNOSTIC_PACKAGES;
-              const displayTests = hasOrgCatalog ? catalogSvcs : DEFAULT_DIAGNOSTIC_TESTS;
+              // Partner-blind: use the full CallMedex fixed-rate catalog
+              const fullCatalogPackages = (healthPackagesCatalog as any[]).map((pkg, i) => ({
+                id: pkg.id || `hpkg-${i}`,
+                name: pkg.name,
+                price: pkg.price,
+                tests: pkg.tests ? pkg.tests.split(",").map((t: string) => t.trim()) : [],
+              }));
+
+              const fullCatalogTests = (labTestCatalog as any[]).map((t, i) => ({
+                id: `lt-${i}`,
+                name: t.name,
+                price: t.price,
+                mrp: t.mrp,
+                description: t.mrp > t.price ? `MRP ₹${t.mrp} — ${Math.round((1 - t.price / t.mrp) * 100)}% off` : "",
+              }));
+
+              const displayPackages = hasOrgCatalog ? catalogPkgs : fullCatalogPackages;
+              const allTests = hasOrgCatalog ? catalogSvcs : fullCatalogTests;
+
+              // Filter tests by search query (only for the large catalog)
+              const filteredTests = !hasOrgCatalog && labTestSearch.trim()
+                ? allTests.filter((t: any) =>
+                    t.name.toLowerCase().includes(labTestSearch.trim().toLowerCase()))
+                : allTests;
+
+              // Show max 50 tests unless searching
+              const displayTests = !hasOrgCatalog && !labTestSearch.trim()
+                ? filteredTests.slice(0, 50)
+                : filteredTests;
 
               return (
                 <>
@@ -1180,7 +1225,37 @@ function BookingPageContent() {
                   </div>
 
                   <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>🔬 Individual Lab Tests</h4>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+
+                  {/* Search box for the large catalog */}
+                  {!hasOrgCatalog && (
+                    <div style={{ marginBottom: 12 }}>
+                      <input
+                        value={labTestSearch}
+                        onChange={(e) => setLabTestSearch(e.target.value)}
+                        placeholder="Search from 487+ tests — type CBC, thyroid, vitamin..."
+                        style={{
+                          width: "100%",
+                          padding: "10px 14px",
+                          borderRadius: 8,
+                          border: "1.5px solid #cbd5e1",
+                          fontSize: "0.88rem",
+                          boxSizing: "border-box",
+                        }}
+                      />
+                      {labTestSearch.trim() && (
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 4 }}>
+                          {filteredTests.length} test{filteredTests.length === 1 ? "" : "s"} found
+                        </div>
+                      )}
+                      {!labTestSearch.trim() && (
+                        <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
+                          Showing top 50 of {allTests.length} tests — search to find more
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20, maxHeight: hasOrgCatalog ? undefined : 400, overflowY: hasOrgCatalog ? undefined : "auto" }}>
                     {displayTests.length > 0 ? displayTests.map((test: any, i: number) => {
                       const isSelected = selectedTests.some((t) => t.name === test.name);
                       const testPrice = test.price || test.base_price || 0;
@@ -1227,7 +1302,7 @@ function BookingPageContent() {
                         </div>
                       );
                     }) : (
-                      <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No tests available.</p>
+                      <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No tests match your search.</p>
                     )}
                   </div>
                 </>

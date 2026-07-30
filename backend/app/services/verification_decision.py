@@ -58,10 +58,15 @@ def decide(ocr: dict, stored_name: str, stored_license: str, gov: dict | None,
                 "checks": checks + [_chk("name_match", False, "differs")]}
     checks.append(_chk("name_match", True, "match"))
 
-    if gov_mode == "live" and gov is not None and not gov.get("is_valid", False):
+    # Gov registry check — only rejects in live mode; skipped entirely in off mode
+    if gov_mode == "off":
+        checks.append(_chk("gov_registry", True, "skipped (no gov APIs configured)"))
+    elif gov_mode == "live" and gov is not None and not gov.get("is_valid", False):
         return {"decision": "auto_reject", "final_status": "rejected",
                 "reason": "Not found in government registry.",
                 "checks": checks + [_chk("gov_registry", False, gov.get("status", "not_found"))]}
+    elif gov_mode == "mock" and gov is not None:
+        checks.append(_chk("gov_registry", gov.get("is_valid", False), f"mock: {gov.get('status', 'unknown')}"))
 
     if float(ocr.get("confidence_score") or 0) < confidence_floor:
         return {"decision": "needs_review", "final_status": "under_review",

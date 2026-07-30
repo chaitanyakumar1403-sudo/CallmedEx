@@ -45,6 +45,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
   // Add-on modal
   const [showAddonModal, setShowAddonModal] = useState(false);
   const [catalog, setCatalog] = useState<any[]>([]);
+  const [catalogPackages, setCatalogPackages] = useState<any[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(false);
 
@@ -121,13 +122,16 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
     setCatalogLoading(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("/api/home-services", {
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${API}/api/phlebo/doorstep-catalog`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setCatalog(data.services || []);
+      setCatalogPackages(data.packages || []);
     } catch {
       setCatalog([]);
+      setCatalogPackages([]);
     } finally {
       setCatalogLoading(false);
     }
@@ -155,6 +159,10 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
   const filteredCatalog = catalog.filter(s =>
     !catalogSearch || (s.name || "").toLowerCase().includes(catalogSearch.toLowerCase())
     || (s.code || "").toLowerCase().includes(catalogSearch.toLowerCase())
+  );
+
+  const filteredPackages = catalogPackages.filter(p =>
+    !catalogSearch || (p.name || "").toLowerCase().includes(catalogSearch.toLowerCase())
   );
 
   return (
@@ -420,10 +428,56 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
         />
         {catalogLoading ? (
           <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>Loading…</div>
-        ) : filteredCatalog.length === 0 ? (
+        ) : filteredCatalog.length === 0 && filteredPackages.length === 0 ? (
           <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>No tests found.</div>
         ) : (
-          <div style={{ display: "grid", gap: 6, maxHeight: 360, overflow: "auto" }}>
+          <div style={{ display: "grid", gap: 6, maxHeight: 400, overflow: "auto" }}>
+            {/* Health Packages */}
+            {filteredPackages.length > 0 && (
+              <>
+                <div style={{ fontWeight: 700, color: "#805ad5", fontSize: "0.85rem", padding: "8px 0 4px" }}>
+                  📦 Health Packages
+                </div>
+                {filteredPackages.map(pkg => (
+                  <button
+                    key={pkg.id}
+                    onClick={() => addTest(pkg.id)}
+                    disabled={busy === "addon"}
+                    style={{
+                      display: "flex", justifyContent: "space-between",
+                      alignItems: "center", padding: "12px 14px",
+                      borderRadius: 8, border: "1px solid #e9d5ff",
+                      background: "#faf5ff", cursor: "pointer",
+                      textAlign: "left", width: "100%",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f3e8ff")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#faf5ff")}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.9rem" }}>
+                        📦 {pkg.name}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "#7c3aed", marginTop: 2 }}>
+                        {(pkg.tests_included || []).join(", ")}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>
+                        {pkg.mrp ? <span style={{ textDecoration: "line-through", marginRight: 6 }}>₹{pkg.mrp}</span> : null}
+                        <span style={{ fontWeight: 700, color: "#059669" }}>₹{pkg.price || 0}</span>
+                      </div>
+                    </div>
+                    <Icon as={Plus} size={16} />
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Individual Tests */}
+            {filteredCatalog.length > 0 && (
+              <div style={{ fontWeight: 700, color: "#0284c7", fontSize: "0.85rem", padding: "8px 0 4px" }}>
+                🔬 Individual Tests
+              </div>
+            )}
             {filteredCatalog.map(svc => (
               <button
                 key={svc.id}

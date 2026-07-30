@@ -548,3 +548,62 @@ def _accrue_upsell_incentive(
         )
     except Exception as e:
         logger.error("Failed to accrue upsell incentive: %s", e)
+
+
+# ─── Doorstep catalog (tests + packages) ──────────────────────────────────
+
+@router.get("/doorstep-catalog")
+async def doorstep_catalog(
+    q: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """All active home services and health packages — no location gating.
+
+    The phlebotomist is already at the patient's doorstep, so there is no
+    need to resolve a processing centre for pricing. Base prices are used.
+    This powers the "+ Add Test" modal on the Doorstep Collection tab.
+    """
+    _require_phlebo(user)
+
+    # Individual tests
+    services = _rows(
+        supabase.table("home_services")
+        .select("id, code, name, category, service_kind, base_price, "
+                "home_collection_available, description")
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+    )
+
+    # Normalise price key for frontend
+    for svc in services:
+        svc["price"] = svc.get("base_price", 0)
+        svc["type"] = "test"
+
+    if q:
+        needle = q.strip().lower()
+        services = [s for s in services
+                    if needle in (s.get("name") or "").lower()
+                    or needle in (s.get("code") or "").lower()]
+
+    # Health packages (from health_packages table if it exists, otherwise empty)
+    packages = []
+    try:
+        packages = _rows(
+            supabase.table("health_packages")
+            .select("id, name, tests_included, mrp, price, is_active")
+            .eq("is_active", True)
+            .order("name")
+            .execute()
+        )
+        for pkg in packages:
+            pkg["type"] = "package"
+    except Exception:
+        # Table may not exist — fall back to empty
+        packages = []
+
+    return {
+        "services": services,
+        "packages": packages,
+        "total": len(services) + len(packages),
+    }

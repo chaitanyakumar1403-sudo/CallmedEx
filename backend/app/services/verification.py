@@ -115,14 +115,18 @@ class VerificationService:
 
         ocr["_role"] = role  # so decide() resolves pharmacy/phleb license fields
 
-        # Gov registry lookup (advisory only in mock mode; decision engine decides how to use it)
+        # Gov registry lookup — skipped when mode=off (no real APIs exist)
         gov = None
         if settings.GOV_REGISTRY_MODE in ("mock", "live"):
             gov = await VerificationService._run_gov_check(role, profile, stored_name, stored_license)
+        else:
+            logger.info(f"[VERIFY] Gov registry check SKIPPED for {role} user={user_id} (GOV_REGISTRY_MODE={settings.GOV_REGISTRY_MODE})")
 
-        # Stage 3: decision
+        # Stage 3: decision (AI OCR is the sole verification authority when gov=off)
         result = decide(ocr, stored_name, stored_license, gov,
                         settings.VERIFICATION_AUTO_APPROVE, settings.GOV_REGISTRY_MODE)
+
+        logger.info(f"[VERIFY] Decision for {role} user={user_id}: {result['decision']} → {result['final_status']} — {result['reason']}")
 
         return await VerificationService._finalize(
             user_id, role, doc_path, result["final_status"], result["decision"],
@@ -310,37 +314,46 @@ class VerificationService:
         document_id = str(uuid.uuid4())
         if supabase:
             # documents row — REAL COLUMNS ONLY (no metadata/created_at)
-            supabase.table("documents").insert({
-                "id": document_id,
-                "user_id": user_id,
-                "document_type": f"{role}_license",
-                "file_url": doc_path or "",
-                "file_name": f"{role}_verification.{('pdf' if doc_path.endswith('pdf') else 'img')}",
-                "verification_status": db_status,
-                "verification_notes": json.dumps({"reason": reason, "checks": checks}),
-                "uploaded_at": now,
-                "verified_at": now if final_status in ("verified", "rejected") else None,
-            }).execute()
+            try:
+                supabase.table("documents").insert({
+                    "id": document_id,
+                    "user_id": user_id,
+                    "document_type": f"{role}_license",
+                    "file_url": doc_path or "",
+                    "file_name": f"{role}_verification.{('pdf' if doc_path.endswith('pdf') else 'img')}",
+                    "verification_status": db_status,
+                    "verification_notes": json.dumps({"reason": reason, "checks": checks}),
+                    "uploaded_at": now,
+                    "verified_at": now if final_status in ("verified", "rejected") else None,
+                }).execute()
+            except Exception as e:
+                logger.error(f"[VERIFY] Failed to insert documents row for {user_id}: {e}")
 
             # authority record
-            supabase.table("verification_reviews").insert({
-                "id": str(uuid.uuid4()),
-                "provider_user_id": user_id,
-                "role": role,
-                "document_id": document_id,
-                "ai_result": ocr_data or {},
-                "ai_decision": ai_decision,
-                "gov_result": gov_data or {},
-                "final_status": final_status,
-                "created_at": now,
-                "decided_at": now if final_status != "under_review" else None,
-            }).execute()
+            try:
+                supabase.table("verification_reviews").insert({
+                    "id": str(uuid.uuid4()),
+                    "provider_user_id": user_id,
+                    "role": role,
+                    "document_id": document_id,
+                    "ai_result": ocr_data or {},
+                    "ai_decision": ai_decision,
+                    "gov_result": gov_data or {},
+                    "final_status": final_status,
+                    "created_at": now,
+                    "decided_at": now if final_status != "under_review" else None,
+                }).execute()
+            except Exception as e:
+                logger.error(f"[VERIFY] Failed to insert verification_reviews row for {user_id}: {e}")
 
             # mirror onto role table (only when a definitive decision)
             if final_status in ("verified", "rejected"):
-                supabase.table(rules["table"]).update(
-                    {"verification_status": db_status}
-                ).eq("user_id", user_id).execute()
+                try:
+                    supabase.table(rules["table"]).update(
+                        {"verification_status": db_status}
+                    ).eq("user_id", user_id).execute()
+                except Exception as e:
+                    logger.error(f"[VERIFY] Failed to update {rules['table']} status for {user_id}: {e}")
 
         logger.info(f"[VERIFY] Final status for {role} user={user_id}: {final_status}")
 

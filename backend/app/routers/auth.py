@@ -267,10 +267,30 @@ async def signup(user: UserSignup):
         mou_recipient = user.owner_email if user.owner_email else user.email
 
         # Send role-specific MOU email and capture token
-        mou_token = EmailService.send_mou_email_for_role(
-            mou_recipient, user.role.value, payload,
-            registrant_email=user.email if user.owner_email and user.owner_email != user.email else None
-        )
+        email_sent = True
+        mou_token = None
+        try:
+            mou_token = EmailService.send_mou_email_for_role(
+                mou_recipient, user.role.value, payload,
+                registrant_email=user.email if user.owner_email and user.owner_email != user.email else None
+            )
+        except Exception as e:
+            logger.error(f"MOU email sending failed for {mou_recipient}: {e}")
+            email_sent = False
+            # Build token manually so the registration isn't blocked
+            from jose import jwt as jose_jwt
+            from datetime import timedelta
+            expire = datetime.now(timezone.utc) + timedelta(hours=24)
+            token_payload = {
+                "exp": expire,
+                "type": "mou_acceptance",
+                "role": user.role.value,
+                "signup_data": payload,
+            }
+            mou_token = jose_jwt.encode(token_payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+        # Build the magic link URL
+        magic_link = f"{settings.FRONTEND_URL}/auth/accept-mou?token={mou_token}" if mou_token else None
 
         # Log the signup attempt
         LegalService.log_audit(
@@ -284,15 +304,28 @@ async def signup(user: UserSignup):
                 "owner_email": user.owner_email or user.email,
                 "registrant_role": user.registrant_role or "unknown",
                 "status": "pending_mou",
+                "email_sent": email_sent,
             },
         )
 
         role_display = user.role.value.replace("_", " ").title()
         mou_sent_to = mou_recipient if mou_recipient != user.email else user.email
+
+        message = f"Registration initiated. A {role_display} MOU has been sent to {mou_sent_to}. The owner must review and accept it to activate the account."
+        if not email_sent:
+            message = f"Registration initiated but email delivery failed. Please use the magic link to accept the {role_display} MOU and activate the account."
+
         return APIResponse(
             success=True,
-            message=f"Registration initiated. A {role_display} MOU has been sent to {mou_sent_to}. The owner must review and accept it to activate the account.",
-            data={"status": "pending_mou", "role": user.role.value, "mou_sent_to": mou_sent_to, "mou_token": mou_token},
+            message=message,
+            data={
+                "status": "pending_mou",
+                "role": user.role.value,
+                "mou_sent_to": mou_sent_to,
+                "mou_token": mou_token,
+                "magic_link": magic_link,
+                "email_sent": email_sent,
+            },
         )
 
     # ─── IMMEDIATE CREATION: Patient role ──────────────────────────────
