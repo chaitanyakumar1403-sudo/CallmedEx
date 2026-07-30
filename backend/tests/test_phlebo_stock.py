@@ -160,7 +160,9 @@ def _seed_kit_items(fake):
 
 
 def _seed_sample(fake, sample_id, phlebo_id, tube_code="edta_lavender",
-                 collected_at="2026-07-29T10:00:00Z"):
+                 collected_at=None):
+    if collected_at is None:
+        collected_at = datetime.now(timezone.utc).isoformat()
     fake.db.setdefault("samples", []).append({
         "id": sample_id,
         "barcode": f"CMX-TEST-{sample_id[:8].upper()}",
