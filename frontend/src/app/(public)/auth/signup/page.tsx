@@ -88,8 +88,8 @@ export default function SignupPage() {
         date_of_birth: dob || formData.get("date_of_birth"),
         password, confirm_password: confirmPassword,
         role,
-        ...(role !== "patient" && registrantRole ? { registrant_role: registrantRole } : {}),
-        ...(role !== "patient" && ownerEmail ? { owner_email: ownerEmail } : {}),
+        ...(isOrgLike || role === "staff" ? (registrantRole ? { registrant_role: registrantRole } : {}) : {}),
+        ...(isOrgLike || role === "staff" ? (ownerEmail ? { owner_email: ownerEmail } : {}) : {}),
         address_info: {
           address: formData.get("address") || "",
           city: formData.get("city") || "",
@@ -341,8 +341,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Registrant Role & Owner Email — only for non-patient roles */}
-            {role !== "patient" && (
+            {/* Registrant Role & Owner Email — only for organization-like roles that have owners */}
+            {(isOrgLike || role === "staff") && (
               <>
                 <div style={{
                   padding: '14px 18px', backgroundColor: '#eff6ff', borderRadius: 10,
@@ -368,7 +368,7 @@ export default function SignupPage() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Owner's Email (for MOU) *</label>
+                    <label className="form-label">Owner&apos;s Email (for MOU) *</label>
                     <input
                       type="email" className="form-input" placeholder="owner@organization.com"
                       value={ownerEmail} onChange={e => setOwnerEmail(e.target.value)}
