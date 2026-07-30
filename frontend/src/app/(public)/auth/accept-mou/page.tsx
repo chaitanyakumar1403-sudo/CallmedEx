@@ -21,6 +21,34 @@ function AcceptMOUContent() {
     role: string;
   } | null>(null);
   const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
+  const [isAgreed, setIsAgreed] = useState(false);
+
+  const checkScroll = (el: HTMLDivElement | null) => {
+    if (!el) return;
+    const { scrollHeight, scrollTop, clientHeight } = el;
+    // Auto-enable if document doesn't overflow, or if scrolled to within 100px of bottom, or if scrolled >= 80%
+    const isAtBottom =
+      scrollHeight <= clientHeight + 50 ||
+      scrollHeight - scrollTop - clientHeight <= 100 ||
+      (scrollTop + clientHeight) / Math.max(scrollHeight, 1) >= 0.8;
+
+    if (isAtBottom && !hasScrolledToEnd) {
+      setHasScrolledToEnd(true);
+      setIsAgreed(true);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    checkScroll(e.currentTarget);
+  };
+
+  // Ref callback to check scroll status as soon as MOU box mounts
+  const scrollRefCallback = (node: HTMLDivElement | null) => {
+    if (node) {
+      // Delay slightly for font rendering / layout calculations
+      setTimeout(() => checkScroll(node), 100);
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -58,14 +86,6 @@ function AcceptMOUContent() {
     fetchMOU();
   }, [token]);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    // Consider "scrolled to end" when within 50px of the bottom
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
-      setHasScrolledToEnd(true);
-    }
-  };
-
   const handleAccept = async () => {
     if (!token) return;
     setStage("accepting");
@@ -100,6 +120,7 @@ function AcceptMOUContent() {
   };
 
   const roleDisplay = userInfo?.role?.replace("_", " ")?.replace(/\b\w/g, l => l.toUpperCase()) || "Provider";
+  const canAccept = hasScrolledToEnd || isAgreed;
 
   return (
     <div style={{
@@ -156,7 +177,7 @@ function AcceptMOUContent() {
                 fontSize: "0.85rem",
                 color: "#92400e",
               }}>
-                ⚠️ Please read the entire MOU below carefully before accepting. Scroll to the bottom to enable the accept button.
+                ⚠️ Please read the MOU below carefully before accepting. You can scroll to the bottom or check the agreement box to activate the accept button.
               </div>
 
               <h3 style={{ color: "#1a2b4a", marginBottom: 8 }}>
@@ -173,24 +194,68 @@ function AcceptMOUContent() {
                 <span>📅 Effective: {mouDocument.effective_date}</span>
               </div>
 
-              {/* MOU Content — Scrollable */}
+              {/* MOU Content — Scrollable with Mobile Touch Support */}
               <div
+                ref={scrollRefCallback}
                 onScroll={handleScroll}
                 style={{
-                  maxHeight: "350px",
+                  maxHeight: "360px",
                   overflowY: "auto",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 8,
+                  border: "1.5px solid #cbd5e1",
+                  borderRadius: 10,
                   padding: "20px",
                   backgroundColor: "#fafafa",
                   fontSize: "0.9rem",
                   lineHeight: 1.8,
                   whiteSpace: "pre-wrap",
                   color: "#374151",
-                  marginBottom: 24,
+                  marginBottom: 16,
+                  WebkitOverflowScrolling: "touch",
+                  touchAction: "pan-y",
                 }}
               >
                 {mouDocument.content_text}
+              </div>
+
+              {/* Agreement Checkbox Fallback */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "14px 16px",
+                  backgroundColor: canAccept ? "#f0fdf4" : "#f8fafc",
+                  border: `1px solid ${canAccept ? "#86efac" : "#e2e8f0"}`,
+                  borderRadius: 8,
+                  marginBottom: 20,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onClick={() => {
+                  const newVal = !isAgreed;
+                  setIsAgreed(newVal);
+                  if (newVal) setHasScrolledToEnd(true);
+                }}
+              >
+                <input
+                  type="checkbox"
+                  id="agree-mou-checkbox"
+                  checked={canAccept}
+                  onChange={(e) => {
+                    setIsAgreed(e.target.checked);
+                    if (e.target.checked) setHasScrolledToEnd(true);
+                  }}
+                  style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#059669" }}
+                />
+                <label htmlFor="agree-mou-checkbox" style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  color: canAccept ? "#166534" : "#334155",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}>
+                  I have read, understood, and agree to the terms of this Memorandum of Understanding (MOU).
+                </label>
               </div>
 
               {/* Legal Notice */}
@@ -212,7 +277,7 @@ function AcceptMOUContent() {
               {/* Accept Button */}
               <button
                 onClick={handleAccept}
-                disabled={!hasScrolledToEnd}
+                disabled={!canAccept}
                 style={{
                   width: "100%",
                   padding: "16px",
@@ -220,14 +285,14 @@ function AcceptMOUContent() {
                   fontWeight: "bold",
                   border: "none",
                   borderRadius: 10,
-                  cursor: hasScrolledToEnd ? "pointer" : "not-allowed",
-                  backgroundColor: hasScrolledToEnd ? "#059669" : "#d1d5db",
-                  color: hasScrolledToEnd ? "white" : "#9ca3af",
+                  cursor: canAccept ? "pointer" : "not-allowed",
+                  backgroundColor: canAccept ? "#059669" : "#cbd5e1",
+                  color: canAccept ? "white" : "#64748b",
                   transition: "all 0.3s ease",
-                  boxShadow: hasScrolledToEnd ? "0 4px 14px rgba(5, 150, 105, 0.4)" : "none",
+                  boxShadow: canAccept ? "0 4px 14px rgba(5, 150, 105, 0.4)" : "none",
                 }}
               >
-                {hasScrolledToEnd ? "✅ I Agree & Activate My Account" : "📜 Please scroll to the end of the MOU to continue"}
+                {canAccept ? "✅ I Agree & Activate My Account" : "📜 Please scroll to the end or check the agreement box above"}
               </button>
 
               <p style={{
