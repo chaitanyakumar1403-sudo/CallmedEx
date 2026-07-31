@@ -359,6 +359,65 @@ def test_fulfilment_picks_the_cheapest_home_capable_partner(fake_db):
     assert result["fulfilment"]["price"] == 400.0
 
 
+# ── Processing-centre fallback ─────────────────────────────────────────────
+
+def _seed_processing_center(fake, code="VSPK-01", city="visakhapatnam",
+                            state="AP", status="active"):
+    cid = str(uuid.uuid4())
+    fake.db.setdefault("processing_centers", []).append({
+        "id": cid, "code": code, "name": code, "city": city, "state": state,
+        "status": status, "lat": None, "lng": None,
+    })
+    return cid
+
+
+def test_package_name_catalog_id_resolves_via_processing_centre(fake_db):
+    """Regression for the live "No CallMedex partner covers this test" bug.
+
+    Booking a health package sends the package NAME as catalog_id. The
+    synthesized test's free-text id was then passed into the UUID
+    provider_services.catalog_id filter — PostgREST 400'd, the exception
+    handler returned early, and the processing-centre fallback below never
+    ran. The patient was told no partner covers their area while an ACTIVE
+    centre sat in their city."""
+    cid = _seed_processing_center(fake_db)
+
+    result = MarketplaceService.select_fulfilment(
+        catalog_id="Basic Health Checkup", query="Basic Health Checkup",
+        city="Visakhapatnam", home=True,
+    )
+
+    assert result is not None
+    assert result["provider_type"] == "processing_center"
+    assert result["provider_user_id"] == cid
+    assert result["fulfilment"]["walk_in_required"] is False
+    assert result["fulfilment"]["home_available"] is True
+    assert result["fulfilment"]["price"] == 599.0
+
+
+def test_free_text_catalog_id_finds_pc_offers_without_a_city(fake_db):
+    """No district picked: the fallback offers every non-paused centre rather
+    than declaring the test uncoverable."""
+    _seed_processing_center(fake_db)
+
+    result = MarketplaceService.find_offers(catalog_id="general_lab_test", query="Lab Test")
+
+    pc_offers = [o for o in result["offers"] if o.get("provider_type") == "processing_center"]
+    assert len(pc_offers) == 1
+    assert pc_offers[0]["is_pc_fulfilled"] is True
+
+
+def test_a_paused_centre_is_not_offered_for_packages(fake_db):
+    _seed_processing_center(fake_db, status="paused")
+
+    result = MarketplaceService.select_fulfilment(
+        catalog_id="Basic Health Checkup", query="Basic Health Checkup",
+        city="Visakhapatnam", home=True,
+    )
+
+    assert result is None
+
+
 # ── Popular ──────────────────────────────────────────────────────────────────
 
 def test_popular_ranks_by_partner_availability(fake_db):

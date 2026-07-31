@@ -393,6 +393,47 @@ def test_normalise_city_handles_none_and_blank_input(pc_db):
     assert normalise_city("   ") == ""
 
 
+# ── Home-location safety net (centres with no area rows) ───────────────────
+
+def test_a_centre_with_no_area_rows_still_covers_its_home_city(pc_db):
+    """Regression for the live VSPK-01 failure: an ACTIVE centre created
+    before areas were auto-provisioned has zero area rows, and its own city
+    was told 'no partner covers you'. The safety net resolves such a centre
+    by its home location instead."""
+    _seed_aliases(pc_db)
+    _seed_centre(pc_db, "VSPK-01", "visakhapatnam")
+    assert resolve_center(city="Vizag")["code"] == "VSPK-01"
+    assert check_coverage(city="Vizag") == {"serviceable": True}
+
+
+def test_the_safety_net_matches_by_the_centres_own_pincode(pc_db):
+    _seed_aliases(pc_db)
+    _seed_centre(pc_db, "VSPK-01", "visakhapatnam")
+    pc_db.db["processing_centers"][0]["pincode"] = "530001"
+    assert resolve_center(pincode="530001")["code"] == "VSPK-01"
+
+
+def test_the_safety_net_does_not_cover_other_cities(pc_db):
+    """The net extends a centre to its OWN location only — never further."""
+    _seed_aliases(pc_db)
+    _seed_centre(pc_db, "VSPK-01", "visakhapatnam")
+    assert resolve_center(city="Hyderabad") is None
+    assert check_coverage(city="Hyderabad") == {"serviceable": False}
+
+
+def test_the_safety_net_yields_to_explicit_area_rows(pc_db):
+    """Once areas exist they stay authoritative: a centre with an area in
+    another city resolves there, and its home city is covered by the area
+    rules (or not at all), not by the net."""
+    _seed_aliases(pc_db)
+    a = _seed_centre(pc_db, "VSPK-01", "visakhapatnam")
+    b = _seed_centre(pc_db, "HYD-01", "hyderabad")
+    _seed_area(pc_db, b, city="hyderabad")
+    # VSPK-01 has no rows → net applies; HYD-01 has rows → areas decide.
+    assert resolve_center(city="Vizag")["code"] == "VSPK-01"
+    assert resolve_center(city="Hyderabad")["code"] == "HYD-01"
+
+
 # ── Booking assignment ──────────────────────────────────────────────────────
 
 from app.services.processing_center import assign_booking
@@ -609,3 +650,51 @@ async def test_removing_pc_access_restores_the_prior_role(pca_db):
         s for s in pca_db.db["processing_center_staff"] if s["user_id"] == target_user
     )
     assert staff_row["is_active"] is False
+
+
+# ── Auto-healing legacy centres with no service areas ───────────────────────
+
+from app.routers.processing_center_admin import list_centers
+
+
+@pytest.mark.asyncio
+async def test_list_centers_heals_a_centre_with_no_area_rows(pca_db):
+    """Centres created before areas were auto-provisioned (the live VSPK-01
+    case: ACTIVE in the panel, 'Service Areas (0)', patients told no partner
+    covers them) get their home city inserted as the primary area when the
+    admin panel lists them."""
+    cid = str(uuid.uuid4())
+    pca_db.db["processing_centers"] = [{
+        "id": cid, "code": "VSPK-01", "name": "VSPK-01",
+        "city": "visakhapatnam", "pincode": "530001", "status": "active",
+    }]
+
+    result = await list_centers(user={"role": "admin"})
+
+    areas = pca_db.db["processing_center_areas"]
+    assert len(areas) == 1
+    assert areas[0]["processing_center_id"] == cid
+    assert areas[0]["city"] == "visakhapatnam"
+    assert areas[0]["is_active"] is True
+    assert result["centers"][0]["areas"], "the healed area must appear in the listing"
+
+
+@pytest.mark.asyncio
+async def test_list_centers_never_rewrites_an_existing_area_configuration(pca_db):
+    """An all-inactive area set is a deliberate admin choice — listing must
+    not add rows or revive deactivated ones."""
+    cid = str(uuid.uuid4())
+    pca_db.db["processing_centers"] = [{
+        "id": cid, "code": "VSPK-01", "name": "VSPK-01",
+        "city": "visakhapatnam", "pincode": "", "status": "active",
+    }]
+    pca_db.db["processing_center_areas"] = [{
+        "id": str(uuid.uuid4()), "processing_center_id": cid,
+        "city": "visakhapatnam", "pincode": "", "priority": 100, "is_active": False,
+    }]
+
+    await list_centers(user={"role": "admin"})
+
+    areas = pca_db.db["processing_center_areas"]
+    assert len(areas) == 1
+    assert areas[0]["is_active"] is False

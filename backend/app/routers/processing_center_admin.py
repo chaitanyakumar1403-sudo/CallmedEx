@@ -30,6 +30,34 @@ def _require_admin(user: dict) -> dict:
     return user
 
 
+def _ensure_primary_area(center: dict) -> None:
+    """Provision the centre's home city as its primary service area, once.
+
+    Centres created before areas were auto-inserted have zero area rows: they
+    show ACTIVE in the admin panel yet resolve no coverage, which is exactly
+    the "patient told no partner in an active centre's city" bug. Any existing
+    row — even an inactive one — means an admin has taken over area management
+    by hand, so this never adds to or revives their configuration.
+    """
+    try:
+        existing = _rows(
+            supabase.table("processing_center_areas").select("id")
+            .eq("processing_center_id", center["id"]).limit(1).execute()
+        )
+        if existing:
+            return
+        supabase.table("processing_center_areas").insert({
+            "processing_center_id": center["id"],
+            "city": str(center.get("city") or "").strip().lower(),
+            "pincode": center.get("pincode") or "",
+            "priority": 100,
+            "is_active": True,
+        }).execute()
+        logger.info(f"Auto-provisioned primary service area for centre {center.get('code')}")
+    except Exception as e:
+        logger.warning(f"Primary-area provisioning failed for centre {center.get('code')}: {e}")
+
+
 class CenterIn(BaseModel):
     code: str
     name: str
@@ -87,18 +115,8 @@ async def create_center(payload: CenterIn, user: dict = Depends(get_current_user
     created = _rows(supabase.table("processing_centers").insert(body).execute())
 
     if created:
-        center_id = created[0]["id"]
         # Auto-create primary city as first service area
-        try:
-            supabase.table("processing_center_areas").insert({
-                "processing_center_id": center_id,
-                "city": city,
-                "pincode": body.get("pincode", ""),
-                "priority": 100,
-                "is_active": True,
-            }).execute()
-        except Exception as e:
-            logger.warning(f"Auto-creating initial service area failed: {e}")
+        _ensure_primary_area(created[0])
 
     return {"center": created[0] if created else None}
 
@@ -109,6 +127,11 @@ async def list_centers(user: dict = Depends(get_current_user)):
     centers = _rows(supabase.table("processing_centers").select("*").execute())
     # Attach staff and areas for each centre
     for c in centers:
+        # Heal legacy centres that predate area auto-provisioning (no-op when
+        # any area row exists), so an ACTIVE centre never silently covers
+        # nothing. Without this the panel showed "Service Areas (0)" while
+        # patients in the centre's own city were told no partner covers them.
+        _ensure_primary_area(c)
         c["staff"] = _rows(
             supabase.table("processing_center_staff").select("*")
             .eq("processing_center_id", c["id"]).eq("is_active", True).execute()

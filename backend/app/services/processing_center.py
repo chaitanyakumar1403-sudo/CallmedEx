@@ -64,11 +64,17 @@ def _active_centres() -> dict:
     return {r["id"]: r for r in rows}
 
 
-def _active_areas() -> List[dict]:
+def _all_areas() -> List[dict]:
+    """Every area row, active or not.
+
+    Resolution needs the inactive ones too: a centre whose areas exist but are
+    all switched off was deliberately taken out of service, while a centre
+    with NO rows at all was simply never provisioned — two very different
+    states that only the full list can tell apart.
+    """
     return _rows(
         supabase.table("processing_center_areas")
         .select("*")
-        .eq("is_active", True)
         .execute()
     )
 
@@ -86,7 +92,16 @@ def resolve_center(city=None, pincode=None, lat=None, lng=None,
     centres = _active_centres()
     if not centres:
         return None
-    areas = [a for a in _active_areas() if a.get("processing_center_id") in centres]
+    every_area = _all_areas()
+    areas = [
+        a for a in every_area
+        if a.get("is_active") and a.get("processing_center_id") in centres
+    ]
+    # Centres with no area rows whatsoever predate auto-provisioning (or lost
+    # their rows); they get the home-location safety net below. Centres whose
+    # rows exist but are all inactive were deliberately switched off and are
+    # excluded from it.
+    unprovisioned = set(centres) - {a.get("processing_center_id") for a in every_area}
 
     # 1. Exact pincode.
     if pincode:
@@ -133,6 +148,32 @@ def resolve_center(city=None, pincode=None, lat=None, lng=None,
         if candidates:
             candidates.sort(key=lambda c: (c[0], c[1]))
             return candidates[0][2]
+
+    # 4. Home-location safety net for never-provisioned centres. A centre
+    # created before areas were auto-inserted (or whose rows were lost) has
+    # zero area rows; without this net, an ACTIVE centre in the patient's own
+    # city still answers "no partner covers your area" — exactly the failure
+    # the admin panel cannot explain, since the centre shows as active there.
+    # Deliberately deactivated centres (rows exist, all inactive) never reach
+    # here: their admin's choice stands.
+    if unprovisioned:
+        if pincode:
+            key = str(pincode).strip()
+            matches = sorted(
+                (centres[cid] for cid in unprovisioned
+                 if key and str(centres[cid].get("pincode") or "").strip() == key),
+                key=lambda c: str(c.get("code") or ""),
+            )
+            if matches:
+                return matches[0]
+        if canonical:
+            matches = sorted(
+                (centres[cid] for cid in unprovisioned
+                 if str(centres[cid].get("city") or "").strip().lower() == canonical),
+                key=lambda c: str(c.get("code") or ""),
+            )
+            if matches:
+                return matches[0]
 
     return None
 

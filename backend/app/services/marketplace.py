@@ -21,6 +21,7 @@ platform_settings so operations can tune it without a deploy.
 """
 import logging
 import time
+import uuid
 from typing import List, Optional
 
 from app.database import supabase
@@ -33,6 +34,20 @@ EARTH_KM = 6371.0
 def _rows(result) -> List[dict]:
     data = getattr(result, "data", None) or []
     return [dict(r) for r in data if isinstance(r, dict)]
+
+
+def _is_uuid(value) -> bool:
+    """True when value can drive a filter on a UUID column.
+
+    PostgREST answers a UUID column filtered by free text with a 400, and the
+    client raises — so callers must check before passing patient-supplied
+    strings (package names, search phrases) into .eq() on a UUID column.
+    """
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 def _first(result) -> dict:
@@ -320,12 +335,19 @@ class MarketplaceService:
 
         test = None
         if catalog_id:
-            try:
-                test = _first(
-                    supabase.table("service_catalog").select("*").eq("id", catalog_id).limit(1).execute()
-                )
-            except Exception:
-                test = None
+            # catalog_id arrives as either a real service_catalog UUID (deep
+            # link from /diagnostics) or free text (a health-package name or
+            # search phrase from the generic picker). Only a UUID may hit the
+            # id column — free text makes PostgREST 400, and the raised
+            # exception used to abort the whole lookup before the
+            # processing-centre fallback could offer the test at all.
+            if _is_uuid(catalog_id):
+                try:
+                    test = _first(
+                        supabase.table("service_catalog").select("*").eq("id", catalog_id).limit(1).execute()
+                    )
+                except Exception:
+                    test = None
             if not test:
                 matches = MarketplaceService.search_catalog(catalog_id, limit=1)
                 test = matches[0] if matches else None
@@ -344,14 +366,31 @@ class MarketplaceService:
                 "preparation": "Standard lab preparation",
             }
 
-        try:
-            services_q = supabase.table("provider_services").select("*").eq("is_active", True)
-            if test:
-                services_q = services_q.eq("catalog_id", test["id"])
-            services = _rows(services_q.limit(400).execute())
-        except Exception as e:
-            logger.error(f"find_offers services read failed: {e}")
-            return {"test": test, "offers": []}
+        services: List[dict] = []
+        if not test:
+            # No specific test requested — every active partner service.
+            try:
+                services = _rows(
+                    supabase.table("provider_services").select("*")
+                    .eq("is_active", True).limit(400).execute()
+                )
+            except Exception as e:
+                logger.error(f"find_offers services read failed: {e}")
+        elif _is_uuid(test.get("id")):
+            try:
+                services = _rows(
+                    supabase.table("provider_services").select("*")
+                    .eq("is_active", True).eq("catalog_id", test["id"])
+                    .limit(400).execute()
+                )
+            except Exception as e:
+                # A failed partner-services read must not end the booking —
+                # fall through to the name match and the processing-centre
+                # fallback instead of returning an empty offer list.
+                logger.error(f"find_offers services read failed: {e}")
+        # else: synthesized test with a free-text id — no catalog row exists,
+        # so no provider_service can be linked to it. Skip straight to the
+        # name fallback; filtering the UUID column by it would 400.
 
         # Fall back to name matching for partners who have not mapped their
         # catalogue yet, so early-onboarded centres are not invisible.
