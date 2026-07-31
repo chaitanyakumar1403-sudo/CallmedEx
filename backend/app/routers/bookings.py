@@ -17,6 +17,7 @@ from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.marketplace import MarketplaceService
 from app.services.processing_center import assign_booking
+from app.services.dispatch_engine import UniversalDispatchEngine
 from app.routers.family_members import ensure_self_member
 from app.utils.db_helpers import _rows
 
@@ -484,6 +485,35 @@ async def create_booking(
                         booking.selected_tests or [],
                         family_member_id=booking.family_member_id,
                     )
+                    # ── Create dispatch request for phlebotomist ──────
+                    # When a home collection booking is confirmed, immediately
+                    # create a dispatch so the phlebotomist gets notified.
+                    # Errors are logged but never break the booking.
+                    try:
+                        patient_lat = booking_data.get("collection_lat") or booking.collection_lat
+                        patient_lng = booking_data.get("collection_lng") or booking.collection_lng
+                        patient_address = (
+                            booking_data.get("notes", "").split("Collection address:")[-1].strip()
+                            if "Collection address:" in (booking_data.get("notes") or "")
+                            else (booking.collection_address or booking.city or "")
+                        )
+                        if patient_lat and patient_lng:
+                            await UniversalDispatchEngine.create_dispatch(
+                                patient_id=current_user["sub"],
+                                patient_lat=float(patient_lat),
+                                patient_lng=float(patient_lng),
+                                patient_address=patient_address or "",
+                                provider_type="phlebotomist",
+                                service_subtype="home_collection",
+                                booking_id=booking_id,
+                                notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
+                                priority="normal",
+                            )
+                    except Exception as dispatch_err:
+                        logger.warning(
+                            f"Dispatch creation failed for booking {booking_id}, "
+                            f"booking still created: {dispatch_err}"
+                        )
                 except Exception as e:
                     logger.warning(
                         f"Home-collection processing-centre assignment failed "
