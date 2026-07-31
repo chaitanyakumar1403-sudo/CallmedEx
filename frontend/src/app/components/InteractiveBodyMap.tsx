@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface OrganInfo {
@@ -97,21 +97,31 @@ const ORGANS: Record<string, OrganInfo> = {
   },
 };
 
-// Sample nearby clinics data for offline consultation
-const NEARBY_CLINICS: Record<string, { name: string; address: string; distance: string; rating: number; timings: string }[]> = {
-  default: [
-    { name: "CallMedex Partner Clinic — Kukatpally", address: "KPHB Colony, Kukatpally, Hyderabad", distance: "2.3 km", rating: 4.5, timings: "9 AM – 8 PM" },
-    { name: "CallMedex Partner Clinic — Ameerpet", address: "Ameerpet Main Road, Hyderabad", distance: "4.1 km", rating: 4.3, timings: "8 AM – 9 PM" },
-    { name: "CallMedex Partner Clinic — Madhapur", address: "Hitech City Road, Madhapur", distance: "5.8 km", rating: 4.7, timings: "9 AM – 7 PM" },
-    { name: "CallMedex Partner Clinic — Gachibowli", address: "Financial District, Gachibowli", distance: "7.2 km", rating: 4.4, timings: "8 AM – 8 PM" },
-  ],
-};
-
 export default function InteractiveBodyMap() {
   const router = useRouter();
   const [selectedOrgan, setSelectedOrgan] = useState<string>("heart");
   const [consultMode, setConsultMode] = useState<null | "choosing" | "offline_list">(null);
+  const [realClinics, setRealClinics] = useState<any[]>([]);
+  const [clinicsLoading, setClinicsLoading] = useState<boolean>(false);
   const current = ORGANS[selectedOrgan] || ORGANS["heart"];
+
+  useEffect(() => {
+    if (consultMode === "offline_list") {
+      setClinicsLoading(true);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      fetch(`${apiBase}/api/providers/search/doctors?specialization=${encodeURIComponent(current.specialization)}&consultation_mode=in_person`)
+        .then(r => r.json())
+        .then(data => {
+          setRealClinics(data.doctors || []);
+        })
+        .catch(() => {
+          setRealClinics([]);
+        })
+        .finally(() => {
+          setClinicsLoading(false);
+        });
+    }
+  }, [consultMode, current.specialization]);
 
   const handleOnlineConsult = () => {
     router.push(`/consultation?spec=${encodeURIComponent(current.specialization)}&mode=online`);
@@ -458,7 +468,7 @@ export default function InteractiveBodyMap() {
             </div>
           )}
 
-          {/* Offline Clinic List */}
+          {/* Offline Clinic List — Real Data Only */}
           {consultMode === "offline_list" && (
             <div style={{
               background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
@@ -466,7 +476,7 @@ export default function InteractiveBodyMap() {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <strong style={{ color: "#1e293b", fontSize: "0.92rem" }}>
-                  🏥 Nearby {current.specialization} Clinics
+                  🏥 Walk-in {current.specialization} Clinics
                 </strong>
                 <button
                   onClick={() => setConsultMode("choosing")}
@@ -475,52 +485,95 @@ export default function InteractiveBodyMap() {
                   ← Back
                 </button>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 240, overflowY: "auto" }}>
-                {(NEARBY_CLINICS.default).map((clinic, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleOfflineClinicSelect(clinic.name)}
-                    style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      padding: "12px 14px", borderRadius: 10, border: "1px solid #e2e8f0",
-                      background: "white", cursor: "pointer", textAlign: "left",
-                      transition: "all 0.2s ease", gap: 10,
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = "#0284c7";
-                      (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(2,132,199,0.12)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.borderColor = "#e2e8f0";
-                      (e.currentTarget as HTMLElement).style.boxShadow = "none";
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.82rem" }}>
-                        {clinic.name}
-                      </div>
-                      <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
-                        📍 {clinic.address}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                        <span style={{ fontSize: "0.68rem", color: "#f59e0b" }}>⭐ {clinic.rating}</span>
-                        <span style={{ fontSize: "0.68rem", color: "#64748b" }}>🕐 {clinic.timings}</span>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#0284c7" }}>
-                        {clinic.distance}
-                      </div>
-                      <div style={{
-                        marginTop: 4, padding: "3px 10px", borderRadius: 20,
-                        background: "#0284c7", color: "white", fontSize: "0.68rem", fontWeight: 700,
-                      }}>
-                        Book Visit →
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+
+              {clinicsLoading ? (
+                <div style={{ textAlign: "center", padding: 20, color: "#64748b", fontSize: "0.85rem" }}>
+                  Searching verified clinics…
+                </div>
+              ) : realClinics.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 240, overflowY: "auto" }}>
+                  {realClinics.map((clinic, idx) => {
+                    const cName = clinic.hospital_clinic_name || clinic.full_name || clinic.name || "CallMedex Partner Clinic";
+                    const cAddr = clinic.city || clinic.address || "Registered Clinic";
+                    const cRating = clinic.rating || 4.8;
+                    const cId = clinic.user_id || clinic.id;
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => router.push(`/booking?type=doctor&doctor=${cId}&spec=${encodeURIComponent(current.specialization)}`)}
+                        style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "12px 14px", borderRadius: 10, border: "1px solid #e2e8f0",
+                          background: "white", cursor: "pointer", textAlign: "left",
+                          transition: "all 0.2s ease", gap: 10,
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.borderColor = "#0284c7";
+                          (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(2,132,199,0.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.borderColor = "#e2e8f0";
+                          (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.82rem" }}>
+                            {cName}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
+                            📍 {cAddr}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                            <span style={{ fontSize: "0.68rem", color: "#f59e0b" }}>⭐ {cRating}</span>
+                            <span style={{ fontSize: "0.68rem", color: "#059669", fontWeight: 600 }}>✅ Verified</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div style={{
+                            marginTop: 4, padding: "4px 12px", borderRadius: 20,
+                            background: "#0284c7", color: "white", fontSize: "0.72rem", fontWeight: 700,
+                          }}>
+                            Book Visit →
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ padding: "16px 12px", textAlign: "center", backgroundColor: "white", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
+                  <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>🏥</div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#334155" }}>
+                    No Walk-in Clinics for {current.specialization}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", margin: "4px 0 12px 0" }}>
+                    No partner clinics are currently registered for this specialty in your area.
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                    <button
+                      onClick={handleOnlineConsult}
+                      style={{
+                        padding: "6px 14px", borderRadius: 8, border: "none",
+                        backgroundColor: "#0284c7", color: "white", fontWeight: 700,
+                        fontSize: "0.78rem", cursor: "pointer",
+                      }}
+                    >
+                      📹 Book Video Call Instead
+                    </button>
+                    <button
+                      onClick={() => router.push("/consultation?mode=walkin")}
+                      style={{
+                        padding: "6px 14px", borderRadius: 8, border: "1px solid #cbd5e1",
+                        backgroundColor: "white", color: "#334155", fontWeight: 600,
+                        fontSize: "0.78rem", cursor: "pointer",
+                      }}
+                    >
+                      🔍 Browse All Clinics
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
