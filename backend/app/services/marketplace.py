@@ -413,11 +413,11 @@ class MarketplaceService:
         if test and city:
             city_lower = city.strip().lower()
             try:
-                # Fetch active PCs
+                # Fetch active and onboarding PCs (not paused)
                 pcs = _rows(
                     supabase.table("processing_centers")
                     .select("id, name, city, state, status")
-                    .eq("status", "active")
+                    .in_("status", ["active", "onboarding"])
                     .execute()
                 )
                 if pcs:

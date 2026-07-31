@@ -41,7 +41,7 @@ class CenterIn(BaseModel):
     lng: Optional[float] = None
     partner_lab_name: str = ""
     daily_capacity: int = 0
-    status: str = "onboarding"
+    status: str = "active"
 
 
 class StaffIn(BaseModel):
@@ -82,8 +82,24 @@ async def create_center(payload: CenterIn, user: dict = Depends(get_current_user
     body["code"] = code
     body["name"] = name
     body["city"] = city
+    body["status"] = "active"
     body["created_by"] = user.get("sub")
     created = _rows(supabase.table("processing_centers").insert(body).execute())
+
+    if created:
+        center_id = created[0]["id"]
+        # Auto-create primary city as first service area
+        try:
+            supabase.table("processing_center_areas").insert({
+                "processing_center_id": center_id,
+                "city": city,
+                "pincode": body.get("pincode", ""),
+                "priority": 100,
+                "is_active": True,
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Auto-creating initial service area failed: {e}")
+
     return {"center": created[0] if created else None}
 
 
