@@ -320,9 +320,15 @@ class MarketplaceService:
 
         test = None
         if catalog_id:
-            test = _first(
-                supabase.table("service_catalog").select("*").eq("id", catalog_id).limit(1).execute()
-            )
+            try:
+                test = _first(
+                    supabase.table("service_catalog").select("*").eq("id", catalog_id).limit(1).execute()
+                )
+            except Exception:
+                test = None
+            if not test:
+                matches = MarketplaceService.search_catalog(catalog_id, limit=1)
+                test = matches[0] if matches else None
         elif query:
             matches = MarketplaceService.search_catalog(query, limit=1)
             test = matches[0] if matches else None
@@ -401,58 +407,78 @@ class MarketplaceService:
 
         # ── Processing Center area-based fallback ──────────────────────────
         # When no partner lab offers this test in the patient's city, check if
-        # any Processing Center (PC) has a service_area covering that city.
+        # any Processing Center (PC) has a service area or primary location covering that city.
         # PCs are logistics hubs that dispatch phlebotomists to collect samples —
         # they serve ANY catalog test at the catalog's fixed MRP.
         if test and city:
             city_lower = city.strip().lower()
             try:
+                # Fetch active PCs
                 pcs = _rows(
                     supabase.table("processing_centers")
-                    .select("id, name, city, state, status, service_areas")
+                    .select("id, name, city, state, status")
                     .eq("status", "active")
                     .execute()
                 )
-                for pc in pcs:
-                    areas = pc.get("service_areas") or []
-                    covers_city = False
+                if pcs:
+                    pc_map = {pc["id"]: pc for pc in pcs}
+                    # Fetch active service areas for these PCs from processing_center_areas table
+                    areas = _rows(
+                        supabase.table("processing_center_areas")
+                        .select("processing_center_id, city, pincode, radius_km, is_active")
+                        .eq("is_active", True)
+                        .in_("processing_center_id", list(pc_map.keys()))
+                        .execute()
+                    )
+                    
+                    matching_pc_ids = set()
+                    
+                    # Match by registered service areas
                     for area in areas:
                         area_city = str(area.get("city", "")).strip().lower()
-                        if area_city and area_city in city_lower:
-                            covers_city = True
-                            break
-                    if not covers_city:
-                        continue
+                        if area_city and (area_city in city_lower or city_lower in area_city):
+                            matching_pc_ids.add(area.get("processing_center_id"))
+                    
+                    # Match by PC's main location city
+                    for pc_id, pc in pc_map.items():
+                        pc_city = str(pc.get("city", "")).strip().lower()
+                        if pc_city and (pc_city in city_lower or city_lower in pc_city):
+                            matching_pc_ids.add(pc_id)
 
-                    # Check if a partner offer already covers this city
-                    already_has = any(
-                        o.get("city", "").strip().lower() == city_lower
-                        for o in offers
-                    )
-                    if already_has:
-                        continue
+                    for pc_id in matching_pc_ids:
+                        pc = pc_map.get(pc_id)
+                        if not pc:
+                            continue
 
-                    # Use the catalog MRP as the fixed rate for PC-serviced tests
-                    mrp = _num(test.get("mrp")) or _num(test.get("base_price", 0))
-                    if mrp <= 0:
-                        continue
+                        # Check if a partner offer already covers this city
+                        already_has = any(
+                            o.get("city", "").strip().lower() == city_lower
+                            for o in offers
+                        )
+                        if already_has:
+                            continue
 
-                    pricing = PricingService.quote(mrp, 0.0, urgent=urgent)
-                    offers.append({
-                        "service_id": f"pc_{pc['id']}_{test['id']}",
-                        "service_name": test.get("name"),
-                        "provider_user_id": pc["id"],
-                        "provider_name": pc.get("name", "CallMedex Processing Centre"),
-                        "provider_type": "processing_center",
-                        "city": pc.get("city", ""),
-                        "state": pc.get("state", ""),
-                        "rating": 5.0,
-                        "home_available": True,
-                        "urgent_available": True,
-                        "turnaround_hours": test.get("typical_turnaround_hours"),
-                        "is_pc_fulfilled": True,
-                        **pricing,
-                    })
+                        # Use the catalog MRP as the fixed rate for PC-serviced tests
+                        mrp = _num(test.get("mrp")) or _num(test.get("base_price", 0))
+                        if mrp <= 0:
+                            mrp = 599.0  # Fallback default price for test packages if not specified
+
+                        pricing = PricingService.quote(mrp, 0.0, urgent=urgent)
+                        offers.append({
+                            "service_id": f"pc_{pc['id']}_{test['id']}",
+                            "service_name": test.get("name"),
+                            "provider_user_id": pc["id"],
+                            "provider_name": pc.get("name", "CallMedex Processing Centre"),
+                            "provider_type": "processing_center",
+                            "city": pc.get("city", ""),
+                            "state": pc.get("state", ""),
+                            "rating": 5.0,
+                            "home_available": True,
+                            "urgent_available": True,
+                            "turnaround_hours": test.get("typical_turnaround_hours"),
+                            "is_pc_fulfilled": True,
+                            **pricing,
+                        })
             except Exception as e:
                 logger.error(f"PC area fallback failed: {e}")
 
@@ -535,6 +561,7 @@ class MarketplaceService:
             # provider_id server-side; nothing else may read this key, and it
             # must never be spread into a response the patient can see.
             "provider_user_id": chosen["provider_user_id"],
+            "provider_type": chosen.get("provider_type", "organization"),
         }
 
     # ── Offers feed ───────────────────────────────────────────────────────

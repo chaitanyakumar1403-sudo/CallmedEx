@@ -352,8 +352,8 @@ async def create_booking(
         # layer's users.id — resolve through that join so staff still see
         # this booking in their queue.
         resolved_provider_id = allocation["provider_user_id"]
-        resolved_provider_type = "organization"
-        if supabase:
+        resolved_provider_type = allocation.get("provider_type", "organization")
+        if supabase and resolved_provider_type != "processing_center":
             try:
                 org_row = (
                     supabase.table("organizations")

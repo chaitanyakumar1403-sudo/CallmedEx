@@ -58,6 +58,9 @@ const SPECIALIZATIONS = [
   'ENT',
   'Neurology',
   'Psychiatry',
+  'Dentistry',
+  'Ophthalmology',
+  'Pulmonology',
 ];
 
 // Walk-in tab: the organization types a patient can physically visit.
@@ -162,14 +165,15 @@ function ConsultationContent() {
   // Read mode from URL params (from body map navigation)
   useEffect(() => {
     const modeParam = searchParams.get('mode');
-    if (modeParam === 'online') setConsultMode('teleconsultation');
-    else if (modeParam === 'walkin' || modeParam === 'offline') setConsultMode('walkin');
+    if (modeParam === 'online' || modeParam === 'teleconsultation') setConsultMode('teleconsultation');
+    else if (modeParam === 'walkin' || modeParam === 'offline' || modeParam === 'in_person') setConsultMode('walkin');
     else if (modeParam === 'home') setConsultMode('home');
 
     const specParam = searchParams.get('spec');
     if (specParam) {
-      const match = SPECIALIZATIONS.find(s => s.toLowerCase() === specParam.toLowerCase());
+      const match = SPECIALIZATIONS.find(s => s.toLowerCase().includes(specParam.toLowerCase()) || specParam.toLowerCase().includes(s.toLowerCase()));
       if (match) setSelectedSpec(match);
+      else setSelectedSpec(specParam);
     }
   }, [searchParams]);
 

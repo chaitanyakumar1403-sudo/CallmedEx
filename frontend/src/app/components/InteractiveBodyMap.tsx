@@ -117,8 +117,8 @@ export default function InteractiveBodyMap() {
     router.push(`/consultation?spec=${encodeURIComponent(current.specialization)}&mode=online`);
   };
 
-  const handleOfflineClinicSelect = (clinicName: string) => {
-    router.push(`/booking?type=walkin&spec=${encodeURIComponent(current.specialization)}&clinic=${encodeURIComponent(clinicName)}`);
+  const handleOfflineClinicSelect = (clinicName?: string) => {
+    router.push(`/consultation?spec=${encodeURIComponent(current.specialization)}&mode=in_person`);
   };
 
   return (
