@@ -6,6 +6,7 @@ roster_cutoff. A phlebotomist sees their advance list this evening and may
 decline, which reassigns rather than cancels.
 """
 import logging
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
