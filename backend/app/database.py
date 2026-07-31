@@ -4,7 +4,7 @@ Uses service-role key for backend operations (bypasses RLS).
 Includes connection pooling for production performance.
 """
 import httpx
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from app.config import settings
 
 # Connection pool configuration
@@ -15,12 +15,7 @@ _POOL_LIMITS = httpx.Limits(
     keepalive_expiry=30,  # seconds
 )
 
-_CLIENT_TIMEOUT = httpx.Timeout(
-    connect=10.0,   # connection timeout
-    read=30.0,      # read timeout
-    write=30.0,     # write timeout
-    pool=10.0,      # pool timeout
-)
+_CLIENT_TIMEOUT = 30  # seconds for postgrest timeout
 
 _supabase_client: Client | None = None
 _supabase_anon_client: Client | None = None
@@ -38,8 +33,7 @@ def get_supabase_client() -> Client | None:
     _supabase_client = create_client(
         settings.SUPABASE_URL,
         settings.SUPABASE_SERVICE_KEY,
-        # httpx configuration for connection pooling
-        postgrest_client_timeout=_CLIENT_TIMEOUT,
+        options=ClientOptions(postgrest_client_timeout=_CLIENT_TIMEOUT),
     )
     return _supabase_client
 
@@ -56,7 +50,7 @@ def get_supabase_anon_client() -> Client | None:
     _supabase_anon_client = create_client(
         settings.SUPABASE_URL,
         settings.SUPABASE_KEY,
-        postgrest_client_timeout=_CLIENT_TIMEOUT,
+        options=ClientOptions(postgrest_client_timeout=_CLIENT_TIMEOUT),
     )
     return _supabase_anon_client
 
