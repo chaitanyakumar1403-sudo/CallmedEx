@@ -341,6 +341,12 @@ class BookingCreate(BaseModel):
     # at district level when the patient's town isn't an exact city row.
     district: Optional[str] = None
     home: Optional[bool] = None
+    # Family member booking: when provided, this booking is for that family member
+    # and their address should be used for phlebotomist dispatch.
+    family_member_id: Optional[str] = None
+    collection_lat: Optional[float] = None
+    collection_lng: Optional[float] = None
+    collection_address: Optional[str] = None
 
 
 class SlotAllotment(BaseModel):

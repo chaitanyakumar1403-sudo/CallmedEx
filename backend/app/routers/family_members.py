@@ -26,6 +26,13 @@ class MemberIn(BaseModel):
     gender: str = ""
     date_of_birth: Optional[str] = None
     mobile: str = ""
+    address: str = ""
+    city: str = ""
+    district: str = ""
+    state: str = ""
+    pincode: str = ""
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 def ensure_self_member(account_user_id: str, full_name: str) -> dict:

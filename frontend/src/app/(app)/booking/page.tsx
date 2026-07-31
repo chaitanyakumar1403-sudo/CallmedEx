@@ -36,10 +36,40 @@ const DEFAULT_DIAGNOSTIC_PACKAGES = [
   { id: "pkg-2", name: "Comprehensive Executive Body Checkup", price: 1799, tests: ["CBC", "HbA1c", "Lipid Profile", "Thyroid", "LFT", "KFT", "Vitamin D", "B12", "ECG"] },
 ];
 
-// Generate 30-min time slots from 8:00 AM to 8:00 PM
+// ─── Time Slot & Pricing Configuration ────────────────────────────────────
+// Slot tiers:
+//   Fasting (05:00) — flat ₹99 promotional price for early-morning fasting tests
+//   Premium (06:00, 06:30, 07:00) — step-collection slots with ₹99 surcharge
+//   Standard (07:30–20:00) — regular pricing
+
+const FASTING_SLOT = "05:00";
+const PREMIUM_SLOTS = new Set(["06:00", "06:30", "07:00"]);
+
+interface SlotPricing {
+  tier: "fasting" | "premium" | "standard";
+  label: string;
+  badge: string;
+  /** Surcharge added on top of base test prices */
+  surcharge: number;
+  /** Flat price for fasting tier (overrides test prices) */
+  flatPrice: number | null;
+}
+
+function getSlotPricing(slot: string): SlotPricing {
+  if (slot === FASTING_SLOT) {
+    return { tier: "fasting", label: "Fasting Special", badge: "🌅 ₹99 Flat", surcharge: 0, flatPrice: 99 };
+  }
+  if (PREMIUM_SLOTS.has(slot)) {
+    return { tier: "premium", label: "Premium", badge: "⭐ ₹99 Extra", surcharge: 99, flatPrice: null };
+  }
+  return { tier: "standard", label: "Standard", badge: "", surcharge: 0, flatPrice: null };
+}
+
+// Generate 30-min time slots from 5:00 AM to 8:00 PM
 const TIME_SLOTS = (() => {
   const slots: string[] = [];
-  for (let h = 8; h <= 19; h++) {
+  // Start at 5:00 AM to include fasting slot
+  for (let h = 5; h <= 19; h++) {
     slots.push(`${h.toString().padStart(2, "0")}:00`);
     slots.push(`${h.toString().padStart(2, "0")}:30`);
   }
@@ -87,6 +117,10 @@ function BookingPageContent() {
   const [error, setError] = useState("");
   const [bookingResult, setBookingResult] = useState<any>(null);
   const [labTestSearch, setLabTestSearch] = useState("");
+
+  // Family member booking ("Who is this for?")
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [selectedFamilyMember, setSelectedFamilyMember] = useState<any>(null); // null = self
   
   // Real dynamic data state
   const [realOrgs, setRealOrgs] = useState<any[]>([]);
@@ -319,6 +353,20 @@ function BookingPageContent() {
     }
   }, [selectedOrg?.id, bookingType]);
 
+  // Fetch family members when we reach the "Who is this for?" step
+  useEffect(() => {
+    if (step === 3 && (bookingType === "lab" || bookingType === "home_collection")) {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/family-members`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => setFamilyMembers(data.members || []))
+        .catch(() => setFamilyMembers([]));
+    }
+  }, [step, bookingType]);
+
   // Generate dynamic time slots based on organization's configured operating hours
   const getDynamicSlots = (dateStr: string): string[] => {
     const orgTimings = selectedOrg?.timings || [];
@@ -393,15 +441,19 @@ function BookingPageContent() {
           ? "nurse_visit"
           : "lab_test";
 
-      const slotKey = `${providerId}|${selectedDate}|${selectedSlot || "TBD"}`;
+      const slotKey = `${providerId}|${selectedDate}|${selectedSlot}`;
+      const pricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
 
-      // Build notes with all selected tests if multi-select
+      // Build notes with all selected tests + slot pricing info
+      const pricingNote = pricing?.tier !== "standard"
+        ? `[${pricing?.tier === "fasting" ? "Fasting" : "Premium"} slot]`
+        : "";
       const testNotes =
         selectedTests.length > 0
-          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal}`
+          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal} ${pricingNote}`
           : selectedTest
-          ? `Test: ${selectedTest.name}`
-          : "";
+          ? `Test: ${selectedTest.name} ${pricingNote}`
+          : `${pricingNote}`;
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings`, {
         method: "POST",
@@ -416,7 +468,7 @@ function BookingPageContent() {
           slot_id: slotKey,
           notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
-          total_price: packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0),
+          total_price: pricing?.flatPrice ?? (packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
           preferred_date: selectedDate,
           // Lab is partner-blind: no centre was chosen (providerId is ""), so
           // the backend resolves the allocation itself from these. catalog_id
@@ -425,6 +477,12 @@ function BookingPageContent() {
           // When an org is explicitly selected, omit these fields — the patient
           // chose a specific centre, so the backend routes to CONFIRMED with
           // provider_id + slot_id (not PENDING_REVIEW).
+          // Family member booking: if selected, use their address for dispatch
+          family_member_id: selectedFamilyMember?.id || undefined,
+          // Collection coordinates for phlebotomist dispatch (home collection)
+          collection_lat: coords?.lat || undefined,
+          collection_lng: coords?.lng || undefined,
+          collection_address: dispatchAddress?.trim() || undefined,
           ...(bookingType === "lab" && !selectedOrg?.isReal
             ? {
                 catalog_id: deepLinkedTest?.catalog_id || serviceParam || packageParam || selectedTests[0]?.catalog_id || "general_lab_test",
@@ -575,7 +633,12 @@ function BookingPageContent() {
   };
 
   const isOnDemand = bookingType === "home_collection" || bookingType === "home_doctor" || bookingType === "nurse_visit";
-  const fee = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || (bookingType === "doctor" ? (selectedOrg?.consultation_fee || 300) : 0);
+  // ─── Pricing with time-slot tiers ────────────────────────────────────────
+  const slotPricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
+  // Base price: sum of selected tests / doctor fee / package price
+  const basePrice = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || (bookingType === "doctor" ? (selectedOrg?.consultation_fee || 300) : 0);
+  // Flat price overrides everything (fasting special), otherwise add surcharge
+  const fee = slotPricing?.flatPrice ?? (basePrice + (slotPricing?.surcharge || 0));
 
   // Step indicator
   const getSteps = () => {
@@ -586,7 +649,7 @@ function BookingPageContent() {
     // Partner-blind: no centre-selection step. CallMedex allocates the
     // fulfilling partner server-side; the patient only ever picks tests and a
     // preferred date.
-    if (bookingType === "lab") return ["Select Service", "Choose Tests", "Select Preferred Date"];
+    if (bookingType === "lab") return ["Select Service", "Choose Tests", "Who is this for?", "Date & Time"];
     return [];
   };
   const currentStepIdx = step === 10 ? -1 : isOnDemand ? (step <= 2 ? step - 1 : 2) : Math.min(step - 1, getSteps().length - 1);
@@ -1319,34 +1382,145 @@ function BookingPageContent() {
 
             <div style={{ display: "flex", gap: 12 }}>
               <button className="btn btn-secondary" onClick={() => { setStep(1); setSelectedTests([]); }}>← Back</button>
-              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={selectedTests.length === 0} onClick={() => setStep(4)}>
-                Select Preferred Date →
+              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} disabled={selectedTests.length === 0} onClick={() => setStep(3)}>
+                Who is this for? →
               </button>
             </div>
           </div>
         )}
 
-        {/* ─── STEP 4: Select Preferred Date (+ Time Slot for doctor bookings) ─── */}
+        {/* ─── STEP 3: Who is this for? (Lab / Home Collection) ─── */}
+        {step === 3 && (bookingType === "lab" || bookingType === "home_collection") && (
+          <div className="card" style={{ padding: 32 }}>
+            <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>
+              👤 Who is this for?
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 20 }}>
+              Is this booking for yourself or a family member? The phlebotomist will visit the patient's address.
+            </p>
+
+            {/* Self option */}
+            <div
+              style={{
+                padding: 18, borderRadius: 12, cursor: "pointer", marginBottom: 12,
+                border: !selectedFamilyMember ? "2px solid #0284c7" : "2px solid #e2e8f0",
+                backgroundColor: !selectedFamilyMember ? "#f0f9ff" : "white",
+                transition: "all 0.2s",
+              }}
+              onClick={() => setSelectedFamilyMember(null)}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: "50%",
+                  backgroundColor: !selectedFamilyMember ? "#0284c7" : "#e2e8f0",
+                  color: !selectedFamilyMember ? "white" : "#94a3b8",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "1.2rem", fontWeight: 700,
+                }}>
+                  {!selectedFamilyMember ? "✓" : "👤"}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "1rem" }}>Myself</div>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Phlebotomist visits my address</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Family members list */}
+            {familyMembers.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h4 style={{ fontSize: "0.9rem", color: "#475569", marginBottom: 12 }}>👨‍👩‍👧‍👦 Family Members</h4>
+                {familyMembers
+                  .filter((m) => !m.is_self)
+                  .map((member) => {
+                    const isSelected = selectedFamilyMember?.id === member.id;
+                    const hasAddress = member.lat || member.address;
+                    return (
+                      <div
+                        key={member.id}
+                        style={{
+                          padding: 16, borderRadius: 12, cursor: "pointer", marginBottom: 10,
+                          border: isSelected ? "2px solid #0284c7" : "2px solid #e2e8f0",
+                          backgroundColor: isSelected ? "#f0f9ff" : "white",
+                          opacity: hasAddress ? 1 : 0.7,
+                          transition: "all 0.2s",
+                        }}
+                        onClick={() => setSelectedFamilyMember(member)}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{
+                            width: 40, height: 40, borderRadius: "50%",
+                            backgroundColor: isSelected ? "#0284c7" : "#e2e8f0",
+                            color: isSelected ? "white" : "#94a3b8",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "1rem", fontWeight: 700,
+                          }}>
+                            {member.full_name?.charAt(0)?.toUpperCase() || "?"}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                              {member.full_name}
+                              <span style={{ fontSize: "0.72rem", color: "#64748b", marginLeft: 8, fontWeight: 400 }}>
+                                ({member.relationship || "Family"})
+                              </span>
+                            </div>
+                            {member.address && (
+                              <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>
+                                📍 {member.address}{member.city ? `, ${member.city}` : ""}
+                              </div>
+                            )}
+                            {!hasAddress && (
+                              <div style={{ fontSize: "0.72rem", color: "#e53e3e", marginTop: 2 }}>
+                                ⚠️ No address set — will use your address
+                              </div>
+                            )}
+                          </div>
+                          <div style={{
+                            width: 22, height: 22, borderRadius: "50%",
+                            border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
+                            backgroundColor: isSelected ? "#0284c7" : "white",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "white", fontSize: "0.7rem", fontWeight: 700,
+                          }}>
+                            {isSelected ? "✓" : ""}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* ── Location for home collection ── */}
+            {bookingType === "lab" && (modeParam === "home" || packageParam) && (
+              <div style={{ marginTop: 20, marginBottom: 16 }}>
+                <LocationPicker
+                  label="📍 Collection Address"
+                  required
+                  initialAddress={dispatchAddress}
+                  onLocationSelect={(loc) => {
+                    setDispatchAddress(loc.address);
+                    setCoords({ lat: loc.lat, lng: loc.lng });
+                  }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Tests</button>
+              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} onClick={() => setStep(4)}>
+                Select Date & Time →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── STEP 4: Select Preferred Date & Time Slot ─── */}
         {step === 4 && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
-              {bookingType === "lab" && !selectedOrg?.isReal ? "Select Your Preferred Date" : "Select Preferred Date & Time Slot"}
+              Select Preferred Date & Time Slot
             </h3>
-
-            {/* Info banner for partner-blind lab bookings (no org selected) */}
-            {bookingType === "lab" && !selectedOrg?.isReal && (
-              <div style={{ padding: 16, backgroundColor: "#eff6ff", borderRadius: 12, border: "1px solid #bfdbfe", marginBottom: 20 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <span style={{ fontSize: "1.3rem" }}>🏥</span>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "#1e40af", fontSize: "0.9rem", marginBottom: 4 }}>Time Slot Assigned by Center</div>
-                    <p style={{ color: "#3b82f6", fontSize: "0.82rem", margin: 0, lineHeight: 1.5 }}>
-                      Select your preferred date below. The diagnostic center will assign you a specific time slot and notify you via SMS/notification after reviewing your booking request.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Date picker */}
             <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
@@ -1390,38 +1564,13 @@ function BookingPageContent() {
               })}
             </div>
 
-            {/* For partner-blind LAB bookings: no time slot picker — center assigns slot */}
-            {bookingType === "lab" && !selectedOrg?.isReal && selectedDate && !isDayClosed(selectedDate) && (
-              <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "#166534" }}>
-                      📅 Preferred Date: {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                    </div>
-                    <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
-                      {selectedTests.length} Lab Test(s) Selected · Time slot will be assigned by the center
-                    </div>
-                  </div>
-                  <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
-                </div>
-              </div>
-            )}
-
-            {/* For partner-blind LAB bookings: show closed message if date is closed */}
-            {bookingType === "lab" && !selectedOrg?.isReal && selectedDate && isDayClosed(selectedDate) && (
-              <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
-                <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
-                <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Center Closed on This Day</h4>
-                <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>This diagnostic center is not open on this day. Please select a different date.</p>
-              </div>
-            )}
-
-            {/* For DOCTOR bookings or lab-with-org: show time slot picker */}
-            {(bookingType !== "lab" || selectedOrg?.isReal) && selectedDate && (() => {
-              const dynamicSlots = getDynamicSlots(selectedDate);
+            {/* ── Time Slot Picker (all booking types) ── */}
+            {selectedDate && (() => {
               const closed = isDayClosed(selectedDate);
-              const morningSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) < 12);
-              const afternoonSlots = dynamicSlots.filter((t) => parseInt(t.split(":")[0]) >= 12);
+              // Use dynamic slots for org-based bookings, full TIME_SLOTS for partner-blind
+              const dynamicSlots = (selectedOrg?.timings?.length > 0)
+                ? getDynamicSlots(selectedDate)
+                : TIME_SLOTS;
 
               if (closed) {
                 return (
@@ -1438,49 +1587,109 @@ function BookingPageContent() {
                   <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 12, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏰</div>
                     <h4 style={{ color: "#92400e", marginBottom: 4 }}>No Time Slots Available</h4>
-                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. The facility may not have set their operating hours yet.</p>
+                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. Please select a different date.</p>
                   </div>
                 );
               }
 
+              // Categorise slots
+              const fastingSlots = dynamicSlots.filter((t) => t === FASTING_SLOT);
+              const premiumSlots = dynamicSlots.filter((t) => PREMIUM_SLOTS.has(t));
+              const morningSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 7 && parseInt(t.split(":")[0]) < 12);
+              const afternoonSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 12);
+              // Include 05:00 in morning if not already in fasting
+              const extraMorning = dynamicSlots.filter((t) => t !== FASTING_SLOT && !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) < 7);
+
               return (
                 <>
-                  <h4 style={{ fontSize: "0.9rem", marginBottom: 12, color: "#4a5568" }}>Available Time Slots</h4>
-                  {selectedOrg?.timings?.length > 0 && (
-                    <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: 12, padding: "6px 12px", backgroundColor: "#ecfdf5", borderRadius: 8, display: "inline-block" }}>
-                      ⏰ Operating Hours: {selectedOrg.timings.find((t: any) => t.day_of_week === new Date(selectedDate + "T00:00:00").getDay())?.open_time || "N/A"} – {selectedOrg.timings.find((t: any) => t.day_of_week === new Date(selectedDate + "T00:00:00").getDay())?.close_time || "N/A"}
-                    </div>
-                  )}
-                  
-                  {/* Morning slots */}
-                  {morningSlots.length > 0 && (
+                  {/* Fasting Slot (05:00) */}
+                  {fastingSlots.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                        {morningSlots.map((t) => {
-                          const booked = isSlotBooked(t);
+                      <div style={{ fontSize: "0.75rem", color: "#b45309", marginBottom: 8, fontWeight: 700 }}>
+                        🌅 Fasting Special — ₹99 Flat
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
+                        {fastingSlots.map((t) => {
+                          const pricing = getSlotPricing(t);
                           const isSelected = selectedSlot === t;
                           return (
                             <div
                               key={t}
                               style={{
-                                padding: "8px 4px",
-                                borderRadius: 8,
-                                textAlign: "center",
-                                cursor: booked ? "not-allowed" : "pointer",
-                                fontSize: "0.82rem",
-                                fontWeight: 600,
-                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                                backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
-                                color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
+                                padding: "10px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600,
+                                border: isSelected ? "2px solid #d97706" : "2px solid #fde68a",
+                                backgroundColor: isSelected ? "#fffbeb" : "#fff",
+                                color: "#92400e",
+                                transition: "all 0.15s ease",
+                                position: "relative",
+                              }}
+                              onClick={() => { setSelectedSlot(t); setError(""); }}
+                            >
+                              <div>{formatSlotLabel(t)}</div>
+                              <div style={{ fontSize: "0.65rem", fontWeight: 800, color: "#d97706", marginTop: 2 }}>₹{pricing.flatPrice}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Premium Slots (06:00, 06:30, 07:00) */}
+                  {([...premiumSlots, ...extraMorning]).length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: "0.75rem", color: "#7c3aed", marginBottom: 8, fontWeight: 700 }}>
+                        ⭐ Premium Step Collection — ₹99 Extra
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
+                        {[...premiumSlots, ...extraMorning].map((t) => {
+                          const pricing = getSlotPricing(t);
+                          const isSelected = selectedSlot === t;
+                          return (
+                            <div
+                              key={t}
+                              style={{
+                                padding: "10px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600,
+                                border: isSelected ? "2px solid #7c3aed" : "2px solid #e9d5ff",
+                                backgroundColor: isSelected ? "#f5f3ff" : "#fff",
+                                color: "#5b21b6",
                                 transition: "all 0.15s ease",
                               }}
-                              onClick={() => {
-                                if (!booked) {
-                                  setSelectedSlot(t);
-                                  setError("");
-                                }
+                              onClick={() => { setSelectedSlot(t); setError(""); }}
+                            >
+                              <div>{formatSlotLabel(t)}</div>
+                              {pricing.surcharge > 0 && (
+                                <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", marginTop: 2 }}>
+                                  +₹{pricing.surcharge}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Morning Slots (07:30–11:30) */}
+                  {morningSlots.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+                        {morningSlots.map((t) => {
+                          const isSelected = selectedSlot === t;
+                          return (
+                            <div
+                              key={t}
+                              style={{
+                                padding: "8px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600,
+                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
+                                backgroundColor: isSelected ? "#0284c7" : "white",
+                                color: isSelected ? "white" : "#4a5568",
+                                transition: "all 0.15s ease",
                               }}
+                              onClick={() => { setSelectedSlot(t); setError(""); }}
                             >
                               {formatSlotLabel(t)}
                             </div>
@@ -1490,35 +1699,25 @@ function BookingPageContent() {
                     </div>
                   )}
 
-                  {/* Afternoon/Evening slots */}
+                  {/* Afternoon/Evening Slots */}
                   {afternoonSlots.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>🌇 Afternoon & Evening Slots</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
                         {afternoonSlots.map((t) => {
-                          const booked = isSlotBooked(t);
                           const isSelected = selectedSlot === t;
                           return (
                             <div
                               key={t}
                               style={{
-                                padding: "8px 4px",
-                                borderRadius: 8,
-                                textAlign: "center",
-                                cursor: booked ? "not-allowed" : "pointer",
-                                fontSize: "0.82rem",
-                                fontWeight: 600,
+                                padding: "8px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600,
                                 border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                                backgroundColor: booked ? "#fee2e2" : isSelected ? "#0284c7" : "white",
-                                color: booked ? "#e53e3e" : isSelected ? "white" : "#4a5568",
+                                backgroundColor: isSelected ? "#0284c7" : "white",
+                                color: isSelected ? "white" : "#4a5568",
                                 transition: "all 0.15s ease",
                               }}
-                              onClick={() => {
-                                if (!booked) {
-                                  setSelectedSlot(t);
-                                  setError("");
-                                }
-                              }}
+                              onClick={() => { setSelectedSlot(t); setError(""); }}
                             >
                               {formatSlotLabel(t)}
                             </div>
@@ -1531,22 +1730,40 @@ function BookingPageContent() {
               );
             })()}
 
-            {/* Total Fee & Summary for doctor bookings and lab-with-org */}
-            {(bookingType !== "lab" || selectedOrg?.isReal) && selectedDate && selectedSlot && (
-              <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "#166534" }}>
-                      📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
+            {/* Total Fee & Summary with slot pricing breakdown */}
+            {selectedDate && selectedSlot && !isDayClosed(selectedDate) && (() => {
+              const pricing = getSlotPricing(selectedSlot);
+              return (
+                <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "#166534" }}>
+                        📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
+                        {pricing.tier !== "standard" && (
+                          <span style={{ marginLeft: 8, fontSize: "0.7rem", backgroundColor: pricing.tier === "fasting" ? "#d97706" : "#7c3aed", color: "white", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
+                            {pricing.label}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
+                        {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || (selectedTests.length > 0 ? `${selectedTests.length} test(s) selected` : "Appointment")}
+                      </div>
+                      {pricing.tier === "fasting" && (
+                        <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 4 }}>
+                          🌅 Fasting special: ₹99 flat (all tests included)
+                        </div>
+                      )}
+                      {pricing.tier === "premium" && (
+                        <div style={{ fontSize: "0.75rem", color: "#5b21b6", marginTop: 4 }}>
+                          ⭐ Premium slot: +₹{pricing.surcharge} surcharge
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
-                      {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || "Appointment"}
-                    </div>
+                    <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
                   </div>
-                  <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div style={{ display: "flex", gap: 12 }}>
               {/* Lab's step 2 is "Choose Tests" (no centre step); every other
@@ -1555,10 +1772,10 @@ function BookingPageContent() {
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, borderRadius: 10, backgroundColor: "#0284c7" }}
-                disabled={!selectedDate || (bookingType === "lab" ? (!selectedOrg?.isReal ? false : !selectedSlot) : (bookingType !== "lab" && !selectedSlot)) || isDayClosed(selectedDate) || loading}
+                disabled={!selectedDate || !selectedSlot || isDayClosed(selectedDate) || loading}
                 onClick={handleConfirm}
               >
-                {loading ? "Confirming..." : bookingType === "lab" && !selectedOrg?.isReal ? `Submit Booking Request · ₹${fee}` : `Confirm Booking & Pay ₹${fee}`}
+                {loading ? "Confirming..." : `Confirm Booking · ₹${fee}`}
               </button>
             </div>
           </div>

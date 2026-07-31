@@ -115,6 +115,23 @@ Output ONLY valid JSON, no markdown, no backticks:
     "confidence_score": a number from 0.0 to 1.0 indicating your confidence in the extraction accuracy
 }
 """,
+    "aadhaar": """
+You are a highly accurate Indian identity document verification AI.
+You are analyzing an uploaded image of an Aadhaar card (issued by UIDAI).
+
+Extract the following information. Be extremely precise with names and numbers.
+Output ONLY valid JSON, no markdown, no backticks:
+{
+    "is_legible": true if the document text is clearly readable, false if too blurry/dark/cut-off,
+    "is_valid_document": true if this appears to be a genuine Aadhaar card, false otherwise,
+    "extracted_name": "Full name as printed on the Aadhaar card, or null",
+    "date_of_birth": "Date of birth in YYYY-MM-DD format if visible, or null",
+    "gender": "Gender if visible (Male/Female/Other), or null",
+    "aadhaar_last_four": "Last 4 digits of Aadhaar number if visible, or null",
+    "address": "Address as printed on the card if visible, or null",
+    "confidence_score": a number from 0.0 to 1.0 indicating your confidence in the extraction accuracy
+}
+""",
 }
 
 

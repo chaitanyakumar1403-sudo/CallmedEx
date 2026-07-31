@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.services.roster import decline_job
 from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,56 @@ async def set_availability(body: AvailabilityRequest, user: dict = Depends(get_c
             "status": body.status,
         }).execute()
 
-    return {"ok": True, "date": body.date, "status": body.status}
+    # ── Auto-reassign when phlebo marks leave within 2 days ─────────────
+    # The MOU requires 2 days' notice. If the phlebo sets leave for today
+    # or tomorrow, their advance-scheduled jobs are reassigned immediately
+    # to the next-nearest available phlebo of the same centre.
+    reassigned: list[dict] = []
+    unassigned: list[dict] = []
+    if body.status in ("leave", "unavailable"):
+        days_until = (target_date - today).days
+        if days_until <= 1:  # today or tomorrow
+            try:
+                # Find all advance dispatch requests assigned to this phlebo
+                adv_dispatch = _rows(
+                    supabase.table("dispatch_requests")
+                    .select("id, booking_id")
+                    .eq("assigned_provider_id", user_id)
+                    .eq("assignment_mode", "advance")
+                    .eq("scheduled_for", body.date)
+                    .execute()
+                )
+                for dr in adv_dispatch:
+                    try:
+                        result = decline_job(dr["id"], user_id)
+                        if result:
+                            reassigned.append(result)
+                        else:
+                            unassigned.append(dr)
+                    except (ValueError, PermissionError) as e:
+                        logger.warning(f"Could not decline dispatch {dr['id']}: {e}")
+                        unassigned.append(dr)
+            except Exception as e:
+                logger.warning(f"Auto-reassignment failed: {e}")
+
+    return {
+        "ok": True,
+        "date": body.date,
+        "status": body.status,
+        "reassigned": reassigned,
+        "unassigned": unassigned,
+        "warning": (
+            f"You have assigned bookings on {body.date} — they have been "
+            f"reassigned to another phlebotomist."
+            if reassigned
+            else (
+                f"Some bookings could not be auto-reassigned and need "
+                f"manual assignment by the processing centre."
+                if unassigned
+                else None
+            )
+        ),
+    }
 
 
 @router.get("/roster")

@@ -72,18 +72,45 @@ export default function PhleboSchedulePanel() {
   };
 
   const setDayStatus = async (date: string, status: string) => {
-    setSaving(true);
     const token = getToken();
+    if (!token) return;
+
+    // Check if setting leave within 2 days — warn about reassignment
+    const targetDate = new Date(date + "T00:00:00");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const isNearLeave = (status === "off" || status === "half_day") && diffDays <= 1;
+
+    if (isNearLeave) {
+      const msg = diffDays === 0
+        ? "⚠️ You are setting today as a leave day. Your assigned bookings for today will be reassigned to another phlebotomist. Continue?"
+        : "⚠️ You are setting tomorrow as a leave day. Your advance bookings will be reassigned to another phlebotomist. Continue?";
+      if (!confirm(msg)) return;
+    }
+
+    setSaving(true);
     try {
       const res = await fetch(`${apiBase}/api/phlebo/availability`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ date, status }),
       });
+      const data = res.ok ? await res.json() : {};
       if (res.ok) {
         await fetchRoster();
+        // Show reassignment info if any
+        if (data.warning) {
+          alert(data.warning);
+        } else if (data.reassigned?.length > 0) {
+          alert(`✅ ${data.reassigned.length} booking(s) reassigned to another phlebotomist.`);
+        } else if (data.unassigned?.length > 0) {
+          alert(`⚠️ ${data.unassigned.length} booking(s) could not be auto-reassigned. Please contact your processing centre.`);
+        }
+      } else {
+        alert(data.detail || "Failed to update availability.");
       }
-    } catch { /* silent */ } finally {
+    } catch { alert("Network error. Please try again."); } finally {
       setSaving(false);
       setSelectedDate(null);
     }

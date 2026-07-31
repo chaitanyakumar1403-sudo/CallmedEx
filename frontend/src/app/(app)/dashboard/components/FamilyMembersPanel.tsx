@@ -19,7 +19,7 @@ export default function FamilyMembersPanel() {
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ full_name: "", relationship: "", gender: "", date_of_birth: "", mobile: "" });
+  const [form, setForm] = useState({ full_name: "", relationship: "", gender: "", date_of_birth: "", mobile: "", address: "", city: "", district: "", pincode: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -58,7 +58,7 @@ export default function FamilyMembersPanel() {
       });
       if (res.ok) {
         setMsg("✅ Member added!");
-        setForm({ full_name: "", relationship: "", gender: "", date_of_birth: "", mobile: "" });
+        setForm({ full_name: "", relationship: "", gender: "", date_of_birth: "", mobile: "", address: "", city: "", district: "", pincode: "" });
         setShowForm(false);
         fetchMembers();
       } else {
@@ -167,6 +167,48 @@ export default function FamilyMembersPanel() {
                   value={form.mobile}
                   onChange={e => setForm({ ...form, mobile: e.target.value })}
                   placeholder="Mobile number"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </div>
+            </div>
+            {/* Address fields (for phlebotomist dispatch when booking on their behalf) */}
+            <div style={{ marginTop: 12, marginBottom: 8, fontWeight: 700, color: "#475569", fontSize: "0.85rem" }}>
+              📍 Address (for dispatch when booking tests on their behalf)
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Address</label>
+                <input
+                  value={form.address}
+                  onChange={e => setForm({ ...form, address: e.target.value })}
+                  placeholder="Full address"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>City</label>
+                <input
+                  value={form.city}
+                  onChange={e => setForm({ ...form, city: e.target.value })}
+                  placeholder="City"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>District</label>
+                <input
+                  value={form.district}
+                  onChange={e => setForm({ ...form, district: e.target.value })}
+                  placeholder="District"
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#374151", display: "block", marginBottom: 4 }}>Pincode</label>
+                <input
+                  value={form.pincode}
+                  onChange={e => setForm({ ...form, pincode: e.target.value })}
+                  placeholder="Pincode"
                   style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
                 />
               </div>

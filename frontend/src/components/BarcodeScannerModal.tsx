@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Button, Field, Modal, TextInput } from "@/components/ui";
 
 /* ── Native BarcodeDetector type shim ────────────────────────────────────
@@ -55,6 +56,13 @@ const SUPPORTED_FORMATS: BarcodeFormat[] = [
   "data_matrix",
 ];
 
+/* ── Possible Camera Scanning Modes ──────────────────────────────────────
+ * 1. native     → BarcodeDetector API (Chromium-based browsers)
+ * 2. html5_qrcode → html5-qrcode library fallback (Firefox, Safari, others)
+ * 3. manual     → text input (last resort, or if camera is denied)
+ * ──────────────────────────────────────────────────────────────────────── */
+type ScanMode = "loading" | "native" | "html5_qrcode" | "manual" | "error";
+
 /* ── Component ──────────────────────────────────────────────────────────── */
 
 export function BarcodeScannerModal({
@@ -69,33 +77,45 @@ export function BarcodeScannerModal({
   title?: string;
 }) {
   /* ── state ──────────────────────────────────────────────────────────── */
-  const [mode, setMode] = useState<"loading" | "camera" | "manual" | "error">(
-    "loading"
-  );
+  const [mode, setMode] = useState<ScanMode>("loading");
   const [manualCode, setManualCode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [insecureText, setInsecureText] = useState("");
+  const [hintText, setHintText] = useState("");
 
   /* ── refs ───────────────────────────────────────────────────────────── */
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const html5Ref = useRef<Html5Qrcode | null>(null);
+  const scanContainerRef = useRef<HTMLDivElement>(null);
   const aliveRef = useRef(false); // guards decode-after-close
 
   /* ── helpers ────────────────────────────────────────────────────────── */
 
-  const stopCamera = useCallback(() => {
+  const stopAllScanners = useCallback(() => {
+    // Stop native interval scanner
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    // Stop native camera stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    // Stop html5-qrcode scanner
+    if (html5Ref.current) {
+      try {
+        html5Ref.current.stop().catch(() => {});
+      } catch {
+        // already stopped
+      }
+      html5Ref.current = null;
+    }
   }, []);
 
-  const startCamera = useCallback(async () => {
+  /** Attempt native BarcodeDetector + getUserMedia scanning. */
+  const startNativeScanner = useCallback(async () => {
     aliveRef.current = true;
     setMode("loading");
 
@@ -104,7 +124,6 @@ export function BarcodeScannerModal({
         video: { facingMode: "environment" },
       });
       if (!aliveRef.current) {
-        // component closed while permission was being granted
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
@@ -112,23 +131,89 @@ export function BarcodeScannerModal({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      setMode("camera");
+      setMode("native");
+      setHintText("");
     } catch (err: unknown) {
       if (!aliveRef.current) return;
-      setMode("manual");
-      setErrorMsg(
-        err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Camera permission was denied"
-          : "Could not access the camera"
-      );
+      // If camera is denied, go to manual directly
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        setMode("manual");
+        setErrorMsg("Camera permission was denied. Please enter the code manually.");
+        return;
+      }
+      // Otherwise, try html5-qrcode fallback
+      setHintText("Native camera access failed — trying library-based scanner…");
+      startHtml5Scanner();
     }
   }, []);
+
+  /** Start html5-qrcode library-based scanner (works in all browsers). */
+  const startHtml5Scanner = useCallback(async () => {
+    if (!aliveRef.current) return;
+    setMode("loading");
+
+    // Small delay so the UI can render the container before scanner attaches
+    await new Promise((r) => setTimeout(r, 100));
+    if (!aliveRef.current || !scanContainerRef.current) {
+      setMode("manual");
+      setErrorMsg("Could not initialise camera scanner.");
+      return;
+    }
+
+    const containerId = "cm-html5-qrcode-container";
+    // Ensure the container has an ID
+    scanContainerRef.current.id = containerId;
+
+    try {
+      const html5 = new Html5Qrcode(containerId, {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.EAN_13,
+        ],
+      });
+      html5Ref.current = html5;
+      await html5.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 150 },
+        },
+        (decodedText: string) => {
+          // On each successful decode
+          if (aliveRef.current && decodedText) {
+            onScan(decodedText);
+            onClose();
+          }
+        },
+        () => {
+          // decode failure — silently retry
+        }
+      );
+      if (aliveRef.current) {
+        setMode("html5_qrcode");
+        setHintText("Library-based scanning active");
+      }
+    } catch (err: unknown) {
+      if (!aliveRef.current) return;
+      const msg =
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Camera permission was denied"
+          : "Camera is not available on this device. Enter the barcode manually.";
+      setMode("manual");
+      setErrorMsg(msg);
+    }
+  }, [onScan, onClose]);
 
   const handleScan = useCallback(
     async (video: HTMLVideoElement) => {
       if (!aliveRef.current) return;
       const Detector = window.BarcodeDetector;
-      if (!Detector) return; // already in manual mode
+      if (!Detector) return; // already in html5-qrcode or manual mode
 
       try {
         const detector = new Detector({ formats: SUPPORTED_FORMATS });
@@ -150,12 +235,12 @@ export function BarcodeScannerModal({
   // Reset state when modal opens / closes
   useEffect(() => {
     if (!open) {
-      stopCamera();
+      stopAllScanners();
       aliveRef.current = false;
       setMode("loading");
       setManualCode("");
       setErrorMsg("");
-      setInsecureText("");
+      setHintText("");
       return;
     }
 
@@ -166,29 +251,23 @@ export function BarcodeScannerModal({
       !navigator.mediaDevices ||
       typeof navigator.mediaDevices.getUserMedia !== "function"
     ) {
-      setMode("manual");
-      setInsecureText(
-        "Camera is not available on this connection (non-HTTPS). Please enter the barcode manually."
-      );
+      // Try html5-qrcode anyway — it sometimes works on insecure contexts
+      startHtml5Scanner();
       return;
     }
 
-    // Feature-detect BarcodeDetector
-    if (typeof window.BarcodeDetector === "undefined") {
-      setMode("manual");
-      setInsecureText(
-        "Barcode scanning is not supported by your browser. Please enter the code manually."
-      );
-      return;
+    // If BarcodeDetector is available, prefer the native path (faster, lower latency)
+    if (typeof window.BarcodeDetector !== "undefined") {
+      startNativeScanner();
+    } else {
+      // BarcodeDetector not supported → use html5-qrcode library
+      startHtml5Scanner();
     }
+  }, [open, startNativeScanner, startHtml5Scanner, stopAllScanners]);
 
-    // Start camera
-    startCamera();
-  }, [open, startCamera, stopCamera]);
-
-  // Set up the scan interval once camera mode is active
+  // Set up the native scan interval when native camera mode is active
   useEffect(() => {
-    if (mode !== "camera" || !videoRef.current) return;
+    if (mode !== "native" || !videoRef.current) return;
 
     const video = videoRef.current;
     const tick = () => handleScan(video);
@@ -213,9 +292,9 @@ export function BarcodeScannerModal({
   useEffect(() => {
     return () => {
       aliveRef.current = false;
-      stopCamera();
+      stopAllScanners();
     };
-  }, [stopCamera]);
+  }, [stopAllScanners]);
 
   /* ── manual-submit handler ──────────────────────────────────────────── */
   const handleManualSubmit = () => {
@@ -228,9 +307,11 @@ export function BarcodeScannerModal({
 
   /* ── render ─────────────────────────────────────────────────────────── */
 
-  const isCamera = mode === "camera";
+  const isNativeCamera = mode === "native";
+  const isHtml5 = mode === "html5_qrcode";
   const isLoading = mode === "loading";
   const isManual = mode === "manual";
+  const isError = mode === "error";
 
   return (
     <Modal
@@ -250,8 +331,8 @@ export function BarcodeScannerModal({
       }
     >
       <>
-        {/* ── Camera view ──────────────────────────────────────────────── */}
-        {isCamera && (
+        {/* ── Native Camera view ───────────────────────────────────────── */}
+        {isNativeCamera && (
           <div
             style={{
               position: "relative",
@@ -310,72 +391,30 @@ export function BarcodeScannerModal({
                 mask="url(#cm-barcode-viewfinder)"
               />
               {/* Corner brackets */}
-              <rect
-                x="13"
-                y="23"
-                width="10"
-                height="2"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="13"
-                y="23"
-                width="2"
-                height="10"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="77"
-                y="23"
-                width="10"
-                height="2"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="85"
-                y="23"
-                width="2"
-                height="10"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="13"
-                y="73"
-                width="10"
-                height="2"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="13"
-                y="65"
-                width="2"
-                height="10"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="77"
-                y="73"
-                width="10"
-                height="2"
-                rx="1"
-                fill="#fff"
-              />
-              <rect
-                x="85"
-                y="65"
-                width="2"
-                height="10"
-                rx="1"
-                fill="#fff"
-              />
+              <rect x="13" y="23" width="10" height="2" rx="1" fill="#fff" />
+              <rect x="13" y="23" width="2" height="10" rx="1" fill="#fff" />
+              <rect x="77" y="23" width="10" height="2" rx="1" fill="#fff" />
+              <rect x="85" y="23" width="2" height="10" rx="1" fill="#fff" />
+              <rect x="13" y="73" width="10" height="2" rx="1" fill="#fff" />
+              <rect x="13" y="65" width="2" height="10" rx="1" fill="#fff" />
+              <rect x="77" y="73" width="10" height="2" rx="1" fill="#fff" />
+              <rect x="85" y="65" width="2" height="10" rx="1" fill="#fff" />
             </svg>
           </div>
+        )}
+
+        {/* ── html5-qrcode Library Camera View ─────────────────────────── */}
+        {isHtml5 && (
+          <div
+            ref={scanContainerRef}
+            style={{
+              width: "100%",
+              maxHeight: "50vh",
+              borderRadius: "var(--cm-radius-lg)",
+              overflow: "hidden",
+              background: "#000",
+            }}
+          />
         )}
 
         {/* ── Loading state ────────────────────────────────────────────── */}
@@ -385,20 +424,28 @@ export function BarcodeScannerModal({
           </p>
         )}
 
+        {/* ── Error state ──────────────────────────────────────────────── */}
+        {isError && (
+          <p
+            style={{
+              textAlign: "center",
+              color: "var(--cm-danger)",
+              fontSize: "var(--cm-text-sm)",
+            }}
+          >
+            {errorMsg}
+          </p>
+        )}
+
         {/* ── Manual / fallback entry ──────────────────────────────────── */}
         {isManual && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
-            {insecureText && (
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "var(--cm-text-sm)",
-                  color: "var(--cm-ink-3)",
-                }}
-              >
-                {insecureText}
-              </p>
-            )}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--cm-3)",
+            }}
+          >
             {errorMsg && (
               <p
                 style={{
@@ -425,8 +472,8 @@ export function BarcodeScannerModal({
           </div>
         )}
 
-        {/* ── Hint text (always visible when camera is active) ─────────── */}
-        {isCamera && (
+        {/* ── Hint text ────────────────────────────────────────────────── */}
+        {(isNativeCamera || isHtml5) && (
           <p
             style={{
               margin: "var(--cm-3) 0 0",
@@ -435,7 +482,7 @@ export function BarcodeScannerModal({
               color: "var(--cm-ink-3)",
             }}
           >
-            Point at the tube barcode
+            {hintText || "Point at the tube barcode"}
           </p>
         )}
       </>

@@ -124,11 +124,17 @@ def _resolve_home_service(entry: str, by_id: dict, by_code: dict, by_name: dict)
 
 
 def _provision_home_collection(
-    booking_id: str, patient_id: str, full_name: str, selected_tests: list
+    booking_id: str, patient_id: str, full_name: str, selected_tests: list,
+    family_member_id: Optional[str] = None,
 ) -> None:
     """Bridge `bookings.selected_tests` (a list of test name/code strings) into
     the `booking_subjects`/`booking_tests` rows `assign_booking` actually reads,
     then hand off to it.
+
+    When `family_member_id` is provided, the booking subject is that family
+    member (e.g. a parent) rather than the account holder. This ensures the
+    phlebotomist's dispatch address resolves to the patient's address, not the
+    booker's.
 
     `assign_booking` derives tubes by iterating `booking_subjects` and
     `booking_tests` — NOT `bookings.selected_tests`. Called without this bridge
@@ -143,18 +149,22 @@ def _provision_home_collection(
     stale/renamed catalog entry, which is worse for the patient than a gap an
     operator can catch from the log and follow up on manually.
     """
-    self_member = ensure_self_member(patient_id, full_name)
-    if not self_member or not self_member.get("id"):
-        logger.warning(
-            f"Home-collection booking {booking_id}: could not resolve the "
-            "account holder's family_members row; no subject/tests created."
-        )
-        return
+    # If a specific family member was chosen, use that. Otherwise, use self.
+    member_id: Optional[str] = family_member_id
+    if not member_id:
+        self_member = ensure_self_member(patient_id, full_name)
+        if not self_member or not self_member.get("id"):
+            logger.warning(
+                f"Home-collection booking {booking_id}: could not resolve the "
+                "account holder's family_members row; no subject/tests created."
+            )
+            return
+        member_id = self_member["id"]
 
     subject_rows = _rows(
         supabase.table("booking_subjects").insert({
             "booking_id": booking_id,
-            "family_member_id": self_member["id"],
+            "family_member_id": member_id,
         }).execute()
     )
     if not subject_rows:
@@ -321,6 +331,14 @@ async def create_booking(
         ServiceType.LAB_TEST, ServiceType.IMAGING, ServiceType.HEALTH_PACKAGE
     ) and booking.preferred_date
 
+    # Check if the booking has a specific time slot, not just a date.
+    # Frontend sends "provider_id|date|HH:MM" when a slot is chosen.
+    slot_has_time = (
+        len(slot_parts) == 3
+        and slot_parts[2] != "pending"
+        and ":" in slot_parts[2]
+    )
+
     # Partner-blind diagnostics: the lab/diagnostics flow no longer lets the
     # patient choose a centre, so provider_id arrives empty. Resolve the
     # allocation here, server-side, from the marketplace layer — the patient
@@ -372,8 +390,14 @@ async def create_booking(
     )
 
     if is_diagnostic_review and not resolved_provider_id:
-        # Partner-blind diagnostic booking: no centre chosen, patient selects
-        # date only — the org reviews and allots a time slot later.
+        # Partner-blind diagnostic booking: patient selects date + time slot.
+        # When a specific time is given, confirm immediately.
+        # When only date is chosen (no time), the org reviews and allots later.
+        booking_status = (
+            BookingStatus.CONFIRMED.value
+            if slot_has_time
+            else BookingStatus.PENDING_REVIEW.value
+        )
         booking_data = {
             "id": booking_id,
             "patient_id": current_user["sub"],
@@ -384,7 +408,7 @@ async def create_booking(
             "slot_start": f"{booking.preferred_date}T00:00:00",
             "slot_end": f"{booking.preferred_date}T23:59:59",
             "preferred_date": booking.preferred_date,
-            "status": BookingStatus.PENDING_REVIEW.value,
+            "status": booking_status,
             "notes": booking.notes or "",
             "selected_tests": booking.selected_tests or [],
             "total_price": booking.total_price or 0,
@@ -414,6 +438,36 @@ async def create_booking(
         # District-level centre resolution (see processing_center.resolve_center).
         # Column added by database/processing_center_area_districts.sql.
         booking_data["collection_district"] = booking.district or ""
+        # Precise collection location for phlebotomist dispatch (lat/lng).
+        # When booking is for a family member, resolve their address below.
+        if booking.collection_lat is not None:
+            booking_data["collection_lat"] = booking.collection_lat
+        if booking.collection_lng is not None:
+            booking_data["collection_lng"] = booking.collection_lng
+        # When booking for a specific family member, resolve their address for dispatch
+        if booking.family_member_id:
+            try:
+                fm = _rows(
+                    supabase.table("family_members")
+                    .select("address, city, district, state, pincode, lat, lng")
+                    .eq("id", booking.family_member_id).limit(1).execute()
+                )
+                if fm and fm[0]:
+                    fm_row = fm[0]
+                    # Only override with family member's address if they have one
+                    if fm_row.get("lat") is not None and fm_row.get("lng") is not None:
+                        booking_data["collection_lat"] = fm_row["lat"]
+                        booking_data["collection_lng"] = fm_row["lng"]
+                    if fm_row.get("city"):
+                        booking_data["collection_city"] = fm_row["city"]
+                    if fm_row.get("district"):
+                        booking_data["collection_district"] = fm_row["district"]
+                    # Append family member's address to booking notes for dispatch
+                    if fm_row.get("address"):
+                        addr_note = f"Collection address: {fm_row['address']}"
+                        booking_data["notes"] = (booking.notes or "") + f"\n{addr_note}"
+            except Exception as e:
+                logger.warning(f"Failed to resolve family member address: {e}")
 
     if supabase:
         try:
@@ -428,6 +482,7 @@ async def create_booking(
                         current_user["sub"],
                         current_user.get("full_name") or current_user.get("name") or "",
                         booking.selected_tests or [],
+                        family_member_id=booking.family_member_id,
                     )
                 except Exception as e:
                     logger.warning(
@@ -450,7 +505,9 @@ async def create_booking(
             booking_data["allocated_centre"] = centre
 
     status_msg = (
-        "Booking submitted for review. The diagnostic centre will allot your time slot."
+        "Booking confirmed — your time slot has been booked."
+        if slot_has_time
+        else "Booking submitted for review. The diagnostic centre will allot your time slot."
         if is_diagnostic_review and not resolved_provider_id
         else "Booking confirmed"
     )

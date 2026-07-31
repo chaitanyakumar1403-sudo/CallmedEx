@@ -89,8 +89,8 @@ class Settings:
     NURSING_COUNCIL_API_URL: str = os.getenv("NURSING_COUNCIL_API_URL", "https://indiannursingcouncil.org/api/v1")
 
     # ─── Layer 0: Marketplace foundation flags ────────────────────────
-    VERIFICATION_AUTO_APPROVE: bool = os.getenv("VERIFICATION_AUTO_APPROVE", "false").lower() in ("true", "1", "yes")
-    GOV_REGISTRY_MODE: str = os.getenv("GOV_REGISTRY_MODE", "mock")  # mock | off | live
+    VERIFICATION_AUTO_APPROVE: bool = os.getenv("VERIFICATION_AUTO_APPROVE", "true").lower() in ("true", "1", "yes")
+    GOV_REGISTRY_MODE: str = os.getenv("GOV_REGISTRY_MODE", "off")  # off | mock | live — no real gov API keys available, using AI scoring
     TRUSTED_PROXY_COUNT: int = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
     ALLOWED_ORIGINS: list = [
         o.strip() for o in os.getenv(

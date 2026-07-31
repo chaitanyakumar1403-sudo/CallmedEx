@@ -32,6 +32,58 @@ def extract_license_from_ocr(ocr: dict, role: str) -> str:
 def _chk(name, passed, detail):
     return {"check": name, "passed": passed, "detail": detail}
 
+def cross_document_match(aadhaar_ocr: dict | None, cert_ocr: dict | None,
+                         profile_name: str | None) -> dict:
+    """Compare names across Aadhaar, certificate, and profile.
+
+    When no government APIs are available (gov_mode="off"), this provides the
+    primary assurance: if the name on the Aadhaar, the certificate, and the
+    profile all match, the identity is almost certainly legitimate. Mismatches
+    flag for manual review.
+
+    Returns a verdict dict with:
+      - cross_match_score (0.0-1.0): overall confidence from cross-document checks
+      - checks: individual match results
+      - all_match: True if all available documents agree on the name
+    """
+    checks = []
+    name_sources = []
+
+    if aadhaar_ocr and aadhaar_ocr.get("extracted_name"):
+        aadhaar_name = aadhaar_ocr["extracted_name"].strip()
+        name_sources.append(("aadhaar", aadhaar_name))
+    if cert_ocr and cert_ocr.get("extracted_name"):
+        cert_name = cert_ocr["extracted_name"].strip()
+        name_sources.append(("certificate", cert_name))
+    if profile_name:
+        name_sources.append(("profile", profile_name.strip()))
+
+    if len(name_sources) < 2:
+        return {"cross_match_score": 0.5, "checks": checks,
+                "all_match": True, "reasoning": "Too few sources to cross-match"}
+
+    matches = 0
+    total_pairs = 0
+    for i in range(len(name_sources)):
+        for j in range(i + 1, len(name_sources)):
+            total_pairs += 1
+            src_a, name_a = name_sources[i]
+            src_b, name_b = name_sources[j]
+            match_result = names_match(name_a, name_b)
+            if match_result:
+                matches += 1
+            checks.append({
+                "check": f"name_match_{src_a}_vs_{src_b}",
+                "passed": match_result,
+                "detail": f"'{name_a}' vs '{name_b}': {'✓' if match_result else '✗ mismatch'}",
+            })
+
+    score = matches / max(total_pairs, 1)
+    all_match = matches == total_pairs
+    return {"cross_match_score": score, "checks": checks,
+            "all_match": all_match,
+            "reasoning": "All documents agree" if all_match else "Name discrepancies found"}
+
 def decide(ocr: dict, stored_name: str, stored_license: str, gov: dict | None,
            auto_approve_enabled: bool, gov_mode: str, confidence_floor: float = 0.75) -> dict:
     checks = []

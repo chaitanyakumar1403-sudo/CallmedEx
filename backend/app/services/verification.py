@@ -26,7 +26,7 @@ from typing import Optional, Dict, Any
 from app.database import supabase
 from app.services.ai_ocr import AIOCRService
 from app.services.gov_registry import GovRegistryAPI
-from app.services.verification_decision import decide
+from app.services.verification_decision import decide, cross_document_match
 from app.services.storage import StorageService
 from app.config import settings
 
@@ -131,6 +131,116 @@ class VerificationService:
         return await VerificationService._finalize(
             user_id, role, doc_path, result["final_status"], result["decision"],
             ocr, gov, result["reason"], result["checks"])
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # MULTI-DOCUMENT VERIFICATION: run_full_verification with cross-doc matching
+    # ═══════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    async def run_multi_document_verification(
+        user_id: str, role: str,
+        cert_file_bytes: bytes, cert_mime_type: str,
+        aadhaar_file_bytes: bytes | None = None, aadhaar_mime_type: str | None = None,
+    ) -> dict:
+        """
+        Enhanced verification that processes both the professional certificate
+        AND the provider's Aadhaar, then cross-matches the extracted names.
+
+        When no government APIs are available (gov_mode="off"), this cross-doc
+        matching provides the primary identity assurance.
+
+        Steps:
+          1. OCR the professional certificate → extract name, license, validity
+          2. OCR the Aadhaar (if provided) → extract name, DOB
+          3. Cross-match: name on certificate vs Aadhaar vs profile
+          4. Compute final AI confidence score
+          5. Decide: verified / under_review / rejected
+        """
+        rules = VerificationService.VERIFICATION_RULES.get(role)
+        if not rules:
+            return {"success": False, "status": "error",
+                    "message": f"No verification rules for role: {role}"}
+
+        profile = await VerificationService.get_provider_profile(user_id, role)
+        user_record = await VerificationService._get_user_record(user_id)
+        if not profile:
+            return {"success": False, "status": "error",
+                    "message": f"No {role} profile found"}
+
+        if rules["name_field"] == "full_name":
+            stored_name = ((user_record or {}).get("full_name") or "").strip()
+        else:
+            stored_name = (profile.get(rules["name_field"]) or "").strip()
+        stored_license = (profile.get(rules["license_field"]) or "").strip()
+
+        # Stage 0: store certificate document
+        ext = "pdf" if "pdf" in cert_mime_type.lower() else cert_mime_type.split("/")[-1]
+        doc_path = StorageService.upload_verification_doc(user_id, cert_file_bytes, ext)
+
+        # Stage 1: OCR the professional certificate
+        try:
+            cert_ocr = AIOCRService.extract_certificate_data(
+                cert_file_bytes, cert_mime_type, role)
+        except ValueError as e:
+            logger.error(f"[VERIFY] OCR failed for cert of {user_id}: {e}")
+            return await VerificationService._finalize(
+                user_id, role, doc_path, "under_review", "needs_review",
+                {"error": "ocr_unavailable"}, None,
+                "Certificate OCR unavailable — under manual review.",
+                [{"check": "ai_ocr", "passed": False, "detail": "OCR service error"}])
+
+        cert_ocr["_role"] = role
+
+        # Stage 2: OCR the Aadhaar if provided
+        aadhaar_ocr = None
+        if aadhaar_file_bytes and aadhaar_mime_type:
+            try:
+                aadhaar_ocr = AIOCRService.extract_certificate_data(
+                    aadhaar_file_bytes, aadhaar_mime_type, "aadhaar")
+            except ValueError as e:
+                logger.warning(f"[VERIFY] Aadhaar OCR failed for {user_id}: {e}")
+                # Non-blocking — continue without Aadhaar match
+
+        # Stage 3: Cross-document name matching
+        cross = cross_document_match(aadhaar_ocr, cert_ocr, stored_name)
+
+        # Stage 4: Gov registry check (skipped when off)
+        gov = None
+        if settings.GOV_REGISTRY_MODE in ("mock", "live"):
+            gov = await VerificationService._run_gov_check(
+                role, profile, stored_name, stored_license)
+        else:
+            logger.info(
+                f"[VERIFY] Gov registry check SKIPPED for {role} user={user_id} "
+                f"(GOV_REGISTRY_MODE={settings.GOV_REGISTRY_MODE})")
+
+        # Stage 5: Combine cross-doc results with regular decision
+        all_checks = list(cross["checks"])
+        result = decide(cert_ocr, stored_name, stored_license, gov,
+                        settings.VERIFICATION_AUTO_APPROVE,
+                        settings.GOV_REGISTRY_MODE)
+        all_checks.extend(result.get("checks", []))
+
+        # When gov is off, rely on cross-doc score to downgrade if names don't match
+        if settings.GOV_REGISTRY_MODE == "off" and not cross["all_match"]:
+            result["final_status"] = "under_review"
+            result["decision"] = "needs_review"
+            result["reason"] = (
+                f"Cross-document name mismatch: {cross['reasoning']}. "
+                "Manual review required.")
+
+        result["checks"] = all_checks
+        result["cross_match"] = cross
+
+        logger.info(
+            f"[VERIFY] Multi-doc decision for {role} user={user_id}: "
+            f"{result['decision']} → {result['final_status']} — "
+            f"{result['reason']} [cross_score={cross['cross_match_score']:.2f}]")
+
+        return await VerificationService._finalize(
+            user_id, role, doc_path, result["final_status"], result["decision"],
+            {"cert": cert_ocr, "aadhaar": aadhaar_ocr} if aadhaar_ocr else cert_ocr,
+            gov, result["reason"], result["checks"])
 
     # ═══════════════════════════════════════════════════════════════════════
     # LEGACY: run_verification (structural-only, no file upload)
