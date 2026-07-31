@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardShell from '../components/DashboardShell';
+import LOCATIONS from '@/data/india-locations.json';
+
+const LOCATION_MAP = LOCATIONS as Record<string, string[]>;
+const INDIAN_STATES = Object.keys(LOCATION_MAP).sort();
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -401,6 +405,36 @@ export default function AdminDashboard() {
         setAreaMsg(`❌ ${d.detail || 'Failed'}`);
       }
     } catch { setAreaMsg('❌ Error adding area'); }
+  };
+
+  const handleDeleteCentre = async (centreId: string, code: string) => {
+    if (!confirm(`Are you sure you want to delete Processing Centre "${code}"?`)) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) fetchCentres();
+    } catch { /* silent */ }
+  };
+
+  const handleDeduplicateCentres = async () => {
+    if (!confirm('Scan and remove duplicate processing centres?')) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/deduplicate`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Successfully cleaned up ${data.removed} duplicate centre(s).`);
+        fetchCentres();
+      }
+    } catch { /* silent */ }
   };
 
   if (loading) {
@@ -1025,57 +1059,117 @@ export default function AdminDashboard() {
               automatically by pincode / city / district / radius.
             </div>
 
-            {/* ── Header + Create button ──────────────────────────────── */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            {/* ── Header + Actions ──────────────────────────────── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
               <h3 style={{ margin: 0, color: '#1a2b4a' }}>
                 Processing Centres
                 <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.85rem', marginLeft: 8 }}>
                   ({centres.length})
                 </span>
               </h3>
-              <button
-                onClick={() => { setShowPcForm(!showPcForm); setPcFormMsg(''); }}
-                style={{
-                  backgroundColor: '#1a2b4a', color: 'white', border: 'none',
-                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600,
-                }}
-              >{showPcForm ? 'Close' : '+ New Centre'}</button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={handleDeduplicateCentres}
+                  style={{
+                    backgroundColor: '#475569', color: 'white', border: 'none',
+                    padding: '10px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                  }}
+                  title="Remove duplicate processing centres if any exist"
+                >
+                  🧹 Remove Duplicates
+                </button>
+                <button
+                  onClick={() => { setShowPcForm(!showPcForm); setPcFormMsg(''); }}
+                  style={{
+                    backgroundColor: '#1a2b4a', color: 'white', border: 'none',
+                    padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
+                  }}
+                >{showPcForm ? 'Close' : '+ New Centre'}</button>
+              </div>
             </div>
 
-            {/* ── New Centre Form ─────────────────────────────────────── */}
+            {/* ── New Centre Form with State/City Dropdowns ─────────────────────────── */}
             {showPcForm && (
               <form onSubmit={handleCreateCentre} style={{
                 display: 'grid', gap: 12, backgroundColor: '#f8fafc',
-                padding: 20, borderRadius: 8, marginBottom: 24,
+                padding: 20, borderRadius: 8, marginBottom: 24, border: '1px solid #cbd5e1',
               }}>
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>➕ Create Processing Centre</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>State *</label>
+                    <select
+                      required
+                      value={pcForm.state}
+                      onChange={e => {
+                        const st = e.target.value;
+                        const cities = LOCATION_MAP[st] || [];
+                        setPcForm({ ...pcForm, state: st, city: cities[0] || '' });
+                      }}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}
+                    >
+                      <option value="">-- Select State --</option>
+                      {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>City / District *</label>
+                    <select
+                      required
+                      value={pcForm.city}
+                      onChange={e => setPcForm({ ...pcForm, city: e.target.value })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}
+                    >
+                      <option value="">-- Select City / District --</option>
+                      {(LOCATION_MAP[pcForm.state] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  <input required placeholder="Code (e.g. HYD-01)" value={pcForm.code}
-                    onChange={e => setPcForm({ ...pcForm, code: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  <input required placeholder="Name" value={pcForm.name}
-                    onChange={e => setPcForm({ ...pcForm, name: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  <input required placeholder="City" value={pcForm.city}
-                    onChange={e => setPcForm({ ...pcForm, city: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Centre Code *</label>
+                    <input required placeholder="Code (e.g. VSPK-02)" value={pcForm.code}
+                      onChange={e => setPcForm({ ...pcForm, code: e.target.value })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Centre Name *</label>
+                    <input required placeholder="Name (e.g. Visakhapatnam Centre 02)" value={pcForm.name}
+                      onChange={e => setPcForm({ ...pcForm, name: e.target.value })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Pincode</label>
+                    <input placeholder="Pincode" value={pcForm.pincode}
+                      onChange={e => setPcForm({ ...pcForm, pincode: e.target.value })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-                  <input placeholder="State" value={pcForm.state}
-                    onChange={e => setPcForm({ ...pcForm, state: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  <input placeholder="Pincode" value={pcForm.pincode}
-                    onChange={e => setPcForm({ ...pcForm, pincode: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  <input placeholder="Address" value={pcForm.address}
-                    onChange={e => setPcForm({ ...pcForm, address: e.target.value })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  <input type="number" placeholder="Daily Capacity" value={pcForm.daily_capacity || ''}
-                    onChange={e => setPcForm({ ...pcForm, daily_capacity: parseInt(e.target.value) || 0 })}
-                    style={{ padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Full Address</label>
+                    <input placeholder="Full Address" value={pcForm.address}
+                      onChange={e => setPcForm({ ...pcForm, address: e.target.value })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Daily Capacity</label>
+                    <input type="number" placeholder="Capacity (e.g. 500)" value={pcForm.daily_capacity || ''}
+                      onChange={e => setPcForm({ ...pcForm, daily_capacity: parseInt(e.target.value) || 0 })}
+                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
+                  </div>
                 </div>
+
                 <button type="submit" style={{
                   backgroundColor: '#059669', color: 'white', border: 'none',
-                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700,
+                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 4,
                 }}>Create Processing Centre</button>
                 {pcFormMsg && <p style={{ color: pcFormMsg.startsWith('✅') ? '#059669' : '#dc2626', fontWeight: 600, margin: 0 }}>{pcFormMsg}</p>}
               </form>
@@ -1139,6 +1233,12 @@ export default function AdminDashboard() {
                                 color: '#065f46', fontWeight: 600,
                               }}>Reactivate</button>
                           )}
+                          <button onClick={() => handleDeleteCentre(c.id, c.code)}
+                            style={{
+                              fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
+                              border: '1px solid #dc2626', borderRadius: 6, backgroundColor: '#fee2e2',
+                              color: '#991b1b', fontWeight: 600,
+                            }}>🗑️ Delete</button>
                         </div>
                       </div>
 
@@ -1215,19 +1315,26 @@ export default function AdminDashboard() {
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <input placeholder="City" value={selectedCentre === c.id ? areaForm.city : ''}
+                          <select
+                            value={selectedCentre === c.id ? areaForm.city : ''}
                             onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, city: e.target.value }); setAreaMsg(''); }}
                             onFocus={() => setSelectedCentre(c.id)}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 120 }} />
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', backgroundColor: 'white', minWidth: 140 }}
+                          >
+                            <option value="">-- City / District --</option>
+                            {INDIAN_STATES.flatMap(st => LOCATION_MAP[st] || []).sort().map(city => (
+                              <option key={city} value={city}>{city}</option>
+                            ))}
+                          </select>
                           <input placeholder="Pincode" value={selectedCentre === c.id ? areaForm.pincode : ''}
                             onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, pincode: e.target.value }); }}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 100 }} />
+                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 90 }} />
                           <input placeholder="Radius (km)" value={selectedCentre === c.id ? areaForm.radius_km : ''}
                             onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, radius_km: e.target.value }); }}
-                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 100 }} />
+                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 90 }} />
                           <input placeholder="Priority" value={selectedCentre === c.id ? areaForm.priority : 100}
                             onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, priority: parseInt(e.target.value) || 100 }); }}
-                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 80 }} />
+                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 70 }} />
                           <button onClick={() => { setSelectedCentre(c.id); handleAddArea(c.id); }}
                             style={{
                               fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',

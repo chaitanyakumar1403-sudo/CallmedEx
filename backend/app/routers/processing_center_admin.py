@@ -60,7 +60,28 @@ class AreaIn(BaseModel):
 async def create_center(payload: CenterIn, user: dict = Depends(get_current_user)):
     _require_admin(user)
     body = payload.model_dump()
-    body["city"] = body["city"].strip().lower()
+    code = body["code"].strip().upper()
+    name = body["name"].strip()
+    city = body["city"].strip().lower()
+
+    # Check if center with same code or same name & city already exists
+    existing = _rows(
+        supabase.table("processing_centers")
+        .select("id, code, name, city")
+        .execute()
+    )
+    for ext in existing:
+        ext_code = str(ext.get("code", "")).strip().upper()
+        ext_name = str(ext.get("name", "")).strip().lower()
+        ext_city = str(ext.get("city", "")).strip().lower()
+        if ext_code == code:
+            raise HTTPException(status_code=400, detail=f"Processing Centre with code '{code}' already exists.")
+        if ext_name == name.lower() and ext_city == city:
+            raise HTTPException(status_code=400, detail=f"Processing Centre '{name}' in {city.title()} already exists.")
+
+    body["code"] = code
+    body["name"] = name
+    body["city"] = city
     body["created_by"] = user.get("sub")
     created = _rows(supabase.table("processing_centers").insert(body).execute())
     return {"center": created[0] if created else None}
@@ -83,6 +104,26 @@ async def list_centers(user: dict = Depends(get_current_user)):
     return {"centers": centers}
 
 
+@router.delete("/deduplicate")
+async def deduplicate_centers(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    centers = _rows(supabase.table("processing_centers").select("*").execute())
+    seen = {}
+    removed_count = 0
+    for c in centers:
+        key = (c.get("code", "").strip().upper(), c.get("name", "").strip().lower(), c.get("city", "").strip().lower())
+        if key in seen:
+            # Delete duplicate center
+            c_id = c["id"]
+            supabase.table("processing_center_staff").delete().eq("processing_center_id", c_id).execute()
+            supabase.table("processing_center_areas").delete().eq("processing_center_id", c_id).execute()
+            supabase.table("processing_centers").delete().eq("id", c_id).execute()
+            removed_count += 1
+        else:
+            seen[key] = c["id"]
+    return {"ok": True, "removed": removed_count}
+
+
 @router.patch("/{center_id}")
 async def update_center(center_id: str, payload: dict,
                         user: dict = Depends(get_current_user)):
@@ -95,6 +136,16 @@ async def update_center(center_id: str, payload: dict,
     if not updated:
         raise HTTPException(status_code=404, detail="Processing centre not found.")
     return {"center": updated[0]}
+
+
+@router.delete("/{center_id}")
+async def delete_center(center_id: str, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    # Clean up associated staff and areas
+    supabase.table("processing_center_staff").delete().eq("processing_center_id", center_id).execute()
+    supabase.table("processing_center_areas").delete().eq("processing_center_id", center_id).execute()
+    deleted = _rows(supabase.table("processing_centers").delete().eq("id", center_id).execute())
+    return {"ok": True, "deleted": len(deleted)}
 
 
 @router.post("/{center_id}/staff")
