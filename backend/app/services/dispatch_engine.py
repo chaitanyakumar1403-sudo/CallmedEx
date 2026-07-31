@@ -512,20 +512,31 @@ class UniversalDispatchEngine:
                 logger.warning(f"Unparseable expires_at on offer {offer_id}: {expires_at}")
 
         if accepted:
-            # Accept this offer
-            supabase.table("dispatch_offers").update({
-                "status": "accepted",
-                "responded_at": now,
-            }).eq("id", offer_id).execute()
-
-            # Update the dispatch request
-            supabase.table("dispatch_requests").update({
+            # Accept this offer — but only if the dispatch is still unassigned.
+            # The .in_("status") guard prevents two providers accepting concurrently:
+            # the second UPDATE matches zero rows and we bail without overwriting.
+            accept_result = supabase.table("dispatch_requests").update({
                 "status": "provider_accepted",
                 "assigned_provider_id": provider_id,
                 "assigned_at": now,
                 "estimated_distance_km": offer.get("distance_km"),
                 "updated_at": now,
-            }).eq("id", dispatch_id).execute()
+            }).eq("id", dispatch_id).in_("status", ["searching", "provider_notified"]).execute()
+
+            if not accept_result.data:
+                # Another provider already accepted — mark this offer as expired
+                # so the provider sees "expired" instead of an infinite offer loop.
+                supabase.table("dispatch_offers").update({
+                    "status": "expired",
+                    "responded_at": now,
+                }).eq("id", offer_id).execute()
+                return {"success": False, "message": "Another provider already accepted this request."}
+
+            # Mark this offer as accepted
+            supabase.table("dispatch_offers").update({
+                "status": "accepted",
+                "responded_at": now,
+            }).eq("id", offer_id).execute()
 
             # Expire all other pending offers for this dispatch
             supabase.table("dispatch_offers").update({
@@ -574,7 +585,7 @@ class UniversalDispatchEngine:
             except Exception as e:
                 logger.error(f"Failed to send tracking email: {e}")
 
-            return {"success": True, "message": "Offer accepted. Navigate to patient."}
+            return {"success": True, "message": "Offer accepted. Navigate to patient.", "dispatch_id": dispatch_id}
         else:
             # Reject this offer
             supabase.table("dispatch_offers").update({

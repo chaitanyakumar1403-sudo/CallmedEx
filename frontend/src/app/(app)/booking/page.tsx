@@ -450,7 +450,7 @@ function BookingPageContent() {
         : "";
       const testNotes =
         selectedTests.length > 0
-          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal} ${pricingNote}`
+          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${fee} ${pricingNote}`
           : selectedTest
           ? `Test: ${selectedTest.name} ${pricingNote}`
           : `${pricingNote}`;
