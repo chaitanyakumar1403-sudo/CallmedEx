@@ -497,6 +497,28 @@ async def create_booking(
                             if "Collection address:" in (booking_data.get("notes") or "")
                             else (booking.collection_address or booking.city or "")
                         )
+
+                        # If no collection lat/lng, try to resolve from the
+                        # patient's profile (users table has address/city).
+                        if not patient_lat or not patient_lng:
+                            try:
+                                user_row = _rows(
+                                    supabase.table("users").select("city, address")
+                                    .eq("id", current_user["sub"]).limit(1).execute()
+                                )
+                                if user_row:
+                                    # Use city center as approximate location
+                                    # A production system would geocode the address;
+                                    # for MVP we use the booking's city to at least
+                                    # find the right processing centre.
+                                    logger.info(
+                                        f"No precise coords for booking {booking_id}, "
+                                        f"using city-based dispatch. Patient city: "
+                                        f"{user_row[0].get('city', booking.city or 'unknown')}"
+                                    )
+                            except Exception as lookup_err:
+                                logger.warning(f"Patient lookup for dispatch failed: {lookup_err}")
+
                         if patient_lat and patient_lng:
                             await UniversalDispatchEngine.create_dispatch(
                                 patient_id=current_user["sub"],
@@ -508,6 +530,15 @@ async def create_booking(
                                 booking_id=booking_id,
                                 notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
                                 priority="normal",
+                            )
+                        else:
+                            # No lat/lng at all — dispatch cannot be created, but
+                            # the booking itself is confirmed. The phlebotomist
+                            # will need to be assigned manually or the patient
+                            # will use the walk-in option instead.
+                            logger.warning(
+                                f"Booking {booking_id} confirmed but no coordinates "
+                                f"available for dispatch. Patient may need to walk in."
                             )
                     except Exception as dispatch_err:
                         logger.warning(

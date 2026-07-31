@@ -38,31 +38,24 @@ const DEFAULT_DIAGNOSTIC_PACKAGES = [
 
 // ─── Time Slot & Pricing Configuration ────────────────────────────────────
 // Slot tiers:
-//   Fasting (05:00) — flat ₹99 promotional price for early-morning fasting tests
 //   Premium (06:00, 06:30, 07:00) — step-collection slots with ₹99 surcharge
-//   Standard (07:30–20:00) — regular pricing
+//   Standard (05:00, 07:30–20:00) — regular pricing
 
-const FASTING_SLOT = "05:00";
 const PREMIUM_SLOTS = new Set(["06:00", "06:30", "07:00"]);
 
 interface SlotPricing {
-  tier: "fasting" | "premium" | "standard";
+  tier: "premium" | "standard";
   label: string;
   badge: string;
   /** Surcharge added on top of base test prices */
   surcharge: number;
-  /** Flat price for fasting tier (overrides test prices) */
-  flatPrice: number | null;
 }
 
 function getSlotPricing(slot: string): SlotPricing {
-  if (slot === FASTING_SLOT) {
-    return { tier: "fasting", label: "Fasting Special", badge: "🌅 ₹99 Flat", surcharge: 0, flatPrice: 99 };
-  }
   if (PREMIUM_SLOTS.has(slot)) {
-    return { tier: "premium", label: "Premium", badge: "⭐ ₹99 Extra", surcharge: 99, flatPrice: null };
+    return { tier: "premium", label: "Premium", badge: "⭐ ₹99 Extra", surcharge: 99 };
   }
-  return { tier: "standard", label: "Standard", badge: "", surcharge: 0, flatPrice: null };
+  return { tier: "standard", label: "Standard", badge: "", surcharge: 0 };
 }
 
 // Generate 30-min time slots from 5:00 AM to 8:00 PM
@@ -468,7 +461,7 @@ function BookingPageContent() {
           slot_id: slotKey,
           notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
-          total_price: pricing?.flatPrice ?? (packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
+          total_price: (packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
           preferred_date: selectedDate,
           // Lab is partner-blind: no centre was chosen (providerId is ""), so
           // the backend resolves the allocation itself from these. catalog_id
@@ -637,8 +630,8 @@ function BookingPageContent() {
   const slotPricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
   // Base price: sum of selected tests / doctor fee / package price
   const basePrice = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || (bookingType === "doctor" ? (selectedOrg?.consultation_fee || 300) : 0);
-  // Flat price overrides everything (fasting special), otherwise add surcharge
-  const fee = slotPricing?.flatPrice ?? (basePrice + (slotPricing?.surcharge || 0));
+  // Premium slots add a surcharge; standard slots are base price
+  const fee = basePrice + (slotPricing?.surcharge || 0);
 
   // Step indicator
   const getSteps = () => {
@@ -1593,50 +1586,16 @@ function BookingPageContent() {
               }
 
               // Categorise slots
-              const fastingSlots = dynamicSlots.filter((t) => t === FASTING_SLOT);
               const premiumSlots = dynamicSlots.filter((t) => PREMIUM_SLOTS.has(t));
+              // 05:00-06:30,07:30-11:30 → morning; 12:00+ → afternoon
+              const earlyMorningSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) < 7);
               const morningSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 7 && parseInt(t.split(":")[0]) < 12);
               const afternoonSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 12);
-              // Include 05:00 in morning if not already in fasting
-              const extraMorning = dynamicSlots.filter((t) => t !== FASTING_SLOT && !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) < 7);
 
               return (
                 <>
-                  {/* Fasting Slot (05:00) */}
-                  {fastingSlots.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: "0.75rem", color: "#b45309", marginBottom: 8, fontWeight: 700 }}>
-                        🌅 Fasting Special — ₹99 Flat
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
-                        {fastingSlots.map((t) => {
-                          const pricing = getSlotPricing(t);
-                          const isSelected = selectedSlot === t;
-                          return (
-                            <div
-                              key={t}
-                              style={{
-                                padding: "10px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
-                                fontSize: "0.82rem", fontWeight: 600,
-                                border: isSelected ? "2px solid #d97706" : "2px solid #fde68a",
-                                backgroundColor: isSelected ? "#fffbeb" : "#fff",
-                                color: "#92400e",
-                                transition: "all 0.15s ease",
-                                position: "relative",
-                              }}
-                              onClick={() => { setSelectedSlot(t); setError(""); }}
-                            >
-                              <div>{formatSlotLabel(t)}</div>
-                              <div style={{ fontSize: "0.65rem", fontWeight: 800, color: "#d97706", marginTop: 2 }}>₹{pricing.flatPrice}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Premium Slots (06:00, 06:30, 07:00) */}
-                  {([...premiumSlots, ...extraMorning]).length > 0 && (
+                  {premiumSlots.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: "0.75rem", color: "#7c3aed", marginBottom: 8, fontWeight: 700 }}>
                         ⭐ Premium Step Collection — ₹99 Extra
@@ -1671,12 +1630,12 @@ function BookingPageContent() {
                     </div>
                   )}
 
-                  {/* Morning Slots (07:30–11:30) */}
-                  {morningSlots.length > 0 && (
+                  {/* Early Morning + Morning Slots (05:00–11:30) */}
+                  {(earlyMorningSlots.length > 0 || morningSlots.length > 0) && (
                     <div style={{ marginBottom: 16 }}>
                       <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                        {morningSlots.map((t) => {
+                        {[...earlyMorningSlots, ...morningSlots].map((t) => {
                           const isSelected = selectedSlot === t;
                           return (
                             <div
@@ -1739,8 +1698,8 @@ function BookingPageContent() {
                     <div>
                       <div style={{ fontWeight: 700, color: "#166534" }}>
                         📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
-                        {pricing.tier !== "standard" && (
-                          <span style={{ marginLeft: 8, fontSize: "0.7rem", backgroundColor: pricing.tier === "fasting" ? "#d97706" : "#7c3aed", color: "white", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
+                        {pricing.tier === "premium" && (
+                          <span style={{ marginLeft: 8, fontSize: "0.7rem", backgroundColor: "#7c3aed", color: "white", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
                             {pricing.label}
                           </span>
                         )}
@@ -1748,11 +1707,6 @@ function BookingPageContent() {
                       <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
                         {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || (selectedTests.length > 0 ? `${selectedTests.length} test(s) selected` : "Appointment")}
                       </div>
-                      {pricing.tier === "fasting" && (
-                        <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: 4 }}>
-                          🌅 Fasting special: ₹99 flat (all tests included)
-                        </div>
-                      )}
                       {pricing.tier === "premium" && (
                         <div style={{ fontSize: "0.75rem", color: "#5b21b6", marginTop: 4 }}>
                           ⭐ Premium slot: +₹{pricing.surcharge} surcharge

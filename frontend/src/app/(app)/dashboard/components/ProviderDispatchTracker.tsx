@@ -114,14 +114,18 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
       if (res.ok) {
         const data = await res.json();
         const all = data.tasks || [];
-        // Filter out stale tasks older than 24 hours that are stuck in "accepted"
-        // (they were never completed or cancelled — likely test data or orphans)
+        // Filter out stale tasks older than 24 hours that are stuck in any
+        // pre-completion status ("provider_accepted", "en_route", "arrived",
+        // "in_progress") — these were never completed or cancelled, likely
+        // test data or orphans from the 18/07/2026 batch.
+        const STALE_AGE_MS = 24 * 60 * 60 * 1000;
         const now = Date.now();
+        const staleStatuses = new Set(["provider_accepted", "en_route", "arrived", "in_progress"]);
         const filtered = all.filter((t: DispatchTask) => {
           if (["completed", "cancelled"].includes(t.status)) return false;
-          if (t.status === "provider_accepted" && t.created_at) {
+          if (staleStatuses.has(t.status) && t.created_at) {
             const age = now - new Date(t.created_at).getTime();
-            if (age > 24 * 60 * 60 * 1000) return false; // older than 24h
+            if (age > STALE_AGE_MS) return false; // older than 24h
           }
           return true;
         });
