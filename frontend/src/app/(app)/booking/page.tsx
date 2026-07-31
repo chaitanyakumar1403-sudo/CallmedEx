@@ -1601,7 +1601,7 @@ function BookingPageContent() {
                         ⭐ Premium Step Collection — ₹99 Extra
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
-                        {[...premiumSlots, ...extraMorning].map((t) => {
+                        {premiumSlots.map((t) => {
                           const pricing = getSlotPricing(t);
                           const isSelected = selectedSlot === t;
                           return (
