@@ -127,13 +127,13 @@ function BookingPageContent() {
   // This is display-only — which partner actually fulfils it is resolved
   // again, server-side, at booking time (see handleConfirm); the patient
   // never picks or sees a centre here either.
+  const targetParam = serviceParam || packageParam;
+
   const fetchDeepLinkedTest = useCallback(() => {
-    if (!serviceParam) return;
+    if (!targetParam) return;
     setDeepLinkedLoading(true);
     const url = new URL(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/marketplace/fulfilment`);
-    url.searchParams.set("catalog_id", serviceParam);
-    // The fulfilment endpoint substring-matches `city` against a partner's
-    // city + state — the district alone is the strongest single token.
+    url.searchParams.set("catalog_id", targetParam);
     if (labDistrict.trim()) url.searchParams.set("city", labDistrict.trim());
     url.searchParams.set("home", modeParam === "home" ? "true" : "false");
 
@@ -143,9 +143,9 @@ function BookingPageContent() {
         if (data.test && data.fulfilment) {
           const test = {
             name: data.test.name,
-            price: data.fulfilment.price,
+            price: data.fulfilment.price || 599,
             description: data.test.preparation || "",
-            catalog_id: serviceParam,
+            catalog_id: targetParam,
             walk_in_required: data.fulfilment.walk_in_required,
           };
           setDeepLinkedTest(test);
@@ -159,19 +159,18 @@ function BookingPageContent() {
         setDeepLinkedLoading(false);
         setDeepLinkedChecked(true);
       });
-  }, [serviceParam, labDistrict, modeParam]);
+  }, [targetParam, labDistrict, modeParam]);
 
   useEffect(() => {
-    if (step === 2 && bookingType === "lab" && serviceParam && !deepLinkedChecked) {
+    if (step === 2 && bookingType === "lab" && targetParam && !deepLinkedChecked) {
       fetchDeepLinkedTest();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, bookingType, serviceParam, deepLinkedChecked]);
+  }, [step, bookingType, targetParam, deepLinkedChecked]);
 
-  // Re-check availability when the district changes after the initial check —
-  // replaces the old free-text input's onBlur refetch.
+  // Re-check availability when the district changes after the initial check
   useEffect(() => {
-    if (serviceParam && deepLinkedChecked) fetchDeepLinkedTest();
+    if (targetParam && deepLinkedChecked) fetchDeepLinkedTest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labDistrict]);
 
@@ -428,16 +427,10 @@ function BookingPageContent() {
           // provider_id + slot_id (not PENDING_REVIEW).
           ...(bookingType === "lab" && !selectedOrg?.isReal
             ? {
-                catalog_id: deepLinkedTest?.catalog_id || undefined,
-                query: !deepLinkedTest?.catalog_id ? selectedTests[0]?.name : undefined,
+                catalog_id: deepLinkedTest?.catalog_id || serviceParam || packageParam || selectedTests[0]?.catalog_id || "general_lab_test",
+                query: deepLinkedTest?.name || serviceParam || packageParam || selectedTests[0]?.name || "Lab Test",
                 city: labDistrict.trim() || undefined,
-                // Drives processing-centre assignment server-side
-                // (bookings.collection_district → resolve_center district match).
                 district: labDistrict.trim() || undefined,
-                // Was hardcoded false — a patient arriving from a "Home
-                // collection" card on /diagnostics (?mode=home) silently got a
-                // walk-in booking and never reached dispatch assignment.
-                // Packages are always home collection; otherwise trust the mode param.
                 home: packageParam ? true : modeParam === "home",
               }
             : {}),

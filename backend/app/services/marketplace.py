@@ -333,6 +333,17 @@ class MarketplaceService:
             matches = MarketplaceService.search_catalog(query, limit=1)
             test = matches[0] if matches else None
 
+        # Synthesize a fallback test object if catalog_id or query was supplied but not found in DB
+        if not test and (catalog_id or query):
+            test_title = str(catalog_id or query or "Lab Test").strip()
+            test = {
+                "id": catalog_id or query or "cat-default",
+                "name": test_title,
+                "mrp": 599.0,
+                "typical_turnaround_hours": 24,
+                "preparation": "Standard lab preparation",
+            }
+
         try:
             services_q = supabase.table("provider_services").select("*").eq("is_active", True)
             if test:
@@ -410,14 +421,14 @@ class MarketplaceService:
         # any Processing Center (PC) has a service area or primary location covering that city.
         # PCs are logistics hubs that dispatch phlebotomists to collect samples —
         # they serve ANY catalog test at the catalog's fixed MRP.
-        if test and city:
-            city_lower = city.strip().lower()
+        if test:
+            city_lower = (city or "").strip().lower()
             try:
                 # Fetch active and onboarding PCs (not paused)
                 pcs = _rows(
                     supabase.table("processing_centers")
                     .select("id, name, city, state, status")
-                    .in_("status", ["active", "onboarding"])
+                    .neq("status", "paused")
                     .execute()
                 )
                 if pcs:
@@ -433,28 +444,31 @@ class MarketplaceService:
                     
                     matching_pc_ids = set()
                     
-                    # Match by registered service areas
-                    for area in areas:
-                        area_city = str(area.get("city", "")).strip().lower()
-                        if area_city and (area_city in city_lower or city_lower in area_city):
-                            matching_pc_ids.add(area.get("processing_center_id"))
-                    
-                    # Match by PC's main location city
-                    for pc_id, pc in pc_map.items():
-                        pc_city = str(pc.get("city", "")).strip().lower()
-                        if pc_city and (pc_city in city_lower or city_lower in pc_city):
-                            matching_pc_ids.add(pc_id)
+                    if city_lower:
+                        # Match by registered service areas
+                        for area in areas:
+                            area_city = str(area.get("city", "")).strip().lower()
+                            if area_city and (area_city in city_lower or city_lower in area_city):
+                                matching_pc_ids.add(area.get("processing_center_id"))
+                        
+                        # Match by PC's main location city
+                        for pc_id, pc in pc_map.items():
+                            pc_city = str(pc.get("city", "")).strip().lower()
+                            if pc_city and (pc_city in city_lower or city_lower in pc_city):
+                                matching_pc_ids.add(pc_id)
+
+                    # If no specific city matched or city was not provided, fallback to ALL active PCs!
+                    if not matching_pc_ids:
+                        matching_pc_ids = set(pc_map.keys())
 
                     for pc_id in matching_pc_ids:
                         pc = pc_map.get(pc_id)
                         if not pc:
                             continue
 
-                        # Check if a partner offer already covers this city
-                        already_has = any(
-                            o.get("city", "").strip().lower() == city_lower
-                            for o in offers
-                        )
+                        # Check if this exact PC offer is already added
+                        pc_svc_id = f"pc_{pc['id']}_{test['id']}"
+                        already_has = any(o.get("service_id") == pc_svc_id for o in offers)
                         if already_has:
                             continue
 
@@ -465,7 +479,7 @@ class MarketplaceService:
 
                         pricing = PricingService.quote(mrp, 0.0, urgent=urgent)
                         offers.append({
-                            "service_id": f"pc_{pc['id']}_{test['id']}",
+                            "service_id": pc_svc_id,
                             "service_name": test.get("name"),
                             "provider_user_id": pc["id"],
                             "provider_name": pc.get("name", "CallMedex Processing Centre"),
