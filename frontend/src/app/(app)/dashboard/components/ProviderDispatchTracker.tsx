@@ -49,6 +49,8 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
   const router = useRouter();
   const [onDuty, setOnDuty] = useState(false);
   const [tasks, setTasks] = useState<DispatchTask[]>([]);
+  // Separate state for pending offers (dispatch_offers, not yet accepted)
+  const [offers, setOffers] = useState<any[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
   const [earnings, setEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,18 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
       if (res.ok) {
         const data = await res.json();
         const all = data.tasks || [];
-        setTasks(all.filter((t: DispatchTask) => !["completed", "cancelled"].includes(t.status)));
+        // Filter out stale tasks older than 24 hours that are stuck in "accepted"
+        // (they were never completed or cancelled — likely test data or orphans)
+        const now = Date.now();
+        const filtered = all.filter((t: DispatchTask) => {
+          if (["completed", "cancelled"].includes(t.status)) return false;
+          if (t.status === "provider_accepted" && t.created_at) {
+            const age = now - new Date(t.created_at).getTime();
+            if (age > 24 * 60 * 60 * 1000) return false; // older than 24h
+          }
+          return true;
+        });
+        setTasks(filtered);
         const done = all.filter((t: DispatchTask) => t.status === "completed");
         setCompletedToday(done.length);
         setEarnings(done.length * earningsRate);
@@ -125,10 +138,25 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     } catch (e) { console.error(e); }
   }, [earningsRate]);
 
+  const fetchOffers = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/dispatch/my/offers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOffers(data.offers || []);
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
   useEffect(() => {
     fetchDutyStatus();
     fetchTasks();
-    taskIntervalRef.current = setInterval(fetchTasks, 12000);
+    fetchOffers();
+    taskIntervalRef.current = setInterval(() => { fetchTasks(); fetchOffers(); }, 12000);
     return () => {
       if (taskIntervalRef.current) clearInterval(taskIntervalRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
@@ -239,22 +267,28 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
   };
 
   // ─── Accept / Reject Task ─────────────────────────────────────────────
-  const handleTaskAction = async (taskId: string, action: "accept" | "reject") => {
+  const handleTaskAction = async (taskId: string, action: "accept" | "reject", isOffer: boolean = false) => {
     setActionLoading(taskId + action);
     const token = getToken();
     try {
-      const res = await fetch(`${apiBase}/api/dispatch/${taskId}/${action}`, {
+      // Offers use the respond endpoint; accepted dispatches use the legacy accept endpoint
+      const url = isOffer
+        ? `${apiBase}/api/dispatch/respond/${taskId}`
+        : `${apiBase}/api/dispatch/${taskId}/${action}`;
+      const res = await fetch(url, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: isOffer ? JSON.stringify({ accepted: action === "accept" }) : undefined,
       });
       const data = await res.json();
       if (data.success) {
         setStatusMsg(action === "accept"
           ? { tone: "done", text: "Task accepted! Head to the patient's location." }
-          : { tone: "active", text: "Task declined — you will receive the next request." });
+          : { tone: "active", text: "Request declined." });
         fetchTasks();
+        fetchOffers();
       } else {
-        setStatusMsg({ tone: "urgent", text: data.detail || `Failed to ${action} task` });
+        setStatusMsg({ tone: "urgent", text: data.detail || data.message || `Failed to ${action}` });
       }
     } catch (e) {
       setStatusMsg({ tone: "urgent", text: "Network error" });
@@ -393,9 +427,27 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     );
   }
 
+  // Pending offers from dispatch_offers (phlebotomist has not yet accepted)
+  const pendingOffers = offers
+    .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1));
+  // Legacy pending tasks (from dispatch_requests with status "pending")
   const pendingTasks = tasks
     .filter(t => t.status === "pending")
     .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1));
+  // Combined: show offers first, then legacy pending tasks
+  const allPending = [...pendingOffers.map(o => ({
+    id: o.offer_id,
+    patient_address: o.patient_address,
+    patient_lat: 0, patient_lng: 0,
+    status: "pending",
+    service_type: o.service_subtype || o.provider_type || "",
+    estimated_distance_km: o.distance_km || 0,
+    created_at: o.expires_at || "",
+    priority: o.priority || "normal",
+    notes: `${o.distance_km ? o.distance_km.toFixed(1) + " km away" : ""}`,
+    _isOffer: true,
+    _dispatch_request_id: o.dispatch_request_id,
+  })), ...pendingTasks];
 
   return (
     <div className={embedded ? undefined : "cm-tracker--standalone"}>
@@ -443,17 +495,31 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         )}
 
         {/* ─── PENDING TASKS (Accept/Reject) ─── */}
-        {onDuty && pendingTasks.length > 0 && (
+        {onDuty && allPending.length > 0 && (
           <div className="cm-tracker__section">
             <h3 className="cm-tracker__section-title">
               <Icon as={ClipboardList} size={16} />
-              Incoming requests ({pendingTasks.length})
+              Incoming requests ({allPending.length})
             </h3>
             <TaskListPanel
-              tasks={pendingTasks}
+              tasks={allPending}
               actionLoading={actionLoading}
-              onAccept={(id) => handleTaskAction(id, "accept")}
-              onReject={(id) => handleTaskAction(id, "reject")}
+              onAccept={(id) => {
+                const item = allPending.find(t => t.id === id);
+                if (item && (item as any)._isOffer) {
+                  handleTaskAction(id, "accept", true);
+                } else {
+                  handleTaskAction(id, "accept");
+                }
+              }}
+              onReject={(id) => {
+                const item = allPending.find(t => t.id === id);
+                if (item && (item as any)._isOffer) {
+                  handleTaskAction(id, "reject", true);
+                } else {
+                  handleTaskAction(id, "reject");
+                }
+              }}
             />
           </div>
         )}
