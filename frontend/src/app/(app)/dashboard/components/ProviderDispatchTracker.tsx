@@ -142,7 +142,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${apiBase}/api/dispatch/my/offers`, {
+      const res = await fetch(`${apiBase}/api/dispatch/offers/pending`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
