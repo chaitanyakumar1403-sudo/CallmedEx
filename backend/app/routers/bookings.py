@@ -499,25 +499,42 @@ async def create_booking(
                         )
 
                         # If no collection lat/lng, try to resolve from the
-                        # patient's profile (users table has address/city).
+                        # patient's city using approximate city center coordinates.
                         if not patient_lat or not patient_lng:
                             try:
-                                user_row = _rows(
-                                    supabase.table("users").select("city, address")
-                                    .eq("id", current_user["sub"]).limit(1).execute()
-                                )
-                                if user_row:
-                                    # Use city center as approximate location
-                                    # A production system would geocode the address;
-                                    # for MVP we use the booking's city to at least
-                                    # find the right processing centre.
+                                city = booking.city or ""
+                                if not city:
+                                    user_row = _rows(
+                                        supabase.table("users").select("city")
+                                        .eq("id", current_user["sub"]).limit(1).execute()
+                                    )
+                                    if user_row:
+                                        city = (user_row[0].get("city") or "")
+                                # Approximate city centers for known cities
+                                CITY_COORDS = {
+                                    "visakhapatnam": (17.6868, 83.2185),
+                                    "vizag": (17.6868, 83.2185),
+                                    "hyderabad": (17.3850, 78.4867),
+                                    "vijayawada": (16.5062, 80.6480),
+                                    "guntur": (16.3067, 80.4365),
+                                    "kakinada": (16.9400, 82.2400),
+                                    "rajahmundry": (17.0005, 81.8040),
+                                    "tirupati": (13.6288, 79.4192),
+                                }
+                                city_key = city.strip().lower()
+                                if city_key in CITY_COORDS:
+                                    patient_lat, patient_lng = CITY_COORDS[city_key]
                                     logger.info(
-                                        f"No precise coords for booking {booking_id}, "
-                                        f"using city-based dispatch. Patient city: "
-                                        f"{user_row[0].get('city', booking.city or 'unknown')}"
+                                        f"Using approximate coords for {city}: "
+                                        f"({patient_lat}, {patient_lng})"
+                                    )
+                                else:
+                                    patient_lat, patient_lng = 17.6868, 83.2185
+                                    logger.info(
+                                        f"Unknown city '{city}', defaulting to Vizag center"
                                     )
                             except Exception as lookup_err:
-                                logger.warning(f"Patient lookup for dispatch failed: {lookup_err}")
+                                logger.warning(f"City coordinate lookup failed: {lookup_err}")
 
                         if patient_lat and patient_lng:
                             await UniversalDispatchEngine.create_dispatch(

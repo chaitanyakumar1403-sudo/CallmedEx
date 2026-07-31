@@ -17,6 +17,7 @@ from app.services.dispatch_engine import UniversalDispatchEngine
 from app.services.otp import OTPService
 from app.services.magic_link import MagicLinkService
 from app.database import supabase
+from app.utils.db_helpers import _rows
 
 
 logger = logging.getLogger(__name__)
@@ -1016,5 +1017,37 @@ async def record_clinical_notes(
         "vitals_summary": vitals_summary,
         "message": "Clinical notes and vitals chart saved successfully!",
     }
+
+
+@router.get("/debug/booking/{booking_id}")
+async def debug_dispatch_state(booking_id: str):
+    """Debug endpoint: show dispatch state for a booking."""
+    if not supabase:
+        return {"error": "No database"}
+    try:
+        dr = _rows(
+            supabase.table("dispatch_requests")
+            .select("*")
+            .eq("booking_id", booking_id)
+            .execute()
+        )
+        offers = []
+        for d in dr:
+            off = _rows(
+                supabase.table("dispatch_offers")
+                .select("*, users!inner(full_name, email)")
+                .eq("dispatch_request_id", d["id"])
+                .execute()
+            )
+            offers.extend(off)
+        return {
+            "booking_id": booking_id,
+            "dispatch_requests": dr,
+            "offers": offers,
+            "dispatch_count": len(dr),
+            "offer_count": len(offers),
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
