@@ -438,8 +438,8 @@ function BookingPageContent() {
       const pricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
 
       // Build notes with all selected tests + slot pricing info
-      const pricingNote = pricing?.tier !== "standard"
-        ? `[${pricing?.tier === "fasting" ? "Fasting" : "Premium"} slot]`
+      const pricingNote = pricing?.tier === "premium"
+        ? `[Premium slot]`
         : "";
       const testNotes =
         selectedTests.length > 0
