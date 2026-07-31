@@ -104,11 +104,21 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Supabase: {'✅ configured' if settings.SUPABASE_URL else '❌ not configured'}")
     logger.info(f"   Razorpay: {'✅ configured' if settings.RAZORPAY_KEY_ID else '❌ not configured'}")
     logger.info(f"   Gemini AI: {'✅ configured' if settings.GEMINI_API_KEY else '❌ not configured'}")
-    logger.info(f"   Redis: {'✅ configured' if settings.REDIS_URL != 'redis://localhost:6379/0' else '⚠️ default (local)'}")
+    redis_default = settings.REDIS_URL in ("redis://localhost:6379/0", "redis://localhost:6379", "redis://127.0.0.1:6379/0")
+    logger.info(f"   Redis: {'✅ configured' if not redis_default else '⚠️ default (local, no auth)'}")
+    if redis_default and not settings.FRONTEND_URL.startswith("http://localhost"):
+        logger.critical("🔴 SECURITY: REDIS_URL is the default localhost with no authentication. "
+                         "Set a production Redis URL with password.")
     if (warning := jwt_secret_warning()):
         logger.critical("=" * 78)
         logger.critical(f"🔴 SECURITY: {warning}")
         logger.critical("=" * 78)
+        # Refuse to start in production with a weak or missing JWT secret.
+        # In development (localhost), allow it but log loudly.
+        import sys
+        if not settings.FRONTEND_URL.startswith("http://localhost"):
+            logger.critical("❌ Refusing to start with insecure JWT_SECRET in production.")
+            sys.exit(1)
     if (warning := mock_verification_warning()):
         logger.critical("=" * 78)
         logger.critical(f"🔴 VERIFICATION: {warning}")
@@ -230,6 +240,30 @@ class CORSDiagnosticMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(CORSDiagnosticMiddleware)
 
+
+# ─── Cache-Control Middleware for stable endpoints ──────────────────────
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """
+    Add Cache-Control headers to stable public endpoints.
+    Reduces database load for data that changes infrequently.
+    """
+    CACHE_RULES = {
+        "/api/health": "public, max-age=30",
+        "/api/telemed/doctors": "public, max-age=300",       # 5 min
+        "/api/providers/search/": "public, max-age=60",       # 1 min
+        "/api/home-services/catalog": "public, max-age=600",  # 10 min
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.method == "GET" and response.status_code < 400:
+            for prefix, cache_header in self.CACHE_RULES.items():
+                if request.url.path.startswith(prefix):
+                    response.headers["Cache-Control"] = cache_header
+                    break
+        return response
+
+app.add_middleware(CacheControlMiddleware)
 
 # ─── Global Exception Handlers ──────────────────────────────────────────
 @app.exception_handler(Exception)

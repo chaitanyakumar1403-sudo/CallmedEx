@@ -22,7 +22,7 @@ class MagicLinkService:
             "iat": int(time.time()),
             "type": "magic_dispatch"
         }
-        return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+        return jwt.encode(payload, settings.MAGIC_LINK_SECRET, algorithm=settings.JWT_ALGORITHM)
 
     @staticmethod
     def decode_token(token: str) -> Optional[Dict[str, Any]]:
@@ -31,7 +31,7 @@ class MagicLinkService:
         Returns None if expired, invalid, or wrong type.
         """
         try:
-            payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+            payload = jwt.decode(token, settings.MAGIC_LINK_SECRET, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "magic_dispatch":
                 return None
             return payload
@@ -54,7 +54,7 @@ class MagicLinkService:
             "iat": int(time.time()),
             "type": "task_session"
         }
-        return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+        return jwt.encode(payload, settings.MAGIC_LINK_SECRET, algorithm=settings.JWT_ALGORITHM)
 
     @staticmethod
     def decode_task_session_token(token: str) -> Optional[Dict[str, Any]]:
@@ -62,7 +62,7 @@ class MagicLinkService:
         Decodes a task session token.
         """
         try:
-            payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+            payload = jwt.decode(token, settings.MAGIC_LINK_SECRET, algorithms=[settings.JWT_ALGORITHM])
             if payload.get("type") != "task_session":
                 return None
             return payload

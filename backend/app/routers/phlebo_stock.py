@@ -10,22 +10,18 @@ Auto-decrement is best-effort: it clamps at 0 and never blocks a collection
 """
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/phlebo/stock", tags=["Phlebotomist Stock"])
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _first(result) -> dict:

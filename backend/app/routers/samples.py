@@ -26,6 +26,7 @@ from app.middleware.auth import get_current_user
 from app.services.audit import AuditService
 from app.services.samples import SampleService
 from app.services.wallet import WalletService
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +34,6 @@ router = APIRouter(prefix="/api/samples", tags=["Samples"])
 
 COLLECTOR_ROLES = {"phlebotomist", "nurse", "admin"}
 CENTRE_ROLES = {"organization", "staff", "admin"}
-
-
-def _rows(result) -> list:
-    """Coerce a Supabase response into a plain list of dicts."""
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 # Never widen these. /track is shared by the patient, the collecting

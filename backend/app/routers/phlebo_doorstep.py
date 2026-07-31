@@ -11,7 +11,7 @@ Both feed the existing `booking_tests` / `samples` schema from Spec 1.
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -20,15 +20,11 @@ from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.routers.phlebo_stock import decrement_for_collection
 from app.services.tube_derivation import derive_tubes
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/phlebo", tags=["Phlebotomist Doorstep"])
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _first(result) -> dict:

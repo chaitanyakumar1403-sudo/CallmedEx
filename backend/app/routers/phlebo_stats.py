@@ -18,15 +18,11 @@ from pydantic import BaseModel
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/phlebo", tags=["Phlebo Stats"])
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _num(value) -> float:

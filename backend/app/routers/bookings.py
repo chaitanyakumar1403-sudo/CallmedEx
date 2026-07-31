@@ -18,14 +18,10 @@ from app.database import supabase
 from app.services.marketplace import MarketplaceService
 from app.services.processing_center import assign_booking
 from app.routers.family_members import ensure_self_member
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
-
-
-def _rows(result) -> list:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _strip_centre_identity(booking: dict) -> dict:
@@ -467,39 +463,69 @@ async def create_booking(
 
 
 @router.get("/my", response_model=APIResponse)
-async def get_my_bookings(current_user: dict = Depends(get_current_user)):
-    """Get all bookings for the authenticated user."""
-    user_id = current_user["sub"]
+async def get_my_bookings(
+    current_user: dict = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0,
+):
+    """
+    Get bookings for the authenticated user with pagination.
 
+    Query params:
+      - limit: Max bookings to return (default 50, max 200)
+      - offset: Number of bookings to skip (for pagination)
+    """
+    user_id = current_user["sub"]
+    limit = max(1, min(limit, 200))  # Clamp: 1-200
+    offset = max(0, offset)
+
+    total_count = 0
     supabase_bookings = []
     if supabase:
         try:
+            # Get total count first
+            count_result = (
+                supabase.table("bookings")
+                .select("id", count="exact")
+                .eq("patient_id", user_id)
+                .execute()
+            )
+            total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
+
+            # Fetch paginated results
             result = (
                 supabase.table("bookings")
                 .select("*")
                 .eq("patient_id", user_id)
                 .order("created_at", desc=True)
+                .range(offset, offset + limit - 1)
                 .execute()
             )
-            supabase_bookings = result.data
+            supabase_bookings = result.data or []
         except Exception as e:
             print(f"Supabase read failed, falling back to local: {e}")
 
     # Combine Local fallback and Supabase
     user_bookings = [b for b in _local_bookings if b["patient_id"] == user_id]
-    
+
     # Merge avoiding duplicates (prefer Supabase)
     merged = {b["id"]: b for b in user_bookings}
     for sb in supabase_bookings:
         merged[sb["id"]] = sb
-        
+
     sorted_bookings = sorted(merged.values(), key=lambda x: x.get("created_at", ""), reverse=True)
     sorted_bookings = [_strip_centre_identity(b) for b in sorted_bookings]
 
     return APIResponse(
         success=True,
         message="Your bookings",
-        data={"bookings": sorted_bookings}
+        data={
+            "bookings": sorted_bookings,
+            "total": total_count or len(sorted_bookings),
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < (total_count or len(sorted_bookings)),
+        }
     )
 
 
@@ -666,9 +692,19 @@ async def get_staff_profile(current_user: dict = Depends(get_current_user)):
 async def get_org_bookings(
     org_id: str,
     current_user: dict = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0,
 ):
-    """Get all bookings for a specific organization. Staff/Org-admin only."""
+    """
+    Get bookings for a specific organization with pagination. Staff/Org-admin only.
+
+    Query params:
+      - limit: Max bookings to return (default 50, max 200)
+      - offset: Number of bookings to skip (for pagination)
+    """
     role = current_user.get("role")
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
 
     # Verify that the user is either:
     # 1. A staff member linked to this org
@@ -693,18 +729,30 @@ async def get_org_bookings(
     elif role != "admin":
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    # Fetch bookings by provider_id
+    # Fetch bookings by provider_id with pagination
+    total_count = 0
     org_bookings = []
     if supabase:
         try:
+            # Get total count
+            count_result = (
+                supabase.table("bookings")
+                .select("id", count="exact")
+                .eq("provider_id", org_id)
+                .execute()
+            )
+            total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
+
+            # Fetch paginated results
             result = (
                 supabase.table("bookings")
                 .select("*")
                 .eq("provider_id", org_id)
                 .order("created_at", desc=True)
+                .range(offset, offset + limit - 1)
                 .execute()
             )
-            org_bookings = result.data
+            org_bookings = result.data or []
         except Exception as e:
             print(f"Supabase org bookings fetch failed: {e}")
 
@@ -721,7 +769,13 @@ async def get_org_bookings(
     return APIResponse(
         success=True,
         message=f"Bookings for organization {org_id}",
-        data={"bookings": all_bookings, "total": len(all_bookings)}
+        data={
+            "bookings": all_bookings,
+            "total": total_count or len(all_bookings),
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < (total_count or len(all_bookings)),
+        }
     )
 
 

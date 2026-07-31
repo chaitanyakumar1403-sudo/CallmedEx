@@ -10,12 +10,13 @@ The leak guard is a strict allowlist: no processing_center_id, batch_id,
 lab_reference, or centre code ever reaches a patient's browser.
 """
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,6 @@ STAGE_MAP = {
     "sent_to_lab":        {"stage": "sent_to_lab",        "step": 4, "label": "Sent to Reference Lab"},
     "rejected":           {"stage": "rejected",           "step": -1, "label": "Rejected"},
 }
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 @router.get("/my-samples")

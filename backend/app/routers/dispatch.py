@@ -402,7 +402,9 @@ async def legacy_toggle_duty(
     if current_user.get("role") != "phlebotomist":
         raise HTTPException(status_code=403, detail="Only phlebotomists can toggle duty")
 
-    # Use the new universal toggle
+    # UniversalDispatchEngine.toggle_online already handles updating both
+    # provider_locations (universal) and phlebotomists (legacy) tables.
+    # No need for a second DispatchService call — that was a double write.
     result = await UniversalDispatchEngine.toggle_online(
         user_id=current_user["sub"],
         provider_type="phlebotomist",
@@ -411,17 +413,7 @@ async def legacy_toggle_duty(
         lng=toggle.lng,
     )
 
-    # Also use legacy service for backward compat
-    try:
-        legacy_result = await DispatchService.toggle_duty(
-            user_id=current_user["sub"],
-            on_duty=toggle.on_duty,
-            lat=toggle.lat,
-            lng=toggle.lng,
-        )
-        return legacy_result
-    except Exception:
-        return {"success": True, "is_online": toggle.on_duty}
+    return result
 
 
 # ═══════════════════════════════════════════════════════════════════════════

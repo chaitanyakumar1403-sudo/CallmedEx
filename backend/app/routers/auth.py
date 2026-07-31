@@ -4,7 +4,8 @@ Universal signup with role-specific MOU workflow for ALL non-patient roles.
 MOU acceptance via secure email link with full audit trail.
 """
 import uuid
-import random
+import secrets
+import re
 import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -25,9 +26,46 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
+# ─── Password Complexity Validation ──────────────────────────────────────────
+
+def validate_password_strength(password: str) -> str | None:
+    """
+    Validate password meets minimum complexity requirements.
+    Returns an error message string if invalid, or None if valid.
+
+    Requirements:
+      - At least 8 characters
+      - At least 1 uppercase letter
+      - At least 1 lowercase letter
+      - At least 1 digit
+      - At least 1 special character
+    """
+    if len(password) < 8:
+        return "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return "Password must contain at least one lowercase letter."
+    if not re.search(r"[0-9]", password):
+        return "Password must contain at least one digit."
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", password):
+        return "Password must contain at least one special character."
+    return None
+
 # ─── In-memory store for local dev (when Supabase is not configured) ──────
+# These are dev-only fallbacks. In production, Supabase handles persistence.
+# Max 1000 entries to prevent unbounded memory growth.
+_LOCAL_MAX_ENTRIES = 1000
 _local_users = {}
 _local_profiles = {}
+
+def _local_users_cleanup():
+    """Trim local stores if they exceed the max entry limit."""
+    while len(_local_users) > _LOCAL_MAX_ENTRIES:
+        _local_users.pop(next(iter(_local_users)), None)
+    for table in _local_profiles:
+        while len(_local_profiles[table]) > _LOCAL_MAX_ENTRIES:
+            _local_profiles[table].pop(0)
 
 # ─── Roles that require MOU acceptance before account activation ──────────
 MOU_REQUIRED_ROLES = {
@@ -66,6 +104,7 @@ def _create_user(user_data: dict) -> dict:
     if supabase:
         result = supabase.table("users").insert(user_data).execute()
         return result.data[0]
+    _local_users_cleanup()
     _local_users[user_data["email"]] = user_data
     return user_data
 
@@ -75,6 +114,7 @@ def _create_role_profile(table: str, profile_data: dict) -> dict:
     if supabase:
         result = supabase.table(table).insert(profile_data).execute()
         return result.data[0]
+    _local_users_cleanup()
     if table not in _local_profiles:
         _local_profiles[table] = []
     _local_profiles[table].append(profile_data)
@@ -245,6 +285,10 @@ async def signup(user: UserSignup):
     if user.password != user.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    # Validate password strength
+    if pw_error := validate_password_strength(user.password):
+        raise HTTPException(status_code=400, detail=pw_error)
+
     # Check if user already exists
     existing = _get_user_by_email(user.email)
     if existing:
@@ -287,7 +331,7 @@ async def signup(user: UserSignup):
                 "role": user.role.value,
                 "signup_data": payload,
             }
-            mou_token = jose_jwt.encode(token_payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+            mou_token = jose_jwt.encode(token_payload, settings.EMAIL_TOKEN_SECRET, algorithm=settings.JWT_ALGORITHM)
 
         # Build the magic link URL
         magic_link = f"{settings.FRONTEND_URL}/auth/accept-mou?token={mou_token}" if mou_token else None
@@ -537,12 +581,13 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    token_version = user.get("token_version", 1)
     token = create_access_token({
         "sub": user["id"],
         "email": user["email"],
         "role": user["role"],
         "name": user["full_name"],
-    })
+    }, token_version=token_version)
 
     return TokenResponse(
         access_token=token,
@@ -620,6 +665,50 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# LOGOUT — Invalidate all sessions
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/logout", response_model=APIResponse)
+async def logout(current_user: dict = Depends(get_current_user)):
+    """
+    Logout — increments token_version to invalidate all existing JWTs
+    for this user. After this call, all previously issued tokens are rejected.
+    """
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid session")
+
+    if supabase:
+        try:
+            # Fetch current version
+            version_res = (
+                supabase.table("users")
+                .select("token_version")
+                .eq("id", user_id)
+                .limit(1)
+                .execute()
+            )
+            new_version = 1
+            if version_res.data:
+                new_version = (version_res.data[0].get("token_version") or 1) + 1
+
+            supabase.table("users").update({
+                "token_version": new_version,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", user_id).execute()
+
+            logger.info(f"User {user_id} logged out — token version → {new_version}")
+        except Exception as e:
+            logger.error(f"Failed to update token_version on logout: {e}")
+
+    return APIResponse(
+        success=True,
+        message="Logged out successfully. All sessions have been invalidated.",
+        data={},
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # ABHA LINKAGE
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -663,8 +752,8 @@ async def create_abha(req: CreateAbhaRequest, current_user: dict = Depends(get_c
     import random
 
     new_abha = (
-        f"{random.randint(10, 99)}-{random.randint(1000, 9999)}"
-        f"-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}"
+        f"{secrets.randbelow(90) + 10:02d}-{secrets.randbelow(9000) + 1000:04d}"
+        f"-{secrets.randbelow(9000) + 1000:04d}-{secrets.randbelow(9000) + 1000:04d}"
     )
 
     if supabase:
@@ -719,16 +808,20 @@ async def forgot_password(req: ForgotPasswordRequest):
     user_id = user.get("id", "")
     user_name = user.get("full_name", "User")
 
-    # Generate 6-digit OTP
-    otp_code = str(random.randint(100000, 999999))
+    # Generate 6-digit OTP (cryptographically secure)
+    otp_code = str(secrets.randbelow(900000) + 100000)
 
     # Generate secure JWT reset token (15 min expiry)
+    # NOTE: The OTP is NOT embedded in the JWT payload — it is stored
+    # server-side only in the password_resets table. The JWT only carries
+    # the user_id, email, and a reset_id for lookup.
+    reset_id = str(uuid.uuid4())
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     token_payload = {
         "sub": user_id,
         "email": email,
         "type": "password_reset",
-        "otp": otp_code,
+        "reset_id": reset_id,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }
@@ -740,7 +833,7 @@ async def forgot_password(req: ForgotPasswordRequest):
 
     # Save to password_resets table
     reset_record = {
-        "id": str(uuid.uuid4()),
+        "id": reset_id,
         "user_id": user_id,
         "email": email,
         "otp_code": otp_code,
@@ -789,6 +882,9 @@ async def verify_reset_otp(req: VerifyResetOTPRequest):
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    if pw_error := validate_password_strength(req.new_password):
+        raise HTTPException(status_code=400, detail=pw_error)
+
     email = req.email.lower().strip()
     otp = req.otp_code.strip()
     now = datetime.now(timezone.utc)
@@ -834,9 +930,17 @@ async def verify_reset_otp(req: VerifyResetOTPRequest):
 
     if supabase:
         try:
+            # Increment token_version to invalidate all existing sessions
+            # Fetch current version first (Supabase client doesn't support raw SQL expressions)
+            version_res = supabase.table("users").select("token_version").eq("id", user_id).limit(1).execute()
+            new_version = 1
+            if version_res.data:
+                new_version = (version_res.data[0].get("token_version") or 1) + 1
+
             supabase.table("users").update({
                 "password_hash": new_hash,
-                "updated_at": now.isoformat()
+                "updated_at": now.isoformat(),
+                "token_version": new_version,
             }).eq("id", user_id).execute()
 
             # Mark reset as used
@@ -866,6 +970,9 @@ async def reset_password_via_token(req: ResetPasswordRequest):
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    if pw_error := validate_password_strength(req.new_password):
+        raise HTTPException(status_code=400, detail=pw_error)
+
     # Decode and verify the JWT token
     try:
         payload = jwt.decode(req.token, EMAIL_TOKEN_SECRET, algorithms=[ALGORITHM])
@@ -877,40 +984,44 @@ async def reset_password_via_token(req: ResetPasswordRequest):
 
     user_id = payload.get("sub")
     email = payload.get("email", "")
-    token_otp = payload.get("otp", "")
+    reset_id = payload.get("reset_id", "")
     now = datetime.now(timezone.utc)
 
-    if not user_id:
+    if not user_id or not reset_id:
         raise HTTPException(status_code=400, detail="Invalid reset token")
 
-    # Verify the token hasn't been used
+    # Verify the reset record exists and hasn't been used
+    # The OTP was verified separately (via verify-reset-otp endpoint),
+    # so we only need to check that the reset_id matches and is unused.
     token_used = False
-    reset_id = None
+    found = False
 
     if supabase:
         try:
             result = (
                 supabase.table("password_resets")
-                .select("id, used")
+                .select("id, used, otp_code")
+                .eq("id", reset_id)
                 .eq("user_id", user_id)
-                .eq("otp_code", token_otp)
-                .order("created_at", desc=True)
                 .limit(1)
                 .execute()
             )
             if result.data:
+                found = True
                 token_used = result.data[0].get("used", False)
-                reset_id = result.data[0]["id"]
         except Exception as e:
             logger.error(f"Error checking reset token: {e}")
 
     # Fallback to local
-    if not reset_id:
+    if not found:
         for r in reversed(_local_password_resets):
-            if r["user_id"] == user_id and r["otp_code"] == token_otp:
+            if r["id"] == reset_id and r["user_id"] == user_id:
+                found = True
                 token_used = r["used"]
-                reset_id = r["id"]
                 break
+
+    if not found:
+        raise HTTPException(status_code=400, detail="Invalid reset link. Please request a new one.")
 
     if token_used:
         raise HTTPException(status_code=400, detail="This reset link has already been used. Please request a new one.")
@@ -920,9 +1031,16 @@ async def reset_password_via_token(req: ResetPasswordRequest):
 
     if supabase:
         try:
+            # Increment token_version to invalidate all existing sessions
+            version_res = supabase.table("users").select("token_version").eq("id", user_id).limit(1).execute()
+            new_version = 1
+            if version_res.data:
+                new_version = (version_res.data[0].get("token_version") or 1) + 1
+
             supabase.table("users").update({
                 "password_hash": new_hash,
-                "updated_at": now.isoformat()
+                "updated_at": now.isoformat(),
+                "token_version": new_version,
             }).eq("id", user_id).execute()
 
             if reset_id:

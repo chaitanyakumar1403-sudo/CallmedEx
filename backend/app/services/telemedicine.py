@@ -37,7 +37,7 @@ class TelemedicineService:
     # ──────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def generate_daily_room(consultation_id: str = None) -> dict:
+    async def generate_daily_room(consultation_id: str = None) -> dict:
         """
         Creates a high-definition private video room using the Daily.co REST API.
         Auto-expires after 45 minutes for security.
@@ -69,19 +69,19 @@ class TelemedicineService:
         }
 
         try:
-            req = urllib.request.Request(
-                "https://api.daily.co/v1/rooms",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {settings.DAILY_API_KEY}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "CallMedex-Backend/1.0"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req) as resp:
-                if resp.status in (200, 201):
-                    data = json.loads(resp.read().decode("utf-8"))
+            import httpx
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://api.daily.co/v1/rooms",
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {settings.DAILY_API_KEY}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "CallMedex-Backend/1.0"
+                    },
+                )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
                     return {
                         "room_url": data.get("url"),
                         "room_name": data.get("name"),
@@ -93,7 +93,7 @@ class TelemedicineService:
         return TelemedicineService.generate_jitsi_room(consultation_id)
 
     @staticmethod
-    def generate_daily_meeting_token(room_name: str, user_name: str, is_doctor: bool) -> Optional[str]:
+    async def generate_daily_meeting_token(room_name: str, user_name: str, is_doctor: bool) -> Optional[str]:
         """
         Generates a role-specific meeting token via Daily.co API.
         Doctors receive moderator privileges (owner/record/mute), patients receive attendee tokens.
@@ -116,19 +116,19 @@ class TelemedicineService:
         }
 
         try:
-            req = urllib.request.Request(
-                "https://api.daily.co/v1/meeting-tokens",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {settings.DAILY_API_KEY}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "CallMedex-Backend/1.0"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req) as resp:
-                if resp.status in (200, 201):
-                    data = json.loads(resp.read().decode("utf-8"))
+            import httpx
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://api.daily.co/v1/meeting-tokens",
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {settings.DAILY_API_KEY}",
+                        "Content-Type": "application/json",
+                        "User-Agent": "CallMedex-Backend/1.0"
+                    },
+                )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
                     return data.get("token")
         except Exception as e:
             logger.error(f"Failed to generate Daily.co meeting token: {e}")
@@ -376,57 +376,38 @@ class TelemedicineService:
     # ──────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def process_consultation_transcript(transcript: str) -> Dict[str, Any]:
+    async def process_consultation_transcript(transcript: str) -> Dict[str, Any]:
         """
-        Uses Gemini to parse the raw video transcript into a
+        Uses Groq to parse the raw video transcript into a
         structured NMC-compliant e-prescription and summary.
         Optimized for Indian medical context.
-        """
-        default_prescription = {
-            "summary": "Patient presented with mild fever and sore throat. Suspected viral pharyngitis.",
-            "diagnosis": "Viral Pharyngitis (ICD-10: J02.9)",
-            "medicines": [
-                {
-                    "generic_name": "Paracetamol 500mg",
-                    "dosage": "1 tablet",
-                    "frequency": "SOS (when fever > 100°F)",
-                    "duration": "3 days",
-                    "route": "oral",
-                },
-                {
-                    "generic_name": "Chlorhexidine Gargle 0.2%",
-                    "dosage": "15ml",
-                    "frequency": "Twice daily",
-                    "duration": "5 days",
-                    "route": "topical (gargle)",
-                },
-            ],
-            "investigations": ["CBC if symptoms persist beyond 5 days"],
-            "advice": [
-                "Rest and adequate hydration",
-                "Warm saline gargles 3-4 times daily",
-                "Soft diet for 2-3 days",
-            ],
-            "requires_followup": True,
-            "followup_in_days": 5,
-            "generated_eprescription_url": f"https://storage.callmedex.in/eprescriptions/{uuid.uuid4()}.pdf",
-        }
 
+        IMPORTANT: This method MUST NOT return fabricated medical data.
+        If the AI pipeline is unavailable, it raises an error rather than
+        silently generating a fake prescription — a fake prescription is
+        a clinical liability and NMC violation.
+        """
         if not settings.GROQ_API_KEY:
-            logger.warning("GROQ_API_KEY is not set. Returning mock E-Prescription.")
-            return default_prescription
+            logger.error("GROQ_API_KEY is not set — cannot process transcript.")
+            raise RuntimeError(
+                "E-Prescription generation is unavailable. The AI pipeline is not "
+                "configured. Please contact your administrator."
+            )
+
+        if not transcript or not transcript.strip():
+            raise ValueError("Cannot process an empty transcript.")
 
         try:
             from groq import Groq
             client = Groq(api_key=settings.GROQ_API_KEY)
-            
+
             prompt = f"""You are a highly skilled AI Medical Scribe working in India.
             Read the following live transcript of a telemedicine consultation between a doctor and patient.
 
             Extract the following information strictly:
             1. A brief clinical summary of the patient's condition (2-3 sentences).
             2. Primary diagnosis with ICD-10 code if applicable.
-            3. Prescribed medicines — MUST use generic names per Indian BIS mandate. Include:
+            3. Prescribed medicines — MUST use generic names per Indian NMC 2026 mandate. Include:
                - generic_name, dosage, frequency, duration, route (oral/topical/IV/IM)
             4. Any investigations ordered.
             5. Lifestyle/diet advice given.
@@ -446,27 +427,44 @@ class TelemedicineService:
                 "advice": ["Advice 1", "Advice 2"],
                 "requires_followup": true,
                 "followup_in_days": 7,
-                "generated_eprescription_url": "https://storage.callmedex.in/eprescriptions/auto-generated.pdf"
+                "generated_eprescription_url": ""
             }}"""
 
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": "You are a precise JSON output generator. Output only valid JSON."},
-                    {"role": "user", "content": prompt}
-                ]
+            # Run the blocking Groq call in a thread pool to avoid blocking the event loop
+            import asyncio
+            response = await asyncio.to_thread(
+                lambda: client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {"role": "system", "content": "You are a precise JSON output generator. Output only valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    timeout=30.0,
+                )
             )
-            
+
             response_text = response.choices[0].message.content
-            return json.loads(response_text)
+            result = json.loads(response_text)
+
+            # Validate the result has at minimum a diagnosis and summary
+            if not result.get("diagnosis") or not result.get("summary"):
+                raise ValueError("AI response missing required fields (diagnosis, summary)")
+
+            return result
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse Groq response as JSON: {e}")
-            return default_prescription
+            raise RuntimeError(
+                "E-Prescription generation failed: could not parse the AI output. "
+                "The transcript must be reviewed manually."
+            )
         except Exception as e:
-            logger.warning(f"Groq API Error in E-Prescription: {e}. Falling back to default mock E-Prescription.")
-            return default_prescription
+            logger.error(f"Groq API Error in E-Prescription: {e}")
+            raise RuntimeError(
+                f"E-Prescription generation failed: {str(e)[:200]}. "
+                "The transcript must be reviewed manually."
+            )
 
     @staticmethod
     async def finalize_consultation(

@@ -172,7 +172,12 @@ export default function DoctorDashboard() {
     fetchBlockedDates();
     fetchTodayBookings();
     fetchDispatchData();
-    const interval = setInterval(fetchDispatchData, 15000);
+    const interval = setInterval(() => {
+      // Only poll when the tab is visible to save battery/bandwidth
+      if (document.visibilityState !== "hidden") {
+        fetchDispatchData();
+      }
+    }, 15000);
     return () => clearInterval(interval);
   }, [fetchProfile, fetchAvailability, fetchFees, fetchBlockedDates, fetchTodayBookings, fetchDispatchData]);
 

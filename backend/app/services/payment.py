@@ -168,10 +168,51 @@ class PaymentService:
             logger.warning(f"Amount check failed on {razorpay_order_id}: stored={stored_amount} captured={captured_rupees}")
             return {"verified": False, "error": "Amount could not be confirmed"}
 
-        # Update payment status in DB
+        # Update payment status in DB — with race-condition protection
+        # Only update if the payment is still in "created" status (idempotent guard).
+        # If it's already "captured", this is a duplicate callback and we return
+        # the existing record without re-confirming the booking.
         now = datetime.now(timezone.utc).isoformat()
         if supabase:
             try:
+                # First check current status to prevent double-processing
+                current = (
+                    supabase.table("payments")
+                    .select("id, status, booking_id, amount")
+                    .eq("razorpay_order_id", razorpay_order_id)
+                    .limit(1)
+                    .execute()
+                )
+
+                if not current.data:
+                    return {"verified": False, "error": "Payment record not found"}
+
+                existing = current.data[0]
+
+                # Idempotent: if already captured, return the existing record
+                if existing.get("status") == "captured":
+                    logger.info(
+                        f"Payment {razorpay_order_id} already captured — "
+                        "duplicate callback ignored."
+                    )
+                    return {
+                        "verified": True,
+                        "payment_id": existing["id"],
+                        "booking_id": existing.get("booking_id"),
+                        "amount": existing["amount"],
+                        "status": "captured",
+                        "duplicate": True,
+                    }
+
+                # Only transition from "created" to "captured"
+                if existing.get("status") != "created":
+                    logger.warning(
+                        f"Payment {razorpay_order_id} has unexpected status "
+                        f"'{existing.get('status')}' — cannot capture."
+                    )
+                    return {"verified": False, "error": f"Payment is in '{existing.get('status')}' state, not 'created'"}
+
+                # Atomic update — only capture if still "created"
                 result = (
                     supabase.table("payments")
                     .update({
@@ -182,30 +223,42 @@ class PaymentService:
                         "updated_at": now,
                     })
                     .eq("razorpay_order_id", razorpay_order_id)
+                    .eq("status", "created")  # ← optimistic lock: only update if still "created"
                     .execute()
                 )
 
                 if result.data:
                     payment = result.data[0]
 
-                    # Also update booking status to confirmed
-                    if payment.get("booking_id"):
+                    # Also update booking status to confirmed, but ONLY if
+                    # the booking is in a pre-confirmation state (not cancelled/completed)
+                    booking_id = payment.get("booking_id")
+                    if booking_id:
                         try:
+                            # Only confirm bookings that are awaiting payment
+                            confirmable_statuses = [
+                                "pending", "pending_review", "slot_allotted",
+                                "slot_accepted", "pending_payment",
+                            ]
                             supabase.table("bookings").update({
                                 "status": "confirmed",
                                 "payment_status": "paid",
                                 "updated_at": now,
-                            }).eq("id", payment["booking_id"]).execute()
-                        except Exception:
-                            pass
+                            }).eq("id", booking_id).in_("status", confirmable_statuses).execute()
+                        except Exception as e:
+                            logger.error(f"Failed to update booking {booking_id}: {e}")
 
                     return {
                         "verified": True,
                         "payment_id": payment["id"],
-                        "booking_id": payment.get("booking_id"),
+                        "booking_id": booking_id,
                         "amount": payment["amount"],
                         "status": "captured",
                     }
+
+                # If the update returned 0 rows, another callback already captured it
+                return {"verified": False, "error": "Payment was already processed"}
+
             except Exception as e:
                 logger.error(f"DB update after payment verification failed: {e}")
                 return {"verified": False, "error": "Could not record payment"}

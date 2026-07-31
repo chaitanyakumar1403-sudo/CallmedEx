@@ -147,8 +147,8 @@ export default function PatientDashboard() {
         console.error(e);
       }
     };
-    fetchBookings();
-    fetchMe();
+    // Fetch both in parallel — independent calls, no need to wait sequentially
+    Promise.all([fetchBookings(), fetchMe()]);
   }, []);
 
   // Poll for live tracking if active dispatch exists
@@ -196,7 +196,10 @@ export default function PatientDashboard() {
     };
 
     fetchTracking();
-    const interval = setInterval(fetchTracking, 5000); // Poll every 5s for better Uber-like responsiveness
+    // Poll only when tab is visible to save battery/bandwidth
+    const interval = setInterval(() => {
+      if (document.visibilityState !== "hidden") fetchTracking();
+    }, 5000);
     return () => clearInterval(interval);
   }, [activeDispatchId]);
 
@@ -359,7 +362,7 @@ export default function PatientDashboard() {
       if (res.success || res.message?.includes("cancelled")) {
         alert(res.message || "Request cancelled successfully.");
         // Refresh bookings
-        const bRes = await fetch('/api/bookings/my', {
+        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
         });
         if (bRes.ok) {
@@ -389,7 +392,7 @@ export default function PatientDashboard() {
       if (res.success) {
         alert(res.message);
         // Refresh bookings
-        const bRes = await fetch('/api/bookings/my', {
+        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
         });
         if (bRes.ok) {
@@ -984,22 +987,62 @@ export default function PatientDashboard() {
       <button
         className="sos-floating-btn"
         onClick={async () => {
-          if (!confirm("🚨 EMERGENCY SOS ALERT: Broadcast high-priority beacon to nearby emergency doctors and ambulance network now?")) return;
+          if (!confirm("🚨 EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
+
           try {
+            // Get actual GPS coordinates from the browser
+            let lat: number;
+            let lng: number;
+            let address = "Emergency Location";
+
+            try {
+              const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                if (!navigator.geolocation) {
+                  reject(new Error("Geolocation not available"));
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                  enableHighAccuracy: true,
+                  timeout: 10000,
+                  maximumAge: 60000,
+                });
+              });
+              lat = position.coords.latitude;
+              lng = position.coords.longitude;
+              address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+            } catch (geoErr) {
+              // Geolocation failed — prompt user for manual input
+              const manualLat = prompt("Could not get your GPS location. Please enter your latitude:");
+              const manualLng = prompt("Please enter your longitude:");
+              if (!manualLat || !manualLng) {
+                alert("Emergency SOS cancelled — location is required.");
+                return;
+              }
+              lat = parseFloat(manualLat);
+              lng = parseFloat(manualLng);
+              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                alert("Invalid coordinates. Emergency SOS cancelled.");
+                return;
+              }
+              address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+            }
+
             const token = localStorage.getItem("token");
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/emergency-sos`, {
               method: "POST",
               headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ lat: 17.7231, lng: 83.3013, address: "Visakhapatnam Emergency Location" })
+              body: JSON.stringify({ lat, lng, address }),
             });
             const data = await res.json();
             if (res.ok && data.dispatch_id) {
               localStorage.setItem("activeDispatchId", data.dispatch_id);
               setActiveDispatchId(data.dispatch_id);
               alert(data.message || "🚨 EMERGENCY BEACON DISPATCHED!");
+            } else {
+              alert(data.detail || data.message || "Failed to send emergency SOS. Please call emergency services directly.");
             }
           } catch (e) {
-            alert("Failed to send emergency SOS.");
+            alert("Failed to send emergency SOS. Please call emergency services directly (108 for ambulance).");
           }
         }}
       >

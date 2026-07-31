@@ -13,14 +13,10 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user
 from app.database import supabase
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
-
-
-def _rows(result) -> list:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 # ─── Request Models ───────────────────────────────────────────────────────

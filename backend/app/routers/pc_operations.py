@@ -19,13 +19,14 @@ from the JWT, never from the request URL or body.
 import logging
 import uuid
 from datetime import datetime, date, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.database import supabase
 from app.middleware.pc_auth import get_current_pc_staff, require_pc_admin
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,6 @@ REJECTION_CODES = {
     "wrong_tube", "barcode_missing", "label_missing", "broken_tube",
     "leaking_tube", "hemolyzed", "insufficient_sample", "other",
 }
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _first(result) -> dict:

@@ -1,10 +1,11 @@
 """
 JWT Authentication middleware.
 Extracts and verifies JWT from Authorization header.
+Supports token revocation via token_version.
 """
 from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.utils.security import decode_access_token
+from app.utils.security import decode_access_token, validate_token_version
 
 security = HTTPBearer()
 
@@ -12,11 +13,22 @@ security = HTTPBearer()
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
-    """Decode JWT token and return user payload."""
+    """Decode JWT token, validate token_version, and return user payload."""
     token = credentials.credentials
     payload = decode_access_token(token)
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # Validate token version (revocation check)
+    user_id = payload.get("sub")
+    token_ver = payload.get("ver", 1)
+    if user_id and token_ver:
+        if not await validate_token_version(user_id, token_ver):
+            raise HTTPException(
+                status_code=401,
+                detail="Session has been revoked. Please log in again.",
+            )
+
     return payload
 
 

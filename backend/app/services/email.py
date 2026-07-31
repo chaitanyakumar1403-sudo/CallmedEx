@@ -15,8 +15,9 @@ from app.services.magic_link import MagicLinkService
 
 logger = logging.getLogger(__name__)
 
-# We use the same JWT secret to sign the email tokens
-EMAIL_TOKEN_SECRET = settings.JWT_SECRET
+# Use a dedicated secret for email tokens (MOU, password reset, etc.)
+# Falls back to JWT_SECRET in dev, but production should set EMAIL_TOKEN_SECRET.
+EMAIL_TOKEN_SECRET = settings.EMAIL_TOKEN_SECRET
 ALGORITHM = settings.JWT_ALGORITHM
 
 

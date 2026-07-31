@@ -48,6 +48,20 @@ URGENT_MAX_OFFERS = 12
 NORMAL_MAX_OFFERS = 5
 
 _local_dispatches: List[dict] = []
+_LOCAL_DISPATCH_MAX_AGE_HOURS = 24  # Clean up dispatches older than 24 hours
+
+
+def _cleanup_local_dispatches():
+    """Remove stale entries from the in-memory dispatch list to prevent memory leaks."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=_LOCAL_DISPATCH_MAX_AGE_HOURS)
+    global _local_dispatches
+    before = len(_local_dispatches)
+    _local_dispatches = [
+        d for d in _local_dispatches
+        if d.get("created_at") and d["created_at"] > cutoff.isoformat()
+    ]
+    if before != len(_local_dispatches):
+        logger.debug(f"Cleaned up {before - len(_local_dispatches)} stale local dispatches")
 
 
 def offer_window_minutes() -> int:
@@ -297,6 +311,9 @@ class UniversalDispatchEngine:
         ceiling): during a surge, every candidate must actually be notified,
         not just the first 12.
         """
+        # Clean up stale in-memory dispatches before creating a new one
+        _cleanup_local_dispatches()
+
         dispatch_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         urgent = priority == "urgent"
@@ -517,29 +534,43 @@ class UniversalDispatchEngine:
 
             # Send tracking email to patient
             try:
-                # Fetch provider name
-                provider_name = "Provider"
-                prov_res = supabase.table("users").select("full_name").eq("id", provider_id).execute()
-                if prov_res.data:
-                    provider_name = prov_res.data[0]["full_name"]
-                
-                # Fetch patient info and dispatch data
-                dispatch_res = supabase.table("dispatch_requests").select("patient_id, provider_type").eq("id", dispatch_id).execute()
-                if dispatch_res.data:
-                    d_req = dispatch_res.data[0]
-                    patient_res = supabase.table("users").select("full_name, email").eq("id", d_req["patient_id"]).execute()
-                    if patient_res.data:
-                        patient_email = patient_res.data[0].get("email")
-                        if patient_email:
-                            tracking_url = f"{settings.FRONTEND_URL}/tracking/{dispatch_id}"
-                            from app.services.email import EmailService
-                            EmailService.send_tracking_link_email(
-                                to_email=patient_email,
-                                patient_name=patient_res.data[0].get("full_name", "Patient"),
-                                tracking_url=tracking_url,
-                                provider_name=provider_name,
-                                provider_type=d_req["provider_type"]
-                            )
+                # Fetch provider name and dispatch info in parallel (reduces N+1 to 2 queries)
+                import asyncio as _asyncio
+
+                async def _get_provider_name():
+                    prov_res = await _asyncio.to_thread(
+                        lambda: supabase.table("users").select("full_name").eq("id", provider_id).execute()
+                    )
+                    return prov_res.data[0]["full_name"] if prov_res.data else "Provider"
+
+                async def _get_dispatch_info():
+                    dispatch_res = await _asyncio.to_thread(
+                        lambda: supabase.table("dispatch_requests").select("patient_id, provider_type").eq("id", dispatch_id).execute()
+                    )
+                    if dispatch_res.data:
+                        d_req = dispatch_res.data[0]
+                        patient_res = await _asyncio.to_thread(
+                            lambda: supabase.table("users").select("full_name, email").eq("id", d_req["patient_id"]).execute()
+                        )
+                        return d_req, patient_res.data[0] if patient_res.data else None
+                    return None, None
+
+                provider_name, (d_req, patient_data) = await _asyncio.gather(
+                    _get_provider_name(), _get_dispatch_info()
+                )
+
+                if d_req and patient_data:
+                    patient_email = patient_data.get("email")
+                    if patient_email:
+                        tracking_url = f"{settings.FRONTEND_URL}/tracking/{dispatch_id}"
+                        from app.services.email import EmailService
+                        EmailService.send_tracking_link_email(
+                            to_email=patient_email,
+                            patient_name=patient_data.get("full_name", "Patient"),
+                            tracking_url=tracking_url,
+                            provider_name=provider_name,
+                            provider_type=d_req["provider_type"]
+                        )
             except Exception as e:
                 logger.error(f"Failed to send tracking email: {e}")
 
@@ -760,7 +791,7 @@ class UniversalDispatchEngine:
 
         provider_location = None
 
-        if dispatch.get("assigned_provider_id"):
+        if dispatch.get("assigned_provider_id") and supabase:
             loc_result = (
                 supabase.table("provider_locations")
                 .select("*, users!inner(full_name, mobile)")

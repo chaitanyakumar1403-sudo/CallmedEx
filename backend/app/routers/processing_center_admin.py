@@ -5,7 +5,7 @@ Centres are created by CallMedex, never by self-signup. Deciding who becomes a
 processing centre is a business decision, not a registration form.
 """
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -13,15 +13,11 @@ from pydantic import BaseModel
 from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.middleware.pc_auth import get_current_pc_staff
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/processing-centers", tags=["Processing Centers"])
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _require_admin(user: dict) -> dict:

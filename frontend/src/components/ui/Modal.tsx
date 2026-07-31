@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, memo } from "react";
 import { Icon } from "./Icon";
 import { X } from "./icons";
 
@@ -28,7 +28,7 @@ const FOCUSABLE = [
  * The five hand-rolled overlays this replaces each trapped nothing: Tab walked
  * straight out of the dialog into the page behind it, and Esc did nothing.
  */
-export function Modal({
+export const Modal = memo(function Modal({
   open, onClose, title, children, footer,
 }: {
   open: boolean;
@@ -99,4 +99,4 @@ export function Modal({
       </div>
     </div>
   );
-}
+});

@@ -18,6 +18,7 @@ from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.middleware.pc_auth import get_current_pc_staff
 from app.services.processing_center import check_coverage, resolve_center
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,6 @@ PATIENT_FIELDS = (
     "home_collection_available", "fasting_required", "fasting_hours",
     "preparation_instructions", "estimated_report_hours",
 )
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 def _num(value, default: float = 0.0) -> float:

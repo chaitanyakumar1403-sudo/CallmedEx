@@ -6,22 +6,18 @@ That uniformity is what makes "separate barcode, separate sample, separate
 report" per person fall out of the schema instead of needing a special case.
 """
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/family-members", tags=["Family Members"])
-
-
-def _rows(result) -> List[dict]:
-    data = getattr(result, "data", None) or []
-    return [dict(r) for r in data if isinstance(r, dict)]
 
 
 class MemberIn(BaseModel):

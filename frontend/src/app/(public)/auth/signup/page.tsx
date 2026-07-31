@@ -2,6 +2,45 @@
 import { useState, FormEvent } from "react";
 import DateOfBirthPicker from "@/components/DateOfBirthPicker";
 
+// ─── Validation helpers ─────────────────────────────────────────────────────
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+function validateMobile(phone: string): string | null {
+  const cleaned = phone.replace(/[\s\-()]/g, "");
+  if (!cleaned) return null; // Optional field
+  if (!/^\+?[1-9]\d{9,14}$/.test(cleaned)) {
+    return "Enter a valid mobile number (e.g., +919876543210)";
+  }
+  return null;
+}
+
+function validateFileSize(file: File | null): string | null {
+  if (!file) return null;
+  if (file.size > MAX_FILE_SIZE) {
+    return `File "${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum is 10 MB.`;
+  }
+  return null;
+}
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+
+  const levels = [
+    { label: "Very Weak", color: "#ef4444" },
+    { label: "Weak", color: "#f59e0b" },
+    { label: "Fair", color: "#eab308" },
+    { label: "Good", color: "#84cc16" },
+    { label: "Strong", color: "#10b981" },
+  ];
+  return { score, ...levels[Math.min(score, 4)] };
+}
+
 const ROLES = [
   { value: "patient", label: "Patient", icon: "🧑‍🦱" },
   { value: "doctor", label: "Doctor", icon: "👨‍⚕️" },
@@ -363,7 +402,7 @@ export default function SignupPage() {
               )}
               <div className="form-group">
                 <label className="form-label">Mobile Number *</label>
-                <input name="mobile" type="tel" className="form-input" placeholder="+91 XXXXXXXXXX" required />
+                <input name="mobile" type="tel" className="form-input" placeholder="+91 XXXXXXXXXX" pattern="^\+?[1-9]\d{9,14}$" title="Enter a valid phone number with country code" required />
               </div>
             </div>
 
@@ -416,7 +455,26 @@ export default function SignupPage() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Password *</label>
-                <input name="password" type="password" className="form-input" placeholder="Min 8 characters" minLength={8} required />
+                <input
+                  name="password"
+                  type="password"
+                  className="form-input"
+                  placeholder="Min 8 chars, upper, lower, digit, special"
+                  minLength={8}
+                  required
+                  onChange={(e) => {
+                    const strength = getPasswordStrength(e.target.value);
+                    const meter = document.getElementById("password-strength-meter");
+                    const label = document.getElementById("password-strength-label");
+                    if (meter) meter.style.width = `${(strength.score / 5) * 100}%`;
+                    if (meter) meter.style.background = strength.color;
+                    if (label) { label.textContent = strength.label; label.style.color = strength.color; }
+                  }}
+                />
+                <div style={{ marginTop: 6, height: 4, background: "#e2e8f0", borderRadius: 2, overflow: "hidden" }}>
+                  <div id="password-strength-meter" style={{ height: "100%", width: 0, transition: "width 0.3s, background 0.3s" }} />
+                </div>
+                <small id="password-strength-label" style={{ display: "block", marginTop: 4, fontSize: "0.75rem", color: "#94a3b8" }}>Enter a password</small>
               </div>
               <div className="form-group">
                 <label className="form-label">Confirm Password *</label>
@@ -565,7 +623,7 @@ export default function SignupPage() {
               <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                 <label className="form-label">Upload Medical Registration Certificate *</label>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required />
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                   {verificationStatus['doc_license'] === 'verified' ? (
                       <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
                   ) : verificationStatus['doc_license'] === 'verifying' ? (
@@ -659,7 +717,7 @@ export default function SignupPage() {
               <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                 <label className="form-label">Upload Nursing License / Certificate *</label>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required />
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                   {verificationStatus['nurse_license'] === 'verified' ? (
                       <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
                   ) : verificationStatus['nurse_license'] === 'verifying' ? (
@@ -780,7 +838,7 @@ export default function SignupPage() {
                 <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                   <label className="form-label">Upload Registration / Accreditation Certificate (PDF/JPG) *</label>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required />
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                     {verificationStatus['org_license'] === 'verified' ? (
                         <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
                     ) : verificationStatus['org_license'] === 'verifying' ? (
@@ -979,7 +1037,7 @@ export default function SignupPage() {
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required />
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                     {verificationStatus[`doc_${doc.id}`] === 'verified' ? (
                         <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
                     ) : verificationStatus[`doc_${doc.id}`] === 'verifying' ? (

@@ -52,6 +52,16 @@ export function useAuth(): UseAuthReturn {
     try {
       const token = localStorage.getItem('token');
       const userStr = localStorage.getItem('user');
+      const expiresAt = localStorage.getItem('token_expires_at');
+
+      // Check for token expiry
+      if (expiresAt && Date.now() > parseInt(expiresAt, 10)) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('token_expires_at');
+        setState((prev) => ({ ...prev, isLoading: false }));
+        return;
+      }
 
       if (token && userStr) {
         const user = JSON.parse(userStr);
@@ -67,6 +77,7 @@ export function useAuth(): UseAuthReturn {
     } catch {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('token_expires_at');
       setState((prev) => ({ ...prev, isLoading: false }));
     }
   }, []);
@@ -85,6 +96,7 @@ export function useAuth(): UseAuthReturn {
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('token_expires_at');
     setState({
       user: null,
       token: null,

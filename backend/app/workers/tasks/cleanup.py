@@ -42,24 +42,53 @@ def cleanup_expired_mou_tokens():
 @celery_app.task(name="app.workers.tasks.cleanup.cleanup_old_audit_logs")
 def cleanup_old_audit_logs():
     """
-    Monthly: Archive audit logs older than 90 days to cold storage.
+    Quarterly: Anonymize PII in audit logs older than 90 days.
+
+    IMPORTANT: Healthcare audit logs must be retained for 3-5 years per
+    NMC and DPDP regulations. This task DOES NOT delete records — it only
+    redacts personally identifiable information (PII) from older entries
+    while preserving the audit trail for compliance.
     """
     if not supabase:
-        return {"archived": 0}
+        return {"anonymized": 0}
 
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
 
+        # Fetch old audit logs that still contain PII
         result = (
             supabase.table("audit_log")
-            .delete()
+            .select("id, details, ip_address, user_agent")
             .lte("created_at", cutoff)
+            .is_("anonymized_at", "null")
+            .limit(1000)
             .execute()
         )
 
-        count = len(result.data or [])
-        logger.info(f"Archived {count} old audit log entries")
-        return {"archived": count}
+        count = 0
+        now = datetime.now(timezone.utc).isoformat()
+        for entry in (result.data or []):
+            try:
+                # Redact PII from details JSONB
+                details = entry.get("details") or {}
+                if isinstance(details, dict):
+                    for pii_field in ("email", "mobile", "phone", "ip_address", "user_agent"):
+                        if pii_field in details:
+                            details[pii_field] = "[REDACTED]"
+
+                supabase.table("audit_log").update({
+                    "details": details,
+                    "ip_address": "[REDACTED]",
+                    "user_agent": "[REDACTED]",
+                    "anonymized_at": now,
+                }).eq("id", entry["id"]).execute()
+                count += 1
+            except Exception as e:
+                logger.warning(f"Failed to anonymize audit log {entry.get('id')}: {e}")
+
+        if count > 0:
+            logger.info(f"Anonymized {count} audit log entries older than 90 days")
+        return {"anonymized": count}
     except Exception as e:
         logger.error(f"cleanup_old_audit_logs failed: {e}")
-        return {"archived": 0}
+        return {"anonymized": 0}

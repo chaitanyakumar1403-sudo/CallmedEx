@@ -12,11 +12,20 @@ import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
+import json
 
 logger = logging.getLogger(__name__)
 
 # Max request body size: 10 MB
 MAX_REQUEST_SIZE = 10 * 1024 * 1024
+
+# Paths that should NOT have their bodies sanitized (file uploads, webhooks with signatures)
+SKIP_SANITIZE_PATHS = {
+    "/api/verification/upload",
+    "/webhooks/razorpay",
+    "/webhook",  # WhatsApp webhook
+    "/api/admin/upload",
+}
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
@@ -40,6 +49,27 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Request body too large. Maximum size is 10 MB."},
             )
 
+        # ── Sanitize request body for JSON endpoints ─────────────────
+        # Reads and sanitizes the body, then re-attaches it so downstream
+        # handlers get clean data. Skipped for file uploads and webhooks.
+        path = request.url.path
+        if (
+            request.method in ("POST", "PUT", "PATCH")
+            and path not in SKIP_SANITIZE_PATHS
+            and not any(path.startswith(p) for p in SKIP_SANITIZE_PATHS)
+        ):
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body_bytes = await request.body()
+                    if body_bytes:
+                        body = json.loads(body_bytes)
+                        sanitized = sanitize_dict(body)
+                        # Replace the request body with sanitized data
+                        request._body = json.dumps(sanitized).encode("utf-8")
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    pass  # Non-JSON body — skip sanitization
+
         # ── Process Request ──────────────────────────────────────────
         try:
             response = await call_next(request)
@@ -47,7 +77,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             logger.error(f"[{request_id}] Unhandled error: {e}", exc_info=True)
             return JSONResponse(
                 status_code=500,
-                content={"detail": "An internal error occurred.", "request_id": request_id},
+                content={
+                    "detail": "An internal error occurred. Please try again later.",
+                    "request_id": request_id,
+                },
             )
 
         # ── Add Security Headers ─────────────────────────────────────
@@ -69,7 +102,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # Content-Security-Policy
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://maps.googleapis.com; "
+            "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://maps.googleapis.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: https: blob:; "

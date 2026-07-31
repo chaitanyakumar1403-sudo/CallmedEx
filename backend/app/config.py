@@ -15,11 +15,26 @@ class Settings:
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_KEY", "")
 
     # Auth
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "callmedex-dev-secret")
+    # IMPORTANT: JWT_SECRET has no default. If not set in production, the app
+    # will refuse to start rather than falling back to a publicly-known value.
+    JWT_SECRET: str = os.getenv("JWT_SECRET", "")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    # Reduced from 7 days (10080) to 60 minutes with refresh token rotation
+    # for healthcare data security. Use REFRESH_TOKEN_EXPIRE_DAYS for long-lived
+    # refresh tokens if needed.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
-        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(
+        os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7")
+    )
+
+    # Token-type-specific secrets — each token type gets its own signing key
+    # so compromise of one doesn't compromise all. Falls back to JWT_SECRET
+    # only in dev; production must set each explicitly.
+    EMAIL_TOKEN_SECRET: str = os.getenv("EMAIL_TOKEN_SECRET", "") or os.getenv("JWT_SECRET", "")
+    MAGIC_LINK_SECRET: str = os.getenv("MAGIC_LINK_SECRET", "") or os.getenv("JWT_SECRET", "")
+    TASK_SESSION_SECRET: str = os.getenv("TASK_SESSION_SECRET", "") or os.getenv("JWT_SECRET", "")
 
     # Server
     BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
@@ -74,7 +89,7 @@ class Settings:
     NURSING_COUNCIL_API_URL: str = os.getenv("NURSING_COUNCIL_API_URL", "https://indiannursingcouncil.org/api/v1")
 
     # ─── Layer 0: Marketplace foundation flags ────────────────────────
-    VERIFICATION_AUTO_APPROVE: bool = os.getenv("VERIFICATION_AUTO_APPROVE", "true").lower() in ("true", "1", "yes")
+    VERIFICATION_AUTO_APPROVE: bool = os.getenv("VERIFICATION_AUTO_APPROVE", "false").lower() in ("true", "1", "yes")
     GOV_REGISTRY_MODE: str = os.getenv("GOV_REGISTRY_MODE", "mock")  # mock | off | live
     TRUSTED_PROXY_COUNT: int = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
     ALLOWED_ORIGINS: list = [
@@ -104,8 +119,18 @@ _WEAK_JWT_SECRETS = {
 }
 
 def jwt_secret_warning() -> str:
-    """Return a warning string if the configured JWT secret is unsafe, else ''."""
+    """Return a warning string if the configured JWT secret is unsafe, else ''.
+
+    Returns empty string only when the secret is strong enough for production.
+    The caller (main.py lifespan) should refuse to start if this returns non-empty
+    and the environment is not explicitly a dev environment.
+    """
     secret = (settings.JWT_SECRET or "").strip()
+    if not secret:
+        return (
+            "JWT_SECRET is not set. Session tokens cannot be signed. "
+            "Set it to a random 64-character hex string, e.g. `openssl rand -hex 32`."
+        )
     if secret in _WEAK_JWT_SECRETS:
         return (
             "JWT_SECRET is a known placeholder value. Session tokens can be "

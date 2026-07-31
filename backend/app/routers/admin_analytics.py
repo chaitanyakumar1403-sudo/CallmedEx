@@ -4,6 +4,7 @@ Provides real-time KPIs, registration trends, booking analytics,
 revenue data, provider performance, geospatial data, and AI insights.
 Powers the Operations Command Center dashboard.
 """
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
 from app.middleware.auth import get_current_user
@@ -35,56 +36,99 @@ async def executive_overview(current_user: dict = Depends(get_current_user)):
     if not supabase:
         return {"success": True, "metrics": _mock_executive_metrics()}
 
-    metrics = {}
+    # Run all independent queries in parallel using asyncio.to_thread
+    # Previously these ran sequentially (12+ round-trips serialized).
+    today = datetime.now(timezone.utc).date().isoformat()
 
-    # Total users by role
-    for role in ["patient", "doctor", "nurse", "phlebotomist", "organization", "pharmacy", "staff"]:
-        result = supabase.table("users").select("id", count="exact").eq("role", role).execute()
-        metrics[f"total_{role}s"] = result.count if result.count else len(result.data)
+    async def _count_role(role: str) -> tuple[str, int]:
+        try:
+            result = await asyncio.to_thread(
+                lambda r=role: supabase.table("users").select("id", count="exact").eq("role", r).execute()
+            )
+            count = result.count if hasattr(result, "count") and result.count else len(result.data or [])
+            return (f"total_{role}s", count)
+        except Exception:
+            return (f"total_{role}s", 0)
 
-    # Total users
-    total = supabase.table("users").select("id", count="exact").execute()
-    metrics["total_users"] = total.count if total.count else len(total.data)
+    async def _total_users() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("users").select("id", count="exact").execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-    # Active users (logged in within 30 days)
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    metrics["active_users_30d"] = metrics["total_users"]  # Simplified
+    async def _total_bookings() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("bookings").select("id", count="exact").execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-    # Bookings
-    try:
-        bookings = supabase.table("bookings").select("id", count="exact").execute()
-        metrics["total_bookings"] = bookings.count if bookings.count else len(bookings.data)
+    async def _today_bookings() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("bookings").select("id", count="exact").gte("created_at", today).execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-        # Today's bookings
-        today = datetime.now(timezone.utc).date().isoformat()
-        today_bookings = supabase.table("bookings").select("id", count="exact").gte("created_at", today).execute()
-        metrics["bookings_today"] = today_bookings.count if today_bookings.count else len(today_bookings.data)
-    except Exception:
-        metrics["total_bookings"] = 0
-        metrics["bookings_today"] = 0
+    async def _pending_kyc() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("doctors").select("id", count="exact").eq("verification_status", "pending").execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-    # Pending verifications
-    try:
-        pending = supabase.table("doctors").select("id", count="exact").eq("verification_status", "pending").execute()
-        metrics["pending_kyc"] = pending.count if pending.count else len(pending.data)
-    except Exception:
-        metrics["pending_kyc"] = 0
+    async def _pending_mou() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("users").select("id", count="exact").eq("registration_status", "pending_mou").execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-    # Pending MOU acceptances
-    try:
-        pending_mou = supabase.table("users").select("id", count="exact").eq("registration_status", "pending_mou").execute()
-        metrics["pending_mou"] = pending_mou.count if pending_mou.count else len(pending_mou.data)
-    except Exception:
-        metrics["pending_mou"] = 0
+    async def _active_dispatches() -> int:
+        try:
+            result = await asyncio.to_thread(
+                lambda: supabase.table("dispatch_requests").select("id", count="exact").in_(
+                    "status", ["searching", "provider_accepted", "en_route", "arrived", "in_progress"]
+                ).execute()
+            )
+            return result.count if hasattr(result, "count") and result.count else len(result.data or [])
+        except Exception:
+            return 0
 
-    # Dispatches
-    try:
-        active_dispatches = supabase.table("dispatch_requests").select("id", count="exact").in_(
-            "status", ["searching", "provider_accepted", "en_route", "arrived", "in_progress"]
-        ).execute()
-        metrics["active_dispatches"] = active_dispatches.count if active_dispatches.count else len(active_dispatches.data)
-    except Exception:
-        metrics["active_dispatches"] = 0
+    # Fire all 12 queries in parallel
+    roles = ["patient", "doctor", "nurse", "phlebotomist", "organization", "pharmacy", "staff"]
+    role_results, total_users, total_bookings, today_bookings, pending_kyc, pending_mou, active_dispatches = (
+        await asyncio.gather(
+            asyncio.gather(*[_count_role(r) for r in roles]),
+            _total_users(),
+            _total_bookings(),
+            _today_bookings(),
+            _pending_kyc(),
+            _pending_mou(),
+            _active_dispatches(),
+        )
+    )
+
+    # Assemble results
+    metrics = dict(role_results)
+    metrics["total_users"] = total_users
+    metrics["active_users_30d"] = total_users  # placeholder
+    metrics["total_bookings"] = total_bookings
+    metrics["bookings_today"] = today_bookings
+    metrics["pending_kyc"] = pending_kyc
+    metrics["pending_mou"] = pending_mou
+    metrics["active_dispatches"] = active_dispatches
 
     return {"success": True, "metrics": metrics}
 
