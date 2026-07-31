@@ -73,7 +73,26 @@ export default function ProcessingCenterDashboard() {
     );
   }
 
-  if (!centre) return null;
+  if (!centre) {
+    return (
+      <DashboardShell
+        role="processing_center"
+        title="Processing Center Dashboard"
+        subtitle="Operational Command Center"
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        <div style={{ padding: 40, textAlign: "center", backgroundColor: "white", borderRadius: 16, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏬</div>
+          <h3 style={{ color: "#1e293b", margin: "0 0 8px 0" }}>Processing Center Staff Account</h3>
+          <p style={{ color: "#64748b", fontSize: "0.9rem", maxWidth: 500, margin: "0 auto 20px auto" }}>
+            Your account is authenticated as Processing Center staff. Once assigned to a specific branch in the Admin Panel, your live queue, intake scans, batches, and roster tools will activate automatically.
+          </p>
+        </div>
+      </DashboardShell>
+    );
+  }
 
   return (
     <DashboardShell

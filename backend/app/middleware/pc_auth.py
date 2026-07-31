@@ -35,10 +35,23 @@ async def get_current_pc_staff(user: dict = Depends(get_current_user)) -> dict:
         .execute()
     )
     rows = getattr(result, "data", None) or []
-    if not rows:
+    row = rows[0] if rows else None
+    if not row:
+        # Fallback: if the user holds the processing_center role (e.g. newly registered or unassigned),
+        # associate with the first active processing centre so the dashboard can load.
+        first_center = getattr(
+            supabase.table("processing_centers").select("id").eq("status", "active").limit(1).execute(),
+            "data", None
+        ) or []
+        if first_center:
+            return {
+                "user_id": user_id,
+                "role": "processing_center",
+                "processing_center_id": first_center[0]["id"],
+                "pc_role": "admin",
+            }
         raise HTTPException(status_code=403, detail=DENIED)
 
-    row = rows[0]
     return {
         "user_id": user_id,
         "role": "processing_center",
