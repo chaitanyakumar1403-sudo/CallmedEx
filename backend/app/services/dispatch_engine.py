@@ -252,7 +252,7 @@ class UniversalDispatchEngine:
             if provider_type == "phlebotomist":
                 result = (
                     supabase.table(table)
-                    .select("*, users!inner(id, full_name, mobile, email)")
+                    .select("*, users!phlebotomists_user_id_fkey!inner(id, full_name, mobile, email)")
                     .eq("on_duty", True)
                     .eq("verification_status", "verified")
                     .not_.is_("current_lat", "null")
