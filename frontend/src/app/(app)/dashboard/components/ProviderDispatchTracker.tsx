@@ -109,7 +109,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
       playOfferAlert();
       // Browser notification (permission requested on first duty toggle)
       if (Notification.permission === "granted") {
-        const n = new Notification("📋 New Dispatch Request", {
+        const n = new Notification("New Dispatch Request", {
           body: offers.length === 1
             ? `${offers[0].distance_km?.toFixed(1) || "?"} km away — tap to respond`
             : `${offers.length} pending requests in your area`,
