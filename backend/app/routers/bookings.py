@@ -537,6 +537,27 @@ async def create_booking(
                                 logger.warning(f"City coordinate lookup failed: {lookup_err}")
 
                         if patient_lat and patient_lng:
+                            # Resolve processing_center_id from the booking row
+                            # (set by _provision_home_collection → assign_booking above)
+                            pc_id: Optional[str] = None
+                            try:
+                                pc_row = _rows(
+                                    supabase.table("bookings")
+                                    .select("processing_center_id")
+                                    .eq("id", booking_id).limit(1).execute()
+                                )
+                                if pc_row and pc_row[0].get("processing_center_id"):
+                                    pc_id = pc_row[0]["processing_center_id"]
+                                    logger.info(
+                                        f"Dispatch for booking {booking_id}: "
+                                        f"bound to processing_center {pc_id}"
+                                    )
+                            except Exception as pc_err:
+                                logger.warning(
+                                    f"Could not resolve processing_center_id for "
+                                    f"booking {booking_id}: {pc_err}"
+                                )
+
                             await UniversalDispatchEngine.create_dispatch(
                                 patient_id=current_user["sub"],
                                 patient_lat=float(patient_lat),
@@ -547,6 +568,7 @@ async def create_booking(
                                 booking_id=booking_id,
                                 notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
                                 priority="normal",
+                                processing_center_id=pc_id,
                             )
                         else:
                             # No lat/lng at all — dispatch cannot be created, but

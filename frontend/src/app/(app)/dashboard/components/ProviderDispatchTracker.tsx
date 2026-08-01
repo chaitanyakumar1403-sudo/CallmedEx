@@ -80,6 +80,51 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
 
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const taskIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevOfferCountRef = useRef(0);
+
+  // ─── Incoming-offer alert (browser notification + audio) ─────────────
+  // The old design relied entirely on email, which phlebotomists don't
+  // watch in real-time. This adds a push-alert the moment a dispatch offer
+  // lands in their pending queue, so they never miss a request.
+  const playOfferAlert = useCallback(() => {
+    try {
+      // Short high-pitched beep — works on mobile too
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880; // A5 — cuts through background noise
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.4);
+    } catch { /* audio not available — silent fallback */ }
+  }, []);
+
+  useEffect(() => {
+    if (prevOfferCountRef.current === 0 && offers.length > 0) {
+      // New offer(s) arrived
+      playOfferAlert();
+      // Browser notification (permission requested on first duty toggle)
+      if (Notification.permission === "granted") {
+        const n = new Notification("📋 New Dispatch Request", {
+          body: offers.length === 1
+            ? `${offers[0].distance_km?.toFixed(1) || "?"} km away — tap to respond`
+            : `${offers.length} pending requests in your area`,
+          icon: "/favicon.ico",
+          tag: "dispatch-offer",
+          requireInteraction: true,
+        });
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
+      }
+    }
+    prevOfferCountRef.current = offers.length;
+  }, [offers, playOfferAlert]);
 
   // ─── Fetch duty status ────────────────────────────────────────────────
   // `profile` was dead (flagged in Task 12 review) — nothing here ever read
@@ -160,7 +205,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     fetchDutyStatus();
     fetchTasks();
     fetchOffers();
-    taskIntervalRef.current = setInterval(() => { fetchTasks(); fetchOffers(); }, 12000);
+    taskIntervalRef.current = setInterval(() => { fetchTasks(); fetchOffers(); }, 5000);
     return () => {
       if (taskIntervalRef.current) clearInterval(taskIntervalRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
@@ -232,6 +277,10 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         setOnDuty(newStatus);
         if (newStatus) {
           startLocationBroadcast();
+          // Request browser notification permission so offer alerts work
+          if (typeof Notification !== "undefined" && Notification.permission === "default") {
+            Notification.requestPermission();
+          }
           setStatusMsg({ tone: "done", text: "You're now on duty — accepting dispatch requests" });
         } else {
           stopLocationBroadcast();
@@ -501,7 +550,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         {/* ─── PENDING TASKS (Accept/Reject) ─── */}
         {onDuty && allPending.length > 0 && (
           <div className="cm-tracker__section">
-            <h3 className="cm-tracker__section-title">
+            <h3 className="cm-tracker__section-title cm-tracker__section-title--pulse">
               <Icon as={ClipboardList} size={16} />
               Incoming requests ({allPending.length})
             </h3>

@@ -453,10 +453,45 @@ async def update_location_simple(
     body: SimpleLocationUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    """GPS location update from field provider."""
+    """GPS location update from field provider.
+
+    CRITICAL: Updates BOTH the universal provider_locations table (used by
+    the dispatch engine's find_nearby_providers for candidate discovery)
+    AND the legacy role table (phlebotomists/nurses). The primary query
+    in find_nearby_providers reads provider_locations — if only the legacy
+    table is updated, the phlebotomist is invisible to dispatch matching
+    and never receives offers. This was the root cause of the recurring
+    "phlebotomist doesn't get notified" bug.
+    """
     from app.database import supabase
     from datetime import datetime, timezone
+    import uuid as _uuid
     if supabase:
+        now = datetime.now(timezone.utc).isoformat()
+        role = current_user.get("role", "")
+
+        # 1. Update universal provider_locations table — THE critical one for dispatch
+        try:
+            loc_result = supabase.table("provider_locations").update({
+                "current_lat": body.lat,
+                "current_lng": body.lng,
+                "last_updated": now,
+            }).eq("user_id", current_user["sub"]).execute()
+            if not loc_result.data:
+                # Insert if no existing record (first time going online)
+                supabase.table("provider_locations").insert({
+                    "id": str(_uuid.uuid4()),
+                    "user_id": current_user["sub"],
+                    "provider_type": role if role in ("phlebotomist", "nurse", "doctor") else "phlebotomist",
+                    "is_online": True,
+                    "current_lat": body.lat,
+                    "current_lng": body.lng,
+                    "last_updated": now,
+                }).execute()
+        except Exception as e:
+            logger.warning(f"Failed to update provider_locations for {current_user['sub']}: {e}")
+
+        # 2. Update legacy role-specific table (backward compat)
         try:
             supabase.table("phlebotomists").update({
                 "current_lat": body.lat,

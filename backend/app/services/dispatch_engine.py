@@ -166,26 +166,47 @@ class UniversalDispatchEngine:
 
         exclude_ids = exclude_ids or []
 
-        # Try universal provider_locations table first
+        # ── MERGE candidates from both tables ─────────────────────────
+        # Always query BOTH provider_locations (universal) and the legacy
+        # role table (phlebotomists/nurses), then merge results. The old
+        # either/or fallback was the root cause of the recurring "phlebotomist
+        # never gets notified" bug — if provider_locations had even one stale
+        # row, the fallback was skipped entirely. Now every online provider
+        # with valid coordinates is considered regardless of which table has
+        # their freshest data.
+        providers = []
+
+        # Path A: universal provider_locations table
         try:
-            query = (
+            result_a = (
                 supabase.table("provider_locations")
                 .select("*, users!inner(id, full_name, mobile, email)")
                 .eq("provider_type", provider_type)
                 .eq("is_online", True)
                 .not_.is_("current_lat", "null")
                 .not_.is_("current_lng", "null")
+                .execute()
             )
-            result = query.execute()
-            providers = result.data or []
+            providers.extend(result_a.data or [])
         except Exception:
-            providers = []
+            pass
 
-        # Fallback to legacy tables if provider_locations is empty
-        if not providers:
-            providers = await UniversalDispatchEngine._fallback_find(
+        # Path B: legacy role-specific table (always run — never skip)
+        try:
+            result_b = await UniversalDispatchEngine._fallback_find(
                 provider_type, patient_lat, patient_lng
             )
+            # Deduplicate by user_id — prefer the provider_locations entry
+            # (Path A) since it likely has fresher coordinates, but always
+            # include any provider that only exists in the legacy table.
+            seen = {p.get("user_id") or p.get("users", {}).get("id") for p in providers}
+            for p in result_b:
+                uid = p.get("user_id") or p.get("users", {}).get("id")
+                if uid and uid not in seen:
+                    providers.append(p)
+                    seen.add(uid)
+        except Exception:
+            pass
 
         # Home collection is centre-bound: a phlebo may only be offered work
         # they could actually submit afterwards. Other provider types are
