@@ -136,6 +136,7 @@ class MediAssistClient:
     async def submit_report_job(
         self,
         *,
+        report_job_id: str,
         source_type: str,
         source_document_url: str,
         patient: Dict[str, Any],
@@ -147,6 +148,7 @@ class MediAssistClient:
         correlation_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         body = {
+            "report_job_id": report_job_id,
             "source_type": source_type,
             "source_document_url": source_document_url,
             "booking_id": booking_id,
@@ -229,6 +231,18 @@ class MediAssistClient:
         audit_action: Optional[str] = None,
         audit_entity_type: Optional[str] = None,
     ) -> Dict[str, Any]:
+        if not self._base_url:
+            # An empty base URL makes httpx build a relative URL and raise
+            # httpx.UnsupportedProtocol, which is not a MediAssistError and
+            # therefore not caught by any `except MediAssistError` in
+            # ai_reports.py / workers/tasks/notifications.py /
+            # workers/tasks/payments.py -- it would propagate as an
+            # unhandled 500 instead of the designed 502/failure path. Fail
+            # fast with the same exception type a real outage would raise.
+            raise MediAssistUnavailableError(
+                "MEDIASSIST_BASE_URL is not configured", correlation_id=correlation_id
+            )
+
         idempotency_key = idempotency_key or str(uuid.uuid4())
         correlation_id = correlation_id or str(uuid.uuid4())
         endpoint_key = f"{method} {path}"

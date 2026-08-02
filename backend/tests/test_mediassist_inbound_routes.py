@@ -20,6 +20,7 @@ import json
 import time
 import uuid
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -59,8 +60,15 @@ def client():
     return TestClient(app)
 
 
-def _sign(timestamp: str, body: bytes) -> str:
-    digest = hmac.new(SECRET.encode(), f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
+def _sign(timestamp: str, body: bytes, query: str = "") -> str:
+    """`query` is the raw query string (no leading "?"), empty for POST
+    routes -- matches verify_mediassist_signature's
+    `timestamp + "." + query_string + body` scheme (Fix 7: GET's query
+    string must be covered, or a captured signed GET could be replayed with
+    a different `?phone=` to enumerate patients)."""
+    digest = hmac.new(
+        SECRET.encode(), f"{timestamp}.".encode() + query.encode() + body, hashlib.sha256
+    ).hexdigest()
     return f"sha256={digest}"
 
 
@@ -360,8 +368,35 @@ def test_notification_status_success_audits_no_table_update(client, fake_supabas
     audit_rows = fake_supabase.db.get("audit_log", [])
     matching = [r for r in audit_rows if r["action"] == "mediassist.notification_status"]
     assert len(matching) == 1
-    assert matching[0]["entity_id"] == "notif-1"
+    # entity_id is UUID-typed on audit_log; notification_id may not be a
+    # UUID (see below), so it's carried in `details`, not entity_id.
+    assert matching[0]["entity_id"] is None
+    assert matching[0]["details"]["notification_id"] == "notif-1"
     assert matching[0]["details"]["status"] == "delivered"
+
+
+def test_notification_status_non_uuid_notification_id_still_audits(client, fake_supabase):
+    """MediAssist's real notification ids may not be UUIDs (e.g.
+    "notif_88213"). Previously this was passed as audit_log.entity_id (a
+    UUID column); against a real Postgres DB that insert would fail, and
+    AuditService.log only logs-and-swallows DB failures, so the callback's
+    entire purpose (durably recording it happened) would silently produce
+    no record at all. This must not depend on the id looking like a UUID."""
+    resp = _post(
+        client, "/callbacks/notification-status",
+        {"notification_id": "notif_88213", "status": "failed", "failure_reason": "opted_out",
+         "occurred_at": "2026-08-02T10:00:00Z"},
+        idem_key=_new_idem(), correlation_id=_new_corr(),
+    )
+    assert resp.status_code == 200
+
+    matching = [
+        r for r in fake_supabase.db.get("audit_log", [])
+        if r["details"].get("notification_id") == "notif_88213"
+    ]
+    assert len(matching) == 1
+    assert matching[0]["entity_id"] is None
+    assert matching[0]["details"]["status"] == "failed"
 
 
 def test_notification_status_unsigned_rejected(client, fake_supabase):
@@ -382,18 +417,28 @@ def test_notification_status_idempotent_replay(client, fake_supabase):
     assert r1.json() == r2.json()
     # Only the first call's audit entry should exist — the second was a
     # short-circuited cache replay.
-    matching = [r for r in fake_supabase.db.get("audit_log", []) if r["entity_id"] == "notif-2"]
+    matching = [
+        r for r in fake_supabase.db.get("audit_log", [])
+        if r["details"].get("notification_id") == "notif-2"
+    ]
     assert len(matching) == 1
 
 
 # ─── 6. GET /patients/lookup ────────────────────────────────────────────────
 
 def _get_signed(client, path, params=None):
+    # Build the query string up front and issue the request against the
+    # fully-formed URL (rather than passing `params=` to client.get
+    # separately) so the exact bytes we sign are the exact bytes the server
+    # sees on the wire -- request.url.query must match what was signed.
+    query = str(httpx.QueryParams(params or {}))
     ts = str(int(time.time()))
-    sig = _sign(ts, b"")
+    sig = _sign(ts, b"", query=query)
+    url = f"{PREFIX}{path}"
+    if query:
+        url = f"{url}?{query}"
     return client.get(
-        f"{PREFIX}{path}",
-        params=params or {},
+        url,
         headers={"Authorization": f"Bearer {BEARER}", "X-Timestamp": ts, "X-Signature": sig},
     )
 
@@ -413,6 +458,20 @@ def test_patient_lookup_success(client, fake_supabase):
     assert data["default_address"]["city"] == "Visakhapatnam"
 
 
+def test_patient_lookup_matches_differently_formatted_stored_phone(client, fake_supabase):
+    """users.mobile has no format validation at signup -- a patient stored
+    as bare "9812345678" must still resolve when MediAssist sends the E.164
+    form "+919812345678"."""
+    fake_supabase.db["users"] = [{
+        "id": "user-fmt-1", "role": "patient", "mobile": "9812345678",
+        "address": "", "city": "", "pincode": "",
+    }]
+
+    resp = _get_signed(client, "/patients/lookup", params={"phone": "+919812345678"})
+    assert resp.status_code == 200
+    assert resp.json()["patient_id"] == "user-fmt-1"
+
+
 def test_patient_lookup_not_found(client, fake_supabase):
     resp = _get_signed(client, "/patients/lookup", params={"phone": "+910000000000"})
     assert resp.status_code == 404
@@ -421,6 +480,31 @@ def test_patient_lookup_not_found(client, fake_supabase):
 def test_patient_lookup_unsigned_rejected(client, fake_supabase):
     resp = client.get(f"{PREFIX}/patients/lookup", params={"phone": "+919876500000"})
     assert resp.status_code == 401
+
+
+def test_patient_lookup_signature_replayed_with_different_query_is_rejected(client, fake_supabase):
+    """A GET's signature must cover the query string. Before this fix, the
+    signed message was `timestamp + "." + body`, and a GET body is always
+    empty -- so a signature computed for one `?phone=` was equally valid
+    for ANY other `?phone=` within the freshness window. Capture a
+    genuinely valid signature/timestamp for one phone number, then reuse
+    those exact headers against a different `?phone=` -- this must 401."""
+    fake_supabase.db["users"] = [
+        {"id": "user-a", "role": "patient", "mobile": "+919876500001", "address": "", "city": "", "pincode": ""},
+        {"id": "user-b", "role": "patient", "mobile": "+919876500002", "address": "", "city": "", "pincode": ""},
+    ]
+    ts = str(int(time.time()))
+    original_query = str(httpx.QueryParams({"phone": "+919876500001"}))
+    sig = _sign(ts, b"", query=original_query)
+    headers = {"Authorization": f"Bearer {BEARER}", "X-Timestamp": ts, "X-Signature": sig}
+
+    legit = client.get(f"{PREFIX}/patients/lookup?{original_query}", headers=headers)
+    assert legit.status_code == 200
+    assert legit.json()["patient_id"] == "user-a"
+
+    replayed_query = str(httpx.QueryParams({"phone": "+919876500002"}))
+    replayed = client.get(f"{PREFIX}/patients/lookup?{replayed_query}", headers=headers)
+    assert replayed.status_code == 401
 
 
 # ─── 7. POST /whatsapp-bookings ─────────────────────────────────────────────
@@ -524,6 +608,29 @@ def test_whatsapp_booking_404_when_patient_id_and_phone_both_unresolved(client, 
 def test_whatsapp_booking_unsigned_rejected(client, fake_supabase):
     resp = _post_unsigned(client, "/whatsapp-bookings", _whatsapp_payload())
     assert resp.status_code == 401
+
+
+def test_whatsapp_booking_second_call_with_differently_formatted_phone_reuses_patient(client, fake_supabase):
+    """A booking created for phone "9812340001", followed by a genuinely new
+    booking (fresh idempotency key) for the E.164-equivalent
+    "+919812340001", must resolve to the SAME patient rather than creating a
+    duplicate headless patient identity."""
+    first = _post(
+        client, "/whatsapp-bookings", _whatsapp_payload(phone="9812340001"),
+        idem_key=_new_idem(), correlation_id=_new_corr(),
+    )
+    assert first.status_code == 201
+    assert len(fake_supabase.db["users"]) == 1
+    first_patient_id = fake_supabase.db["users"][0]["id"]
+
+    second = _post(
+        client, "/whatsapp-bookings", _whatsapp_payload(phone="+919812340001"),
+        idem_key=_new_idem(), correlation_id=_new_corr(),
+    )
+    assert second.status_code == 201
+    assert len(fake_supabase.db["users"]) == 1, "no duplicate patient should be created"
+    assert len(fake_supabase.db["bookings"]) == 2
+    assert fake_supabase.db["bookings"][1]["patient_id"] == first_patient_id
 
 
 def test_whatsapp_booking_idempotent_replay_creates_one_booking(client, fake_supabase):

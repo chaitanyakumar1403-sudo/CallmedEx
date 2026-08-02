@@ -42,6 +42,7 @@ from app.middleware.mediassist_auth import (
 from app.models.schemas import ServiceType
 from app.services.audit import AuditActions, AuditService
 from app.utils.db_helpers import _rows
+from app.utils.phone import normalize_phone
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
@@ -139,11 +140,11 @@ def _error_body(code: str, message: str) -> dict:
     return {"error": {"code": code, "message": message}}
 
 
-def _idempotent_or(idem_key: str) -> Optional[JSONResponse]:
+def _idempotent_or(idem_key: str, endpoint: str) -> Optional[JSONResponse]:
     """Short-circuit helper: returns the cached response if this idempotency
-    key was already processed, else None. Every POST route below calls this
-    first, before doing any work."""
-    cached = get_cached_idempotent_response(idem_key)
+    key was already processed for this endpoint, else None. Every POST route
+    below calls this first, before doing any work."""
+    cached = get_cached_idempotent_response(idem_key, endpoint)
     if cached:
         return JSONResponse(status_code=cached["status_code"], content=cached["body"])
     return None
@@ -153,6 +154,57 @@ def _store_and_respond(idem_key: str, endpoint: str, status_code: int, body: dic
     """Persists `body` under `idem_key` for future replays, then returns it."""
     store_idempotent_response(idem_key, endpoint, status_code, body)
     return JSONResponse(status_code=status_code, content=body)
+
+
+def _phone_lookup_variants(phone: str) -> List[str]:
+    """A handful of plausible `users.mobile` storage formats for `phone`,
+    used only as a fallback query after an exact match misses.
+
+    Real `users.mobile` values are stored inconsistently (bare 10-digit,
+    E.164 with "+91", "91"-prefixed, or spaced) because signup never
+    enforced a format. MediAssist always sends E.164. Rather than a
+    full-table scan (not viable at scale), we generate the small, well-known
+    set of alternate formats an Indian mobile number might be stored under
+    and issue one indexed `.eq("mobile", ...)` query per variant.
+    """
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return []
+    return list({
+        normalized,
+        f"+91{normalized}",
+        f"91{normalized}",
+        f"+91 {normalized[:5]} {normalized[5:]}",
+    })
+
+
+def _find_user_by_phone(select_cols: str, phone: str) -> Optional[dict]:
+    """Resolve a `users` (role=patient) row by phone: an exact-match fast
+    path first (cheap, indexed, hits the common case), falling back to a
+    handful of plausible alternate formats when that misses -- so a phone
+    number arriving in a different-but-equivalent format than what's stored
+    still resolves to the same patient instead of 404ing and causing
+    mediassist_inbound.py::_create_headless_patient to mint a duplicate.
+    Scoped to MediAssist-facing lookups only; general signup/auth is
+    untouched.
+    """
+    rows = _rows(
+        supabase.table("users").select(select_cols)
+        .eq("role", "patient").eq("mobile", phone).limit(1).execute()
+    )
+    if rows:
+        return rows[0]
+
+    for variant in _phone_lookup_variants(phone):
+        if variant == phone:
+            continue
+        rows = _rows(
+            supabase.table("users").select(select_cols)
+            .eq("role", "patient").eq("mobile", variant).limit(1).execute()
+        )
+        if rows:
+            return rows[0]
+    return None
 
 
 def _get_report_job(report_job_id: str) -> Optional[dict]:
@@ -181,9 +233,9 @@ async def report_processing_callback(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     job = _get_report_job(body.report_job_id)
     if not job:
@@ -213,9 +265,9 @@ async def report_delivered_callback(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     job = _get_report_job(body.report_job_id)
     if not job:
@@ -280,9 +332,9 @@ async def report_failed_callback(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     job = _get_report_job(body.report_job_id)
     if not job:
@@ -318,9 +370,9 @@ async def report_expired_callback(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     job = _get_report_job(body.report_job_id)
     if not job:
@@ -350,16 +402,25 @@ async def notification_status_callback(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     # CallMedex doesn't persist a `notifications` row per outbound MediAssist
     # notification today — no table to update, this is audit-only.
+    #
+    # entity_id is NOT set to notification_id: audit_log.entity_id is a UUID
+    # column, but NotificationStatusCallback.notification_id is an untyped
+    # string per the contract -- MediAssist's real ids may not be UUIDs
+    # (e.g. "notif_88213"). Passing a non-UUID there would make the DB
+    # insert fail, and AuditService.log only logs-and-swallows insert
+    # failures, so this route's entire purpose (durably recording the
+    # callback) would silently produce nothing. notification_id is carried
+    # in `details` (JSONB, untyped) instead.
     AuditService.log(
         action=AuditActions.MEDIASSIST_NOTIFICATION_STATUS,
         entity_type="notification",
-        entity_id=body.notification_id,
+        entity_id=None,
         details={
             "notification_id": body.notification_id,
             "status": body.status,
@@ -382,17 +443,13 @@ async def lookup_patient_by_phone(phone: str = Query(..., description="E.164 for
             content=_error_body("patient_not_found", "No patient with this phone number."),
         )
 
-    user_rows = _rows(
-        supabase.table("users").select("id, address, city, pincode")
-        .eq("role", "patient").eq("mobile", phone).limit(1).execute()
-    )
-    if not user_rows:
+    user = _find_user_by_phone("id, address, city, pincode", phone)
+    if not user:
         return JSONResponse(
             status_code=404,
             content=_error_body("patient_not_found", "No patient with this phone number."),
         )
 
-    user = user_rows[0]
     patient_id = user["id"]
 
     profile_rows = _rows(
@@ -424,11 +481,8 @@ async def lookup_patient_by_phone(phone: str = Query(..., description="E.164 for
 # ─── 7. WhatsApp-originated booking ────────────────────────────────────────
 
 def _find_patient_id_by_phone(phone: str) -> Optional[str]:
-    rows = _rows(
-        supabase.table("users").select("id")
-        .eq("role", "patient").eq("mobile", phone).limit(1).execute()
-    )
-    return rows[0]["id"] if rows else None
+    user = _find_user_by_phone("id", phone)
+    return user["id"] if user else None
 
 
 def _patient_exists(patient_id: str) -> bool:
@@ -490,9 +544,9 @@ async def create_whatsapp_booking(
     x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
     x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
 ):
-    if (cached := _idempotent_or(x_idempotency_key)) is not None:
-        return cached
     endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
 
     if not supabase:
         return _store_and_respond(

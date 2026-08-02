@@ -32,7 +32,10 @@ class NotificationEngine:
     ) -> dict:
         """
         Send a notification via the specified channel.
-        Channels: 'email', 'sms', 'whatsapp', 'push', 'in_app'
+        Channels: 'email', 'sms', 'push', 'in_app'
+        WhatsApp is not handled here — it is sent exclusively via
+        app.integrations.mediassist_client (MediAssist AI owns all WhatsApp
+        delivery; see docs/integrations/mediassist-ai/).
         """
         notification_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()

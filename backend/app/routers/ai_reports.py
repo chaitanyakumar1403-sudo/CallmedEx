@@ -157,6 +157,7 @@ async def analyze_report(
 
     try:
         await mediassist_client.submit_report_job(
+            report_job_id=report_job_id,
             source_type="lab_report",
             source_document_url=signed_url,
             patient={
@@ -177,7 +178,7 @@ async def analyze_report(
             }).eq("id", report_job_id).execute()
         raise HTTPException(
             status_code=502,
-            detail="MediAssist AI is currently unavailable. Your report was saved and can be resubmitted.",
+            detail="MediAssist AI is currently unavailable. Please try uploading the report again.",
         )
 
     return {

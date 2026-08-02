@@ -100,12 +100,14 @@ def mock_storage(monkeypatch):
 
 @pytest.fixture
 def mock_submit_success(monkeypatch):
-    """MediAssist accepting the job. NOTE: this return value is intentionally
-    not consumed by app/routers/ai_reports.py::analyze_report -- CallMedex
-    mints its own report_job_id before this call and that id (not whatever
-    MediAssist echoes back) is what every later callback references. The
-    dict shape here just mirrors the real contract's 202 response; it's
-    illustrative, not something this test threads through."""
+    """MediAssist accepting the job. CallMedex mints report_job_id BEFORE
+    calling submit_report_job and now sends it as part of the outbound
+    request body (Fix 1) -- MediAssist is contractually required to echo
+    this exact id back on every callback for the job, so
+    `test_report_submitted_processed_and_delivered_end_to_end` below asserts
+    the id received by this mock matches the id `report_jobs.id` holds and
+    the id the callbacks use, closing the gap that previously let the two
+    services mint different ids for the "same" job."""
     mock = AsyncMock(return_value={"report_job_id": str(uuid.uuid4()), "status": "queued"})
     monkeypatch.setattr(ai_reports_mod.mediassist_client, "submit_report_job", mock)
     return mock
@@ -184,6 +186,12 @@ def test_report_submitted_processed_and_delivered_end_to_end(
     assert job_row["id"] == report_job_id
     assert job_row["status"] == "queued"
     mock_submit_success.assert_awaited_once()
+
+    # The id sent over the wire to MediAssist is the SAME id report_jobs.id
+    # holds and the SAME id the callbacks below reference -- proving the two
+    # services are not minting divergent ids for what should be one job.
+    _, submit_kwargs = mock_submit_success.call_args
+    assert submit_kwargs["report_job_id"] == report_job_id == job_row["id"]
 
     # MediAssist calls back: processing started.
     r1 = _post(

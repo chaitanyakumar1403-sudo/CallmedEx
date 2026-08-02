@@ -135,6 +135,28 @@ def test_unconfigured_inbound_token_rejects_everything(client, monkeypatch):
     assert resp.status_code == 401
 
 
+def test_unconfigured_hmac_secret_rejects_even_with_valid_bearer_and_matching_signature(client, monkeypatch):
+    """An empty MEDIASSIST_HMAC_SECRET would make hmac.new(b"", ...) sign
+    against a publicly-known empty key -- the signature check would "pass"
+    for anyone who computes HMAC against "". This must be rejected outright,
+    even when the bearer token is correct and the signature was genuinely
+    computed against the (empty) configured secret."""
+    monkeypatch.setattr(settings, "MEDIASSIST_HMAC_SECRET", "")
+    body = b'{"hello":"world"}'
+    ts = str(int(time.time()))
+    forged_sig = "sha256=" + hmac.new(b"", f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+    resp = client.post(
+        "/test-endpoint",
+        content=body,
+        headers={
+            "Authorization": f"Bearer {BEARER}",
+            "X-Timestamp": ts,
+            "X-Signature": forged_sig,
+        },
+    )
+    assert resp.status_code == 401
+
+
 # ─── Idempotency cache ──────────────────────────────────────────────────────
 #
 # Reuses the FakeSupabase/FakeQuery in-memory Supabase stand-in from
@@ -153,14 +175,14 @@ def fake_supabase(monkeypatch):
 
 
 def test_get_cached_idempotent_response_returns_none_when_absent(fake_supabase):
-    assert get_cached_idempotent_response("missing-key") is None
+    assert get_cached_idempotent_response("missing-key", "/endpoint") is None
 
 
 def test_store_then_get_round_trips(fake_supabase):
     store_idempotent_response(
         "idem-key-1", "/api/v1/integrations/mediassist/callbacks", 202, {"received": True}
     )
-    cached = get_cached_idempotent_response("idem-key-1")
+    cached = get_cached_idempotent_response("idem-key-1", "/api/v1/integrations/mediassist/callbacks")
     assert cached == {"status_code": 202, "body": {"received": True}}
 
 
@@ -169,15 +191,34 @@ def test_store_idempotent_response_racing_duplicate_does_not_raise(fake_supabase
     # A second writer racing the first for the same key must not crash the
     # request — the first writer's cached response stays authoritative.
     store_idempotent_response("idem-key-2", "/endpoint", 200, {"a": 1})
-    cached = get_cached_idempotent_response("idem-key-2")
+    cached = get_cached_idempotent_response("idem-key-2", "/endpoint")
     assert cached == {"status_code": 200, "body": {"a": 1}}
+
+
+def test_get_cached_idempotent_response_is_scoped_to_endpoint(fake_supabase):
+    """`get_cached_idempotent_response`'s query must filter on `endpoint`,
+    not just `idempotency_key` — the column is stored on every row but was
+    previously never checked on read, so a key reused across two different
+    endpoints could return the wrong cached body. (idempotency_key is the
+    table's real PRIMARY KEY, so two rows can't naturally share one value in
+    production — this seeds the fake store directly to exercise the query's
+    own filtering logic regardless of that constraint.)"""
+    fake_supabase.db.setdefault("mediassist_inbound_requests", []).append({
+        "idempotency_key": "shared-key", "endpoint": "/endpoint-a",
+        "status_code": 200, "response_body": {"which": "a"},
+    })
+
+    assert get_cached_idempotent_response("shared-key", "/endpoint-a") == {
+        "status_code": 200, "body": {"which": "a"},
+    }
+    assert get_cached_idempotent_response("shared-key", "/endpoint-b") is None
 
 
 def test_get_cached_idempotent_response_returns_none_when_supabase_unavailable(monkeypatch):
     import app.middleware.mediassist_auth as mediassist_auth_mod
 
     monkeypatch.setattr(mediassist_auth_mod, "supabase", None)
-    assert get_cached_idempotent_response("any-key") is None
+    assert get_cached_idempotent_response("any-key", "/endpoint") is None
 
 
 def test_store_idempotent_response_noop_when_supabase_unavailable(monkeypatch):

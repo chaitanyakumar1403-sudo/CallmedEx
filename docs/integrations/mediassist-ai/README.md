@@ -44,6 +44,10 @@ Every request in either direction carries:
   auth, a separate service-credential exchange).
 - `X-Signature: sha256=<hex>` — `HMAC-SHA256(timestamp + "." + raw_body, shared_secret)`.
   Receiver recomputes and compares with a constant-time check; reject on mismatch.
+  For a GET request (currently only `GET /patients/lookup`), `raw_body` is
+  empty, so the signed message is `timestamp + "." + query_string` instead —
+  the query string is included so a captured signed GET can't be replayed
+  with a different query (e.g. a different `?phone=`) to enumerate data.
 - `X-Timestamp` — Unix epoch seconds the request was signed at. Receiver rejects
   requests older than 5 minutes (replay protection).
 - `X-Idempotency-Key` — caller-generated UUID, stable across retries of the
@@ -129,3 +133,13 @@ sequenceDiagram
    set (`booking_confirmed`, `dispatch_arriving`, `payment_receipt`,
    `appointment_reminder`, `phlebo_offer_new`) in `mediassist-ai.openapi.yaml`;
    MediAssist must confirm which templates it will actually render.
+4. Payload-fingerprint checking on idempotency keys is not implemented on
+   either side. The idempotency cache (`get_cached_idempotent_response`/
+   `store_idempotent_response`) stores no hash of the original request body,
+   so a key reused with a genuinely different payload cannot be detected —
+   it always replays the first response verbatim, regardless of payload
+   differences. The 409 "idempotency key reused with a different payload"
+   response previously documented on `/report-jobs` and `/whatsapp-bookings`
+   has been removed from both OpenAPI files for this reason: it could never
+   actually be emitted by the current implementation, and documenting an
+   unreachable response is worse than not documenting one.

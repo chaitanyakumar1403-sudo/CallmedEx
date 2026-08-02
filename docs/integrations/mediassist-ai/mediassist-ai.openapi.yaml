@@ -65,12 +65,6 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '409':
-          description: Idempotency key reused with a different payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /report-jobs/{report_job_id}:
     get:
@@ -214,8 +208,13 @@ components:
 
     ReportJobRequest:
       type: object
-      required: [source_type, source_document_url, patient, delivery, callback_base_url]
+      required: [report_job_id, source_type, source_document_url, patient, delivery, callback_base_url]
       properties:
+        report_job_id:
+          type: string
+          description: >
+            CallMedex-generated identifier for this job; MediAssist must echo
+            it on every callback for this job.
         source_type:
           type: string
           enum: [lab_report, prescription, consultation_summary]

@@ -54,6 +54,7 @@ def _no_real_sleep(monkeypatch):
 
 def _report_job_kwargs():
     return dict(
+        report_job_id="rj_test_1",
         source_type="lab_report",
         source_document_url="https://storage.callmedex.test/signed/reports/abc.pdf",
         patient={"patient_id": "pat_1", "phone": "+919000000000", "preferred_language": "en"},
@@ -255,6 +256,33 @@ async def test_circuit_opens_after_threshold_and_short_circuits():
         await client.submit_report_job(**_report_job_kwargs())
 
     assert call_count["n"] == calls_before_open, "circuit-open call must not reach the transport"
+
+
+# ─── Unconfigured base URL fails closed (not an unhandled 500) ─────────────
+
+
+@pytest.mark.asyncio
+async def test_blank_base_url_raises_unavailable_not_unsupported_protocol():
+    """An empty MEDIASSIST_BASE_URL must never let httpx.UnsupportedProtocol
+    escape -- that exception is not a MediAssistError, so every
+    `except MediAssistError` call site (ai_reports.py, workers/tasks/
+    notifications.py, workers/tasks/payments.py) would miss it and this
+    would surface as an unhandled 500 instead of the designed failure path."""
+    client = MediAssistClient(base_url="", bearer_token=BEARER, hmac_secret=SECRET)
+
+    with pytest.raises(MediAssistUnavailableError):
+        await client.submit_report_job(**_report_job_kwargs())
+
+    with pytest.raises(MediAssistUnavailableError):
+        await client.send_notification(
+            channel="whatsapp",
+            recipient={"phone": "+919000000000"},
+            template="dispatch_arriving",
+            template_data={},
+        )
+
+    with pytest.raises(MediAssistUnavailableError):
+        await client.get_report_job_status("rj_1")
 
 
 @pytest.mark.asyncio

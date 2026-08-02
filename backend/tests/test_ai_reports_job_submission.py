@@ -107,9 +107,13 @@ def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, 
     assert job["source_type"] == "lab_report"
     assert job["source_document_path"] == f"{PATIENT_ID}/fake.pdf"
 
-    # submit_report_job was called with the patient's real phone/language.
+    # submit_report_job was called with the patient's real phone/language,
+    # AND with the exact report_job_id that report_jobs.id holds — this is
+    # the id MediAssist must echo back on every callback (see Fix 1 /
+    # test_mediassist_integration_e2e.py for the full submit->callback trip).
     mock_submit_success.assert_awaited_once()
     _, kwargs = mock_submit_success.call_args
+    assert kwargs["report_job_id"] == report_job_id
     assert kwargs["patient"]["patient_id"] == PATIENT_ID
     assert kwargs["patient"]["phone"] == "+919000000001"
     assert kwargs["patient"]["preferred_language"] == "te"
@@ -159,6 +163,26 @@ def test_submit_failure_returns_502_and_marks_job_failed(client, fake_db, mock_s
     assert job["status"] == "failed"
     assert job["failure_reason"]
     assert "MediAssist" in job["failure_reason"]
+
+
+def test_unconfigured_base_url_returns_502_not_500(client, fake_db, mock_storage, monkeypatch):
+    """A blank MEDIASSIST_BASE_URL used to let httpx.UnsupportedProtocol
+    escape past every `except MediAssistError` -- including this route's --
+    producing an unhandled 500 instead of the designed 502 + failed-job
+    path. This wires a REAL MediAssistClient (base_url="") into the router,
+    rather than mocking submit_report_job, so it exercises the actual
+    fail-fast check added to MediAssistClient._request."""
+    from app.integrations.mediassist_client import MediAssistClient
+
+    real_client_with_no_base_url = MediAssistClient(base_url="", bearer_token="x", hmac_secret="y")
+    monkeypatch.setattr(ai_reports_mod, "mediassist_client", real_client_with_no_base_url)
+
+    resp = _post_report(client)
+
+    assert resp.status_code == 502
+    job = fake_db.db.get("report_jobs", [])[0]
+    assert job["status"] == "failed"
+    assert job["failure_reason"]
 
 
 # ─── GET /jobs/{id} ──────────────────────────────────────────────────────────

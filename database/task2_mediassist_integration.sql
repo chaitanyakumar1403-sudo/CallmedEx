@@ -84,6 +84,15 @@ ALTER TABLE ai_report_analyses ADD COLUMN IF NOT EXISTS report_job_id UUID NULL 
 
 CREATE INDEX IF NOT EXISTS idx_ai_report_analyses_report_job ON ai_report_analyses(report_job_id);
 
+-- The idempotency cache (mediassist_inbound_requests) already covers
+-- same-key redelivery, but two genuinely DIFFERENT idempotency keys
+-- referencing the same job could still race past the application-level
+-- check-then-insert in report_delivered_callback. UNIQUE at the DB level
+-- closes that race. NULL values are unconstrained (multiple rows may have
+-- report_job_id IS NULL — legacy rows predating this migration).
+ALTER TABLE ai_report_analyses DROP CONSTRAINT IF EXISTS ai_report_analyses_report_job_id_unique;
+ALTER TABLE ai_report_analyses ADD CONSTRAINT ai_report_analyses_report_job_id_unique UNIQUE (report_job_id);
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 99. RLS — deny-all by default (lint 0008)
 -- ═══════════════════════════════════════════════════════════════════════════
