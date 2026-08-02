@@ -134,6 +134,18 @@ def test_unsupported_mime_type_returns_400(client, fake_db):
     assert fake_db.db.get("report_jobs", []) == []
 
 
+def test_webp_upload_returns_4xx_not_500(client, fake_db):
+    """WebP is deliberately excluded from ALLOWED_TYPES: storage.py's
+    magic-byte allowlist has no WebP signature, so accepting it here would
+    always dead-end in a 500 from upload_document. It must be rejected
+    cleanly by the router's own MIME check instead."""
+    webp_bytes = b"RIFF\x00\x00\x00\x00WEBPVP8 "
+    resp = _post_report(client, filename="report.webp", content=webp_bytes, content_type="image/webp")
+    assert resp.status_code < 500
+    assert resp.status_code == 400
+    assert fake_db.db.get("report_jobs", []) == []
+
+
 # ─── submit_report_job raising MediAssistUnavailableError → 502 + failed row ─
 
 def test_submit_failure_returns_502_and_marks_job_failed(client, fake_db, mock_storage, mock_submit_failure):

@@ -29,13 +29,17 @@ router = APIRouter(prefix="/api/reports", tags=["AI Reports"])
 # Max file size: 10 MB
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
-# content_type -> (display name, real file extension used for storage/magic-byte checks)
+# content_type -> display name. NOTE: WebP is deliberately NOT included —
+# backend/app/services/storage.py's ALLOWED_SIGNATURES (magic-byte check)
+# has no WebP entry, so a genuine WebP upload would always fail
+# validate_magic_bytes and dead-end in a 500 from upload_document. Until
+# WebP magic-byte support exists in storage.py, keep it out of this
+# allowlist so it's rejected here with a clean 400 instead.
 ALLOWED_TYPES = {
     "application/pdf": "PDF",
     "image/jpeg": "JPEG",
     "image/jpg": "JPEG",
     "image/png": "PNG",
-    "image/webp": "WebP",
 }
 
 # Real file extensions, derived from ALLOWED_TYPES above — kept distinct from
@@ -46,7 +50,6 @@ _EXT_BY_CONTENT_TYPE = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
     "image/png": "png",
-    "image/webp": "webp",
 }
 
 
@@ -92,7 +95,7 @@ async def analyze_report(
     if content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type '{content_type}'. Please upload a PDF, JPEG, PNG, or WebP.",
+            detail=f"Unsupported file type '{content_type}'. Please upload a PDF, JPEG, or PNG.",
         )
 
     # ── Read file bytes ──────────────────────────────────────────────
