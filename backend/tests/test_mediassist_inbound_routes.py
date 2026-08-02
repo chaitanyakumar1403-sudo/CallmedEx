@@ -229,6 +229,46 @@ def test_report_delivered_idempotent_replay_does_not_double_upsert(client, fake_
     assert len(fake_supabase.db["ai_report_analyses"]) == 1
 
 
+def test_report_delivered_idempotency_key_reuse_replays_cache_not_fresh_execution(client, fake_supabase):
+    """Proves the cache actually short-circuits re-execution, not just that
+    the handler's own upsert-by-report_job_id logic happens to converge to a
+    consistent end-state either way.
+
+    `report_delivered_callback` upserts `ai_report_analyses` keyed on
+    `report_job_id` — replaying the IDENTICAL payload would look identical
+    whether or not the idempotency cache actually fired (the second call
+    would just hit the "update" branch on its own). So instead this reuses
+    the same `X-Idempotency-Key` for two calls with DIFFERENT payloads
+    (different `plain_language_summary`) and asserts the second call's
+    response is the cached first response, and the stored analysis still
+    reflects the FIRST payload — proving the second call's body was never
+    reprocessed at all.
+    """
+    fake_supabase.db["report_jobs"] = [{
+        "id": "job-4b", "patient_id": "pat-9", "status": "processing",
+        "source_document_path": "reports/pat-9/job-4b.pdf",
+    }]
+    idem_key = _new_idem()
+
+    first_payload = _delivered_payload(report_job_id="job-4b")
+    first_payload["analysis"]["plain_language_summary"] = "first call summary"
+
+    second_payload = _delivered_payload(report_job_id="job-4b")
+    second_payload["analysis"]["plain_language_summary"] = "second call summary — must never be stored"
+
+    r1 = _post(client, "/callbacks/report-delivered", first_payload, idem_key=idem_key, correlation_id=_new_corr())
+    r2 = _post(client, "/callbacks/report-delivered", second_payload, idem_key=idem_key, correlation_id=_new_corr())
+
+    assert r1.status_code == r2.status_code == 200
+    # The second response must be the byte-for-byte cached first response,
+    # not a fresh 200 the handler happened to produce again.
+    assert r2.json() == r1.json() == {"received": True}
+
+    analyses = fake_supabase.db["ai_report_analyses"]
+    assert len(analyses) == 1
+    assert analyses[0]["plain_language_summary"] == "first call summary"
+
+
 # ─── 3. POST /callbacks/report-failed ───────────────────────────────────────
 
 def test_report_failed_success(client, fake_supabase):
