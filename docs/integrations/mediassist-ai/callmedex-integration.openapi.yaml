@@ -317,14 +317,49 @@ components:
       allOf:
         - $ref: '#/components/schemas/ReportCallback'
         - type: object
-          required: [delivered_channel]
+          required: [delivered_channel, analysis]
           properties:
             delivered_channel:
               type: string
               enum: [whatsapp]
             message_id:
               type: string
+              nullable: true
               description: Provider-side WhatsApp message ID, for audit trail correlation.
+            analysis:
+              type: object
+              description: >
+                The structured report analysis MediAssist produced (OCR +
+                AI interpretation) — CallMedex persists this alongside the
+                delivery confirmation for its own dashboard/doctor-review
+                flow. Field shape matches ai_report_analyses.
+              required: [plain_language_summary, doctor_clinical_summary, abnormal_flags]
+              properties:
+                plain_language_summary:
+                  type: string
+                doctor_clinical_summary:
+                  type: string
+                health_score:
+                  type: integer
+                  nullable: true
+                abnormal_flags:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      marker:
+                        type: string
+                      value:
+                        type: string
+                      status:
+                        type: string
+                        enum: [normal, high, low, critical]
+                      reference_range:
+                        type: string
+                recommendations:
+                  type: array
+                  items:
+                    type: string
 
     ReportFailedCallback:
       allOf:
