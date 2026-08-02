@@ -126,11 +126,7 @@ class Settings:
     CALLMEDEX_PUBLIC_BASE_URL: str = os.getenv(
         "CALLMEDEX_PUBLIC_BASE_URL", "http://localhost:8000"
     )
-    # Token MediAssist must present when calling INTO CallMedex — distinct from
-    # MEDIASSIST_BEARER_TOKEN above, which CallMedex presents when calling OUT.
-    # Inbound signature verification reuses MEDIASSIST_HMAC_SECRET (one shared
-    # secret, both directions) — a deliberate scope decision to avoid building
-    # a full credential-issuance/rotation system that nothing in this plan requires.
+    # Token MediAssist presents calling INTO CallMedex; inbound signatures reuse MEDIASSIST_HMAC_SECRET (one shared secret, both directions — no rotation system needed for this plan's scope).
     MEDIASSIST_INBOUND_BEARER_TOKEN: str = os.getenv("MEDIASSIST_INBOUND_BEARER_TOKEN", "")
 
 

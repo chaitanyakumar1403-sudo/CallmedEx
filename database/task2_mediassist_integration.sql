@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS report_jobs (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- idx_report_jobs_status is already taken by task1_processing_center_foundation.sql
+-- (on report_fetch_jobs.status) — index names share one namespace per schema, so
+-- reusing it here would silently no-op instead of indexing this table's column.
 CREATE INDEX IF NOT EXISTS idx_report_jobs_patient      ON report_jobs(patient_id);
-CREATE INDEX IF NOT EXISTS idx_report_jobs_status       ON report_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_report_jobs_status_col   ON report_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_report_jobs_correlation  ON report_jobs(correlation_id);
 
 -- ═══════════════════════════════════════════════════════════════════════════
