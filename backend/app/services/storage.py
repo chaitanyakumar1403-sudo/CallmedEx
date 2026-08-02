@@ -39,8 +39,10 @@ def validate_magic_bytes(file_bytes: bytes, claimed_ext: str) -> bool:
 
 class StorageService:
     @staticmethod
-    def upload_verification_doc(user_id: str, file_bytes: bytes, ext: str) -> str:
-        """Upload to private bucket; return object path, or '' on failure."""
+    def upload_document(user_id: str, file_bytes: bytes, ext: str, bucket: str = None) -> str:
+        """Upload to `bucket` (defaults to the private verification bucket);
+        return the object path, or '' on failure."""
+        bucket = bucket or settings.VERIFICATION_BUCKET
         if not supabase:
             return ""
 
@@ -54,7 +56,7 @@ class StorageService:
 
         path = f"{user_id}/{uuid.uuid4().hex}.{ext.lstrip('.')}"
         try:
-            supabase.storage.from_(settings.VERIFICATION_BUCKET).upload(
+            supabase.storage.from_(bucket).upload(
                 path, file_bytes,
                 {"contentType": "application/octet-stream", "upsert": "false"},
             )
@@ -64,11 +66,17 @@ class StorageService:
             return ""
 
     @staticmethod
-    def signed_url(path: str, expires: int = 3600) -> str:
+    def upload_verification_doc(user_id: str, file_bytes: bytes, ext: str) -> str:
+        """Thin wrapper kept for every existing verification-flow caller."""
+        return StorageService.upload_document(user_id, file_bytes, ext, bucket=settings.VERIFICATION_BUCKET)
+
+    @staticmethod
+    def signed_url(path: str, expires: int = 3600, bucket: str = None) -> str:
+        bucket = bucket or settings.VERIFICATION_BUCKET
         if not supabase or not path:
             return ""
         try:
-            res = supabase.storage.from_(settings.VERIFICATION_BUCKET).create_signed_url(path, expires)
+            res = supabase.storage.from_(bucket).create_signed_url(path, expires)
             return res.get("signedURL") or res.get("signedUrl") or ""
         except Exception as e:
             logger.error(f"Signed URL failed: {e}")

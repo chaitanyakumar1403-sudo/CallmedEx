@@ -1,15 +1,27 @@
 """
-AI Reports Router — Next-Gen CallMedex
-Patient uploads a lab report PDF or image → Gemini AI interprets it.
-Returns plain-language patient summary + clinical summary + abnormal flags.
+AI Reports Router — CallMedex.
+
+CallMedex never does OCR or AI report interpretation itself — that is
+MediAssist AI's exclusive job (see docs/integrations/mediassist-ai/). This
+router only validates the upload, stores the file, and hands off a
+report-analysis job to MediAssist via app.integrations.mediassist_client.
+MediAssist AI performs the OCR + interpretation + WhatsApp delivery
+asynchronously and calls back into
+app/routers/mediassist_inbound.py::report_delivered_callback (or
+report-failed) to update this job's status and populate ai_report_analyses.
 """
-import uuid
 import logging
+import uuid
 from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+
 from app.middleware.auth import get_current_user
 from app.database import supabase
-from app.services.ai_reports import AIReportService
+from app.services.storage import StorageService
+from app.config import settings
+from app.integrations.mediassist_client import mediassist_client, MediAssistError
+from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/reports", tags=["AI Reports"])
@@ -17,6 +29,7 @@ router = APIRouter(prefix="/api/reports", tags=["AI Reports"])
 # Max file size: 10 MB
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 
+# content_type -> (display name, real file extension used for storage/magic-byte checks)
 ALLOWED_TYPES = {
     "application/pdf": "PDF",
     "image/jpeg": "JPEG",
@@ -25,17 +38,54 @@ ALLOWED_TYPES = {
     "image/webp": "WebP",
 }
 
+# Real file extensions, derived from ALLOWED_TYPES above — kept distinct from
+# the display names because StorageService's magic-byte check expects the
+# actual extension (e.g. "jpg", not "jpeg").
+_EXT_BY_CONTENT_TYPE = {
+    "application/pdf": "pdf",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
 
-@router.post("/analyze")
+
+def _get_patient_contact(patient_id: str) -> dict:
+    """Look up the phone number (users.mobile) and preferred_language
+    (patients.preferred_language) for a patient. Defaults language to "en"
+    if the patients profile row or its preferred_language is absent —
+    mirrors mediassist_inbound.py::lookup_patient_by_phone's approach."""
+    phone = None
+    preferred_language = "en"
+    if not supabase:
+        return {"phone": phone, "preferred_language": preferred_language}
+
+    user_rows = _rows(
+        supabase.table("users").select("mobile").eq("id", patient_id).limit(1).execute()
+    )
+    if user_rows:
+        phone = user_rows[0].get("mobile")
+
+    profile_rows = _rows(
+        supabase.table("patients").select("preferred_language")
+        .eq("user_id", patient_id).limit(1).execute()
+    )
+    if profile_rows:
+        preferred_language = profile_rows[0].get("preferred_language") or "en"
+
+    return {"phone": phone, "preferred_language": preferred_language}
+
+
+@router.post("/analyze", status_code=202)
 async def analyze_report(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Patient uploads a lab report (PDF or Image). AI analyzes it and returns:
-    - plain_language_summary: patient-friendly explanation
-    - doctor_clinical_summary: clinical overview for the doctor
-    - abnormal_flags: list of out-of-range values
+    Patient uploads a lab report (PDF or image). CallMedex stores it and
+    submits an async report-analysis job to MediAssist AI — it does NOT
+    analyze the report itself. The patient polls GET /jobs/{report_job_id}
+    (or waits for the WhatsApp delivery) for the result.
     """
     # ── Validate MIME type ───────────────────────────────────────────
     content_type = (file.content_type or "").lower().split(";")[0].strip()
@@ -62,45 +112,102 @@ async def analyze_report(
         )
 
     logger.info(
-        f"Analyzing report for user {current_user['sub']}: "
+        f"Submitting report job for user {current_user['sub']}: "
         f"{file.filename} ({len(file_bytes) // 1024} KB, {content_type})"
     )
 
-    # ── Run AI analysis ──────────────────────────────────────────────
-    try:
-        ai_output = AIReportService.interpret_lab_report(file_bytes, content_type)
-    except ValueError as e:
-        # Known AI error (bad response, parse failure, etc.)
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected AI analysis error: {e}")
+    patient_id = current_user["sub"]
+    ext = _EXT_BY_CONTENT_TYPE[content_type]
+
+    # ── Upload to the reports bucket ─────────────────────────────────
+    path = StorageService.upload_document(patient_id, file_bytes, ext, bucket=settings.REPORTS_BUCKET)
+    if not path:
         raise HTTPException(
             status_code=500,
-            detail="An unexpected error occurred while analyzing the report. Please try again.",
+            detail="Could not store the uploaded report. Please try again.",
         )
 
-    # ── Persist result to DB ─────────────────────────────────────────
-    analysis_id = str(uuid.uuid4())
+    signed_url = StorageService.signed_url(path, bucket=settings.REPORTS_BUCKET)
+    if not signed_url:
+        raise HTTPException(
+            status_code=500,
+            detail="Could not generate an access URL for the uploaded report. Please try again.",
+        )
+
+    contact = _get_patient_contact(patient_id)
+
+    report_job_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
     if supabase:
-        try:
-            supabase.table("ai_report_analyses").insert({
-                "id": analysis_id,
-                "patient_id": current_user["sub"],
-                "raw_report_url": file.filename or "uploaded_file",
-                "plain_language_summary": ai_output.get("plain_language_summary", ""),
-                "doctor_clinical_summary": ai_output.get("doctor_clinical_summary", ""),
-                "abnormal_flags": ai_output.get("abnormal_flags", []),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
-        except Exception as e:
-            # Don't fail the whole request if DB insert fails
-            logger.warning(f"Could not save analysis to DB: {e}")
+        supabase.table("report_jobs").insert({
+            "id": report_job_id,
+            "patient_id": patient_id,
+            "source_type": "lab_report",
+            "status": "queued",
+            "source_document_path": path,
+            "correlation_id": correlation_id,
+            "created_at": now,
+            "updated_at": now,
+        }).execute()
+
+    try:
+        await mediassist_client.submit_report_job(
+            source_type="lab_report",
+            source_document_url=signed_url,
+            patient={
+                "patient_id": patient_id,
+                "phone": contact["phone"],
+                "preferred_language": contact["preferred_language"],
+            },
+            delivery={"channels": ["whatsapp"]},
+            correlation_id=correlation_id,
+        )
+    except MediAssistError as e:
+        logger.error(f"MediAssist rejected report job {report_job_id}: {e}")
+        if supabase:
+            supabase.table("report_jobs").update({
+                "status": "failed",
+                "failure_reason": str(e),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", report_job_id).execute()
+        raise HTTPException(
+            status_code=502,
+            detail="MediAssist AI is currently unavailable. Your report was saved and can be resubmitted.",
+        )
 
     return {
         "success": True,
-        "message": "Report analyzed successfully.",
-        "analysis_id": analysis_id,
-        "results": ai_output,
+        "message": "Report submitted for analysis.",
+        "report_job_id": report_job_id,
+        "status": "queued",
+    }
+
+
+@router.get("/jobs/{report_job_id}")
+async def get_report_job(
+    report_job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Read the local report_jobs row's status. Never calls MediAssist
+    directly — Task 3's callbacks (report-processing/-delivered/-failed/
+    -expired) keep this table current as MediAssist processes the job."""
+    if not supabase:
+        raise HTTPException(status_code=404, detail="Report job not found.")
+
+    rows = _rows(
+        supabase.table("report_jobs").select("*").eq("id", report_job_id).limit(1).execute()
+    )
+    if not rows or rows[0].get("patient_id") != current_user["sub"]:
+        raise HTTPException(status_code=404, detail="Report job not found.")
+
+    job = rows[0]
+    return {
+        "report_job_id": job["id"],
+        "status": job["status"],
+        "failure_reason": job.get("failure_reason"),
+        "updated_at": job.get("updated_at"),
     }
 
 
@@ -108,7 +215,12 @@ async def analyze_report(
 async def get_report_history(
     current_user: dict = Depends(get_current_user),
 ):
-    """Get list of previous lab report analyses for the current patient."""
+    """Get list of previous lab report analyses for the current patient.
+
+    Reads ai_report_analyses, which is populated by MediAssist's
+    report-delivered callback (app/routers/mediassist_inbound.py), not by
+    this router.
+    """
     if not supabase:
         return {"success": True, "analyses": []}
 

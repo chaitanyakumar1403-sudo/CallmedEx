@@ -99,6 +99,7 @@ class Settings:
         ).split(",") if o.strip()
     ]
     VERIFICATION_BUCKET: str = os.getenv("VERIFICATION_BUCKET", "verification-docs")
+    REPORTS_BUCKET: str = os.getenv("REPORTS_BUCKET", "lab-reports")
 
     # ─── MediAssist AI Integration ─────────────────────────────────────
     # MediAssist AI owns OCR, AI report interpretation, and all WhatsApp
