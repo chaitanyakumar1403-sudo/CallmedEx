@@ -316,6 +316,8 @@ from app.routers import phlebo_stock
 app.include_router(phlebo_stock.router)
 from app.routers import phlebo_stats
 app.include_router(phlebo_stats.router)
+from app.routers import mediassist_inbound
+app.include_router(mediassist_inbound.router)
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")

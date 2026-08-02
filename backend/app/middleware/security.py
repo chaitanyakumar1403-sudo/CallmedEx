@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 MAX_REQUEST_SIZE = 10 * 1024 * 1024
 
 # Paths that should NOT have their bodies sanitized (file uploads, webhooks with signatures)
+# /api/v1/integrations/mediassist: MediAssist's inbound HMAC signature (see
+# app/middleware/mediassist_auth.py) is computed over the exact raw request
+# bytes. Re-serializing the body here (json.loads -> sanitize -> json.dumps)
+# almost never reproduces those exact bytes (different whitespace/separators),
+# so every genuinely-signed inbound callback would fail signature verification
+# with a 401 — this prefix must stay excluded for the integration to work at all.
 SKIP_SANITIZE_PATHS = {
     "/api/verification/upload",
     "/webhooks/razorpay",
     "/api/admin/upload",
+    "/api/v1/integrations/mediassist",
 }
 
 

@@ -185,3 +185,11 @@ class AuditActions:
     # MediAssist AI integration (outbound calls — see app/integrations/mediassist_client.py)
     MEDIASSIST_REPORT_JOB_SUBMITTED = "mediassist.report_job_submitted"
     MEDIASSIST_NOTIFICATION_REQUESTED = "mediassist.notification_requested"
+
+    # MediAssist AI integration (inbound callbacks — see app/routers/mediassist_inbound.py)
+    MEDIASSIST_REPORT_JOB_PROCESSING = "mediassist.report_job_processing"
+    MEDIASSIST_REPORT_JOB_DELIVERED = "mediassist.report_job_delivered"
+    MEDIASSIST_REPORT_JOB_FAILED = "mediassist.report_job_failed"
+    MEDIASSIST_REPORT_JOB_EXPIRED = "mediassist.report_job_expired"
+    MEDIASSIST_NOTIFICATION_STATUS = "mediassist.notification_status"
+    MEDIASSIST_WHATSAPP_BOOKING_CREATED = "mediassist.whatsapp_booking_created"
