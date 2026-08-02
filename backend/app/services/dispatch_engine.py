@@ -582,7 +582,7 @@ class UniversalDispatchEngine:
                     if dispatch_res.data:
                         d_req = dispatch_res.data[0]
                         patient_res = await _asyncio.to_thread(
-                            lambda: supabase.table("users").select("full_name, email").eq("id", d_req["patient_id"]).execute()
+                            lambda: supabase.table("users").select("full_name, email, mobile").eq("id", d_req["patient_id"]).execute()
                         )
                         return d_req, patient_res.data[0] if patient_res.data else None
                     return None, None
@@ -603,8 +603,16 @@ class UniversalDispatchEngine:
                             provider_name=provider_name,
                             provider_type=d_req["provider_type"]
                         )
+                    if patient_data.get("mobile"):
+                        from app.workers.tasks.notifications import send_dispatch_update
+                        send_dispatch_update.delay(
+                            patient_mobile=patient_data["mobile"],
+                            patient_name=patient_data.get("full_name", "Patient"),
+                            status="assigned",
+                            provider_name=provider_name,
+                        )
             except Exception as e:
-                logger.error(f"Failed to send tracking email: {e}")
+                logger.error(f"Failed to send tracking email/notification: {e}")
 
             return {"success": True, "message": "Offer accepted. Navigate to patient.", "dispatch_id": dispatch_id}
         else:
@@ -651,38 +659,83 @@ class UniversalDispatchEngine:
         if new_status in timestamp_map:
             update_data[timestamp_map[new_status]] = now
 
-        if not supabase:
+        dispatch_row = None
+
+        if supabase:
+            try:
+                result = (
+                    supabase.table("dispatch_requests")
+                    .update(update_data)
+                    .eq("id", dispatch_id)
+                    .execute()
+                )
+                if result.data:
+                    dispatch_row = result.data[0]
+            except Exception as e:
+                logger.warning(f"Supabase update_status failed: {e}")
+
+        if dispatch_row is None:
             for d in _local_dispatches:
                 if d.get("id") == dispatch_id:
                     d.update(update_data)
-                    if new_status == "arrived":
-                        OTPService.generate_otp(dispatch_id)
-                    return {"success": True, "dispatch": d}
+                    dispatch_row = d
+                    break
+
+        if dispatch_row is None:
             return {"success": True, "message": f"Status updated to {new_status}"}
 
+        if new_status == "arrived":
+            OTPService.generate_otp(dispatch_id)
+
+        if new_status in ("en_route", "arrived", "in_progress", "completed"):
+            UniversalDispatchEngine._notify_patient_of_status(dispatch_row, new_status)
+
+        return {"success": True, "dispatch": dispatch_row}
+
+    @staticmethod
+    def _notify_patient_of_status(dispatch_row: dict, new_status: str) -> None:
+        """Best-effort WhatsApp status notification via MediAssist AI.
+
+        Never raises — a notification failure must never block a dispatch
+        status transition that has already been committed.
+        """
+        if not supabase:
+            return
         try:
-            result = (
-                supabase.table("dispatch_requests")
-                .update(update_data)
-                .eq("id", dispatch_id)
-                .execute()
+            patient_id = dispatch_row.get("patient_id")
+            if not patient_id:
+                return
+            patient_res = (
+                supabase.table("users").select("full_name, mobile")
+                .eq("id", patient_id).limit(1).execute()
             )
-            if result.data:
-                if new_status == "arrived":
-                    OTPService.generate_otp(dispatch_id)
-                return {"success": True, "dispatch": result.data[0]}
+            if not patient_res.data or not patient_res.data[0].get("mobile"):
+                return
+            patient = patient_res.data[0]
+
+            provider_name = ""
+            provider_id = dispatch_row.get("assigned_provider_id")
+            if provider_id:
+                prov_res = (
+                    supabase.table("users").select("full_name")
+                    .eq("id", provider_id).limit(1).execute()
+                )
+                if prov_res.data:
+                    provider_name = prov_res.data[0].get("full_name", "")
+
+            from app.workers.tasks.notifications import send_dispatch_update
+            send_dispatch_update.delay(
+                patient_mobile=patient["mobile"],
+                patient_name=patient.get("full_name", "Patient"),
+                status=new_status,
+                provider_name=provider_name,
+                eta_mins=int(dispatch_row.get("estimated_eta_minutes") or 0),
+            )
         except Exception as e:
-            logger.warning(f"Supabase update_status failed: {e}")
-
-        # Fallback to local memory dispatch record
-        for d in _local_dispatches:
-            if d.get("id") == dispatch_id:
-                d.update(update_data)
-                if new_status == "arrived":
-                    OTPService.generate_otp(dispatch_id)
-                return {"success": True, "dispatch": d}
-
-        return {"success": True, "message": f"Status updated to {new_status}"}
+            logger.warning(
+                f"Dispatch status notification enqueue failed for "
+                f"{dispatch_row.get('id')}: {e}"
+            )
 
     # ──────────────────────────────────────────────────────────────────
     # Location Updates

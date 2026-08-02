@@ -23,7 +23,6 @@ MAX_REQUEST_SIZE = 10 * 1024 * 1024
 SKIP_SANITIZE_PATHS = {
     "/api/verification/upload",
     "/webhooks/razorpay",
-    "/webhook",  # WhatsApp webhook
     "/api/admin/upload",
 }
 

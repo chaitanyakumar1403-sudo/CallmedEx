@@ -1,0 +1,375 @@
+openapi: 3.1.0
+info:
+  title: MediAssist AI — Integration API (consumed by CallMedex)
+  version: 1.0.0-draft
+  description: >
+    API surface exposed BY MediAssist AI, called BY CallMedex.
+    Covers report interpretation/delivery and templated WhatsApp notifications.
+    CallMedex must never call Meta's WhatsApp Cloud API, OCR, or AI-summary
+    services directly — every such need goes through these two endpoint
+    families instead. This file is the contract CallMedex's Integration
+    Client is built against; it is implemented and owned by the MediAssist
+    AI team.
+servers:
+  - url: https://mediassist.zukolabs.example/api/v1
+    description: Production (placeholder host — replace with real MediAssist AI base URL)
+  - url: https://mediassist-staging.zukolabs.example/api/v1
+    description: Staging
+
+security:
+  - bearerAuth: []
+    hmacSignature: []
+
+paths:
+  /report-jobs:
+    post:
+      operationId: submitReportJob
+      summary: Submit a report/document for OCR + AI interpretation and patient delivery
+      description: >
+        CallMedex calls this whenever a lab report, prescription, or
+        consultation summary needs to be OCR'd/interpreted and delivered to
+        a patient. MediAssist owns the entire OCR -> AI summary -> WhatsApp
+        delivery pipeline; CallMedex only supplies the source document
+        location and delivery context.
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportJobRequest'
+            example:
+              source_type: lab_report
+              source_document_url: https://storage.callmedex.example/signed/reports/9f2c.pdf
+              booking_id: bk_8a1e2f
+              sample_id: smp_00194
+              processing_center_id: pc_014
+              patient:
+                patient_id: pat_2201
+                phone: "+919812345678"
+                preferred_language: te
+              delivery:
+                channels: [whatsapp]
+                deliver_summary_to_doctor_id: doc_0091
+              callback_base_url: https://api.callmedex.example/api/v1/integrations/mediassist/callbacks
+      responses:
+        '202':
+          description: Job accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportJobAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Idempotency key reused with a different payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /report-jobs/{report_job_id}:
+    get:
+      operationId: getReportJobStatus
+      summary: Poll a report job's current status (fallback if a callback is missed)
+      parameters:
+        - name: report_job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportJobStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications:
+    post:
+      operationId: sendNotification
+      summary: Request a templated WhatsApp (or other channel) message be sent
+      description: >
+        Used for operational/transactional messages that originate from
+        CallMedex-owned domains (bookings, dispatch, payments) and do not
+        involve report content or AI summarization.
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+            example:
+              channel: whatsapp
+              recipient:
+                phone: "+919812345678"
+                patient_id: pat_2201
+              template: dispatch_arriving
+              template_data:
+                phlebotomist_name: Ravi Kumar
+                eta_minutes: 12
+                distance_km: 2.3
+                booking_reference: bk_8a1e2f
+              callback_base_url: https://api.callmedex.example/api/v1/integrations/mediassist/callbacks
+      responses:
+        '202':
+          description: Notification accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Unknown template or template_data missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service-to-service token issued by MediAssist AI to CallMedex out of band.
+    hmacSignature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: >
+        HMAC-SHA256 over `X-Timestamp + "." + raw request body`, hex-encoded,
+        using a pre-shared secret. Verified alongside X-Timestamp (reject if
+        older than 5 minutes) to prevent replay.
+
+  parameters:
+    Idempotency-Key:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Stable per logical operation; repeated deliveries return the cached first response.
+    Correlation-Id:
+      name: X-Correlation-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Propagated across both services' logs and all related callbacks.
+
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing/invalid bearer token or signature
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: invalid_template
+            message:
+              type: string
+              example: "Unknown template 'foo_bar'"
+            details:
+              type: object
+              additionalProperties: true
+
+    ReportJobRequest:
+      type: object
+      required: [source_type, source_document_url, patient, delivery, callback_base_url]
+      properties:
+        source_type:
+          type: string
+          enum: [lab_report, prescription, consultation_summary]
+        source_document_url:
+          type: string
+          format: uri
+          description: Short-lived signed URL to the source document in CallMedex's storage.
+        booking_id:
+          type: string
+          nullable: true
+        sample_id:
+          type: string
+          nullable: true
+        processing_center_id:
+          type: string
+          nullable: true
+        patient:
+          type: object
+          required: [patient_id, phone, preferred_language]
+          properties:
+            patient_id:
+              type: string
+            abha_number:
+              type: string
+              nullable: true
+            phone:
+              type: string
+              description: E.164 format
+            preferred_language:
+              type: string
+              description: ISO 639-1 code (e.g. te, hi, en, ta, kn, mr, bn)
+        delivery:
+          type: object
+          required: [channels]
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: [whatsapp]
+              minItems: 1
+            deliver_summary_to_doctor_id:
+              type: string
+              nullable: true
+        callback_base_url:
+          type: string
+          format: uri
+          description: Base URL MediAssist appends /report-{status} to when calling back.
+
+    ReportJobAccepted:
+      type: object
+      required: [report_job_id, status]
+      properties:
+        report_job_id:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+
+    ReportJobStatus:
+      type: object
+      required: [report_job_id, status, updated_at]
+      properties:
+        report_job_id:
+          type: string
+        status:
+          type: string
+          enum: [queued, processing, delivered, failed, expired]
+        failure_reason:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    NotificationRequest:
+      type: object
+      required: [channel, recipient, template, template_data, callback_base_url]
+      properties:
+        channel:
+          type: string
+          enum: [whatsapp]
+        recipient:
+          type: object
+          required: [phone]
+          properties:
+            phone:
+              type: string
+              description: E.164 format
+            patient_id:
+              type: string
+              nullable: true
+            provider_id:
+              type: string
+              nullable: true
+              description: Set when recipient is a phlebotomist/nurse/doctor rather than a patient.
+        template:
+          type: string
+          enum:
+            - booking_confirmed
+            - dispatch_offer_new
+            - dispatch_arriving
+            - dispatch_status_update
+            - payment_receipt
+            - appointment_reminder
+          description: >
+            Initial template catalog. MediAssist must confirm which of these
+            it renders and add any it requires beyond this set.
+        template_data:
+          type: object
+          description: Fields required vary per template; see examples below.
+          additionalProperties: true
+        callback_base_url:
+          type: string
+          format: uri
+
+    NotificationAccepted:
+      type: object
+      required: [notification_id, status]
+      properties:
+        notification_id:
+          type: string
+        status:
+          type: string
+          enum: [queued]
+
+  examples:
+    TemplateDataByTemplate:
+      value:
+        booking_confirmed:
+          patient_name: Asha Rao
+          service_name: Home Blood Collection
+          scheduled_at: "2026-08-05T07:30:00+05:30"
+          booking_reference: bk_8a1e2f
+        dispatch_offer_new:
+          phlebotomist_name: Ravi Kumar
+          service_name: Home Blood Collection
+          patient_area: Madhurawada
+          distance_km: 2.3
+        dispatch_arriving:
+          phlebotomist_name: Ravi Kumar
+          eta_minutes: 12
+          distance_km: 2.3
+          booking_reference: bk_8a1e2f
+        dispatch_status_update:
+          patient_name: Asha Rao
+          status: en_route  # assigned | en_route | arrived | in_progress | completed
+          provider_name: Ravi Kumar
+          eta_minutes: 12
+        payment_receipt:
+          amount_inr: 799
+          service_name: Diabetes Panel
+          payment_reference: pay_44f21a
+        appointment_reminder:
+          service_name: Video Consultation with Dr. Priya Menon
+          scheduled_at: "2026-08-06T18:00:00+05:30"
+          reschedule_url: https://callmedex.example/appointments/apt_991/reschedule

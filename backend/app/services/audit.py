@@ -181,3 +181,7 @@ class AuditActions:
     ADMIN_USER_ACTIVATED = "admin.user_activated"
     ADMIN_SUPERVISOR_CREATED = "admin.supervisor_created"
     ADMIN_SETTINGS_CHANGED = "admin.settings_changed"
+
+    # MediAssist AI integration (outbound calls — see app/integrations/mediassist_client.py)
+    MEDIASSIST_REPORT_JOB_SUBMITTED = "mediassist.report_job_submitted"
+    MEDIASSIST_NOTIFICATION_REQUESTED = "mediassist.notification_requested"

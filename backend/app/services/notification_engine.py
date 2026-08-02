@@ -1,7 +1,10 @@
 """
 Notification Engine — Next-Gen CallMedex
-Centralized notification service for all channels:
-  email, SMS, WhatsApp, push, in-app.
+Centralized notification service for CallMedex-owned channels:
+  email, SMS, push, in-app.
+WhatsApp is not a channel here — CallMedex never sends WhatsApp messages
+directly; that is MediAssist AI's exclusive responsibility, reached via
+app.integrations.mediassist_client (see docs/integrations/mediassist-ai/).
 Every notification is logged for audit and analytics.
 """
 import uuid
@@ -52,8 +55,6 @@ class NotificationEngine:
                 delivery_result = await NotificationEngine._send_email(user_id, title, body, data)
             elif channel == "sms":
                 delivery_result = await NotificationEngine._send_sms(user_id, body)
-            elif channel == "whatsapp":
-                delivery_result = await NotificationEngine._send_whatsapp(user_id, body, data)
             elif channel == "push":
                 delivery_result = await NotificationEngine._send_push(user_id, title, body, data)
             elif channel == "in_app":
@@ -153,12 +154,6 @@ class NotificationEngine:
     async def _send_sms(user_id: str, body: str) -> dict:
         """Send SMS notification (MSG91/Twilio)."""
         logger.info(f"📱 SMS to {user_id}: {body[:50]}...")
-        return {"success": True, "simulated": True}
-
-    @staticmethod
-    async def _send_whatsapp(user_id: str, body: str, data: dict = None) -> dict:
-        """Send WhatsApp notification (delegates to existing WhatsAppService)."""
-        logger.info(f"💬 WhatsApp to {user_id}: {body[:50]}...")
         return {"success": True, "simulated": True}
 
     @staticmethod

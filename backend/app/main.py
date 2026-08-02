@@ -17,7 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from app.config import settings, jwt_secret_warning, mock_verification_warning
 from app.routers import (
-    auth, bookings, verification, dispatch, whatsapp, admin,
+    auth, bookings, verification, dispatch, admin,
     pharmacy_orders, telemedicine, insurance, ai_reports,
     communications, admin_analytics, provider_management,
 )
@@ -278,7 +278,6 @@ app.include_router(auth.router)
 app.include_router(bookings.router)
 app.include_router(verification.router)
 app.include_router(dispatch.router)
-app.include_router(whatsapp.router)
 app.include_router(admin.router)
 app.include_router(pharmacy_orders.router)
 app.include_router(telemedicine.router)

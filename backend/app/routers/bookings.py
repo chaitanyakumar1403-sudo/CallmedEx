@@ -612,6 +612,27 @@ async def create_booking(
         else "Booking confirmed"
     )
 
+    if supabase and booking_data.get("status") == BookingStatus.CONFIRMED.value:
+        try:
+            patient_row = _rows(
+                supabase.table("users").select("full_name, mobile")
+                .eq("id", current_user["sub"]).limit(1).execute()
+            )
+            if patient_row and patient_row[0].get("mobile"):
+                from app.workers.tasks.notifications import send_booking_confirmation
+                send_booking_confirmation.delay(
+                    booking_id=booking_id,
+                    patient_mobile=patient_row[0]["mobile"],
+                    patient_name=patient_row[0].get("full_name") or current_user.get("name") or "Patient",
+                    slot_time=booking_data.get("slot_start", ""),
+                    service_type=booking_data.get("service_type", ""),
+                )
+        except Exception as notify_err:
+            logger.warning(
+                f"Booking confirmation notification enqueue failed for "
+                f"{booking_id}: {notify_err}"
+            )
+
     return APIResponse(
         success=True,
         message=status_msg,

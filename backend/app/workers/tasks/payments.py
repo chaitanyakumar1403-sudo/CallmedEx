@@ -1,13 +1,27 @@
 """
 Payment background tasks.
-Processes pending provider settlements.
+Processes pending provider settlements and requests payment-receipt
+WhatsApp notifications from MediAssist AI — CallMedex never sends WhatsApp
+messages itself (see docs/integrations/mediassist-ai/).
 """
+import asyncio
 import logging
 from datetime import datetime, timezone
 from app.workers.celery_app import celery_app
 from app.database import supabase
+from app.integrations.mediassist_client import mediassist_client, MediAssistError
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async(coro):
+    """Bridge a Celery task's sync context to the async MediAssist client."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 @celery_app.task(name="app.workers.tasks.payments.process_pending_settlements", bind=True)
@@ -75,15 +89,16 @@ def send_payment_receipt(patient_mobile: str, patient_name: str, amount: float, 
     Async task: Send payment receipt via WhatsApp after successful payment.
     """
     try:
-        message = (
-            f"💳 *Payment Successful!*\n\n"
-            f"Hi {patient_name},\n"
-            f"Your payment of *₹{amount:.0f}* has been received.\n\n"
-            f"🎫 Booking ID: {booking_id[:8].upper()}\n"
-            f"🧾 Payment ID: {payment_id[:12]}\n\n"
-            f"Thank you for using CallMedex! 🏥"
-        )
-        from app.services.whatsapp import WhatsAppService
-        WhatsAppService.send_message(patient_mobile, message)
-    except Exception as e:
-        logger.error(f"Payment receipt send failed: {e}")
+        _run_async(mediassist_client.send_notification(
+            channel="whatsapp",
+            recipient={"phone": patient_mobile},
+            template="payment_receipt",
+            template_data={
+                "patient_name": patient_name,
+                "amount_inr": amount,
+                "booking_reference": booking_id,
+                "payment_reference": payment_id,
+            },
+        ))
+    except MediAssistError as e:
+        logger.error(f"Payment receipt notification failed: {e}")

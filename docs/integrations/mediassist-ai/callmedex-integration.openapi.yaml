@@ -1,0 +1,433 @@
+openapi: 3.1.0
+info:
+  title: CallMedex — MediAssist AI Integration API (consumed by MediAssist AI)
+  version: 1.0.0-draft
+  description: >
+    API surface exposed BY CallMedex, called BY MediAssist AI. Covers report
+    job lifecycle callbacks, notification delivery status callbacks, and
+    the WhatsApp-originated booking front-door. Not yet implemented —
+    this is the contract new FastAPI routes will be built against in a
+    later step (see docs/integrations/mediassist-ai/README.md).
+servers:
+  - url: https://api.callmedex.example/api/v1/integrations/mediassist
+    description: Production (placeholder host)
+  - url: https://api-staging.callmedex.example/api/v1/integrations/mediassist
+    description: Staging
+
+security:
+  - bearerAuth: []
+    hmacSignature: []
+
+paths:
+  /callbacks/report-processing:
+    post:
+      operationId: reportProcessingCallback
+      summary: MediAssist has started OCR/AI interpretation for a report job
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCallback'
+      responses:
+        '200':
+          $ref: '#/components/responses/Received'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown report_job_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /callbacks/report-delivered:
+    post:
+      operationId: reportDeliveredCallback
+      summary: MediAssist successfully delivered the interpreted report to the patient via WhatsApp
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportDeliveredCallback'
+      responses:
+        '200':
+          $ref: '#/components/responses/Received'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown report_job_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /callbacks/report-failed:
+    post:
+      operationId: reportFailedCallback
+      summary: MediAssist could not process or deliver the report
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportFailedCallback'
+      responses:
+        '200':
+          $ref: '#/components/responses/Received'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown report_job_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /callbacks/report-expired:
+    post:
+      operationId: reportExpiredCallback
+      summary: Patient was unreachable via WhatsApp past MediAssist's delivery TTL
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCallback'
+      responses:
+        '200':
+          $ref: '#/components/responses/Received'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown report_job_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /callbacks/notification-status:
+    post:
+      operationId: notificationStatusCallback
+      summary: Delivery status for a previously-requested notification
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationStatusCallback'
+      responses:
+        '200':
+          $ref: '#/components/responses/Received'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Unknown notification_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /patients/lookup:
+    get:
+      operationId: lookupPatientByPhone
+      summary: Resolve a phone number to a known CallMedex patient (read-only)
+      description: >
+        Used by MediAssist before creating a WhatsApp-originated booking, so
+        the confirmation message can be personalized and CallMedex doesn't
+        create a duplicate patient record for an existing number.
+      parameters:
+        - name: phone
+          in: query
+          required: true
+          schema:
+            type: string
+          description: E.164 format
+      responses:
+        '200':
+          description: Patient found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientLookupResult'
+        '404':
+          description: No patient with this phone number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /whatsapp-bookings:
+    post:
+      operationId: createWhatsappBooking
+      summary: Create a booking on behalf of a patient from a parsed inbound WhatsApp message
+      description: >
+        MediAssist owns inbound WhatsApp NLU/intent parsing. Once it has
+        extracted a bookable intent (service type, timing, address), it
+        calls this endpoint to actually create the booking/dispatch request
+        inside CallMedex — CallMedex never parses WhatsApp messages itself.
+      parameters:
+        - $ref: '#/components/parameters/Idempotency-Key'
+        - $ref: '#/components/parameters/Correlation-Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhatsappBookingRequest'
+            example:
+              patient_id: pat_2201
+              phone: "+919812345678"
+              service_type: home_blood_collection
+              requested_time_window:
+                earliest: "2026-08-05T07:00:00+05:30"
+                latest: "2026-08-05T09:00:00+05:30"
+              address:
+                line1: "Flat 302, Sai Residency"
+                city: Visakhapatnam
+                pincode: "530041"
+                lat: 17.7231
+                lng: 83.3012
+              source: whatsapp
+              source_conversation_id: wa_conv_88213
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WhatsappBookingResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: patient_id not found and phone does not resolve to an existing patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Idempotency key reused with a different payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service-to-service token issued by CallMedex to MediAssist AI out of band.
+    hmacSignature:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: HMAC-SHA256 over `X-Timestamp + "." + raw request body`; see README for the shared scheme.
+
+  parameters:
+    Idempotency-Key:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Correlation-Id:
+      name: X-Correlation-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Received:
+      description: Callback accepted (idempotent — safe to redeliver)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [received]
+            properties:
+              received:
+                type: boolean
+                enum: [true]
+    BadRequest:
+      description: Malformed request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing/invalid bearer token or signature
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    ReportCallback:
+      type: object
+      required: [report_job_id, occurred_at]
+      properties:
+        report_job_id:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+
+    ReportDeliveredCallback:
+      allOf:
+        - $ref: '#/components/schemas/ReportCallback'
+        - type: object
+          required: [delivered_channel]
+          properties:
+            delivered_channel:
+              type: string
+              enum: [whatsapp]
+            message_id:
+              type: string
+              description: Provider-side WhatsApp message ID, for audit trail correlation.
+
+    ReportFailedCallback:
+      allOf:
+        - $ref: '#/components/schemas/ReportCallback'
+        - type: object
+          required: [failure_reason]
+          properties:
+            failure_reason:
+              type: string
+              enum: [ocr_failed, interpretation_failed, delivery_failed, invalid_source_document]
+            details:
+              type: string
+              nullable: true
+
+    NotificationStatusCallback:
+      type: object
+      required: [notification_id, status, occurred_at]
+      properties:
+        notification_id:
+          type: string
+        status:
+          type: string
+          enum: [delivered, failed]
+        failure_reason:
+          type: string
+          nullable: true
+        occurred_at:
+          type: string
+          format: date-time
+
+    PatientLookupResult:
+      type: object
+      required: [patient_id]
+      properties:
+        patient_id:
+          type: string
+        preferred_language:
+          type: string
+        default_address:
+          type: object
+          nullable: true
+          properties:
+            line1:
+              type: string
+            city:
+              type: string
+            pincode:
+              type: string
+            lat:
+              type: number
+            lng:
+              type: number
+
+    WhatsappBookingRequest:
+      type: object
+      required: [phone, service_type, requested_time_window, address, source, source_conversation_id]
+      properties:
+        patient_id:
+          type: string
+          nullable: true
+          description: Omit if unknown — CallMedex resolves/creates from phone.
+        phone:
+          type: string
+        service_type:
+          type: string
+          enum: [home_blood_collection, home_nursing_visit, pharmacy_order, video_consultation]
+        requested_time_window:
+          type: object
+          required: [earliest, latest]
+          properties:
+            earliest:
+              type: string
+              format: date-time
+            latest:
+              type: string
+              format: date-time
+        address:
+          type: object
+          required: [line1, city, pincode, lat, lng]
+          properties:
+            line1:
+              type: string
+            city:
+              type: string
+            pincode:
+              type: string
+            lat:
+              type: number
+            lng:
+              type: number
+        source:
+          type: string
+          enum: [whatsapp]
+        source_conversation_id:
+          type: string
+          description: MediAssist's internal WhatsApp conversation/thread ID, for audit trail correlation.
+
+    WhatsappBookingResult:
+      type: object
+      required: [booking_id, status]
+      properties:
+        booking_id:
+          type: string
+        status:
+          type: string
+          enum: [confirmed, pending_slot_assignment]

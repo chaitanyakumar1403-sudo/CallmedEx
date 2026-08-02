@@ -1,13 +1,32 @@
 """
 Notification background tasks.
-Sends WhatsApp/SMS reminders for upcoming appointments.
+Requests appointment/booking/dispatch WhatsApp notifications from MediAssist
+AI — CallMedex never composes or sends WhatsApp messages itself (see
+docs/integrations/mediassist-ai/). These tasks only supply structured
+template data; MediAssist owns rendering and delivery.
 """
+import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from app.workers.celery_app import celery_app
 from app.database import supabase
+from app.integrations.mediassist_client import mediassist_client, MediAssistError
 
 logger = logging.getLogger(__name__)
+
+
+def _run_async(coro):
+    """Bridge a Celery task's sync context to the async MediAssist client.
+
+    Matches the pattern already used in app/workers/tasks/dispatch.py:
+    Celery workers don't run an event loop, so each call gets its own.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 @celery_app.task(name="app.workers.tasks.notifications.send_appointment_reminders", bind=True, max_retries=2)
@@ -54,22 +73,19 @@ def send_appointment_reminders(self):
                 slot = booking.get("slot_time", "")
 
                 if mobile:
-                    # Send WhatsApp message via the communications service
-                    message = (
-                        f"Dear {name},\n\n"
-                        f"⏰ *Appointment Reminder*\n"
-                        f"Your appointment is in ~30 minutes at *{slot}*.\n"
-                        f"Service: {booking.get('service_type', 'appointment')}\n\n"
-                        f"Please be ready. You can reschedule at CallMedex if needed.\n"
-                        f"— CallMedex Team 🏥"
-                    )
-
-                    # Try to send via WhatsApp API
                     try:
-                        from app.services.whatsapp import WhatsAppService
-                        WhatsAppService.send_message(mobile, message)
-                    except Exception as wa_err:
-                        logger.warning(f"WhatsApp send failed: {wa_err}")
+                        _run_async(mediassist_client.send_notification(
+                            channel="whatsapp",
+                            recipient={"phone": mobile, "patient_id": booking["patient_id"]},
+                            template="appointment_reminder",
+                            template_data={
+                                "patient_name": name,
+                                "service_name": booking.get("service_type", "appointment"),
+                                "scheduled_at": slot,
+                            },
+                        ))
+                    except MediAssistError as wa_err:
+                        logger.warning(f"MediAssist notification failed for booking {booking['id']}: {wa_err}")
 
                 # Mark as reminded
                 supabase.table("bookings").update({
@@ -96,43 +112,40 @@ def send_booking_confirmation(booking_id: str, patient_mobile: str, patient_name
     Triggered by the bookings router.
     """
     try:
-        message = (
-            f"✅ *Booking Confirmed!*\n\n"
-            f"Hi {patient_name},\n"
-            f"Your booking has been confirmed.\n\n"
-            f"📅 Time: *{slot_time}*\n"
-            f"🏥 Service: {service_type}\n"
-            f"🎫 ID: {booking_id[:8].upper()}\n\n"
-            f"You'll receive a reminder 30 minutes before.\n"
-            f"Track & manage at: callmedex.com/dashboard\n"
-            f"— CallMedex 🩺"
-        )
-
-        from app.services.whatsapp import WhatsAppService
-        WhatsAppService.send_message(patient_mobile, message)
-        logger.info(f"Booking confirmation sent for {booking_id}")
-    except Exception as e:
-        logger.error(f"Booking confirmation failed: {e}")
+        _run_async(mediassist_client.send_notification(
+            channel="whatsapp",
+            recipient={"phone": patient_mobile},
+            template="booking_confirmed",
+            template_data={
+                "patient_name": patient_name,
+                "service_name": service_type,
+                "scheduled_at": slot_time,
+                "booking_reference": booking_id,
+            },
+        ))
+        logger.info(f"Booking confirmation notification requested for {booking_id}")
+    except MediAssistError as e:
+        logger.error(f"Booking confirmation notification failed for {booking_id}: {e}")
 
 
 @celery_app.task(name="app.workers.tasks.notifications.send_dispatch_update")
 def send_dispatch_update(patient_mobile: str, patient_name: str, status: str, provider_name: str = "", eta_mins: int = 0):
     """
     Async task: Notify patient of dispatch status changes in real-time.
+    Rendering (assigned/en_route/arrived/in_progress/completed wording) is
+    MediAssist's responsibility via the dispatch_status_update template.
     """
-    status_messages = {
-        "assigned": f"✅ A provider has been assigned to your request!\n👤 Provider: {provider_name}",
-        "en_route": f"🚗 Your provider is on the way!\n⏱️ ETA: ~{eta_mins} minutes",
-        "arrived": f"📍 Your provider has arrived at your location!\nPlease be ready.",
-        "in_progress": f"⚗️ Your service is now in progress.",
-        "completed": f"🎉 Service completed successfully!\nThank you for using CallMedex.",
-    }
-
-    msg_body = status_messages.get(status, f"Your request status: {status}")
-    message = f"Hi {patient_name},\n\n{msg_body}\n\n— CallMedex 🏥"
-
     try:
-        from app.services.whatsapp import WhatsAppService
-        WhatsAppService.send_message(patient_mobile, message)
-    except Exception as e:
+        _run_async(mediassist_client.send_notification(
+            channel="whatsapp",
+            recipient={"phone": patient_mobile},
+            template="dispatch_status_update",
+            template_data={
+                "patient_name": patient_name,
+                "status": status,
+                "provider_name": provider_name,
+                "eta_minutes": eta_mins,
+            },
+        ))
+    except MediAssistError as e:
         logger.error(f"Dispatch update notification failed: {e}")

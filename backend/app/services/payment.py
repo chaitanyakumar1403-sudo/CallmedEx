@@ -248,6 +248,8 @@ class PaymentService:
                         except Exception as e:
                             logger.error(f"Failed to update booking {booking_id}: {e}")
 
+                    PaymentService._notify_payment_receipt(payment)
+
                     return {
                         "verified": True,
                         "payment_id": payment["id"],
@@ -264,6 +266,36 @@ class PaymentService:
                 return {"verified": False, "error": "Could not record payment"}
 
         return {"verified": False, "error": "Payment record not found"}
+
+    @staticmethod
+    def _notify_payment_receipt(payment: Dict[str, Any]) -> None:
+        """Best-effort WhatsApp receipt via MediAssist AI. Never raises —
+        a notification failure must never affect a payment that already
+        captured successfully."""
+        if not supabase:
+            return
+        try:
+            patient_id = payment.get("patient_id")
+            if not patient_id:
+                return
+            patient_res = (
+                supabase.table("users").select("full_name, mobile")
+                .eq("id", patient_id).limit(1).execute()
+            )
+            if not patient_res.data or not patient_res.data[0].get("mobile"):
+                return
+            patient = patient_res.data[0]
+
+            from app.workers.tasks.payments import send_payment_receipt
+            send_payment_receipt.delay(
+                patient_mobile=patient["mobile"],
+                patient_name=patient.get("full_name", "Patient"),
+                amount=payment["amount"],
+                booking_id=payment.get("booking_id", ""),
+                payment_id=payment["id"],
+            )
+        except Exception as e:
+            logger.warning(f"Payment receipt notification enqueue failed for {payment.get('id')}: {e}")
 
     @staticmethod
     def get_patient_transactions(patient_id: str, limit: int = 20) -> list:

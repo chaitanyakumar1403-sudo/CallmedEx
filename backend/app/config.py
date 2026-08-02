@@ -48,8 +48,6 @@ class Settings:
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
-    WHATSAPP_TOKEN: str = os.getenv("WHATSAPP_TOKEN", "")
-    WHATSAPP_PHONE_ID: str = os.getenv("WHATSAPP_PHONE_ID", "")
     ABDM_CLIENT_ID: str = os.getenv("ABDM_CLIENT_ID", "")
     ABDM_CLIENT_SECRET: str = os.getenv("ABDM_CLIENT_SECRET", "")
     ABDM_SANDBOX_URL: str = os.getenv(
@@ -101,6 +99,33 @@ class Settings:
         ).split(",") if o.strip()
     ]
     VERIFICATION_BUCKET: str = os.getenv("VERIFICATION_BUCKET", "verification-docs")
+
+    # ─── MediAssist AI Integration ─────────────────────────────────────
+    # MediAssist AI owns OCR, AI report interpretation, and all WhatsApp
+    # messaging (report delivery + operational notifications). CallMedex
+    # reaches it only through this signed REST contract — see
+    # docs/integrations/mediassist-ai/.
+    MEDIASSIST_BASE_URL: str = os.getenv("MEDIASSIST_BASE_URL", "")
+    MEDIASSIST_BEARER_TOKEN: str = os.getenv("MEDIASSIST_BEARER_TOKEN", "")
+    MEDIASSIST_HMAC_SECRET: str = os.getenv("MEDIASSIST_HMAC_SECRET", "")
+    MEDIASSIST_CONNECT_TIMEOUT_SECONDS: float = float(
+        os.getenv("MEDIASSIST_CONNECT_TIMEOUT_SECONDS", "10")
+    )
+    MEDIASSIST_TOTAL_TIMEOUT_SECONDS: float = float(
+        os.getenv("MEDIASSIST_TOTAL_TIMEOUT_SECONDS", "20")
+    )
+    MEDIASSIST_MAX_RETRIES: int = int(os.getenv("MEDIASSIST_MAX_RETRIES", "5"))
+    MEDIASSIST_CIRCUIT_FAILURE_THRESHOLD: int = int(
+        os.getenv("MEDIASSIST_CIRCUIT_FAILURE_THRESHOLD", "5")
+    )
+    MEDIASSIST_CIRCUIT_RESET_SECONDS: float = float(
+        os.getenv("MEDIASSIST_CIRCUIT_RESET_SECONDS", "30")
+    )
+    # Public base URL of THIS CallMedex backend, sent to MediAssist as the
+    # prefix it appends /callbacks/... to when calling back.
+    CALLMEDEX_PUBLIC_BASE_URL: str = os.getenv(
+        "CALLMEDEX_PUBLIC_BASE_URL", "http://localhost:8000"
+    )
 
 
 settings = Settings()
