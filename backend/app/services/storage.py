@@ -62,6 +62,19 @@ class StorageService:
             )
             return path
         except Exception as e:
+            err_msg = str(e).lower()
+            if "bucket not found" in err_msg or "404" in err_msg:
+                logger.warning(f"Bucket '{bucket}' not found in Supabase Storage. Auto-creating...")
+                try:
+                    supabase.storage.create_bucket(bucket, options={"public": False})
+                    supabase.storage.from_(bucket).upload(
+                        path, file_bytes,
+                        {"contentType": "application/octet-stream", "upsert": "false"},
+                    )
+                    return path
+                except Exception as retry_err:
+                    logger.error(f"Storage upload retry failed after bucket creation: {retry_err}")
+                    return ""
             logger.error(f"Storage upload failed: {e}")
             return ""
 

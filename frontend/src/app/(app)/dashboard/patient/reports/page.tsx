@@ -72,9 +72,13 @@ export default function AIReportInterpreter() {
       });
 
       const data = await res.json();
-      if (res.ok && data.results) {
-        setAnalysis(data.results);
-        setStatus("✅ Clinical Report Analysis Complete!");
+      if (res.ok && (data.success || data.results || data.report_job_id)) {
+        if (data.results) {
+          setAnalysis(data.results);
+          setStatus("✅ Clinical Report Analysis Complete!");
+        } else {
+          setStatus("✅ Report submitted for AI analysis! Results will be delivered to your WhatsApp and appear in your health history shortly.");
+        }
       } else {
         if (res.status === 401) {
           alert("Your session has expired. Please log in again.");
