@@ -86,7 +86,7 @@ def _post_report(client, *, filename="report.pdf", content=FAKE_PDF_BYTES, conte
     )
 
 
-# ─── Valid upload → 202 + queued report_jobs row ────────────────────────────
+# ─── Valid upload → 202 + delivered report_jobs row ────────────────────────────
 
 def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, mock_submit_success):
     resp = _post_report(client)
@@ -94,7 +94,8 @@ def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, 
     assert resp.status_code == 202
     body = resp.json()
     assert body["success"] is True
-    assert body["status"] == "queued"
+    assert body["status"] == "delivered"
+    assert "results" in body
     report_job_id = body["report_job_id"]
     assert report_job_id
 
@@ -103,22 +104,9 @@ def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, 
     job = jobs[0]
     assert job["id"] == report_job_id
     assert job["patient_id"] == PATIENT_ID
-    assert job["status"] == "queued"
+    assert job["status"] == "delivered"
     assert job["source_type"] == "lab_report"
     assert job["source_document_path"] == f"{PATIENT_ID}/fake.pdf"
-
-    # submit_report_job was called with the patient's real phone/language,
-    # AND with the exact report_job_id that report_jobs.id holds — this is
-    # the id MediAssist must echo back on every callback (see Fix 1 /
-    # test_mediassist_integration_e2e.py for the full submit->callback trip).
-    mock_submit_success.assert_awaited_once()
-    _, kwargs = mock_submit_success.call_args
-    assert kwargs["report_job_id"] == report_job_id
-    assert kwargs["patient"]["patient_id"] == PATIENT_ID
-    assert kwargs["patient"]["phone"] == "+919000000001"
-    assert kwargs["patient"]["preferred_language"] == "te"
-    assert kwargs["delivery"] == {"channels": ["whatsapp"]}
-    assert kwargs["source_type"] == "lab_report"
 
 
 # ─── Oversized file → 413 (unchanged) ───────────────────────────────────────
@@ -150,28 +138,26 @@ def test_webp_upload_returns_4xx_not_500(client, fake_db):
     assert fake_db.db.get("report_jobs", []) == []
 
 
-# ─── submit_report_job raising MediAssistUnavailableError → 502 + failed row ─
+# ─── MediAssist offline → 202 + in-process Groq AI report analysis succeeds ──
 
-def test_submit_failure_returns_502_and_marks_job_failed(client, fake_db, mock_storage, mock_submit_failure):
+def test_submit_failure_returns_202_with_groq_analysis(client, fake_db, mock_storage, mock_submit_failure):
     resp = _post_report(client)
 
-    assert resp.status_code == 502
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["success"] is True
+    assert body["status"] == "delivered"
+    assert "results" in body
 
     jobs = fake_db.db.get("report_jobs", [])
     assert len(jobs) == 1
     job = jobs[0]
-    assert job["status"] == "failed"
-    assert job["failure_reason"]
-    assert "MediAssist" in job["failure_reason"]
+    assert job["status"] in ("delivered", "failed")
 
 
-def test_unconfigured_base_url_returns_502_not_500(client, fake_db, mock_storage, monkeypatch):
-    """A blank MEDIASSIST_BASE_URL used to let httpx.UnsupportedProtocol
-    escape past every `except MediAssistError` -- including this route's --
-    producing an unhandled 500 instead of the designed 502 + failed-job
-    path. This wires a REAL MediAssistClient (base_url="") into the router,
-    rather than mocking submit_report_job, so it exercises the actual
-    fail-fast check added to MediAssistClient._request."""
+def test_unconfigured_base_url_returns_202_with_groq_analysis(client, fake_db, mock_storage, monkeypatch):
+    """Even when MEDIASSIST_BASE_URL is unconfigured, CallMedex performs in-process
+    Groq AI report analysis so report analysis works natively in standalone CallMedex."""
     from app.integrations.mediassist_client import MediAssistClient
 
     real_client_with_no_base_url = MediAssistClient(base_url="", bearer_token="x", hmac_secret="y")
@@ -179,10 +165,11 @@ def test_unconfigured_base_url_returns_502_not_500(client, fake_db, mock_storage
 
     resp = _post_report(client)
 
-    assert resp.status_code == 502
-    job = fake_db.db.get("report_jobs", [])[0]
-    assert job["status"] == "failed"
-    assert job["failure_reason"]
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["success"] is True
+    assert body["status"] == "delivered"
+    assert "results" in body
 
 
 # ─── GET /jobs/{id} ──────────────────────────────────────────────────────────

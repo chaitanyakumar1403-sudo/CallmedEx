@@ -184,13 +184,18 @@ async def analyze_report(
     correlation_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    from app.services.groq_report_analyzer import GroqReportAnalyzerService
+
+    # ── In-Process Groq AI Report Analysis ───────────────────────────
+    analysis_results = GroqReportAnalyzerService.analyze_report_bytes(file_bytes, content_type)
+
     if supabase:
         supabase.table("report_jobs").insert({
             "id": report_job_id,
             "patient_id": patient_id,
             "source_type": "lab_report",
             "connector_type": "patient_upload",
-            "status": "queued",
+            "status": "delivered",
             "source_document_path": path,
             "idempotency_key": idem_key,
             "content_hash": content_hash,
@@ -199,29 +204,47 @@ async def analyze_report(
             "updated_at": now,
         }).execute()
 
-    try:
-        await submit_report_job_to_mediassist(
-            report_job_id=report_job_id,
-            patient_id=patient_id,
-            source_type="lab_report",
-            source_document_url=signed_url,
-            connector_type="patient_upload",
-            idempotency_key=idem_key,
-            correlation_id=correlation_id,
-            client=mediassist_client,
-            db=supabase,
-        )
-    except MediAssistError as e:
-        raise HTTPException(
-            status_code=502,
-            detail="MediAssist AI is currently unavailable. Please try uploading the report again.",
-        )
+        try:
+            supabase.table("ai_report_analyses").insert({
+                "id": str(uuid.uuid4()),
+                "patient_id": patient_id,
+                "report_job_id": report_job_id,
+                "raw_report_url": path,
+                "plain_language_summary": analysis_results["plain_language_summary"],
+                "doctor_clinical_summary": analysis_results["doctor_clinical_summary"],
+                "abnormal_flags": analysis_results["abnormal_flags"],
+                "created_at": now,
+            }).execute()
+        except Exception as db_err:
+            logger.warning(f"Could not persist ai_report_analyses row: {db_err}")
+
+    # Optional MediAssist asynchronous handoff for WhatsApp delivery (non-blocking)
+    import asyncio
+
+    async def _async_mediassist_handoff():
+        try:
+            await submit_report_job_to_mediassist(
+                report_job_id=report_job_id,
+                patient_id=patient_id,
+                source_type="lab_report",
+                source_document_url=signed_url,
+                connector_type="patient_upload",
+                idempotency_key=idem_key,
+                correlation_id=correlation_id,
+                client=mediassist_client,
+                db=supabase,
+            )
+        except Exception as e:
+            logger.info(f"MediAssist WhatsApp delivery handoff skipped/offline: {e}")
+
+    asyncio.create_task(_async_mediassist_handoff())
 
     return {
         "success": True,
-        "message": "Report submitted for analysis.",
+        "message": "Report analyzed successfully.",
         "report_job_id": report_job_id,
-        "status": "queued",
+        "status": "delivered",
+        "results": analysis_results,
     }
 
 
