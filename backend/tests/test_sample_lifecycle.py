@@ -163,9 +163,9 @@ class FakeQuery:
                     if dup:
                         raise Exception("duplicate key value violates unique constraint (23505)")
                 if self.table_name == "mediassist_inbound_requests":
-                    # idempotency_key is the real PRIMARY KEY (see Task 1 migration).
                     key = rec.get("idempotency_key")
-                    if key is not None and any(r.get("idempotency_key") == key for r in rows):
+                    ep = rec.get("endpoint")
+                    if key is not None and any(r.get("idempotency_key") == key and r.get("endpoint") == ep for r in rows):
                         raise Exception('duplicate key value violates unique constraint (23505)')
                 rec.setdefault("id", str(uuid.uuid4()))
                 rows.append(dict(rec))

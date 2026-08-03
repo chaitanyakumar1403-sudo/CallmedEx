@@ -82,11 +82,24 @@ def test_the_barcode_is_the_lookup_key_the_future_agent_will_use():
 
 
 def test_no_automation_is_implemented_in_this_task():
-    """Tables only. The MocDoc agent is a later task and must not appear here."""
+    """Browser automation tools (Playwright/Selenium/Puppeteer) must not exist in CallMedex."""
     from pathlib import Path
     backend = Path(__file__).resolve().parents[1] / "app"
+    forbidden_terms = ["playwright", "selenium", "puppeteer"]
     hits = [
         p for p in backend.rglob("*.py")
-        if "mocdoc" in p.read_text(encoding="utf-8", errors="ignore").lower()
+        if any(term in p.read_text(encoding="utf-8", errors="ignore").lower() for term in forbidden_terms)
     ]
-    assert hits == [], f"MocDoc automation leaked into: {hits}"
+    assert hits == [], f"Browser automation leaked into CallMedex: {hits}"
+
+
+def test_task3_canonical_report_pipeline_sql_schema():
+    """Verify task3_canonical_report_pipeline.sql adds canonical columns and constraints."""
+    task3_file = Path(__file__).resolve().parents[2] / "database" / "task3_canonical_report_pipeline.sql"
+    assert task3_file.exists()
+    sql = task3_file.read_text(encoding="utf-8")
+    for col in ("barcode", "connector_type", "idempotency_key", "content_hash"):
+        assert col in sql, col
+    for constraint in ("chk_report_jobs_connector_type", "chk_report_jobs_pc_mandatory", "chk_ai_report_analyses_status"):
+        assert constraint in sql, constraint
+

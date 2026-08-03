@@ -26,6 +26,10 @@ from pydantic import BaseModel, Field
 
 from app.database import supabase
 from app.middleware.pc_auth import get_current_pc_staff, require_pc_admin
+from app.models.schemas import ConnectorType
+from app.services.processing_center import create_canonical_report_job_for_sample
+from app.services.report_submission import submit_report_job_to_mediassist
+from app.services.samples import validate_sample_transition
 from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
@@ -51,22 +55,20 @@ def _log_event(
     sample_id: str, event: str, actor_id: str,
     processing_center_id: str, notes: str = "",
 ) -> None:
-    """Append to the immutable custody log."""
-    try:
-        supabase.table("sample_events").insert({
-            "id": str(uuid.uuid4()),
-            "sample_id": sample_id,
-            "event": event,
-            "actor_id": actor_id,
-            "actor_role": "processing_center",
-            "processing_center_id": processing_center_id,
-            "location_label": "processing centre intake desk",
-            "notes": notes,
-            "created_at": _now_iso(),
-        }).execute()
-    except Exception as e:
-        logger.error("sample_event write failed (sample=%s, event=%s): %s",
-                      sample_id, event, e)
+    """Append to the immutable custody log. Raises on failure to guarantee custody integrity."""
+    if not supabase:
+        return
+    supabase.table("sample_events").insert({
+        "id": str(uuid.uuid4()),
+        "sample_id": sample_id,
+        "event": event,
+        "actor_id": actor_id,
+        "actor_role": "processing_center",
+        "processing_center_id": processing_center_id,
+        "location_label": "processing centre intake desk",
+        "notes": notes,
+        "created_at": _now_iso(),
+    }).execute()
 
 
 # ─── Queue tiles ──────────────────────────────────────────────────────────
@@ -309,6 +311,186 @@ async def get_sample_by_barcode(
     }
 
 
+# ─── Processing Center Receipt Acknowledgment ─────────────────────────────
+
+class VerifyIncomingBarcodeRequest(BaseModel):
+    barcode: str
+
+
+@router.post("/verify-incoming-barcode")
+async def verify_incoming_barcode(
+    body: VerifyIncomingBarcodeRequest,
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """
+    Processing Center receipt verification step when an incoming tube barcode is scanned.
+    Lookups sample, verifies it belongs to staff's processing center, retrieves context
+    (Booking, Patient, Tube, Tests, Collection Status), and returns context WITHOUT mutating status.
+    """
+    centre_id = staff["processing_center_id"]
+    raw_barcode = (body.barcode or "").strip().upper()
+    if not raw_barcode:
+        raise HTTPException(400, "Barcode is required.")
+
+    rows = _rows(
+        supabase.table("samples")
+        .select("*")
+        .eq("barcode", raw_barcode)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        return {
+            "valid": False,
+            "case": "BARCODE_NOT_FOUND",
+            "message": f"Barcode {raw_barcode} not found at this processing center.",
+            "barcode": raw_barcode,
+        }
+
+    sample = rows[0]
+
+    # Verify processing center assignment
+    if sample.get("processing_center_id") != centre_id:
+        return {
+            "valid": False,
+            "case": "DIFFERENT_CENTER",
+            "message": f"Barcode {raw_barcode} belongs to a different processing center.",
+            "barcode": raw_barcode,
+            "sample_id": sample["id"],
+        }
+
+    # Check status
+    if sample.get("status") in ("received", "verified", "processing", "report_ready", "completed"):
+        return {
+            "valid": False,
+            "case": "ALREADY_RECEIVED",
+            "message": f"Sample with barcode {raw_barcode} is already received/processing.",
+            "barcode": raw_barcode,
+            "sample_id": sample["id"],
+            "status": sample.get("status"),
+            "received_at": sample.get("received_at"),
+        }
+
+    if sample.get("status") not in ("collected", "in_transit", "handover_requested"):
+        return {
+            "valid": False,
+            "case": "INVALID_STATUS",
+            "message": f"Sample status is '{sample.get('status')}'. Must be collected/in_transit before receipt.",
+            "barcode": raw_barcode,
+            "sample_id": sample["id"],
+            "status": sample.get("status"),
+        }
+
+    # Retrieve patient & booking context
+    patient_name = "Patient"
+    if sample.get("patient_id"):
+        u = _first(supabase.table("users").select("full_name").eq("id", sample["patient_id"]).limit(1).execute())
+        patient_name = u.get("full_name", "Patient")
+
+    expected = sample.get("expected_tube_type_code", "")
+    tube_info = {}
+    if expected:
+        t = _first(supabase.table("tube_types").select("name, cap_colour").eq("code", expected).limit(1).execute())
+        tube_info = t
+
+    return {
+        "valid": True,
+        "case": "VALID_INCOMING",
+        "message": "Barcode Scanned Successfully at Intake Desk",
+        "barcode": raw_barcode,
+        "sample_id": sample["id"],
+        "booking_id": sample.get("booking_id"),
+        "patient_id": sample.get("patient_id"),
+        "patient_name": patient_name,
+        "expected_tube_code": expected,
+        "expected_tube_name": tube_info.get("name", expected),
+        "expected_cap_colour": tube_info.get("cap_colour", ""),
+        "status": sample.get("status"),
+        "collected_at": sample.get("collected_at"),
+        "allowed_actions": ["confirm_receipt", "scan_again"],
+    }
+
+
+class ConfirmSampleReceiptRequest(BaseModel):
+    sample_id: str
+    barcode: str
+    rescan_barcode: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.post("/confirm-sample-receipt")
+@router.post("/confirm-pc-receipt")
+async def confirm_sample_receipt(
+    body: ConfirmSampleReceiptRequest,
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """
+    Explicit confirmation of receipt by processing center staff.
+    Updates sample status to 'received', sets received_at/received_by,
+    and appends an immutable event to sample_events custody log.
+    """
+    centre_id = staff["processing_center_id"]
+    raw_barcode = (body.barcode or "").strip().upper()
+
+    if body.rescan_barcode:
+        rescan_clean = body.rescan_barcode.strip().upper()
+        if rescan_clean != raw_barcode:
+            raise HTTPException(400, "Rescanned barcode does not match verified barcode.")
+
+    rows = _rows(
+        supabase.table("samples")
+        .select("id, status, processing_center_id, barcode")
+        .eq("id", body.sample_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Sample not found.")
+    sample = rows[0]
+
+    if sample.get("processing_center_id") != centre_id:
+        raise HTTPException(403, "This sample does not belong to your centre.")
+
+    if sample.get("status") in ("received", "verified", "processing", "completed"):
+        # Idempotent response
+        return {
+            "success": True,
+            "message": "Sample receipt confirmed.",
+            "sample_id": sample["id"],
+            "barcode": raw_barcode,
+            "status": sample.get("status"),
+        }
+
+    try:
+        validate_sample_transition(sample.get("status"), "received")
+    except ValueError as e:
+        raise HTTPException(409, detail=str(e))
+
+    now_ts = _now_iso()
+    supabase.table("samples").update({
+        "status": "received",
+        "received_at": now_ts,
+        "received_by": staff["user_id"],
+    }).eq("id", body.sample_id).execute()
+
+    _log_event(
+        body.sample_id,
+        "received",
+        staff["user_id"],
+        centre_id,
+        body.notes or f"Sample receipt confirmed with barcode {raw_barcode}",
+    )
+
+    return {
+        "success": True,
+        "message": "Sample receipt confirmed at processing centre.",
+        "sample_id": body.sample_id,
+        "barcode": raw_barcode,
+        "status": "received",
+        "received_at": now_ts,
+    }
+
+
 # ─── Receive ──────────────────────────────────────────────────────────────
 
 class ReceiveRequest(BaseModel):
@@ -336,10 +518,10 @@ async def receive_sample(
 
     if sample.get("processing_center_id") != centre_id:
         raise HTTPException(403, "This sample does not belong to your centre.")
-    if sample.get("status") not in ("collected", "in_transit", "handover_requested"):
-        raise HTTPException(
-            409, f"Cannot receive a sample that is '{sample.get('status')}'."
-        )
+    try:
+        validate_sample_transition(sample.get("status"), "received")
+    except ValueError as e:
+        raise HTTPException(409, detail=str(e))
 
     supabase.table("samples").update({
         "status": "received",
@@ -350,6 +532,7 @@ async def receive_sample(
     _log_event(sample_id, "received", staff["user_id"], centre_id,
                "Sample received at processing centre")
     return {"success": True, "message": "Sample received."}
+
 
 
 # ─── 5-point verification ─────────────────────────────────────────────────
@@ -384,10 +567,10 @@ async def verify_sample(
 
     if sample.get("processing_center_id") != centre_id:
         raise HTTPException(403, "This sample does not belong to your centre.")
-    if sample.get("status") != "received":
-        raise HTTPException(
-            409, f"Only received samples can be verified (current: '{sample.get('status')}')."
-        )
+    try:
+        validate_sample_transition(sample.get("status"), "verified")
+    except ValueError as e:
+        raise HTTPException(409, detail=str(e))
 
     checks = body.model_dump()
     all_pass = all(checks.values())
@@ -415,6 +598,32 @@ async def verify_sample(
 
     _log_event(sample_id, "verified", staff["user_id"], centre_id,
                "5-point verification passed")
+
+    report_job_id, is_new = create_canonical_report_job_for_sample(
+        sample_id, connector_type=ConnectorType.MOCDOC.value, return_is_new=True
+    )
+    if report_job_id and is_new and supabase:
+        job_rows = _rows(
+            supabase.table("report_jobs").select("*").eq("id", report_job_id).limit(1).execute()
+        )
+        if job_rows:
+            job = job_rows[0]
+            try:
+                await submit_report_job_to_mediassist(
+                    report_job_id=report_job_id,
+                    patient_id=job.get("patient_id") or "",
+                    booking_id=job.get("booking_id"),
+                    sample_id=sample_id,
+                    processing_center_id=centre_id,
+                    barcode=job.get("barcode"),
+                    connector_type=job.get("connector_type") or ConnectorType.MOCDOC.value,
+                    idempotency_key=job.get("idempotency_key"),
+                    correlation_id=job.get("correlation_id"),
+                    db=supabase,
+                )
+            except Exception as exc:
+                logger.error(f"Outbound MediAssist submission error for verified sample {sample_id}: {exc}")
+
     return {"success": True, "message": "Sample verified.", "verification": verification}
 
 
@@ -452,10 +661,10 @@ async def reject_sample(
 
     if sample.get("processing_center_id") != centre_id:
         raise HTTPException(403, "This sample does not belong to your centre.")
-    if sample.get("status") not in ("received", "verified"):
-        raise HTTPException(
-            409, f"Cannot reject a sample that is '{sample.get('status')}'."
-        )
+    try:
+        validate_sample_transition(sample.get("status"), "rejected")
+    except ValueError as e:
+        raise HTTPException(409, detail=str(e))
 
     supabase.table("samples").update({
         "status": "rejected",

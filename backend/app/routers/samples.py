@@ -26,7 +26,7 @@ from app.middleware.auth import get_current_user
 from app.services.audit import AuditService
 from app.services.samples import SampleService
 from app.services.wallet import WalletService
-from app.utils.db_helpers import _rows
+from app.utils.db_helpers import _rows, _first
 
 logger = logging.getLogger(__name__)
 
@@ -359,3 +359,129 @@ async def track_sample(
         ]
 
     return {"success": True, "sample": trail}
+
+
+# ─── Operational Custody Timeline Visualization API ────────────────────────
+
+@router.get("/{sample_id}/timeline")
+async def get_sample_timeline(
+    sample_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Operational custody timeline for a specimen.
+    Visualizes every milestone (Booking Created, Barcode Bound, Sample Collected,
+    Handover Requested, Received at Processing Center, Verified, Processing Started,
+    Report Ready, Report Delivered) in chronological order with timestamps and actor details.
+    """
+    sample = _first(supabase.table("samples").select("*").eq("id", sample_id).limit(1).execute())
+    if not sample:
+        raise HTTPException(404, "Sample not found.")
+
+    uid, role = current_user["sub"], current_user.get("role")
+    permitted = {
+        sample.get("patient_id"),
+        sample.get("phlebotomist_user_id"),
+    }
+    if role not in ("admin", "staff", "organization", "processing_center", "phlebotomist") and uid not in permitted:
+        raise HTTPException(403, "You do not have access to this sample timeline.")
+
+    # 1. Fetch raw custody events
+    events = _rows(
+        supabase.table("sample_events")
+        .select("*")
+        .eq("sample_id", sample_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    # 2. Fetch booking details
+    booking = {}
+    b_id = sample.get("booking_id")
+    if b_id:
+        booking = _first(supabase.table("bookings").select("id, created_at, scheduled_date, status").eq("id", b_id).limit(1).execute())
+
+    # 3. Fetch report job details
+    report_job = _first(supabase.table("report_jobs").select("id, status, created_at, updated_at").eq("sample_id", sample_id).limit(1).execute())
+
+    # 4. Fetch AI report analysis details
+    ai_analysis = {}
+    if report_job and report_job.get("id"):
+        ai_analysis = _first(supabase.table("ai_report_analyses").select("id, report_version, report_status, created_at").eq("report_job_id", report_job["id"]).limit(1).execute())
+
+    timeline = []
+
+    # Milestone 1: Booking Created
+    if booking.get("created_at"):
+        b_id_short = str(booking.get("id") or "")[:8]
+        timeline.append({
+            "stage": "booking_created",
+            "title": "Booking Created",
+            "timestamp": booking.get("created_at"),
+            "actor_role": "patient",
+            "details": f"Booking {b_id_short} registered",
+        })
+
+    # Milestone 2: Barcode Bound
+    scanned_barcode = sample.get("barcode")
+    if scanned_barcode:
+        timeline.append({
+            "stage": "barcode_bound",
+            "title": "Barcode Bound",
+            "timestamp": sample.get("created_at") or booking.get("created_at"),
+            "actor_role": "system",
+            "details": f"Sticker Barcode {scanned_barcode} assigned",
+        })
+
+    # Milestone 3: Sample Events Log
+    stage_titles = {
+        "barcode_bound": "Barcode Bound",
+        "sample_collected": "Sample Collected",
+        "collected": "Sample Collected",
+        "in_transit": "In Transit to Processing Center",
+        "handover_requested": "Handover Requested",
+        "received": "Received at Processing Center",
+        "verified": "5-Point Verification Passed",
+        "rejected": "Sample Rejected at Intake Desk",
+        "processing": "Lab Report Analysis Started",
+        "report_ready": "Lab Report Analysis Complete",
+        "report_delivered": "Report Delivered to Patient",
+    }
+
+    for ev in events:
+        event_name = ev.get("event", "event")
+        timeline.append({
+            "stage": event_name,
+            "title": stage_titles.get(event_name, event_name.replace("_", " ").title()),
+            "timestamp": ev.get("created_at"),
+            "actor_role": ev.get("actor_role", "unknown"),
+            "actor_id": ev.get("actor_id"),
+            "details": ev.get("notes", ""),
+            "lat": ev.get("lat"),
+            "lng": ev.get("lng"),
+        })
+
+    # Milestone 4: Report Delivered / Analyzed
+    if ai_analysis.get("created_at"):
+        ver = ai_analysis.get("report_version", 1)
+        r_stat = ai_analysis.get("report_status", "final")
+        timeline.append({
+            "stage": "report_delivered",
+            "title": "AI Report Summary Delivered",
+            "timestamp": ai_analysis.get("created_at"),
+            "actor_role": "mediassist_ai",
+            "details": f"Report v{ver} delivered ({r_stat})",
+        })
+
+    # Sort timeline chronologically by timestamp
+    timeline.sort(key=lambda x: x.get("timestamp") or "")
+
+    return {
+        "success": True,
+        "sample_id": sample_id,
+        "barcode": sample.get("barcode"),
+        "current_status": sample.get("status"),
+        "timeline": timeline,
+        "total_milestones": len(timeline),
+    }
+

@@ -142,6 +142,24 @@ class NursingService(str, Enum):
     GENERAL = "general"
 
 
+class ConnectorType(str, Enum):
+    MOCDOC = "mocdoc"
+    CRELIO = "crelio"
+    CLOUDLIMS = "cloudlims"
+    FUTURE_CONNECTOR = "future_connector"
+    PATIENT_UPLOAD = "patient_upload"
+    MANUAL = "manual"
+
+
+class ReportJobStatus(str, Enum):
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+
 # ─── Common / Auth ────────────────────────────────────────────────────────
 
 class AddressInfo(BaseModel):

@@ -93,6 +93,26 @@ async def test_request_is_signed_and_carries_idempotency_and_correlation_headers
 
 
 @pytest.mark.asyncio
+async def test_submit_report_job_carries_barcode_and_connector_type():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(202, json={"report_job_id": "rj_1", "status": "queued"})
+
+    client = _make_client(handler)
+    kwargs = _report_job_kwargs()
+    kwargs["barcode"] = "BARCODE-123"
+    kwargs["connector_type"] = "mocdoc"
+    await client.submit_report_job(**kwargs)
+
+    body = captured["body"]
+    assert body["barcode"] == "BARCODE-123"
+    assert body["connector_type"] == "mocdoc"
+
+
+@pytest.mark.asyncio
 async def test_idempotency_key_is_stable_across_retries():
     seen_keys = []
     seen_correlation_ids = []

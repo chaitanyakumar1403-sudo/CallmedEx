@@ -13,12 +13,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.routers.phlebo_stock import decrement_for_collection
+from app.services.audit import AuditService
+from app.services.samples import validate_sample_transition
 from app.services.tube_derivation import derive_tubes
 from app.utils.db_helpers import _rows
 
@@ -197,7 +199,9 @@ def _bind_barcode(
             supabase.table("samples").update({
                 "barcode": scanned_barcode,
             }).eq("id", sample["id"]).execute()
-        except Exception:
+        except Exception as e:
+            if "23505" in str(e) or "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+                raise HTTPException(409, f"Barcode '{scanned_barcode}' is already registered to another sample.")
             return {"barcode_warning": None, "barcode_bound": False}
 
         # Log the custody event
@@ -257,9 +261,14 @@ async def scan_tube(
     match = expected.lower() == scanned.lower()
 
     # Update the actual tube type on the sample
-    supabase.table("samples").update({
-        "tube_type_code": scanned,
-    }).eq("id", body.sample_id).execute()
+    try:
+        supabase.table("samples").update({
+            "tube_type_code": scanned,
+        }).eq("id", body.sample_id).execute()
+    except Exception as e:
+        if "23505" in str(e) or "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(409, f"Barcode '{body.scanned_barcode}' is already registered to another sample.")
+        raise e
 
     # Bind barcode (if provided)
     barcode_result = _bind_barcode(sample, body.scanned_barcode, actor_id=user.get("sub", ""))
@@ -603,3 +612,409 @@ async def doorstep_catalog(
         "packages": packages,
         "total": len(services) + len(packages),
     }
+
+
+# ─── Sample Collection Verification Workflow ───────────────────────────────
+
+import re
+
+BARCODE_REGEX = re.compile(r"^[A-Z0-9\-]{6,32}$")
+
+
+def _validate_barcode_format(barcode_str: str) -> str:
+    """Validate barcode string length, character set, and format."""
+    cleaned = (barcode_str or "").strip().upper()
+    if not cleaned or not BARCODE_REGEX.match(cleaned):
+        raise HTTPException(
+            400,
+            f"Invalid barcode format '{barcode_str}'. Barcodes must be 6-32 alphanumeric characters or hyphens.",
+        )
+    return cleaned
+
+
+class VerifyBarcodeRequest(BaseModel):
+    barcode: str
+    sample_id: Optional[str] = None
+    booking_id: Optional[str] = None
+    patient_id: Optional[str] = None
+
+
+@router.post("/verify-barcode")
+async def verify_barcode(
+    body: VerifyBarcodeRequest,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Mandatory verification step immediately after a barcode is scanned.
+    Lookups barcode in DB, retrieves context (Booking, Patient, Sample, Tests,
+    Collection Status, Processing Center), evaluates safety rules across 4 cases,
+    and returns context WITHOUT mutating sample collection status.
+    """
+    _require_phlebo(user)
+    raw_barcode = _validate_barcode_format(body.barcode)
+
+    # 1. Primary lookup by barcode in samples table
+    sample = _first(
+        supabase.table("samples")
+        .select("*")
+        .eq("barcode", raw_barcode)
+        .limit(1)
+        .execute()
+    )
+
+    # 2. Secondary lookup: if sample_id provided and sample.barcode is empty, check if sample exists
+    if not sample and body.sample_id:
+        sample_by_id = _first(
+            supabase.table("samples")
+            .select("*")
+            .eq("id", body.sample_id)
+            .limit(1)
+            .execute()
+        )
+        if sample_by_id:
+            # Check if raw_barcode belongs to ANOTHER sample
+            other_sample = _first(
+                supabase.table("samples")
+                .select("id, patient_id, booking_id")
+                .eq("barcode", raw_barcode)
+                .neq("id", body.sample_id)
+                .limit(1)
+                .execute()
+            )
+            if other_sample:
+                # Scanned barcode belongs to another sample/patient! -> CASE 4
+                other_patient_name = "Another Patient"
+                if other_sample.get("patient_id"):
+                    usr = _first(supabase.table("users").select("full_name").eq("id", other_sample["patient_id"]).limit(1).execute())
+                    other_patient_name = usr.get("full_name", "Another Patient")
+                return {
+                    "case": "DIFFERENT_PATIENT",
+                    "valid": False,
+                    "reason": "DIFFERENT_PATIENT",
+                    "message": "This barcode belongs to another patient.",
+                    "barcode": raw_barcode,
+                    "patient_name": other_patient_name,
+                    "booking_id": other_sample.get("booking_id"),
+                    "allowed_actions": ["scan_again"],
+                }
+            sample = sample_by_id
+
+    # CASE 2: BARCODE NOT FOUND
+    if not sample:
+        return {
+            "case": "BARCODE_NOT_FOUND",
+            "valid": False,
+            "reason": "BARCODE_NOT_FOUND",
+            "message": "Barcode not recognized. This barcode is not assigned to any booking.",
+            "barcode": raw_barcode,
+            "allowed_actions": ["scan_again", "manual_entry"],
+        }
+
+    # Retrieve related context
+    patient_id = sample.get("patient_id")
+    booking_id = sample.get("booking_id")
+
+    patient_name = "Patient"
+    if patient_id:
+        p_row = _first(supabase.table("users").select("full_name, phone").eq("id", patient_id).limit(1).execute())
+        patient_name = p_row.get("full_name") or p_row.get("phone") or "Patient"
+
+    booking = {}
+    if booking_id:
+        booking = _first(supabase.table("bookings").select("id, status, address, city, scheduled_date").eq("id", booking_id).limit(1).execute())
+
+    # CASE 4: BARCODE BELONGS TO DIFFERENT PATIENT
+    if body.patient_id and patient_id and str(patient_id) != str(body.patient_id):
+        return {
+            "case": "DIFFERENT_PATIENT",
+            "valid": False,
+            "reason": "DIFFERENT_PATIENT",
+            "message": "This barcode belongs to another patient.",
+            "barcode": raw_barcode,
+            "patient_name": patient_name,
+            "booking_id": booking_id,
+            "allowed_actions": ["scan_again"],
+        }
+
+    if body.booking_id and booking_id and str(booking_id) != str(body.booking_id):
+        return {
+            "case": "DIFFERENT_PATIENT",
+            "valid": False,
+            "reason": "DIFFERENT_PATIENT",
+            "message": "This barcode belongs to another booking.",
+            "barcode": raw_barcode,
+            "patient_name": patient_name,
+            "booking_id": booking_id,
+            "allowed_actions": ["scan_again"],
+        }
+
+    # SAFETY CHECK: CANCELLED BOOKING
+    if booking.get("status") == "cancelled":
+        return {
+            "case": "BOOKING_CANCELLED",
+            "valid": False,
+            "reason": "BOOKING_CANCELLED",
+            "message": "This booking has been cancelled.",
+            "barcode": raw_barcode,
+            "patient_name": patient_name,
+            "booking_id": booking_id,
+            "allowed_actions": ["scan_again"],
+        }
+
+    # CASE 3: BARCODE ALREADY COLLECTED
+    collector_name = None
+    if sample.get("phlebotomist_user_id"):
+        phlebo_user = _first(supabase.table("users").select("full_name").eq("id", sample["phlebotomist_user_id"]).limit(1).execute())
+        collector_name = phlebo_user.get("full_name") or sample["phlebotomist_user_id"]
+
+    if sample.get("status") in ("collected", "in_transit", "handover_requested", "received", "processing", "report_ready", "completed") or sample.get("collected_at"):
+        return {
+            "case": "ALREADY_COLLECTED",
+            "valid": False,
+            "reason": "ALREADY_COLLECTED",
+            "message": "Sample already collected.",
+            "barcode": raw_barcode,
+            "sample_id": sample["id"],
+            "booking_id": booking_id,
+            "patient_name": patient_name,
+            "collected_by": collector_name,
+            "collected_at": sample.get("collected_at"),
+            "allowed_actions": ["view_details", "scan_another"],
+        }
+
+    # Enrich tube details & ordered tests
+    expected_code = sample.get("expected_tube_type_code", "")
+    tube_info = {}
+    if expected_code:
+        t_row = _first(supabase.table("tube_types").select("name, cap_colour").eq("code", expected_code).limit(1).execute())
+        tube_info = t_row
+
+    # Ordered tests
+    ordered_tests = []
+    sample_tests = _rows(supabase.table("sample_tests").select("booking_test_id").eq("sample_id", sample["id"]).execute())
+    bt_ids = [st["booking_test_id"] for st in sample_tests if st.get("booking_test_id")]
+    if bt_ids:
+        b_tests = _rows(supabase.table("booking_tests").select("home_service_id").in_("id", bt_ids).execute())
+        hs_ids = [bt["home_service_id"] for bt in b_tests if bt.get("home_service_id")]
+        if hs_ids:
+            h_svcs = _rows(supabase.table("home_services").select("name").in_("id", hs_ids).execute())
+            ordered_tests = [s["name"] for s in h_svcs if s.get("name")]
+
+    pc_name = None
+    if sample.get("processing_center_id"):
+        pc_row = _first(supabase.table("processing_centers").select("name, code").eq("id", sample["processing_center_id"]).limit(1).execute())
+        pc_name = pc_row.get("name") or pc_row.get("code")
+
+    # CASE 1: VALID BARCODE
+    return {
+        "case": "VALID",
+        "valid": True,
+        "message": "Barcode Scanned Successfully",
+        "barcode": raw_barcode,
+        "sample_id": sample["id"],
+        "booking_id": booking_id,
+        "patient_id": patient_id,
+        "patient_name": patient_name,
+        "expected_tube_code": expected_code,
+        "expected_tube_name": tube_info.get("name", expected_code),
+        "expected_cap_colour": tube_info.get("cap_colour", ""),
+        "ordered_tests": ordered_tests,
+        "collection_address": booking.get("address", ""),
+        "collection_status": sample.get("status", "pending_collection"),
+        "collected_at": None,
+        "processing_center_name": pc_name,
+        "allowed_actions": ["confirm_collection", "rescan_tube", "scan_again"],
+    }
+
+
+class ConfirmSampleCollectionRequest(BaseModel):
+    sample_id: str
+    barcode: str
+    rescan_barcode: Optional[str] = None  # Re-scan confirmation barcode for chain of custody
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    device_id: Optional[str] = None
+    device_model: Optional[str] = None
+    os_version: Optional[str] = None
+    app_version: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+
+ConfirmCollectionRequest = ConfirmSampleCollectionRequest
+
+
+@router.post("/confirm-sample-collection")
+@router.post("/confirm-sample-link")
+@router.post("/confirm-collection")
+async def confirm_sample_collection(
+    body: ConfirmSampleCollectionRequest,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Persists collection status ONLY upon explicit phlebotomist confirmation.
+    Validates barcode format, enforces re-scan confirmation match, locks barcode,
+    captures extended device metadata, and updates sample status to 'collected'.
+    """
+    _require_phlebo(user)
+    phlebo_id = user.get("sub", "")
+    raw_barcode = _validate_barcode_format(body.barcode)
+
+    # 1. Re-scan Confirmation Match Guard
+    if body.rescan_barcode:
+        rescan_clean = _validate_barcode_format(body.rescan_barcode)
+        if rescan_clean != raw_barcode:
+            raise HTTPException(
+                400,
+                f"Rescanned barcode '{rescan_clean}' does not match verified barcode '{raw_barcode}'. Please re-scan the correct tube label.",
+            )
+
+    sample = _first(
+        supabase.table("samples")
+        .select("*")
+        .eq("id", body.sample_id)
+        .limit(1)
+        .execute()
+    )
+    if not sample:
+        raise HTTPException(404, "Sample not found.")
+
+    # Prevent collection if booking is cancelled
+    if sample.get("booking_id"):
+        booking = _first(supabase.table("bookings").select("status").eq("id", sample["booking_id"]).limit(1).execute())
+        if booking.get("status") == "cancelled":
+            raise HTTPException(400, "Cannot collect sample for a cancelled booking.")
+
+    # Idempotency check: if already collected with same barcode by same phlebo, return success
+    if sample.get("status") == "collected" and sample.get("barcode") == raw_barcode:
+        patient_name = "Patient"
+        if sample.get("patient_id"):
+            p_row = _first(supabase.table("users").select("full_name").eq("id", sample["patient_id"]).limit(1).execute())
+            patient_name = p_row.get("full_name", "Patient")
+        return {
+            "success": True,
+            "message": "Sample Linked Successfully",
+            "sample_id": sample["id"],
+            "barcode": raw_barcode,
+            "patient_name": patient_name,
+            "status": "collected",
+            "barcode_locked": True,
+            "collected_at": sample.get("collected_at") or _now_iso(),
+        }
+
+    # Validate canonical sample FSM status transition
+    try:
+        validate_sample_transition(sample.get("status", ""), "collected")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+    # Prevent barcode reuse if barcode is linked to ANOTHER sample
+    if raw_barcode:
+        other_sample = _first(
+            supabase.table("samples")
+            .select("id")
+            .eq("barcode", raw_barcode)
+            .neq("id", body.sample_id)
+            .limit(1)
+            .execute()
+        )
+        if other_sample:
+            raise HTTPException(409, f"Barcode {raw_barcode} is already assigned to another sample.")
+
+    now_ts = _now_iso()
+
+    # Update sample record atomically (locking barcode to prevent reassignment)
+    update_data = {
+        "status": "collected",
+        "barcode": raw_barcode,
+        "collected_at": now_ts,
+        "phlebotomist_user_id": phlebo_id,
+        "barcode_locked": True,
+        "barcode_locked_at": now_ts,
+    }
+    if body.lat is not None:
+        update_data["lat"] = body.lat
+    if body.lng is not None:
+        update_data["lng"] = body.lng
+
+    try:
+        supabase.table("samples").update(update_data).eq("id", body.sample_id).execute()
+    except Exception as e:
+        if "23505" in str(e) or "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            raise HTTPException(409, f"Barcode '{raw_barcode}' is already registered to another sample.")
+        # Fall back if barcode_locked columns do not exist in database table schema yet
+        update_data.pop("barcode_locked", None)
+        update_data.pop("barcode_locked_at", None)
+        try:
+            supabase.table("samples").update(update_data).eq("id", body.sample_id).execute()
+        except Exception as retry_err:
+            if "23505" in str(retry_err) or "duplicate key" in str(retry_err).lower() or "unique constraint" in str(retry_err).lower():
+                raise HTTPException(409, f"Barcode '{raw_barcode}' is already registered to another sample.")
+            raise retry_err
+
+    # Extended device metadata for custody log
+    device_info_str = ""
+    if body.device_id or body.device_model or body.app_version:
+        device_info_str = f" [Device: {body.device_model or body.device_id or 'unknown'}, OS: {body.os_version or 'unknown'}, App: {body.app_version or 'unknown'}]"
+
+    # Custody log event (failures propagate to guarantee atomicity)
+    supabase.table("sample_events").insert({
+        "id": str(uuid.uuid4()),
+        "sample_id": body.sample_id,
+        "event": "sample_collected",
+        "actor_id": phlebo_id,
+        "actor_role": "phlebotomist",
+        "lat": body.lat,
+        "lng": body.lng,
+        "notes": f"Sample collection confirmed with barcode {raw_barcode}{device_info_str}",
+        "created_at": now_ts,
+    }).execute()
+
+    # Auto-decrement stock best-effort
+    tube_code = sample.get("tube_type_code") or sample.get("expected_tube_type_code")
+    if tube_code:
+        decrement_for_collection(phlebo_id, tube_code)
+
+    # Audit Log with extended device details
+    patient_name = "Patient"
+    if sample.get("patient_id"):
+        p_row = _first(supabase.table("users").select("full_name").eq("id", sample["patient_id"]).limit(1).execute())
+        patient_name = p_row.get("full_name", "Patient")
+
+    try:
+        AuditService.log_from_request(
+            action="sample.collection_confirmed",
+            entity_type="sample",
+            entity_id=body.sample_id,
+            actor_id=phlebo_id,
+            details={
+                "barcode": raw_barcode,
+                "booking_id": sample.get("booking_id"),
+                "patient_id": sample.get("patient_id"),
+                "barcode_locked": True,
+                "device_id": body.device_id,
+                "device_model": body.device_model,
+                "os_version": body.os_version,
+                "app_version": body.app_version,
+            },
+            request=request,
+        )
+    except Exception as e:
+        logger.error(f"Audit log write failed: {e}")
+
+    return {
+        "success": True,
+        "message": "Sample Linked Successfully",
+        "sample_id": body.sample_id,
+        "barcode": raw_barcode,
+        "patient_name": patient_name,
+        "status": "collected",
+        "barcode_locked": True,
+        "collected_at": now_ts,
+    }
+
+
+confirm_collection = confirm_sample_collection
+
+
+

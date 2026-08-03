@@ -220,3 +220,38 @@ def test_get_job_for_another_patient_returns_404(client, fake_db):
 def test_get_job_unknown_id_returns_404(client, fake_db):
     resp = client.get("/api/reports/jobs/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_submission_idempotency_by_header_key(client, fake_db, mock_storage, mock_submit_success):
+    """Submitting twice with the same X-Idempotency-Key returns the existing job."""
+    resp1 = client.post(
+        "/api/reports/analyze",
+        files={"file": ("report.pdf", FAKE_PDF_BYTES, "application/pdf")},
+        headers={"X-Idempotency-Key": "idem-key-999"},
+    )
+    assert resp1.status_code == 202
+    job_id_1 = resp1.json()["report_job_id"]
+
+    resp2 = client.post(
+        "/api/reports/analyze",
+        files={"file": ("report.pdf", FAKE_PDF_BYTES, "application/pdf")},
+        headers={"X-Idempotency-Key": "idem-key-999"},
+    )
+    assert resp2.status_code == 202
+    job_id_2 = resp2.json()["report_job_id"]
+    assert job_id_1 == job_id_2
+    assert len(fake_db.db.get("report_jobs", [])) == 1
+
+
+def test_submission_idempotency_by_content_hash(client, fake_db, mock_storage, mock_submit_success):
+    """Submitting the exact same file content twice for a patient returns the existing job."""
+    resp1 = _post_report(client, content=b"%PDF-1.4\nsame content hash test\n")
+    assert resp1.status_code == 202
+    job_id_1 = resp1.json()["report_job_id"]
+
+    resp2 = _post_report(client, content=b"%PDF-1.4\nsame content hash test\n")
+    assert resp2.status_code == 202
+    job_id_2 = resp2.json()["report_job_id"]
+    assert job_id_1 == job_id_2
+    assert len(fake_db.db.get("report_jobs", [])) == 1
+

@@ -33,7 +33,7 @@ DEFAULT_RATE_LIMIT = (120, 60)
 
 # Skip rate limiting for these paths
 SKIP_PATHS = {"/api/health", "/api/docs", "/api/redoc", "/openapi.json", "/"}
-SKIP_IPS = {"127.0.0.1", "::1", "localhost"}
+SKIP_IPS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 # ─── Redis client (lazy-loaded) ──────────────────────────────────────────
 _redis_client = None

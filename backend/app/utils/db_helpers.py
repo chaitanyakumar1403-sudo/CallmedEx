@@ -24,3 +24,11 @@ def _rows(result: Any) -> List[Dict[str, Any]]:
         if isinstance(data, list):
             return data
     return []
+
+
+def _first(result: Any) -> Dict[str, Any]:
+    """
+    Safely extract the first row from a Supabase query result, or {} if empty.
+    """
+    rows = _rows(result)
+    return rows[0] if rows else {}

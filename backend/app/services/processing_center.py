@@ -15,7 +15,7 @@ row rather than a code change.
 """
 import logging
 import math
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 from app.database import supabase
 
@@ -299,3 +299,90 @@ def assign_booking(booking_id: str) -> Optional[str]:
             }).execute()
 
     return centre_id
+
+
+from app.models.schemas import ConnectorType
+
+
+def create_canonical_report_job_for_sample(
+    sample_id: str,
+    connector_type: str = ConnectorType.MOCDOC.value,
+    return_is_new: bool = False,
+) -> Union[Optional[str], Tuple[Optional[str], bool]]:
+    """Create a canonical ReportJob row for a lab sample when handed off to lab.
+
+    Idempotent: returns existing report_job_id if one already exists for this sample.
+    Enforces non-null processing_center_id, patient_id, sample_id, and barcode.
+    """
+    import uuid
+    from datetime import datetime, timezone
+
+    def _ret(res_id: Optional[str], fresh: bool):
+        return (res_id, fresh) if return_is_new else res_id
+
+    if not supabase:
+        return _ret(None, False)
+
+    sample_rows = _rows(
+        supabase.table("samples").select("*").eq("id", sample_id).limit(1).execute()
+    )
+    if not sample_rows:
+        logger.warning(f"Sample {sample_id} not found when creating ReportJob")
+        return _ret(None, False)
+
+    sample = sample_rows[0]
+    barcode = sample.get("barcode")
+    pc_id = sample.get("processing_center_id")
+    patient_id = sample.get("patient_id")
+
+    if not pc_id:
+        logger.error(f"Sample {sample_id} missing mandatory processing_center_id")
+        return _ret(None, False)
+
+    # Idempotency check: if non-failed job exists for sample_id, return it
+    existing = _rows(
+        supabase.table("report_jobs")
+        .select("id")
+        .eq("sample_id", sample_id)
+        .neq("status", "failed")
+        .limit(1)
+        .execute()
+    )
+    if existing:
+        return _ret(existing[0]["id"], False)
+
+    report_job_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        supabase.table("report_jobs").insert({
+            "id": report_job_id,
+            "patient_id": patient_id,
+            "booking_id": sample.get("booking_id"),
+            "sample_id": sample_id,
+            "processing_center_id": pc_id,
+            "barcode": barcode,
+            "connector_type": connector_type,
+            "source_type": "lab_report",
+            "status": "queued",
+            "correlation_id": correlation_id,
+            "created_at": now,
+            "updated_at": now,
+        }).execute()
+    except Exception as e:
+        existing_after = _rows(
+            supabase.table("report_jobs")
+            .select("id")
+            .eq("sample_id", sample_id)
+            .neq("status", "failed")
+            .limit(1)
+            .execute()
+        )
+        if existing_after:
+            return _ret(existing_after[0]["id"], False)
+        logger.error(f"Failed to create ReportJob for sample {sample_id}: {e}")
+        return _ret(None, False)
+
+    return _ret(report_job_id, True)
+

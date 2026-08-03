@@ -21,6 +21,7 @@ from app.database import supabase
 from app.services.storage import StorageService
 from app.config import settings
 from app.integrations.mediassist_client import mediassist_client, MediAssistError
+from app.services.report_submission import submit_report_job_to_mediassist
 from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
@@ -79,10 +80,17 @@ def _get_patient_contact(patient_id: str) -> dict:
     return {"phone": phone, "preferred_language": preferred_language}
 
 
+import hashlib
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Header
+
+
 @router.post("/analyze", status_code=202)
 async def analyze_report(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Patient uploads a lab report (PDF or image). CallMedex stores it and
@@ -114,12 +122,45 @@ async def analyze_report(
             detail=f"File is too large ({len(file_bytes) // (1024*1024)} MB). Maximum allowed size is 10 MB.",
         )
 
+    patient_id = current_user["sub"]
+    idem_key = x_idempotency_key or idempotency_key
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # ── Deduplication & Submission Idempotency ──────────────────────
+    if supabase:
+        existing_jobs = []
+        if idem_key:
+            existing_jobs = _rows(
+                supabase.table("report_jobs").select("*")
+                .eq("patient_id", patient_id)
+                .eq("idempotency_key", idem_key)
+                .neq("status", "failed")
+                .limit(1).execute()
+            )
+        if not existing_jobs:
+            existing_jobs = _rows(
+                supabase.table("report_jobs").select("*")
+                .eq("patient_id", patient_id)
+                .eq("content_hash", content_hash)
+                .neq("status", "failed")
+                .limit(1).execute()
+            )
+
+        if existing_jobs:
+            existing_job = existing_jobs[0]
+            logger.info(f"Duplicate report submission detected for patient {patient_id}; returning existing job {existing_job['id']}")
+            return {
+                "success": True,
+                "message": "Report submitted for analysis.",
+                "report_job_id": existing_job["id"],
+                "status": existing_job["status"],
+            }
+
     logger.info(
-        f"Submitting report job for user {current_user['sub']}: "
+        f"Submitting report job for user {patient_id}: "
         f"{file.filename} ({len(file_bytes) // 1024} KB, {content_type})"
     )
 
-    patient_id = current_user["sub"]
     ext = _EXT_BY_CONTENT_TYPE[content_type]
 
     # ── Upload to the reports bucket ─────────────────────────────────
@@ -148,34 +189,29 @@ async def analyze_report(
             "id": report_job_id,
             "patient_id": patient_id,
             "source_type": "lab_report",
+            "connector_type": "patient_upload",
             "status": "queued",
             "source_document_path": path,
+            "idempotency_key": idem_key,
+            "content_hash": content_hash,
             "correlation_id": correlation_id,
             "created_at": now,
             "updated_at": now,
         }).execute()
 
     try:
-        await mediassist_client.submit_report_job(
+        await submit_report_job_to_mediassist(
             report_job_id=report_job_id,
+            patient_id=patient_id,
             source_type="lab_report",
             source_document_url=signed_url,
-            patient={
-                "patient_id": patient_id,
-                "phone": contact["phone"],
-                "preferred_language": contact["preferred_language"],
-            },
-            delivery={"channels": ["whatsapp"]},
+            connector_type="patient_upload",
+            idempotency_key=idem_key,
             correlation_id=correlation_id,
+            client=mediassist_client,
+            db=supabase,
         )
     except MediAssistError as e:
-        logger.error(f"MediAssist rejected report job {report_job_id}: {e}")
-        if supabase:
-            supabase.table("report_jobs").update({
-                "status": "failed",
-                "failure_reason": str(e),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", report_job_id).execute()
         raise HTTPException(
             status_code=502,
             detail="MediAssist AI is currently unavailable. Please try uploading the report again.",

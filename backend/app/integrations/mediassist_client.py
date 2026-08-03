@@ -144,6 +144,8 @@ class MediAssistClient:
         booking_id: Optional[str] = None,
         sample_id: Optional[str] = None,
         processing_center_id: Optional[str] = None,
+        barcode: Optional[str] = None,
+        connector_type: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         correlation_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -154,6 +156,8 @@ class MediAssistClient:
             "booking_id": booking_id,
             "sample_id": sample_id,
             "processing_center_id": processing_center_id,
+            "barcode": barcode,
+            "connector_type": connector_type or "patient_upload",
             "patient": patient,
             "delivery": delivery,
             "callback_base_url": f"{settings.CALLMEDEX_PUBLIC_BASE_URL}/api/v1/integrations/mediassist/callbacks",

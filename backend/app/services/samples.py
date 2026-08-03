@@ -37,6 +37,35 @@ SUBMITTABLE = ("collected", "in_transit")
 
 BARCODE_PREFIX = "CMX"
 
+# ─── Physical Specimen Finite State Machine (FSM) ───────────────────────────
+ALLOWED_SAMPLE_TRANSITIONS = {
+    "pending_collection": {"collected", "cancelled"},
+    "collected": {"in_transit", "handover_requested", "received", "cancelled"},
+    "in_transit": {"handover_requested", "received", "cancelled"},
+    "handover_requested": {"received", "rejected", "in_transit"},
+    "received": {"verified", "rejected", "processing"},
+    "verified": {"processing", "rejected"},
+    "processing": {"report_ready", "delivered", "completed", "failed"},
+    "report_ready": {"delivered", "completed"},
+    "delivered": {"completed", "delivered"},  # delivered -> delivered allowed for corrected report versions
+    "completed": set(),                       # terminal state
+    "rejected": {"pending_collection", "collected"},
+    "failed": {"pending_collection", "collected"},
+    "cancelled": set(),                       # terminal state
+}
+
+
+def validate_sample_transition(current_status: str, target_status: str) -> None:
+    """Enforce allowed FSM state transitions for physical specimens."""
+    if not current_status or current_status == target_status:
+        return
+    allowed = ALLOWED_SAMPLE_TRANSITIONS.get(current_status, set())
+    if target_status not in allowed:
+        raise ValueError(
+            f"Invalid sample state transition: '{current_status}' → '{target_status}'. "
+            f"Allowed transitions from '{current_status}': {sorted(list(allowed)) or 'None (Terminal)'}"
+        )
+
 
 def _rows(result) -> List[dict]:
     """Coerce a Supabase response into a plain list of dicts.
@@ -107,25 +136,21 @@ class SampleService:
         photo_url: str = "",
         notes: str = "",
     ) -> None:
-        """Append to the immutable custody log. Never raises: the caller's
-        state transition matters more than the log write."""
+        """Append to the immutable custody log. Raises on failure to guarantee custody integrity."""
         if not supabase:
             return
-        try:
-            supabase.table("sample_events").insert({
-                "id": str(uuid.uuid4()),
-                "sample_id": sample_id,
-                "event": event,
-                "actor_id": actor_id,
-                "actor_role": actor_role,
-                "lat": lat,
-                "lng": lng,
-                "photo_url": photo_url,
-                "notes": notes,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }).execute()
-        except Exception as e:
-            logger.error(f"sample_event write failed (sample={sample_id}, event={event}): {e}")
+        supabase.table("sample_events").insert({
+            "id": str(uuid.uuid4()),
+            "sample_id": sample_id,
+            "event": event,
+            "actor_id": actor_id,
+            "actor_role": actor_role,
+            "lat": lat,
+            "lng": lng,
+            "photo_url": photo_url,
+            "notes": notes,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
