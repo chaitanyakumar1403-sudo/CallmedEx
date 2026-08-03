@@ -106,7 +106,7 @@ class Settings:
     # messaging (report delivery + operational notifications). CallMedex
     # reaches it only through this signed REST contract — see
     # docs/integrations/mediassist-ai/.
-    MEDIASSIST_BASE_URL: str = os.getenv("MEDIASSIST_BASE_URL", "")
+    MEDIASSIST_BASE_URL: str = os.getenv("MEDIASSIST_BASE_URL", "http://localhost:8000")
     MEDIASSIST_BEARER_TOKEN: str = os.getenv("MEDIASSIST_BEARER_TOKEN", "")
     MEDIASSIST_HMAC_SECRET: str = os.getenv("MEDIASSIST_HMAC_SECRET", "")
     MEDIASSIST_CONNECT_TIMEOUT_SECONDS: float = float(
