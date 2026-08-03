@@ -590,7 +590,7 @@ async def create_booking(
                         f"for booking {booking_id}, booking still created: {e}"
                     )
         except Exception as e:
-            print(f"Supabase insert failed, falling back to local: {e}")
+            logger.error(f"Supabase insert failed, falling back to local: {e}")
             _local_bookings.append(booking_data)
     else:
         _local_bookings.append(booking_data)
@@ -681,7 +681,7 @@ async def get_my_bookings(
             )
             supabase_bookings = result.data or []
         except Exception as e:
-            print(f"Supabase read failed, falling back to local: {e}")
+            logger.error(f"Supabase read failed, falling back to local: {e}")
 
     # Combine Local fallback and Supabase
     user_bookings = [b for b in _local_bookings if b["patient_id"] == user_id]
@@ -739,7 +739,7 @@ async def update_booking_status(
         except HTTPException:
             raise
         except Exception as e:
-            print(f"Supabase update failed, falling back to local: {e}")
+            logger.error(f"Supabase update failed, falling back to local: {e}")
 
     # Local fallback
     for b in _local_bookings:
@@ -815,7 +815,7 @@ def _get_staff_profile(user_id: str) -> dict | None:
             if result.data:
                 return result.data[0]
         except Exception as e:
-            print(f"Supabase staff lookup failed: {e}")
+            logger.error(f"Supabase staff lookup failed: {e}")
 
     # Local fallback
     from app.routers.auth import _local_profiles
@@ -834,7 +834,7 @@ def _get_org_profile(user_id: str) -> dict | None:
             if result.data:
                 return result.data[0]
         except Exception as e:
-            print(f"Supabase org lookup failed: {e}")
+            logger.error(f"Supabase org lookup failed: {e}")
 
     from app.routers.auth import _local_profiles
     if "organizations" in _local_profiles:
@@ -932,7 +932,7 @@ async def get_org_bookings(
             )
             org_bookings = result.data or []
         except Exception as e:
-            print(f"Supabase org bookings fetch failed: {e}")
+            logger.error(f"Supabase org bookings fetch failed: {e}")
 
     # Local fallback — also search by provider_id
     local_matches = [b for b in _local_bookings if b.get("provider_id") == org_id]
@@ -980,7 +980,7 @@ async def checkin_patient(
             if result.data:
                 return APIResponse(success=True, message="Patient checked in", data=result.data[0])
         except Exception as e:
-            print(f"Supabase checkin failed: {e}")
+            logger.error(f"Supabase checkin failed: {e}")
 
     # Local fallback
     for b in _local_bookings:
@@ -1015,7 +1015,7 @@ async def complete_booking(
             if result.data:
                 return APIResponse(success=True, message="Booking completed", data=result.data[0])
         except Exception as e:
-            print(f"Supabase complete failed: {e}")
+            logger.error(f"Supabase complete failed: {e}")
 
     # Local fallback
     for b in _local_bookings:

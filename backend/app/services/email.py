@@ -88,6 +88,7 @@ class EmailService:
 
         # Dispatch via Resend API / SMTP or fallback to console log
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (MOU email, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[EMAIL DISPATCHED TO] {to_email}")
             if registrant_email:
@@ -143,6 +144,7 @@ class EmailService:
         text_content = f"Dear {provider_name},\nYour {role_display} account is active! Log in at: {login_url}"
 
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (welcome email, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[WELCOME EMAIL TO] {to_email}")
             print(f"[SUBJECT] {subject}")
@@ -183,6 +185,7 @@ class EmailService:
         text_content = f"Hello {provider_name}, new request nearby: {service_title}. Open dashboard: {dashboard_url}"
 
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (dispatch alert, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[DISPATCH ALERT TO] {to_email}")
             print(f"[SUBJECT] {subject}")
@@ -217,6 +220,7 @@ class EmailService:
         text_content = f"Dear {patient_name},\n{provider_name} is on the way! Track live location & OTP here: {tracking_url}"
 
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (tracking link, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[TRACKING LINK TO] {to_email}")
             print(f"[SUBJECT] {subject}")
@@ -383,6 +387,7 @@ DECLINE: {decline_link}
 
         # Try real Resend API / SMTP first, fallback to Mock logger
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (magic dispatch, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[MAGIC DISPATCH EMAIL TO] {to_email}")
             print(f"[SUBJECT] {subject}")
@@ -460,6 +465,7 @@ If you didn't request this, please ignore this email.
 """
 
         if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.warning(f"Email delivery degraded to console fallback (password reset OTP, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed. OTP was NOT delivered to the user.")
             print("\n" + "=" * 70)
             print(f"[PASSWORD RESET EMAIL TO] {to_email}")
             print(f"[SUBJECT] {subject}")

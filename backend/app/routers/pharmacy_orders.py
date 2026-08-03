@@ -214,7 +214,7 @@ async def add_inventory_item(req: PharmacyInventoryCreate, current_user: dict = 
         try:
             supabase.table("pharmacy_inventory").insert(item_data).execute()
         except Exception as e:
-            print(f"Skipping insert due to missing table: {e}")
+            logger.warning(f"Skipping insert due to missing table: {e}")
             pass
             
     return {"success": True, "message": "Item added to inventory", "item": item_data}

@@ -69,7 +69,12 @@ async def _get_redis():
         return _redis_client
     except Exception as e:
         _redis_available = False
-        logger.warning(f"⚠️ Rate limiter: Redis unavailable ({e}). Falling back to in-memory.")
+        logger.warning(
+            f"⚠️ Rate limiter: Redis unavailable ({e}). Falling back to in-memory sliding window. "
+            "In-memory limits are enforced per process — on a multi-instance deployment, the "
+            "effective rate limit scales with instance count. Set REDIS_URL for globally "
+            "enforced limits in production."
+        )
         return None
 
 

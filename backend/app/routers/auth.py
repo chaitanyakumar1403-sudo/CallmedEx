@@ -730,7 +730,7 @@ async def link_abha(req: LinkAbhaRequest, current_user: dict = Depends(get_curre
                 {"abha_number": req.abha_number}
             ).eq("user_id", current_user["sub"]).execute()
         except Exception as e:
-            print(f"Supabase ABHA update failed: {e}")
+            logger.error(f"Supabase ABHA update failed: {e}")
 
     # Update local fallback
     if "patients" in _local_profiles:
@@ -762,7 +762,7 @@ async def create_abha(req: CreateAbhaRequest, current_user: dict = Depends(get_c
                 {"abha_number": new_abha}
             ).eq("user_id", current_user["sub"]).execute()
         except Exception as e:
-            print(f"Supabase ABHA update failed: {e}")
+            logger.error(f"Supabase ABHA update failed: {e}")
 
     if "patients" in _local_profiles:
         for profile in _local_profiles["patients"]:
