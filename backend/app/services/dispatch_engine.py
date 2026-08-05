@@ -349,7 +349,7 @@ class UniversalDispatchEngine:
         # constraint is the centre, not the distance.
         home_collection = provider_type == "phlebotomist" and processing_center_id
         urgent_home_collection = bool(urgent and home_collection)
-        ignore_radius = urgent_home_collection
+        ignore_radius = bool(home_collection)
         effective_radius = (
             search_radius_km * URGENT_RADIUS_MULTIPLIER
             if urgent and not home_collection
