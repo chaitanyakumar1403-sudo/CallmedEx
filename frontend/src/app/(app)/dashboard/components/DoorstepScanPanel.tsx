@@ -38,6 +38,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
   const [scanInputs, setScanInputs] = useState<Record<string, string>>({});
   const [scanResults, setScanResults] = useState<Record<string, any>>({});
   const [scannedBarcodes, setScannedBarcodes] = useState<Record<string, string>>({});
+  const [collectionStatus, setCollectionStatus] = useState<Record<string, boolean>>({});
 
   // Barcode scanner modal state
   const [barcodeScanSampleId, setBarcodeScanSampleId] = useState<string | null>(null);
@@ -112,6 +113,45 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
       setMismatchResult(null);
     } catch (e: any) {
       setMsg({ kind: "err", text: e.message || "Failed to acknowledge" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function confirmCollection(sample: any) {
+    const barcode = scannedBarcodes[sample.id] || sample.barcode;
+    if (!barcode) {
+      setMsg({ kind: "err", text: "No barcode available to confirm collection." });
+      return;
+    }
+    setBusy(sample.id);
+    try {
+      let lat: number | undefined;
+      let lng: number | undefined;
+      if (navigator.geolocation) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          lat = pos.coords.latitude;
+          lng = pos.coords.longitude;
+        } catch (e) {
+          console.warn("GPS capture failed", e);
+        }
+      }
+
+      await phleboAPI.confirmCollection({
+        sample_id: sample.id,
+        barcode,
+        lat,
+        lng,
+        device_model: navigator.userAgent,
+      });
+
+      setCollectionStatus(prev => ({ ...prev, [sample.id]: true }));
+      setMsg({ kind: "ok", text: `✓ Collection confirmed and locked for ${barcode}.` });
+    } catch (e: any) {
+      setMsg({ kind: "err", text: e.message || "Failed to confirm collection." });
     } finally {
       setBusy(null);
     }
@@ -202,6 +242,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
             const result = scanResults[s.id];
             const scanned = result?.match || result?.acknowledged;
             const mismatch = result && !result.match && !result.acknowledged;
+            const isCollected = collectionStatus[s.id] || s.status === 'collected';
 
             return (
               <div
@@ -253,7 +294,14 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                     </div>
                   </div>
 
-                  {scanned ? (
+                  {isCollected ? (
+                    <span style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      color: "#166534", fontWeight: 700, fontSize: "0.85rem",
+                    }}>
+                      <Icon as={CheckCircle2} size={16} /> Collected ✓
+                    </span>
+                  ) : scanned ? (
                     <span style={{
                       display: "flex", alignItems: "center", gap: 4,
                       color: result.acknowledged ? "#f59e0b" : "#16a34a",
@@ -273,7 +321,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                 </div>
 
                 {/* Scan input */}
-                {!scanned && (
+                {!scanned && !isCollected && (
                   <div style={{
                     display: "flex", gap: 8, marginTop: 12, alignItems: "center",
                   }}>
@@ -322,6 +370,20 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                     <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
                       {scannedBarcodes[s.id]}
                     </span>
+                  </div>
+                )}
+                
+                {/* Confirm Collection Button */}
+                {scanned && !isCollected && (
+                  <div style={{ marginTop: 12, width: "100%" }}>
+                    <Button
+                      variant="primary"
+                      onClick={() => confirmCollection(s)}
+                      disabled={busy === s.id}
+                      className="w-full"
+                    >
+                      {busy === s.id ? "Confirming..." : "Confirm Collection"}
+                    </Button>
                   </div>
                 )}
               </div>

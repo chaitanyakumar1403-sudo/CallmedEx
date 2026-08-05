@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { phleboAPI } from "@/lib/api";
+import { Button, Icon } from "@/components/ui";
+import { MapPin, Clock } from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -43,6 +46,10 @@ export default function PhleboSchedulePanel() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [todayJobs, setTodayJobs] = useState<any[]>([]);
+  const [tomorrowJobs, setTomorrowJobs] = useState<any[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [declining, setDeclining] = useState<string | null>(null);
 
   const days = getNext14Days();
   const fromDate = days[0];
@@ -64,7 +71,40 @@ export default function PhleboSchedulePanel() {
     }
   };
 
-  useEffect(() => { fetchRoster(); }, []);
+  const fetchJobs = async () => {
+    setJobsLoading(true);
+    try {
+      const [resToday, resTomorrow] = await Promise.all([
+        phleboAPI.getJobs(days[0]).catch(() => ({ jobs: [] })),
+        phleboAPI.getJobs(days[1]).catch(() => ({ jobs: [] }))
+      ]);
+      setTodayJobs((resToday as any).jobs || []);
+      setTomorrowJobs((resTomorrow as any).jobs || []);
+    } catch {
+      // silent
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    fetchRoster(); 
+    fetchJobs();
+  }, []);
+
+  const handleDecline = async (dispatchId: string) => {
+    if (!confirm("Are you sure you want to decline this job? It may impact your acceptance rate.")) return;
+    setDeclining(dispatchId);
+    try {
+      const res = await phleboAPI.declineJob(dispatchId);
+      alert((res as any).message || "Job declined successfully.");
+      fetchJobs(); // Refresh jobs
+    } catch (e: any) {
+      alert(e.message || "Failed to decline job.");
+    } finally {
+      setDeclining(null);
+    }
+  };
 
   const getStatus = (date: string): string => {
     const entry = roster.find(r => r.roster_date === date);
@@ -149,6 +189,97 @@ export default function PhleboSchedulePanel() {
           <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#ca8a04" }}>{halfDayCount}</div>
           <div style={{ fontSize: "0.75rem", color: "#854d0e", fontWeight: 600 }}>🟡 Half Days</div>
         </div>
+      </div>
+
+      {/* Jobs Panels */}
+      <div style={{ display: "flex", gap: 16, flexDirection: "column" }}>
+        {(todayJobs.length > 0 || tomorrowJobs.length > 0) && (
+          <div className="card" style={{ padding: 20 }}>
+            <h3 style={{ margin: "0 0 16px", color: "#1a2b4a", fontSize: "1.05rem" }}>📋 Assigned Jobs</h3>
+            {jobsLoading ? (
+              <p style={{ color: "#6b7280", fontSize: "0.85rem" }}>Loading jobs...</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                
+                {todayJobs.length > 0 && (
+                  <div>
+                    <h4 style={{ margin: "0 0 10px", fontSize: "0.9rem", color: "#475569" }}>Today</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {todayJobs.map((job: any) => (
+                        <div key={job.dispatch_id} style={{
+                          border: "1px solid #e2e8f0", borderRadius: 8, padding: 12,
+                          display: "flex", justifyContent: "space-between", alignItems: "center"
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f172a" }}>
+                              {job.service_subtype || "Home Collection"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                              <Icon as={MapPin} size={14} /> {job.patient_address || "Address hidden"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <Icon as={Clock} size={14} /> {job.scheduled_time || "Pending time"}
+                            </div>
+                          </div>
+                          {job.status === "pending_provider_acceptance" && (
+                            <div style={{ padding: "4px", backgroundColor: "#fef2f2", borderRadius: "6px", border: "1px solid #fecaca" }}>
+                              <Button 
+                                variant="secondary" 
+                                onClick={() => handleDecline(job.dispatch_id)}
+                                disabled={declining === job.dispatch_id}
+                                className="text-red-600"
+                              >
+                                {declining === job.dispatch_id ? "..." : "Decline"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {tomorrowJobs.length > 0 && (
+                  <div>
+                    <h4 style={{ margin: "0 0 10px", fontSize: "0.9rem", color: "#475569" }}>Tomorrow</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {tomorrowJobs.map((job: any) => (
+                        <div key={job.dispatch_id} style={{
+                          border: "1px solid #e2e8f0", borderRadius: 8, padding: 12,
+                          display: "flex", justifyContent: "space-between", alignItems: "center"
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#0f172a" }}>
+                              {job.service_subtype || "Home Collection"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                              <Icon as={MapPin} size={14} /> {job.patient_address || "Address hidden"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <Icon as={Clock} size={14} /> {job.scheduled_time || "Pending time"}
+                            </div>
+                          </div>
+                          {job.status === "pending_provider_acceptance" && (
+                            <div style={{ padding: "4px", backgroundColor: "#fef2f2", borderRadius: "6px", border: "1px solid #fecaca" }}>
+                              <Button 
+                                variant="secondary" 
+                                onClick={() => handleDecline(job.dispatch_id)}
+                                disabled={declining === job.dispatch_id}
+                                className="text-red-600"
+                              >
+                                {declining === job.dispatch_id ? "..." : "Decline"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Calendar Grid */}

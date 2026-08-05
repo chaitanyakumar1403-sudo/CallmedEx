@@ -349,6 +349,17 @@ export const phleboAPI = {
       scanned_tube_type_code: tubeTypeCode,
       scanned_barcode: scannedBarcode || null,
     }),
+  confirmCollection: (params: {
+    sample_id: string;
+    barcode: string;
+    rescan_barcode?: string;
+    lat?: number;
+    lng?: number;
+    device_id?: string;
+    device_model?: string;
+    os_version?: string;
+    app_version?: string;
+  }) => api.post('/phlebo/confirm-sample-collection', params),
   ackMismatch: (sampleId: string) =>
     api.post(`/phlebo/scan-tube/${sampleId}/ack-mismatch`),
   addDoorstepTest: (bookingId: string, homeServiceId: string, subjectId?: string) =>
