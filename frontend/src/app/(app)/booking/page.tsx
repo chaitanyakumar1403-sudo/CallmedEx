@@ -88,6 +88,7 @@ function BookingPageContent() {
   const packageParam = searchParams.get("package");
   const priceParam = searchParams.get("price");
   const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
+  const priorityParam = searchParams.get("priority"); // "urgent" — from the diagnostics "priority slot" checkbox
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
@@ -530,7 +531,7 @@ function BookingPageContent() {
 
       const providerTypeStr = (bookingType === "home_collection" || bookingType === "lab") ? "phlebotomist" : bookingType === "nurse_visit" ? "nurse" : "doctor";
       const serviceTypeStr =
-        bookingType === "home_collection"
+        bookingType === "home_collection" || bookingType === "lab"
           ? "home_collection"
           : bookingType === "nurse_visit"
           ? nursingService || "general"
@@ -585,6 +586,7 @@ function BookingPageContent() {
           service_subtype: serviceTypeStr,
           notes: dispatchNotes,
           booking_id: createdBookingId,
+          priority: isUrgentHomeLab ? "urgent" : "normal",
         }),
       });
 
@@ -625,7 +627,14 @@ function BookingPageContent() {
     return <span style={{ fontSize: "0.7rem", backgroundColor: v.color, color: "white", padding: "2px 8px", borderRadius: 4, fontWeight: 600 }}>{v.label}</span>;
   };
 
-  const isOnDemand = bookingType === "home_collection" || bookingType === "home_doctor" || bookingType === "nurse_visit";
+  // A lab test booked with the diagnostics page's "🔴 Urgent — priority slot"
+  // checkbox for home collection is routed through the same instant-dispatch
+  // flow as home_collection, instead of the slot-based Date & Time flow —
+  // "urgent" here means a phlebotomist is summoned now, not a faster future
+  // slot. Walk-in tests (modeParam !== "home") never trigger this: there is
+  // no phlebotomist to dispatch when the patient is visiting the centre.
+  const isUrgentHomeLab = bookingType === "lab" && modeParam === "home" && priorityParam === "urgent";
+  const isOnDemand = bookingType === "home_collection" || bookingType === "home_doctor" || bookingType === "nurse_visit" || isUrgentHomeLab;
   // ─── Pricing with time-slot tiers ────────────────────────────────────────
   const slotPricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
   // Base price: sum of selected tests / doctor fee / package price
@@ -991,10 +1000,10 @@ function BookingPageContent() {
         )}
 
         {/* ─── STEP 2 (On-Demand Home Collection / Nurse Visit) ─── */}
-        {step === 2 && (bookingType === "home_collection" || bookingType === "nurse_visit") && (
+        {step === 2 && (bookingType === "home_collection" || bookingType === "nurse_visit" || isUrgentHomeLab) && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
-              {bookingType === "home_collection" ? "Select Blood Tests for Home Sample Collection" : "Enter Patient Location for Nurse Home Visit"}
+              {bookingType === "home_collection" || isUrgentHomeLab ? "Select Blood Tests for Home Sample Collection" : "Enter Patient Location for Nurse Home Visit"}
             </h3>
 
             {bookingType === "nurse_visit" && (
@@ -1026,7 +1035,7 @@ function BookingPageContent() {
               </>
             )}
 
-            {bookingType === "home_collection" && (
+            {(bookingType === "home_collection" || isUrgentHomeLab) && (
               <>
                 <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>Select one or multiple tests for instant phlebotomist dispatch to your address.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
@@ -1082,7 +1091,7 @@ function BookingPageContent() {
                 disabled={
                   !dispatchAddress.trim() ||
                   !coords ||
-                  (bookingType === "home_collection" && selectedTests.length === 0) ||
+                  ((bookingType === "home_collection" || isUrgentHomeLab) && selectedTests.length === 0) ||
                   (bookingType === "nurse_visit" && !nursingService)
                 }
                 onClick={() => setStep(5)}
@@ -1096,7 +1105,7 @@ function BookingPageContent() {
         {/* ─── STEP 2 (Lab flow): Choose Tests ───
              Two modes: partner-blind (no org — CallMedex allocates server-side)
              and org-specific (patient picked a centre from the marketplace). */}
-        {step === 2 && bookingType === "lab" && (
+        {step === 2 && bookingType === "lab" && !isUrgentHomeLab && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>Choose Your Tests</h3>
 
@@ -1739,7 +1748,7 @@ function BookingPageContent() {
         {step === 5 && isOnDemand && (
           <div className="card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>
-              {bookingType === "home_collection" ? "🩸 Confirm Home Sample Collection" : "🏠 Confirm Home Visit"}
+              {bookingType === "home_collection" || isUrgentHomeLab ? "🩸 Confirm Home Sample Collection" : "🏠 Confirm Home Visit"}
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 20 }}>A verified healthcare provider will be dispatched to your location.</p>
 

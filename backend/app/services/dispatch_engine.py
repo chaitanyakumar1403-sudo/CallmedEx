@@ -6,6 +6,7 @@ Uber/Swiggy-style real-time dispatch for ALL field providers:
 Uses the universal provider_locations + dispatch_requests + dispatch_offers tables.
 Supports: provider matching, offer rotation, live tracking, and ETA calculation.
 """
+import asyncio
 import uuid
 import math
 from datetime import datetime, timezone, timedelta
@@ -442,11 +443,24 @@ class UniversalDispatchEngine:
 
         if supabase:
             try:
-                supabase.table("dispatch_requests").insert(dispatch_data).execute()
+                await asyncio.to_thread(
+                    lambda: supabase.table("dispatch_requests").insert(dispatch_data).execute()
+                )
 
-                # Create dispatch offers for all candidates
-                for i, candidate in enumerate(candidates):
-                    offer = {
+                # Build every offer up front, then insert them in ONE round
+                # trip instead of one blocking .execute() per candidate.
+                # urgent_home_collection fan-out is intentionally uncapped
+                # (every on-duty phlebo of a centre during a surge), so N
+                # sequential synchronous DB calls serialized on the event
+                # loop would freeze it for every other request for as long
+                # as the surge lasts — the same class of problem the email
+                # send was already pulled off the hot path for.
+                expires_at = (
+                    datetime.now(timezone.utc)
+                    + timedelta(minutes=offer_window_minutes())
+                ).isoformat()
+                offers = [
+                    {
                         "id": str(uuid.uuid4()),
                         "dispatch_request_id": dispatch_id,
                         "provider_id": candidate["user_id"],
@@ -454,20 +468,23 @@ class UniversalDispatchEngine:
                         "distance_km": candidate["distance_km"],
                         "offered_at": now,
                         "responded_at": None,
-                        "expires_at": (
-                            datetime.now(timezone.utc)
-                            + timedelta(minutes=offer_window_minutes())
-                        ).isoformat(),
+                        "expires_at": expires_at,
                     }
-                    supabase.table("dispatch_offers").insert(offer).execute()
+                    for candidate in candidates
+                ]
 
-                    # Send Magic Email Alert in a non-blocking background task
+                if offers:
+                    await asyncio.to_thread(
+                        lambda: supabase.table("dispatch_offers").insert(offers).execute()
+                    )
+
+                # Notify every candidate — already non-blocking (fire-and-forget)
+                for candidate, offer in zip(candidates, offers):
                     provider_email = candidate.get("email")
                     if provider_email:
-                        import asyncio
                         asyncio.create_task(
                             asyncio.to_thread(
-                                EmailService.send_magic_dispatch_email,
+                                EmailService.send_magic_dispatch_email_safe,
                                 to_email=provider_email,
                                 provider_name=candidate.get("name"),
                                 task_details={

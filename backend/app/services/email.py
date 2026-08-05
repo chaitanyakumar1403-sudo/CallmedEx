@@ -428,6 +428,46 @@ DECLINE: {decline_link}
             print("🔴" * 35 + "\n")
 
     @staticmethod
+    def send_magic_dispatch_email_safe(to_email: str, provider_name: str, task_details: dict, offer_id: str, provider_id: str):
+        """
+        Same as send_magic_dispatch_email, but for callers that fire it as a
+        background task (dispatch_engine does via asyncio.create_task). An
+        exception raised before that function's own retry/ops-alert logic
+        kicks in — e.g. MagicLinkService.generate_token failing — would
+        otherwise vanish into the task with nothing but asyncio's generic
+        "Task exception was never retrieved" log, and the critical ops alert
+        dispatch relies on to know a provider was never notified would never
+        fire. This wrapper guarantees that alert fires either way.
+        """
+        try:
+            EmailService.send_magic_dispatch_email(
+                to_email=to_email,
+                provider_name=provider_name,
+                task_details=task_details,
+                offer_id=offer_id,
+                provider_id=provider_id,
+            )
+        except Exception as e:
+            logger.error(f"DISPATCH EMAIL TASK CRASHED for offer {offer_id} to {to_email}: {e}")
+            try:
+                from app.services.ops_alerts import OpsAlertService
+                OpsAlertService.create_alert(
+                    alert_type="email_send_failed",
+                    entity_type="dispatch_offer",
+                    entity_id=offer_id,
+                    severity="critical",
+                    details={
+                        "to_email": to_email,
+                        "provider_name": provider_name,
+                        "provider_id": provider_id,
+                        "service_type": (task_details or {}).get("service_subtype", ""),
+                        "error": str(e),
+                    },
+                )
+            except Exception as alert_err:
+                logger.error(f"Ops alert creation also failed: {alert_err}")
+
+    @staticmethod
     def send_password_reset_email(to_email: str, otp_code: str, reset_link: str, user_name: str = "User"):
         """
         Sends password reset email with 6-digit OTP code and magic link.
