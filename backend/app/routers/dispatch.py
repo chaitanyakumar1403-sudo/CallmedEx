@@ -147,6 +147,40 @@ async def track_dispatch(
     return {"success": True, **tracking}
 
 
+@router.get("/for-booking/{booking_id}")
+async def get_dispatch_for_booking(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Resolve the active dispatch_id for a booking the caller owns.
+
+    Scheduled bookings only get a dispatch_requests row once the background
+    scheduler creates it (see scheduled_dispatch.py), long after the
+    patient's browser tab loaded — so the frontend can't rely on
+    localStorage (only ever set at on-demand dispatch creation time) to
+    find it. The patient dashboard polls this instead.
+    """
+    if not supabase:
+        return {"success": True, "dispatch_id": None}
+
+    booking = _rows(
+        supabase.table("bookings").select("id, patient_id").eq("id", booking_id).execute()
+    )
+    if not booking or booking[0]["patient_id"] != current_user["sub"]:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    active = _rows(
+        supabase.table("dispatch_requests")
+        .select("id")
+        .eq("booking_id", booking_id)
+        .in_("status", ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return {"success": True, "dispatch_id": active[0]["id"] if active else None}
+
+
 @router.get("/nearby")
 async def find_nearby_providers(
     lat: float,

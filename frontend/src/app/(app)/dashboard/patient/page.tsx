@@ -151,6 +151,44 @@ export default function PatientDashboard() {
     Promise.all([fetchBookings(), fetchMe()]);
   }, []);
 
+  // Discover the dispatch_id for a scheduled (slot-booked) appointment once
+  // the backend's Celery task creates it. On-demand dispatches already know
+  // their dispatch_id at creation time (localStorage, set below) — a
+  // scheduled booking's dispatch_requests row appears later, asynchronously,
+  // with nothing to tell this tab it now exists.
+  useEffect(() => {
+    if (activeDispatchId) return;
+    const candidates = bookings.filter(
+      (b) => b.status === "confirmed" && b.booking_kind === "home_collection"
+    );
+    if (candidates.length === 0) return;
+
+    const token = localStorage.getItem("token");
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+    const discover = async () => {
+      for (const b of candidates) {
+        try {
+          const res = await fetch(`${apiBase}/api/dispatch/for-booking/${b.id}`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (data.success && data.dispatch_id) {
+            localStorage.setItem("activeDispatchId", data.dispatch_id);
+            setActiveDispatchId(data.dispatch_id);
+            return;
+          }
+        } catch (e) {
+          console.error("Dispatch discovery error", e);
+        }
+      }
+    };
+
+    discover();
+    const interval = setInterval(discover, 15000);
+    return () => clearInterval(interval);
+  }, [bookings, activeDispatchId]);
+
   // Poll for live tracking if active dispatch exists
   useEffect(() => {
     // If we just loaded, try fetching from localStorage first
