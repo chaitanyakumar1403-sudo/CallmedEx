@@ -565,18 +565,29 @@ async def create_booking(
                                     f"booking {booking_id}: {pc_err}"
                                 )
 
-                            await UniversalDispatchEngine.create_dispatch(
-                                patient_id=current_user["sub"],
-                                patient_lat=float(patient_lat),
-                                patient_lng=float(patient_lng),
-                                patient_address=patient_address or "",
-                                provider_type="phlebotomist",
-                                service_subtype="home_collection",
-                                booking_id=booking_id,
-                                notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
-                                priority="normal",
-                                processing_center_id=pc_id,
-                            )
+                            # Only spawn a LIVE dispatch immediately if this is an on-demand/reorder booking.
+                            # For scheduled future bookings (e.g. 21:00), advance rostering handles assignment.
+                            slot_id_str = booking.slot_id or ""
+                            is_immediate = slot_id_str.startswith("on_demand|") or slot_id_str.startswith("reorder|")
+                            
+                            if is_immediate:
+                                await UniversalDispatchEngine.create_dispatch(
+                                    patient_id=current_user["sub"],
+                                    patient_lat=float(patient_lat),
+                                    patient_lng=float(patient_lng),
+                                    patient_address=patient_address or "",
+                                    provider_type="phlebotomist",
+                                    service_subtype="home_collection",
+                                    booking_id=booking_id,
+                                    notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
+                                    priority="normal",
+                                    processing_center_id=pc_id,
+                                )
+                            else:
+                                logger.info(
+                                    f"Booking {booking_id} is scheduled for future slot {slot_id_str}. "
+                                    f"Skipping immediate live dispatch."
+                                )
                         else:
                             # No lat/lng at all — dispatch cannot be created, but
                             # the booking itself is confirmed. The phlebotomist
@@ -596,7 +607,7 @@ async def create_booking(
                         # silently dropping it — the booking stays CONFIRMED and
                         # an ops alert fires only if all retries are exhausted.
                         try:
-                            if patient_lat and patient_lng:
+                            if patient_lat and patient_lng and is_immediate:
                                 from app.workers.tasks.dispatch_retry import retry_dispatch_creation
                                 retry_dispatch_creation.delay(
                                     booking_id=booking_id,
