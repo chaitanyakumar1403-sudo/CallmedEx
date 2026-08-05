@@ -50,8 +50,8 @@ def trigger_dispatch_for_upcoming_bookings(self):
         return {"checked": 0, "dispatched": 0}
 
     now_ist = datetime.now(IST)
-    window_start = (now_ist - timedelta(minutes=GRACE_MINUTES)).strftime("%Y-%m-%dT%H:%M:%S")
-    window_end = (now_ist + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime("%Y-%m-%dT%H:%M:%S")
+    window_start = (now_ist - timedelta(minutes=GRACE_MINUTES)).strftime("%Y-%m-%dT%H:%M:%S+05:30")
+    window_end = (now_ist + timedelta(minutes=LOOKAHEAD_MINUTES)).strftime("%Y-%m-%dT%H:%M:%S+05:30")
 
     try:
         candidates = _rows(
