@@ -93,9 +93,12 @@ def trigger_dispatch_async(dispatch_id: str, service_type: str, patient_lat: flo
         now_iso = now.isoformat()
         expires_at = (now + timedelta(seconds=OFFER_EXPIRY_SECONDS)).isoformat()
 
+        # Build all offers first, then insert + notify
+        offers_created = []
         for candidate in candidates:
+            offer_id = str(uuid.uuid4())
             supabase.table("dispatch_offers").insert({
-                "id": str(uuid.uuid4()),
+                "id": offer_id,
                 "dispatch_request_id": dispatch_id,
                 "provider_id": candidate["user_id"],
                 "status": "pending",
@@ -104,6 +107,45 @@ def trigger_dispatch_async(dispatch_id: str, service_type: str, patient_lat: flo
                 "responded_at": None,
                 "expires_at": expires_at,
             }).execute()
+            offers_created.append((candidate, offer_id))
+
+        # Bug 3 fix: Send magic-link dispatch email to each candidate.
+        # Without this, offers were created in the DB but providers were
+        # never told — the offers sat there until expiry.
+        from app.services.email import EmailService
+        from app.services.dispatch_engine import offer_window_minutes
+
+        # Fetch dispatch details for the email content
+        dispatch_row = _rows(
+            supabase.table("dispatch_requests")
+            .select("service_subtype, patient_address, notes, priority")
+            .eq("id", dispatch_id).limit(1).execute()
+        )
+        d_info = dispatch_row[0] if dispatch_row else {}
+
+        for candidate, offer_id in offers_created:
+            provider_email = candidate.get("email")
+            if provider_email:
+                try:
+                    EmailService.send_magic_dispatch_email_safe(
+                        to_email=provider_email,
+                        provider_name=candidate.get("name", "Provider"),
+                        task_details={
+                            "service_subtype": d_info.get("service_subtype", service_type),
+                            "patient_address": d_info.get("patient_address", ""),
+                            "distance_km": candidate["distance_km"],
+                            "notes": d_info.get("notes", ""),
+                            "priority": d_info.get("priority", "normal"),
+                            "window_minutes": offer_window_minutes(),
+                        },
+                        offer_id=offer_id,
+                        provider_id=candidate["user_id"],
+                    )
+                except Exception as email_err:
+                    logger.error(
+                        f"Dispatch {dispatch_id}: email send failed for "
+                        f"provider {candidate['user_id']}: {email_err}"
+                    )
 
         nearest = candidates[0]
         supabase.table("dispatch_requests").update({
@@ -113,7 +155,7 @@ def trigger_dispatch_async(dispatch_id: str, service_type: str, patient_lat: flo
             "updated_at": now_iso,
         }).eq("id", dispatch_id).execute()
 
-        logger.info(f"Dispatch {dispatch_id} offered to {len(candidates)} provider(s)")
+        logger.info(f"Dispatch {dispatch_id} offered to {len(candidates)} provider(s) with email notifications")
 
     except Exception as e:
         logger.error(f"trigger_dispatch_async failed for {dispatch_id}: {e}")
@@ -256,9 +298,11 @@ def _try_re_fan_out(dispatch_id: str):
         now_iso = now.isoformat()
         expires_at = (now + timedelta(seconds=OFFER_EXPIRY_SECONDS)).isoformat()
 
+        offers_created = []
         for candidate in candidates:
+            offer_id = str(uuid.uuid4())
             supabase.table("dispatch_offers").insert({
-                "id": str(uuid.uuid4()),
+                "id": offer_id,
                 "dispatch_request_id": dispatch_id,
                 "provider_id": candidate["user_id"],
                 "status": "pending",
@@ -267,6 +311,37 @@ def _try_re_fan_out(dispatch_id: str):
                 "responded_at": None,
                 "expires_at": expires_at,
             }).execute()
+            offers_created.append((candidate, offer_id))
+
+        # Bug 4 fix: Send email notifications to new candidates found in
+        # the widened radius. Without this, re-fan-out created DB rows but
+        # never actually told the providers, so the dispatch always expired.
+        from app.services.email import EmailService
+        from app.services.dispatch_engine import offer_window_minutes
+
+        for candidate, offer_id in offers_created:
+            provider_email = candidate.get("email")
+            if provider_email:
+                try:
+                    EmailService.send_magic_dispatch_email_safe(
+                        to_email=provider_email,
+                        provider_name=candidate.get("name", "Provider"),
+                        task_details={
+                            "service_subtype": dispatch.get("service_subtype", ""),
+                            "patient_address": dispatch.get("patient_address", ""),
+                            "distance_km": candidate["distance_km"],
+                            "notes": dispatch.get("notes", ""),
+                            "priority": dispatch.get("priority", "normal"),
+                            "window_minutes": offer_window_minutes(),
+                        },
+                        offer_id=offer_id,
+                        provider_id=candidate["user_id"],
+                    )
+                except Exception as email_err:
+                    logger.error(
+                        f"Re-fan-out {dispatch_id}: email send failed for "
+                        f"provider {candidate['user_id']}: {email_err}"
+                    )
 
         # Update dispatch state
         supabase.table("dispatch_requests").update({
@@ -278,7 +353,8 @@ def _try_re_fan_out(dispatch_id: str):
 
         logger.info(
             f"Dispatch {dispatch_id} re-fan-out round {fan_out_round}: "
-            f"offered to {len(candidates)} new provider(s) at {new_radius}km radius"
+            f"offered to {len(candidates)} new provider(s) at {new_radius}km radius "
+            f"with email notifications"
         )
 
     except Exception as e:

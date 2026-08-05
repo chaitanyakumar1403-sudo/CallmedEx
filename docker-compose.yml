@@ -11,12 +11,23 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - REDIS_URL=redis://redis:6379/0
+      # ─── Email delivery (Bug 1 fix: without these, all dispatch
+      # emails fall to the console-only fallback) ─────────────────
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM:-support@mail.callmedex.com}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-support@mail.callmedex.com}
+      # ─── Geocoding (needed for dispatch coordinate resolution) ──
+      - GEOAPIFY_API_KEY=${GEOAPIFY_API_KEY}
+      # ─── AI services ───────────────────────────────────────────
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
@@ -50,12 +61,20 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - REDIS_URL=redis://redis:6379/0
+      # Email delivery — worker sends dispatch emails to phlebotomists
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM:-support@mail.callmedex.com}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-support@mail.callmedex.com}
+      - GEOAPIFY_API_KEY=${GEOAPIFY_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
@@ -82,12 +101,20 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - JWT_SECRET=${JWT_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - REDIS_URL=redis://redis:6379/0
+      # Beat needs DB access for scheduled tasks + email for notifications
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM:-support@mail.callmedex.com}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-support@mail.callmedex.com}
+      - GEOAPIFY_API_KEY=${GEOAPIFY_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     depends_on:
       redis:
         condition: service_healthy

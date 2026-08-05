@@ -172,7 +172,95 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
             "phlebotomist_user_id": uid,
         })
 
+    # Bug 7 fix: Notify each assigned phlebotomist about their roster.
+    # Without this, the phlebo only sees jobs if they actively check
+    # their dashboard — no proactive notification was ever sent.
+    _notify_assigned_phlebos(assigned, roster_date)
+
     return assigned
+
+
+def _notify_assigned_phlebos(assigned: List[dict], roster_date: str) -> None:
+    """Send roster assignment emails to each phlebotomist.
+
+    Best-effort: notification failures are logged but never break the roster
+    assignment that already succeeded above.
+    """
+    if not assigned or not supabase:
+        return
+
+    # Group by phlebotomist
+    by_phlebo: dict = {}
+    for entry in assigned:
+        uid = entry["phlebotomist_user_id"]
+        by_phlebo.setdefault(uid, []).append(entry)
+
+    for uid, jobs in by_phlebo.items():
+        try:
+            user_row = _rows(
+                supabase.table("users").select("email, full_name")
+                .eq("id", uid).limit(1).execute()
+            )
+            if not user_row or not user_row[0].get("email"):
+                logger.warning(
+                    f"Roster notification: phlebotomist {uid} has no email on file"
+                )
+                continue
+
+            to_email = user_row[0]["email"]
+            phlebo_name = user_row[0].get("full_name", "Collector")
+            job_count = len(jobs)
+
+            from app.services.email import EmailService
+            from app.config import settings
+
+            subject = (
+                f"📋 {job_count} collection{'s' if job_count > 1 else ''} "
+                f"assigned for {roster_date}"
+            )
+            dashboard_url = f"{settings.FRONTEND_URL}/dashboard"
+
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h2 style="color: #1e293b; margin-top: 0;">📋 Roster Assignment</h2>
+                    <p style="color: #374151; font-size: 16px;">Hello <strong>{phlebo_name}</strong>,</p>
+                    <p style="color: #374151; font-size: 16px;">
+                        You have been assigned <strong>{job_count} home collection{'s' if job_count > 1 else ''}</strong>
+                        for <strong>{roster_date}</strong>.
+                    </p>
+                    <p style="color: #374151; font-size: 16px;">
+                        Please check your dashboard to view addresses and collection details.
+                        If you cannot attend, decline the job from the dashboard so it can be reassigned.
+                    </p>
+                    <div style="margin: 25px 0;">
+                        <a href="{dashboard_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                            View My Schedule
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px;">
+                        This is an advance assignment. You may decline individual jobs from the dashboard.
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+            text_content = (
+                f"Hello {phlebo_name},\n\n"
+                f"You have {job_count} home collection(s) assigned for {roster_date}.\n"
+                f"View schedule: {dashboard_url}\n"
+            )
+
+            if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+                logger.warning(
+                    f"Roster email delivery failed for phlebotomist {uid} "
+                    f"({to_email}) — RESEND_API_KEY/SMTP not configured"
+                )
+        except Exception as e:
+            logger.error(
+                f"Roster notification failed for phlebotomist {uid}: {e}"
+            )
 
 
 def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional[dict]:

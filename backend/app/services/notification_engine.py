@@ -148,19 +148,73 @@ class NotificationEngine:
 
     @staticmethod
     async def _send_email(user_id: str, title: str, body: str, data: dict = None) -> dict:
-        """Send email notification (delegates to existing EmailService)."""
-        # In production: Look up user email and send via SMTP/SendGrid
-        logger.info(f"📧 Email to {user_id}: {title}")
-        return {"success": True, "simulated": True}
+        """Send email notification via EmailService to the user's registered email."""
+        if not supabase:
+            logger.warning(f"📧 Email to {user_id}: {title} — DB unavailable, simulated")
+            return {"success": True, "simulated": True}
+
+        try:
+            user_row = (
+                supabase.table("users").select("email, full_name")
+                .eq("id", user_id).limit(1).execute()
+            )
+            if not user_row.data or not user_row.data[0].get("email"):
+                logger.warning(
+                    f"📧 Email to {user_id}: {title} — user has no email on file"
+                )
+                return {"success": False, "error": "No email address on file for user"}
+
+            to_email = user_row.data[0]["email"]
+
+            # Build a simple HTML notification email
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px;">
+                    <h2 style="color: #1e293b;">{title}</h2>
+                    <p style="color: #374151; font-size: 16px; white-space: pre-wrap;">{body}</p>
+                </div>
+            </body>
+            </html>
+            """
+            from app.services.email import EmailService
+            sent = EmailService._send_real_email(to_email, title, html_content, body)
+            if sent:
+                return {"success": True}
+            else:
+                logger.warning(
+                    f"📧 Email to {user_id} ({to_email}): {title} — "
+                    f"delivery failed (RESEND_API_KEY/SMTP not configured)"
+                )
+                return {"success": False, "error": "Email delivery failed"}
+        except Exception as e:
+            logger.error(f"📧 Email to {user_id} failed: {e}")
+            return {"success": False, "error": str(e)}
 
     @staticmethod
     async def _send_sms(user_id: str, body: str) -> dict:
-        """Send SMS notification (MSG91/Twilio)."""
-        logger.info(f"📱 SMS to {user_id}: {body[:50]}...")
+        """Send SMS notification (MSG91/Twilio).
+
+        Not yet wired to a real SMS gateway. Returns simulated success so
+        the notification record is created, but logs a warning so ops knows
+        the message was NOT actually delivered.
+        """
+        logger.warning(
+            f"📱 SMS to {user_id}: NOT DELIVERED (SMS gateway not configured). "
+            f"Message: {body[:80]}..."
+        )
         return {"success": True, "simulated": True}
 
     @staticmethod
     async def _send_push(user_id: str, title: str, body: str, data: dict = None) -> dict:
-        """Send push notification (FCM)."""
-        logger.info(f"🔔 Push to {user_id}: {title}")
+        """Send push notification (FCM).
+
+        Not yet wired to FCM. Returns simulated success so the notification
+        record is created, but logs a warning so ops knows the message was
+        NOT actually delivered.
+        """
+        logger.warning(
+            f"🔔 Push to {user_id}: NOT DELIVERED (FCM not configured). "
+            f"Title: {title}"
+        )
         return {"success": True, "simulated": True}
