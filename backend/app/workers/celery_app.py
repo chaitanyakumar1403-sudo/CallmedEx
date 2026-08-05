@@ -61,6 +61,19 @@ celery_app.conf.update(
     task_reject_on_worker_lost=True,   # Safety net for crashes
     worker_max_tasks_per_child=200,    # Prevent memory leaks
 
+    # Connection Safety (Fail Fast)
+    # If Redis is unreachable (e.g. Upstash sleeping, network issue), do not
+    # block the API thread for 60s. Fail quickly so the API can still return
+    # a 200 OK to the patient (even if notifications are dropped/delayed).
+    broker_connection_timeout=3.0,
+    broker_connection_retry=False,
+    broker_connection_max_retries=1,
+    broker_transport_options={
+        "socket_timeout": 3.0,
+        "socket_connect_timeout": 3.0,
+        "max_retries": 1,
+    },
+
     # Results
     result_expires=3600,               # Results kept for 1 hour
     task_always_eager=False,           # Always use real async workers
