@@ -15,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# ─── SSL fix for managed Redis (Upstash, Render, etc.) ─────────────────
+# Kombu (Celery's transport layer) requires explicit ssl_cert_reqs for
+# rediss:// URLs. Without it, *every* .delay() call fails silently with:
+#   "A rediss:// URL must have parameter ssl_cert_reqs ..."
+# This breaks all background tasks: notifications, dispatch, roster.
+if REDIS_URL.startswith("rediss://") and "ssl_cert_reqs" not in REDIS_URL:
+    _sep = "&" if "?" in REDIS_URL else "?"
+    REDIS_URL = f"{REDIS_URL}{_sep}ssl_cert_reqs=CERT_NONE"
+
 # ─── Celery App ────────────────────────────────────────────────────────────
 celery_app = Celery(
     "callmedex",

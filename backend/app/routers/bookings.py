@@ -284,16 +284,16 @@ async def create_booking(
     slot_parts = booking.slot_id.split("|")
     if len(slot_parts) == 3 and slot_parts[2] != "pending" and ":" in slot_parts[2]:
         slot_provider, slot_date, slot_time = slot_parts
-        slot_start = f"{slot_date}T{slot_time}:00"
+        slot_start = f"{slot_date}T{slot_time}:00+05:30"
         try:
             hour = int(slot_time.split(":")[0])
-            slot_end = f"{slot_date}T{hour:02d}:30:00"
+            slot_end = f"{slot_date}T{hour:02d}:30:00+05:30"
         except ValueError:
-            slot_end = f"{slot_date}T23:59:59"
+            slot_end = f"{slot_date}T23:59:59+05:30"
     elif len(slot_parts) == 3 or booking.preferred_date:
         slot_date = slot_parts[1] if len(slot_parts) >= 2 else (booking.preferred_date or now.split("T")[0])
-        slot_start = f"{slot_date}T00:00:00"
-        slot_end = f"{slot_date}T23:59:59"
+        slot_start = f"{slot_date}T00:00:00+05:30"
+        slot_end = f"{slot_date}T23:59:59+05:30"
     else:
         # Fallback: try to find in local slots by UUID
         slot = None
@@ -301,18 +301,19 @@ async def create_booking(
         slot = next((s for s in _local_slots if s["id"] == booking.slot_id), None)
         if not slot:
             # Default to full day if slot_id is dynamic/custom
-            slot_start = f"{now.split('T')[0]}T00:00:00"
-            slot_end = f"{now.split('T')[0]}T23:59:59"
+            slot_start = f"{now.split('T')[0]}T00:00:00+05:30"
+            slot_end = f"{now.split('T')[0]}T23:59:59+05:30"
         else:
-            slot_start = f"{slot['date']}T{slot['start_time']}"
-            slot_end = f"{slot['date']}T{slot['end_time']}"
+            slot_start = f"{slot['date']}T{slot['start_time']}+05:30"
+            slot_end = f"{slot['date']}T{slot['end_time']}+05:30"
 
     # Prevent double-booking: same user, same slot
     conflict = False
     if supabase:
         try:
             # Checking using slot_start string instead of slot_id to avoid UUID error
-            existing = supabase.table("bookings").select("id").eq("patient_id", current_user["sub"]).eq("slot_start", slot_start).execute()
+            # Exclude cancelled bookings so the patient can re-book a previously cancelled slot.
+            existing = supabase.table("bookings").select("id").eq("patient_id", current_user["sub"]).eq("slot_start", slot_start).neq("status", "cancelled").execute()
             if existing.data:
                 conflict = True
         except Exception:
@@ -320,7 +321,7 @@ async def create_booking(
 
     if not conflict:
         for b in _local_bookings:
-            if b["patient_id"] == current_user["sub"] and b.get("slot_start") == slot_start:
+            if b["patient_id"] == current_user["sub"] and b.get("slot_start") == slot_start and b.get("status") != "cancelled":
                 conflict = True
                 break
 
@@ -406,8 +407,8 @@ async def create_booking(
             "provider_type": resolved_provider_type,
             "service_type": booking.service_type.value,
             "slot_id": f"{resolved_provider_id}|{booking.preferred_date}|pending",
-            "slot_start": f"{booking.preferred_date}T00:00:00",
-            "slot_end": f"{booking.preferred_date}T23:59:59",
+            "slot_start": f"{booking.preferred_date}T00:00:00+05:30",
+            "slot_end": f"{booking.preferred_date}T23:59:59+05:30",
             "preferred_date": booking.preferred_date,
             "status": booking_status,
             "notes": booking.notes or "",
@@ -1307,8 +1308,8 @@ async def allot_slot(
 
     # Build the allotted slot datetime using the preferred date
     preferred_date = booking.get("preferred_date", booking.get("slot_start", "")[:10])
-    allotted_start = f"{preferred_date}T{allotment.allotted_start_time}:00"
-    allotted_end = f"{preferred_date}T{allotment.allotted_end_time}:00"
+    allotted_start = f"{preferred_date}T{allotment.allotted_start_time}:00+05:30"
+    allotted_end = f"{preferred_date}T{allotment.allotted_end_time}:00+05:30"
 
     update_data = {
         "status": BookingStatus.SLOT_ALLOTTED.value,
