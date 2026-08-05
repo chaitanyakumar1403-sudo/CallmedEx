@@ -40,9 +40,10 @@ def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict
         return []
     wanted = {r["phlebotomist_user_id"] for r in roster}
 
+    # P2.5: Also fetch phlebo_type for full-time preference in reassignment
     people = _rows(
         supabase.table("phlebotomists")
-        .select("user_id, processing_center_id, base_lat, base_lng")
+        .select("user_id, processing_center_id, base_lat, base_lng, phlebo_type")
         .eq("processing_center_id", processing_center_id)
         .execute()
     )
@@ -84,8 +85,11 @@ def _pick(candidates: List[dict], booking: dict, load: dict,
           exclude: Optional[set] = None) -> Optional[dict]:
     """Nearest by base location within the radius, breaking ties on load.
 
-    Sorting on load first is what stops one phlebo absorbing a whole locality
-    while a colleague two streets away sits idle.
+    P2.5: Two-pass selection — prefers full-time phlebotomists for stability.
+    Never leaves a booking unassigned when a part-time phlebo could cover it.
+
+    Pass 1: full-time only (within radius, sorted by load then distance).
+    Pass 2: all candidates including part-time (fallback).
     """
     exclude = exclude or set()
     viable = []
@@ -101,6 +105,18 @@ def _pick(candidates: List[dict], booking: dict, load: dict,
             viable.append((load.get(uid, 0), dist, uid, person))
     if not viable:
         return None
+
+    # Pass 1: prefer full-time candidates
+    full_time = [
+        v for v in viable
+        if (v[3].get("phlebo_type") or "full_time").lower() in ("full_time", "full-time", "ft")
+    ]
+    if full_time:
+        full_time.sort(key=lambda v: (v[0], v[1], v[2]))
+        return full_time[0][3]
+
+    # Pass 2: fall back to all candidates (part-time included)
+    # CONSTRAINT: Never leave a booking unassigned when a part-time phlebo could cover it.
     viable.sort(key=lambda v: (v[0], v[1], v[2]))
     return viable[0][3]
 

@@ -489,6 +489,13 @@ async def create_booking(
                     # When a home collection booking is confirmed, immediately
                     # create a dispatch so the phlebotomist gets notified.
                     # Errors are logged but never break the booking.
+                    # Bound before the try so the except-block retry queuing
+                    # below (which reads these) can never hit an unbound-
+                    # variable error if an earlier line in the try raises.
+                    patient_lat = None
+                    patient_lng = None
+                    patient_address = ""
+                    pc_id: Optional[str] = None
                     try:
                         patient_lat = booking_data.get("collection_lat") or booking.collection_lat
                         patient_lng = booking_data.get("collection_lng") or booking.collection_lng
@@ -498,8 +505,13 @@ async def create_booking(
                             else (booking.collection_address or booking.city or "")
                         )
 
-                        # If no collection lat/lng, try to resolve from the
-                        # patient's city using approximate city center coordinates.
+                        # If no collection lat/lng, geocode the patient's address
+                        # via GeocodingService (Google -> Geoapify -> error).
+                        # Never silently defaults to any city's coordinates —
+                        # on failure, patient_lat/patient_lng stay unset and the
+                        # "no lat/lng" branch below leaves the booking confirmed
+                        # for manual/walk-in assignment instead of dispatching
+                        # to the wrong location.
                         if not patient_lat or not patient_lng:
                             try:
                                 city = booking.city or ""
@@ -510,28 +522,23 @@ async def create_booking(
                                     )
                                     if user_row:
                                         city = (user_row[0].get("city") or "")
-                                # Approximate city centers for known cities
-                                CITY_COORDS = {
-                                    "visakhapatnam": (17.6868, 83.2185),
-                                    "vizag": (17.6868, 83.2185),
-                                    "hyderabad": (17.3850, 78.4867),
-                                    "vijayawada": (16.5062, 80.6480),
-                                    "guntur": (16.3067, 80.4365),
-                                    "kakinada": (16.9400, 82.2400),
-                                    "rajahmundry": (17.0005, 81.8040),
-                                    "tirupati": (13.6288, 79.4192),
-                                }
-                                city_key = city.strip().lower()
-                                if city_key in CITY_COORDS:
-                                    patient_lat, patient_lng = CITY_COORDS[city_key]
+
+                                from app.services.geocoding import geocode_address, GeocodingError
+                                try:
+                                    geo_address = patient_address or booking.district or city
+                                    patient_lat, patient_lng = geocode_address(
+                                        address=geo_address,
+                                        city=city,
+                                    )
                                     logger.info(
-                                        f"Using approximate coords for {city}: "
+                                        f"Geocoded booking {booking_id} address "
+                                        f"({geo_address!r}, city={city!r}) to "
                                         f"({patient_lat}, {patient_lng})"
                                     )
-                                else:
-                                    patient_lat, patient_lng = 17.6868, 83.2185
-                                    logger.info(
-                                        f"Unknown city '{city}', defaulting to Vizag center"
+                                except GeocodingError as geo_err:
+                                    logger.warning(
+                                        f"Geocoding failed for booking {booking_id} "
+                                        f"(address={patient_address!r}, city={city!r}): {geo_err}"
                                     )
                             except Exception as lookup_err:
                                 logger.warning(f"City coordinate lookup failed: {lookup_err}")
@@ -582,8 +589,36 @@ async def create_booking(
                     except Exception as dispatch_err:
                         logger.warning(
                             f"Dispatch creation failed for booking {booking_id}, "
-                            f"booking still created: {dispatch_err}"
+                            f"booking still created: {dispatch_err}. "
+                            f"Queuing background retry."
                         )
+                        # P1.2: Retry dispatch creation with backoff instead of
+                        # silently dropping it — the booking stays CONFIRMED and
+                        # an ops alert fires only if all retries are exhausted.
+                        try:
+                            if patient_lat and patient_lng:
+                                from app.workers.tasks.dispatch_retry import retry_dispatch_creation
+                                retry_dispatch_creation.delay(
+                                    booking_id=booking_id,
+                                    patient_id=current_user["sub"],
+                                    patient_lat=float(patient_lat),
+                                    patient_lng=float(patient_lng),
+                                    patient_address=patient_address or "",
+                                    provider_type="phlebotomist",
+                                    service_subtype="home_collection",
+                                    notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
+                                    processing_center_id=pc_id,
+                                )
+                            else:
+                                logger.warning(
+                                    f"Booking {booking_id}: no coordinates available, "
+                                    f"cannot queue dispatch retry either."
+                                )
+                        except Exception as queue_err:
+                            logger.error(
+                                f"Failed to queue dispatch retry for booking "
+                                f"{booking_id}: {queue_err}"
+                            )
                 except Exception as e:
                     logger.warning(
                         f"Home-collection processing-centre assignment failed "

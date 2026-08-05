@@ -186,37 +186,46 @@ async def analyze_report(
 
     from app.services.groq_report_analyzer import GroqReportAnalyzerService
 
-    # ── In-Process Groq AI Report Analysis ───────────────────────────
+    # ── In-Process AI Report Analysis ───────────────────────────────
     analysis_results = GroqReportAnalyzerService.analyze_report_bytes(file_bytes, content_type)
 
+    # Check if analysis returned an error (P0 safety: never save fabricated data)
+    is_error = analysis_results.get("error", False)
+    job_status = "failed" if is_error else "delivered"
+
     if supabase:
-        supabase.table("report_jobs").insert({
+        job_row = {
             "id": report_job_id,
             "patient_id": patient_id,
             "source_type": "lab_report",
             "connector_type": "patient_upload",
-            "status": "delivered",
+            "status": job_status,
             "source_document_path": path,
             "idempotency_key": idem_key,
             "content_hash": content_hash,
             "correlation_id": correlation_id,
             "created_at": now,
             "updated_at": now,
-        }).execute()
+        }
+        if is_error:
+            job_row["failure_reason"] = analysis_results.get("message", "Analysis failed")
+        supabase.table("report_jobs").insert(job_row).execute()
 
-        try:
-            supabase.table("ai_report_analyses").insert({
-                "id": str(uuid.uuid4()),
-                "patient_id": patient_id,
-                "report_job_id": report_job_id,
-                "raw_report_url": path,
-                "plain_language_summary": analysis_results["plain_language_summary"],
-                "doctor_clinical_summary": analysis_results["doctor_clinical_summary"],
-                "abnormal_flags": analysis_results["abnormal_flags"],
-                "created_at": now,
-            }).execute()
-        except Exception as db_err:
-            logger.warning(f"Could not persist ai_report_analyses row: {db_err}")
+        # Only persist analysis row if we got real results (not an error)
+        if not is_error:
+            try:
+                supabase.table("ai_report_analyses").insert({
+                    "id": str(uuid.uuid4()),
+                    "patient_id": patient_id,
+                    "report_job_id": report_job_id,
+                    "raw_report_url": path,
+                    "plain_language_summary": analysis_results["plain_language_summary"],
+                    "doctor_clinical_summary": analysis_results["doctor_clinical_summary"],
+                    "abnormal_flags": analysis_results["abnormal_flags"],
+                    "created_at": now,
+                }).execute()
+            except Exception as db_err:
+                logger.warning(f"Could not persist ai_report_analyses row: {db_err}")
 
     # Optional MediAssist asynchronous handoff for WhatsApp delivery (non-blocking)
     import asyncio
@@ -233,11 +242,26 @@ async def analyze_report(
                 correlation_id=correlation_id,
                 client=mediassist_client,
                 db=supabase,
+                # P0/P2.7 gate: the in-process engine above already produced
+                # (or failed to produce) the real analysis for this job. This
+                # handoff is only for WhatsApp delivery — it must not trigger
+                # a second full OCR+AI re-analysis, and a failure here must
+                # not overwrite an already-"delivered" job as "failed".
+                already_analyzed=not is_error,
             )
         except Exception as e:
             logger.info(f"MediAssist WhatsApp delivery handoff skipped/offline: {e}")
 
     asyncio.create_task(_async_mediassist_handoff())
+
+    # Return error status to patient if analysis failed
+    if is_error:
+        return {
+            "success": False,
+            "message": analysis_results.get("message", "Could not analyze this report."),
+            "report_job_id": report_job_id,
+            "status": "failed",
+        }
 
     return {
         "success": True,

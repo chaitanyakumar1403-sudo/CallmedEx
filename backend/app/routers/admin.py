@@ -334,3 +334,117 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
         logger.error(f"Failed to delete user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
+
+# ─── P2.6: Cross-Centre Roster Visibility ────────────────────────────────────
+
+@router.get("/roster")
+async def admin_get_roster(
+    date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get cross-centre roster for the admin dashboard.
+
+    Returns all phlebotomist roster entries with their processing centre names,
+    across all centres. Gated by admin role.
+    """
+    check_admin_access(current_user)
+
+    if not supabase:
+        return {"success": True, "roster": []}
+
+    target_date = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        from app.utils.db_helpers import _rows
+
+        # Get all roster entries for the date
+        roster_rows = _rows(
+            supabase.table("phlebotomist_roster")
+            .select("*")
+            .eq("roster_date", target_date)
+            .execute()
+        )
+
+        if not roster_rows:
+            return {"success": True, "roster": [], "date": target_date}
+
+        # Enrich with phlebo names and centre names
+        phlebo_ids = list({r["phlebotomist_user_id"] for r in roster_rows})
+        centre_ids = list({r["processing_center_id"] for r in roster_rows})
+
+        users = {}
+        if phlebo_ids:
+            user_rows = _rows(
+                supabase.table("users")
+                .select("id, full_name, mobile")
+                .in_("id", phlebo_ids)
+                .execute()
+            )
+            users = {u["id"]: u for u in user_rows}
+
+        centres = {}
+        if centre_ids:
+            centre_rows = _rows(
+                supabase.table("processing_centers")
+                .select("id, name, city")
+                .in_("id", centre_ids)
+                .execute()
+            )
+            centres = {c["id"]: c for c in centre_rows}
+
+        enriched = []
+        for r in roster_rows:
+            user = users.get(r["phlebotomist_user_id"], {})
+            centre = centres.get(r["processing_center_id"], {})
+            enriched.append({
+                "phlebotomist_user_id": r["phlebotomist_user_id"],
+                "phlebotomist_name": user.get("full_name", "Unknown"),
+                "mobile": user.get("mobile", ""),
+                "processing_center_id": r["processing_center_id"],
+                "centre_name": centre.get("name", "Unknown"),
+                "centre_city": centre.get("city", ""),
+                "status": r.get("status", "unknown"),
+                "max_jobs": r.get("max_jobs"),
+                "roster_date": r.get("roster_date"),
+            })
+
+        return {"success": True, "roster": enriched, "date": target_date}
+    except Exception as e:
+        logger.error(f"Admin roster fetch failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── P1.1: Ops Alerts Dashboard ─────────────────────────────────────────────
+
+@router.get("/ops-alerts")
+async def admin_get_ops_alerts(
+    limit: int = 50,
+    alert_type: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get pending operational alerts for the admin dashboard."""
+    check_admin_access(current_user)
+
+    from app.services.ops_alerts import OpsAlertService
+    alerts = OpsAlertService.get_pending_alerts(limit=limit, alert_type=alert_type)
+    counts = OpsAlertService.get_alert_counts()
+
+    return {"success": True, "alerts": alerts, "counts": counts}
+
+
+@router.post("/ops-alerts/{alert_id}/resolve")
+async def admin_resolve_ops_alert(
+    alert_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Resolve an ops alert."""
+    check_admin_access(current_user)
+
+    from app.services.ops_alerts import OpsAlertService
+    success = OpsAlertService.resolve_alert(alert_id, resolved_by=current_user.get("sub"))
+
+    if not success:
+        raise HTTPException(status_code=404, detail="Alert not found or already resolved.")
+
+    return {"success": True, "message": "Alert resolved."}
+

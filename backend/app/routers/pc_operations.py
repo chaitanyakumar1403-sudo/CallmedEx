@@ -599,8 +599,24 @@ async def verify_sample(
     _log_event(sample_id, "verified", staff["user_id"], centre_id,
                "5-point verification passed")
 
+    # P2.4: Per-centre lab connector routing — read the centre's configured
+    # connector type instead of hardcoding MOCDOC for all centres.
+    centre_connector = ConnectorType.MOCDOC.value  # default
+    try:
+        centre_row = _first(
+            supabase.table("processing_centers")
+            .select("lab_connector_type")
+            .eq("id", centre_id)
+            .limit(1)
+            .execute()
+        )
+        if centre_row and centre_row.get("lab_connector_type"):
+            centre_connector = centre_row["lab_connector_type"]
+    except Exception:
+        pass  # Fall back to default MOCDOC if column doesn't exist yet
+
     report_job_id, is_new = create_canonical_report_job_for_sample(
-        sample_id, connector_type=ConnectorType.MOCDOC.value, return_is_new=True
+        sample_id, connector_type=centre_connector, return_is_new=True
     )
     if report_job_id and is_new and supabase:
         job_rows = _rows(

@@ -47,6 +47,15 @@ class Settings:
     # Optional — Phase 2+
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "")
+
+    # ─── OpenRouter AI (multi-model gateway) ──────────────────────────
+    # Consolidates vision OCR, report analysis, and MediAssist fallback
+    # behind one API key. Model IDs are configurable without deploy.
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    OPENROUTER_VISION_MODEL: str = os.getenv("OPENROUTER_VISION_MODEL", "qwen/qwen3.7-flash")
+    OPENROUTER_ANALYSIS_MODEL: str = os.getenv("OPENROUTER_ANALYSIS_MODEL", "deepseek/deepseek-v4-flash-0731")
+    OPENROUTER_FALLBACK_MODEL: str = os.getenv("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-v4-pro")
     RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "")
     ABDM_CLIENT_ID: str = os.getenv("ABDM_CLIENT_ID", "")
     ABDM_CLIENT_SECRET: str = os.getenv("ABDM_CLIENT_SECRET", "")

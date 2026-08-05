@@ -79,6 +79,27 @@ def mock_submit_failure(monkeypatch):
     return mock
 
 
+# P0 fix: The hardened analyzer now rejects fake/unreadable PDFs instead of
+# returning fabricated results. These tests exercise the ROUTER flow (upload,
+# storage, idempotency), not AI analysis — so the analyzer is mocked.
+@pytest.fixture
+def mock_analyzer(monkeypatch):
+    """Mock GroqReportAnalyzerService so fake PDF bytes produce valid results."""
+    fake_result = {
+        "plain_language_summary": "Test analysis summary.",
+        "doctor_clinical_summary": "Test clinical summary.",
+        "abnormal_flags": [],
+        "recommendations": ["Follow up with physician."],
+    }
+    from app.services import groq_report_analyzer as analyzer_mod
+    monkeypatch.setattr(
+        analyzer_mod.GroqReportAnalyzerService,
+        "analyze_report_bytes",
+        staticmethod(lambda fb, ct: fake_result),
+    )
+    return fake_result
+
+
 def _post_report(client, *, filename="report.pdf", content=FAKE_PDF_BYTES, content_type="application/pdf"):
     return client.post(
         "/api/reports/analyze",
@@ -88,7 +109,7 @@ def _post_report(client, *, filename="report.pdf", content=FAKE_PDF_BYTES, conte
 
 # ─── Valid upload → 202 + delivered report_jobs row ────────────────────────────
 
-def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, mock_submit_success):
+def test_valid_upload_returns_202_and_queues_job(client, fake_db, mock_storage, mock_submit_success, mock_analyzer):
     resp = _post_report(client)
 
     assert resp.status_code == 202
@@ -140,7 +161,7 @@ def test_webp_upload_returns_4xx_not_500(client, fake_db):
 
 # ─── MediAssist offline → 202 + in-process Groq AI report analysis succeeds ──
 
-def test_submit_failure_returns_202_with_groq_analysis(client, fake_db, mock_storage, mock_submit_failure):
+def test_submit_failure_returns_202_with_groq_analysis(client, fake_db, mock_storage, mock_submit_failure, mock_analyzer):
     resp = _post_report(client)
 
     assert resp.status_code == 202
@@ -155,7 +176,7 @@ def test_submit_failure_returns_202_with_groq_analysis(client, fake_db, mock_sto
     assert job["status"] in ("delivered", "failed")
 
 
-def test_unconfigured_base_url_returns_202_with_groq_analysis(client, fake_db, mock_storage, monkeypatch):
+def test_unconfigured_base_url_returns_202_with_groq_analysis(client, fake_db, mock_storage, monkeypatch, mock_analyzer):
     """Even when MEDIASSIST_BASE_URL is unconfigured, CallMedex performs in-process
     Groq AI report analysis so report analysis works natively in standalone CallMedex."""
     from app.integrations.mediassist_client import MediAssistClient
@@ -209,7 +230,7 @@ def test_get_job_unknown_id_returns_404(client, fake_db):
     assert resp.status_code == 404
 
 
-def test_submission_idempotency_by_header_key(client, fake_db, mock_storage, mock_submit_success):
+def test_submission_idempotency_by_header_key(client, fake_db, mock_storage, mock_submit_success, mock_analyzer):
     """Submitting twice with the same X-Idempotency-Key returns the existing job."""
     resp1 = client.post(
         "/api/reports/analyze",
@@ -230,7 +251,7 @@ def test_submission_idempotency_by_header_key(client, fake_db, mock_storage, moc
     assert len(fake_db.db.get("report_jobs", [])) == 1
 
 
-def test_submission_idempotency_by_content_hash(client, fake_db, mock_storage, mock_submit_success):
+def test_submission_idempotency_by_content_hash(client, fake_db, mock_storage, mock_submit_success, mock_analyzer):
     """Submitting the exact same file content twice for a patient returns the existing job."""
     resp1 = _post_report(client, content=b"%PDF-1.4\nsame content hash test\n")
     assert resp1.status_code == 202

@@ -23,6 +23,7 @@ celery_app = Celery(
     include=[
         "app.workers.tasks.notifications",
         "app.workers.tasks.dispatch",
+        "app.workers.tasks.dispatch_retry",
         "app.workers.tasks.payments",
         "app.workers.tasks.cleanup",
     ],

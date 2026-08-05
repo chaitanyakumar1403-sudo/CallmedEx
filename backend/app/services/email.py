@@ -385,9 +385,39 @@ DECLINE: {decline_link}
         </html>
         """
 
-        # Try real Resend API / SMTP first, fallback to Mock logger
-        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
-            logger.warning(f"Email delivery degraded to console fallback (magic dispatch, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
+        # P1.6: Retry-once on failure + ops alert on complete failure
+        sent = EmailService._send_real_email(to_email, subject, html_content, text_content)
+
+        if not sent:
+            # Retry once after a short delay
+            import time
+            time.sleep(2)
+            sent = EmailService._send_real_email(to_email, subject, html_content, text_content)
+
+        if not sent:
+            logger.error(
+                f"DISPATCH EMAIL FAILED (both attempts) for offer {offer_id} to {to_email}"
+            )
+            # Create ops alert so dispatch is not silently lost
+            try:
+                from app.services.ops_alerts import OpsAlertService
+                OpsAlertService.create_alert(
+                    alert_type="email_send_failed",
+                    entity_type="dispatch_offer",
+                    entity_id=offer_id,
+                    severity="critical",
+                    details={
+                        "to_email": to_email,
+                        "provider_name": provider_name,
+                        "provider_id": provider_id,
+                        "service_type": task_details.get("service_subtype", ""),
+                    },
+                )
+            except Exception as alert_err:
+                logger.error(f"Ops alert creation also failed: {alert_err}")
+
+            # Console fallback
+            logger.warning(f"Email delivery degraded to console fallback (magic dispatch, {to_email})")
             print("\n" + "=" * 70)
             print(f"[MAGIC DISPATCH EMAIL TO] {to_email}")
             print(f"[SUBJECT] {subject}")
