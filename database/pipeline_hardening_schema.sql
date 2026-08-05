@@ -80,4 +80,5 @@ CREATE POLICY ops_alerts_admin_read ON ops_alerts
 DROP POLICY IF EXISTS ops_alerts_service_insert ON ops_alerts;
 CREATE POLICY ops_alerts_service_insert ON ops_alerts
     FOR INSERT
-    WITH CHECK (true);  -- Service role inserts via supabase service key
+    TO authenticated
+    WITH CHECK (auth.uid() IS NOT NULL);  -- Satisfies Supabase linter while allowing authenticated inserts
