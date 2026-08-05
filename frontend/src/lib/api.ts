@@ -343,6 +343,8 @@ export const pcAPI = {
 export const phleboAPI = {
   getBookingSamples: (bookingId: string) =>
     api.get(`/phlebo/booking-samples/${bookingId}`),
+  verifyBarcode: (params: { barcode: string; sample_id?: string; booking_id?: string; patient_id?: string }) =>
+    api.post('/phlebo/verify-barcode', params),
   scanTube: (sampleId: string, tubeTypeCode: string, scannedBarcode?: string) =>
     api.post('/phlebo/scan-tube', {
       sample_id: sampleId,

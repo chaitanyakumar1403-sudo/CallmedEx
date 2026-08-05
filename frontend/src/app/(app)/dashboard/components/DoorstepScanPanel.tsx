@@ -54,6 +54,11 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
   const [mismatchSample, setMismatchSample] = useState<any>(null);
   const [mismatchResult, setMismatchResult] = useState<any>(null);
 
+  // Barcode-to-patient safety check (verify-barcode) — blocks the scan
+  // before it ever reaches scan-tube if the sticker belongs to someone else,
+  // is unknown, or the sample is already collected.
+  const [barcodeCheckBusy, setBarcodeCheckBusy] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const data = await phleboAPI.getBookingSamples(bookingId);
@@ -146,6 +151,8 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
         lat,
         lng,
         device_model: navigator.userAgent,
+        os_version: navigator.platform,
+        app_version: process.env.NEXT_PUBLIC_APP_VERSION || "web",
       });
 
       setCollectionStatus(prev => ({ ...prev, [sample.id]: true }));
@@ -340,12 +347,14 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                     />
                     <button
                       onClick={() => setBarcodeScanSampleId(s.id)}
+                      disabled={barcodeCheckBusy}
                       title="Scan barcode sticker"
                       style={{
                         padding: "10px 12px", borderRadius: 8,
                         border: "1px solid #cbd5e1", background: "#fff",
-                        cursor: "pointer", display: "flex", alignItems: "center",
-                        lineHeight: 1,
+                        cursor: barcodeCheckBusy ? "not-allowed" : "pointer",
+                        display: "flex", alignItems: "center",
+                        lineHeight: 1, opacity: barcodeCheckBusy ? 0.6 : 1,
                       }}
                     >
                       <Icon as={Camera} size={16} />
@@ -575,16 +584,34 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
       <BarcodeScannerModal
         open={!!barcodeScanSampleId}
         onClose={() => setBarcodeScanSampleId(null)}
-        onScan={(code) => {
-          if (barcodeScanSampleId) {
-            setScannedBarcodes(prev => ({ ...prev, [barcodeScanSampleId]: code }));
-            // Find the sample and trigger scan with barcode
-            const sample = samples.find(s => s.id === barcodeScanSampleId);
-            if (sample) {
-              scanTube(sample, code);
-            }
-          }
+        onScan={async (code) => {
+          const sampleId = barcodeScanSampleId;
           setBarcodeScanSampleId(null);
+          const sample = samples.find(s => s.id === sampleId);
+          if (!sample) return;
+
+          setBarcodeCheckBusy(true);
+          setMsg(null);
+          try {
+            const check = await phleboAPI.verifyBarcode({
+              barcode: code,
+              sample_id: sample.id,
+              booking_id: bookingId,
+            });
+            if (!check.valid) {
+              setMsg({
+                kind: "err",
+                text: check.message || "This barcode failed the patient-safety check.",
+              });
+              return;
+            }
+            setScannedBarcodes(prev => ({ ...prev, [sample.id]: code }));
+            await scanTube(sample, code);
+          } catch (e: any) {
+            setMsg({ kind: "err", text: e.message || "Barcode verification failed." });
+          } finally {
+            setBarcodeCheckBusy(false);
+          }
         }}
         title="Scan tube barcode sticker"
       />

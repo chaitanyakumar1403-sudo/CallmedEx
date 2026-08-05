@@ -40,6 +40,7 @@ pricing_details/
 # Claude Code session/workspace state
 .claude/*
 !.claude/skills/
+.serena/
 # Local run scripts — may contain API keys
 run-claude.ps1
 openrouter_proxy.py
