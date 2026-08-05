@@ -23,6 +23,7 @@ These were resolved with the user before this design was written:
 9. **Chain-of-custody scope:** build all 3 CLAUDE.md checkpoints (collection, transit, lab-receipt) plus photo capture now, not just collection.
 10. **AI pipeline divergence:** add a Groq fallback for lab-verified samples when MediAssist is down, rather than fully unifying the two pipelines or leaving them as-is.
 11. **Leave-triggered reassignment:** when a phlebo goes on leave, prefer full-time phlebos for reassignment of their advance-scheduled jobs, falling back to part-time only if no full-time phlebo is available nearby — never leave a booking unassigned when a part-time phlebo could cover it.
+12. **Platform-admin roster visibility:** add a cross-centre roster/leave view to the platform admin dashboard, showing full roster status (available/unavailable/leave) for every phlebotomist at every processing centre for a selected date, not just leave-only. Mirrors the existing per-centre `PCRosterPanel` UX but rolled up platform-wide with a centre column.
 
 ## Phase P0 — Safety-critical
 
@@ -136,6 +137,17 @@ These were resolved with the user before this design was written:
 **Fix:** Add a `phlebo_type` (full_time / part_time, per the existing signup field from CLAUDE.md Section 3) read into `_available_phlebos`'s candidate rows. Change `_pick` to run two passes: first restrict `viable` to full-time candidates within radius; if that set is empty, fall back to the full candidate set (including part-time) rather than returning `None` and pushing the booking to `needs_manual_assignment`. This preserves the existing "never silently unassigned when someone could cover it" guarantee while preferring full-time coverage.
 
 **Testing:** a reassignment test with both a full-time and a closer part-time candidate available, asserting the full-time phlebo is picked; a test with only a part-time candidate available, asserting it still gets assigned (not pushed to manual queue) since the fallback fires.
+
+### Platform-admin roster visibility
+
+**Problem:** `GET /api/pc/roster` (`roster.py:31-37`) already returns full roster status (available/unavailable/leave) but is scoped to the calling PC staff's own `processing_center_id` only (`get_current_pc_staff`), and the frontend `PCRosterPanel.tsx` consuming it is only mounted on the per-centre `dashboard/processing-center/page.tsx`. The platform-level admin dashboard (`dashboard/admin/page.tsx`) has a phlebotomist count/role-filter tile but no roster or leave visibility across centres at all — an ops admin has no way to see who's on leave platform-wide without checking every centre individually.
+
+**Fix:**
+- Add an admin-only endpoint, e.g. `GET /api/admin/roster?date=`, that joins `phlebotomist_roster` with `phlebotomists`/`processing_centers` across all centres for the given date, gated the same way other `admin.py` routes are (role check inside the handler via `get_current_user`).
+- Add a new panel/tab to `dashboard/admin/page.tsx` (or a new admin sub-route, consistent with the existing `admin/fraud` sub-page pattern) rendering this list with a centre column, reusing `PCRosterPanel`'s status-badge styling (available/unavailable/leave) for visual consistency.
+- Show full roster status, not leave-only, so an admin can see availability and unavailable-without-leave-reason entries too, not just who's formally on leave.
+
+**Testing:** an admin-role test asserting the endpoint returns roster rows spanning multiple processing centers in one call; a non-admin-role test asserting 403; a frontend smoke check that the new panel renders centre + status correctly for a date with mixed statuses across centres.
 
 ### AI pipeline fallback
 
