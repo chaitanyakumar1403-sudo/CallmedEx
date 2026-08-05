@@ -22,6 +22,7 @@ These were resolved with the user before this design was written:
 8. **Barcode consolidation:** migrate the frontend to the more rigorous `confirm-sample-collection` endpoint and delete the weaker `scan-tube` path, rather than merging rigor into `scan-tube`.
 9. **Chain-of-custody scope:** build all 3 CLAUDE.md checkpoints (collection, transit, lab-receipt) plus photo capture now, not just collection.
 10. **AI pipeline divergence:** add a Groq fallback for lab-verified samples when MediAssist is down, rather than fully unifying the two pipelines or leaving them as-is.
+11. **Leave-triggered reassignment:** when a phlebo goes on leave, prefer full-time phlebos for reassignment of their advance-scheduled jobs, falling back to part-time only if no full-time phlebo is available nearby — never leave a booking unassigned when a part-time phlebo could cover it.
 
 ## Phase P0 — Safety-critical
 
@@ -127,6 +128,14 @@ These were resolved with the user before this design was written:
 **Fix:** Add a `lab_connector_type` column to `processing_centers`, defaulting existing rows to `mocdoc` in the migration. Change the hardcoded literal in `pc_operations.py` to read the center's own configured connector type.
 
 **Testing:** a test with two processing centers configured with different connector types, asserting each produces a `report_jobs` row tagged with its own center's connector, not a hardcoded value.
+
+### Leave-triggered reassignment: full-time preference
+
+**Problem:** `phlebo_stats.py:195-243` already auto-reassigns a phlebo's advance-scheduled jobs when they mark leave/unavailable within 2 days, routing through `roster.decline_job` → `_available_phlebos`/`_pick`. But candidate selection has no concept of full-time vs. part-time — `_pick` (`roster.py:83-105`) just sorts all rostered-available phlebos of the centre by load then distance. A part-time phlebo covering a quiet slot can end up absorbing a full day's reassigned load meant for a colleague who normally covers that area full-time.
+
+**Fix:** Add a `phlebo_type` (full_time / part_time, per the existing signup field from CLAUDE.md Section 3) read into `_available_phlebos`'s candidate rows. Change `_pick` to run two passes: first restrict `viable` to full-time candidates within radius; if that set is empty, fall back to the full candidate set (including part-time) rather than returning `None` and pushing the booking to `needs_manual_assignment`. This preserves the existing "never silently unassigned when someone could cover it" guarantee while preferring full-time coverage.
+
+**Testing:** a reassignment test with both a full-time and a closer part-time candidate available, asserting the full-time phlebo is picked; a test with only a part-time candidate available, asserting it still gets assigned (not pushed to manual queue) since the fallback fires.
 
 ### AI pipeline fallback
 
