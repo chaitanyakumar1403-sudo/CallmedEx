@@ -223,14 +223,19 @@ def _seed_org(fake, user_id, name, verification_status="verified"):
     })
 
 
-def _seed_dispatch(fake, phlebo_user_id, patient_id):
-    """A run assigned to this collector — the ticket that authorises a tube."""
+def _seed_dispatch(fake, phlebo_user_id, patient_id, status="in_progress"):
+    """A run assigned to this collector — the ticket that authorises a tube.
+
+    Defaults to "in_progress", the status a run only reaches after the
+    patient has verified the collector's OTP — matching the real precondition
+    for filing a sample.
+    """
     did = str(uuid.uuid4())
     fake.db.setdefault("dispatch_requests", []).append({
         "id": did,
         "patient_id": patient_id,
         "assigned_provider_id": phlebo_user_id,
-        "status": "arrived",
+        "status": status,
     })
     return did
 
@@ -335,6 +340,22 @@ async def test_collect_rejects_another_phlebotomists_run(fake_db):
     )
     assert not res["success"]
     assert "not assigned to you" in res["message"]
+    assert fake_db.db.get("samples", []) == []
+
+
+@pytest.mark.asyncio
+async def test_collect_rejects_run_without_verified_otp(fake_db):
+    """A tube can't be filed until the patient has verified the OTP — a run
+    still sitting at "arrived" (or earlier) proves nothing about arrival."""
+    phlebo, patient = str(uuid.uuid4()), str(uuid.uuid4())
+    _seed_phlebo(fake_db, phlebo, 150)
+    run = _seed_dispatch(fake_db, phlebo, patient, status="arrived")
+
+    res = await SampleService.collect(
+        phlebotomist_user_id=phlebo, patient_id=patient, dispatch_request_id=run
+    )
+    assert not res["success"]
+    assert "OTP verification is required" in res["message"]
     assert fake_db.db.get("samples", []) == []
 
 

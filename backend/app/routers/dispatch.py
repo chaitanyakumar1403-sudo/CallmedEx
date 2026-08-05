@@ -30,6 +30,19 @@ FIELD_PROVIDER_ROLES = {"phlebotomist", "nurse", "doctor", "ambulance", "pharmac
 # Local in-memory store for fallback dispatch tracking
 _local_dispatches = []
 
+# Columns that must never leave this router except through the dedicated,
+# ownership-gated /{dispatch_id}/patient-otp endpoint. The OTP exists to prove
+# the provider is physically present with the patient — if the provider (or
+# an admin browsing the active-dispatch list) can read it back from any other
+# endpoint, it stops proving anything.
+_OTP_FIELDS = ("patient_otp", "verification_otp")
+
+
+def _strip_otp_fields(rows):
+    if isinstance(rows, dict):
+        return {k: v for k, v in rows.items() if k not in _OTP_FIELDS}
+    return [{k: v for k, v in r.items() if k not in _OTP_FIELDS} for r in (rows or [])]
+
 
 # ─── Request Models ──────────────────────────────────────────────────────
 
@@ -317,7 +330,7 @@ async def get_my_tasks(
             .execute()
         )
         if result.data:
-            return {"tasks": result.data}
+            return {"tasks": _strip_otp_fields(result.data)}
     except Exception:
         pass
 
@@ -367,7 +380,7 @@ async def get_active_dispatches(
             .order("created_at", desc=True)
             .execute()
         )
-        return {"dispatches": result.data or []}
+        return {"dispatches": _strip_otp_fields(result.data or [])}
     except Exception:
         pass
 
@@ -380,7 +393,7 @@ async def get_active_dispatches(
             .order("created_at", desc=True)
             .execute()
         )
-        return {"dispatches": result.data or []}
+        return {"dispatches": _strip_otp_fields(result.data or [])}
     except Exception:
         return {"dispatches": []}
 
@@ -532,7 +545,10 @@ async def get_dispatch_by_id(
             if d.get("patient_id") != current_user["sub"] and d.get("provider_id") != current_user["sub"] and d.get("assigned_provider_id") != current_user["sub"]:
                 if current_user.get("role") != "admin":
                     raise HTTPException(403, "Access denied")
-            return {"success": True, "dispatch": d}
+            # Even the assigned provider gets this row via the "or" above (they
+            # need it for tracking) — but the OTP itself must stay behind the
+            # dedicated /patient-otp endpoint's ownership check, not leak here.
+            return {"success": True, "dispatch": _strip_otp_fields(d)}
     except HTTPException:
         raise
     except Exception:
@@ -542,7 +558,7 @@ async def get_dispatch_by_id(
     try:
         result = supabase.table("dispatches").select("*").eq("id", dispatch_id).execute()
         if result.data:
-            return {"success": True, "dispatch": result.data[0]}
+            return {"success": True, "dispatch": _strip_otp_fields(result.data[0])}
     except Exception:
         pass
 
@@ -631,6 +647,23 @@ async def update_task_status_lifecycle(
     if not supabase:
         raise HTTPException(500, "Database not configured")
 
+    # "in_progress" must never be reachable through this generic endpoint —
+    # it is only granted by a successful OTP verification (see /verify-otp),
+    # which is the arrival-proof control. Letting a provider set it directly
+    # here (and therefore "completed" right after) would let a collection be
+    # recorded without the patient ever confirming the provider showed up.
+    if body.status == "in_progress":
+        raise HTTPException(
+            400,
+            "in_progress can only be reached via OTP verification (/verify-otp), not update-status.",
+        )
+
+    PREREQUISITE_STATUS = {
+        "en_route": {"provider_accepted", "en_route"},
+        "arrived": {"en_route", "arrived"},
+        "completed": {"in_progress", "completed"},
+    }
+
     now = datetime.now(timezone.utc).isoformat()
     update_data: dict = {"status": body.status, "updated_at": now}
 
@@ -638,6 +671,23 @@ async def update_task_status_lifecycle(
         update_data["completed_at"] = now
 
     try:
+        current = (
+            supabase.table("dispatch_requests")
+            .select("status")
+            .eq("id", dispatch_id)
+            .eq("assigned_provider_id", current_user["sub"])
+            .execute()
+        )
+        if not current.data:
+            raise HTTPException(404, "Dispatch not found or not assigned to you")
+        current_status = current.data[0].get("status")
+        if current_status not in PREREQUISITE_STATUS.get(body.status, set()):
+            raise HTTPException(
+                409,
+                f"Cannot move to '{body.status}' from '{current_status}'."
+                + (" OTP verification is required first." if body.status == "completed" else ""),
+            )
+
         result = (
             supabase.table("dispatch_requests")
             .update(update_data)
@@ -744,7 +794,28 @@ async def get_patient_otp(
     """
     Patient endpoint: returns the OTP to display on their tracking screen.
     The patient tells this code verbally to the provider for verification.
+
+    Only the owning patient (or an admin) may read this — the whole point of
+    the OTP is that the assigned provider must NOT be able to look up their
+    own arrival-verification answer.
     """
+    if supabase:
+        try:
+            owner = (
+                supabase.table("dispatch_requests")
+                .select("patient_id")
+                .eq("id", dispatch_id)
+                .execute()
+            )
+            if owner.data:
+                patient_id = owner.data[0].get("patient_id")
+                if patient_id != current_user["sub"] and current_user.get("role") != "admin":
+                    raise HTTPException(403, "Access denied")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     result = OTPService.get_patient_otp(dispatch_id)
     return result
 

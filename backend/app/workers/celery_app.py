@@ -26,6 +26,12 @@ celery_app = Celery(
         "app.workers.tasks.dispatch_retry",
         "app.workers.tasks.payments",
         "app.workers.tasks.cleanup",
+        # Both of these were scheduled below but missing from `include`,
+        # which means Celery's beat scheduler would enqueue them while the
+        # worker process never imported/registered the task — every firing
+        # would fail with "Received unregistered task".
+        "app.workers.tasks.attendance",
+        "app.workers.tasks.roster",
     ],
 )
 
@@ -80,6 +86,14 @@ celery_app.conf.update(
         "sweep-missed-attendance": {
             "task": "app.workers.tasks.attendance.sweep_missed_attendance",
             "schedule": crontab(hour=5, minute=30),
+        },
+        # Advance-assign tomorrow's home-collection bookings every evening.
+        # Previously only reachable via a manual staff-triggered endpoint —
+        # a centre that forgot to run it left every scheduled booking for
+        # the next day unassigned with no automatic recovery.
+        "run-advance-roster": {
+            "task": "app.workers.tasks.roster.run_advance_roster_for_all_centres",
+            "schedule": crontab(hour=18, minute=0),  # 6:00 PM IST daily
         },
     },
 )

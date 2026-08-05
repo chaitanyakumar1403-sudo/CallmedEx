@@ -244,6 +244,18 @@ class SampleService:
             if dispatch.get("assigned_provider_id") != phlebotomist_user_id:
                 return False, None, "That run is not assigned to you."
 
+            # A tube may only be filed once the patient has verified the
+            # collector's OTP (dispatch status becomes "in_progress" only via
+            # that check). Later tubes on the same run, or a resubmission
+            # after the run is marked complete, are still fine — but nothing
+            # earlier proves the collector actually arrived.
+            collection_ready_statuses = {"in_progress", "completed", "sample_collected"}
+            if dispatch.get("status") not in collection_ready_statuses:
+                return False, None, (
+                    "OTP verification is required before recording a collection. "
+                    "Ask the patient for their code and verify it first."
+                )
+
             true_patient = dispatch.get("patient_id")
             if claimed_patient_id and claimed_patient_id != true_patient:
                 # Surface the mismatch rather than silently overriding it: a

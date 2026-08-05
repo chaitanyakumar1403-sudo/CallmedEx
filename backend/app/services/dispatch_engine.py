@@ -224,8 +224,27 @@ class UniversalDispatchEngine:
             # Fallback: if no centre members are currently online/available, broadcast to all
             available_uids = {p.get("user_id") or p.get("users", {}).get("id") for p in providers}
             if not any(uid in centre_members for uid in available_uids):
-                logger.warning(f"No phlebotomists from centre {processing_center_id} are online. Falling back to city-wide broadcast.")
-                centre_members = None
+                logger.warning(f"No phlebotomists from centre {processing_center_id} are online. Falling back to radius-bound, cross-centre-excluded broadcast.")
+                # "Broadcast to everyone" must still stop at two boundaries:
+                # (1) distance — re-engage the radius filter below, since we're
+                #     no longer trusting a single centre's affiliation as a
+                #     stand-in for GPS accuracy; unbounded, this silently
+                #     becomes "fallback to nationwide."
+                # (2) centre exclusivity — a phlebo already bound to a
+                #     DIFFERENT specific centre physically cannot submit tubes
+                #     to this one, however close they are. Only exclude those;
+                #     phlebos with no centre binding at all remain eligible.
+                ignore_radius = False
+                other_binding = supabase.table("phlebotomists") \
+                    .select("user_id, processing_center_id") \
+                    .in_("user_id", [uid for uid in available_uids if uid]) \
+                    .execute()
+                bound_to_another_centre = {
+                    r["user_id"] for r in (getattr(other_binding, "data", None) or [])
+                    if isinstance(r, dict) and r.get("processing_center_id")
+                    and r.get("processing_center_id") != processing_center_id
+                }
+                centre_members = available_uids - bound_to_another_centre
 
         # Calculate distances and filter
         candidates = []

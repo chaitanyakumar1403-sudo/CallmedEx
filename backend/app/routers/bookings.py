@@ -436,6 +436,13 @@ async def create_booking(
     if is_home_collection:
         booking_data["booking_kind"] = "home_collection"
         booking_data["collection_city"] = booking.city
+        # roster.run_roster_pass filters unassigned bookings on this DATE
+        # column (advance rostering runs the evening before). Without it,
+        # every scheduled home-collection booking is invisible to the roster
+        # pass and silently never gets a phlebotomist assigned.
+        slot_start_str = booking_data.get("slot_start") or ""
+        if len(slot_start_str) >= 10:
+            booking_data["collection_date"] = slot_start_str[:10]
         # District-level centre resolution (see processing_center.resolve_center).
         # Column added by database/processing_center_area_districts.sql.
         booking_data["collection_district"] = booking.district or ""
@@ -496,6 +503,7 @@ async def create_booking(
                     patient_lng = None
                     patient_address = ""
                     pc_id: Optional[str] = None
+                    is_immediate = False
                     try:
                         patient_lat = booking_data.get("collection_lat") or booking.collection_lat
                         patient_lng = booking_data.get("collection_lng") or booking.collection_lng
@@ -579,7 +587,7 @@ async def create_booking(
                                     provider_type="phlebotomist",
                                     service_subtype="home_collection",
                                     booking_id=booking_id,
-                                    notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
+                                    notes=f"Home collection: {', '.join((booking.selected_tests or [])[:3])}",
                                     priority="normal",
                                     processing_center_id=pc_id,
                                 )
@@ -617,7 +625,7 @@ async def create_booking(
                                     patient_address=patient_address or "",
                                     provider_type="phlebotomist",
                                     service_subtype="home_collection",
-                                    notes=f"Home collection: {(booking.selected_tests or [])[:3]}",
+                                    notes=f"Home collection: {', '.join((booking.selected_tests or [])[:3])}",
                                     processing_center_id=pc_id,
                                 )
                             else:
