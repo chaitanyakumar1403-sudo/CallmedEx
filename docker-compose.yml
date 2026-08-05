@@ -37,6 +37,71 @@ services:
       retries: 3
       start_period: 20s
 
+  # ─── Celery Worker (executes background tasks: dispatch retry, roster,
+  # scheduled dispatch, appointment reminders, cleanup, settlements) ─────
+  # Without this service, everything scheduled in
+  # backend/app/workers/celery_app.py's beat_schedule is enqueued onto
+  # Redis and never consumed — the tasks silently never run.
+  celery-worker:
+    build: ./backend
+    container_name: callmedex-celery-worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - callmedex-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ─── Celery Beat (fires the scheduled tasks above on their cron) ───────
+  # A worker alone only runs tasks that are enqueued; nothing enqueues the
+  # beat_schedule entries (roster pass, scheduled-dispatch sweep, etc.)
+  # without a beat process running somewhere.
+  celery-beat:
+    build: ./backend
+    container_name: callmedex-celery-beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - callmedex-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
   # ─── Redis (Caching, Rate Limiting, Sessions) ──────────────────────────
   redis:
     image: redis:7-alpine

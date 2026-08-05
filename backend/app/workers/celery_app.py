@@ -32,6 +32,7 @@ celery_app = Celery(
         # would fail with "Received unregistered task".
         "app.workers.tasks.attendance",
         "app.workers.tasks.roster",
+        "app.workers.tasks.scheduled_dispatch",
     ],
 )
 
@@ -94,6 +95,14 @@ celery_app.conf.update(
         "run-advance-roster": {
             "task": "app.workers.tasks.roster.run_advance_roster_for_all_centres",
             "schedule": crontab(hour=18, minute=0),  # 6:00 PM IST daily
+        },
+        # Catches same-day (or "booked after today's roster pass already
+        # ran") scheduled home-collection bookings that neither the
+        # immediate on_demand| path nor the once-nightly advance roster pass
+        # will ever dispatch otherwise.
+        "trigger-upcoming-scheduled-dispatch": {
+            "task": "app.workers.tasks.scheduled_dispatch.trigger_dispatch_for_upcoming_bookings",
+            "schedule": crontab(minute="*/10"),  # Every 10 minutes
         },
     },
 )
