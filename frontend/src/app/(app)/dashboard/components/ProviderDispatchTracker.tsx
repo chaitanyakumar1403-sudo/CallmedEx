@@ -488,19 +488,27 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     .filter(t => t.status === "pending")
     .sort((a, b) => (a.priority === "urgent" ? 0 : 1) - (b.priority === "urgent" ? 0 : 1));
   // Combined: show offers first, then legacy pending tasks
-  const allPending = [...pendingOffers.map(o => ({
-    id: o.offer_id,
-    patient_address: o.patient_address,
-    patient_lat: 0, patient_lng: 0,
-    status: "pending",
-    service_type: o.service_subtype || o.provider_type || "",
-    estimated_distance_km: o.distance_km || 0,
-    created_at: o.expires_at || "",
-    priority: o.priority || "normal",
-    notes: `${o.distance_km ? o.distance_km.toFixed(1) + " km away" : ""}`,
-    _isOffer: true,
-    _dispatch_request_id: o.dispatch_request_id,
-  })), ...pendingTasks];
+  const allPending = [...pendingOffers.map(o => {
+    const rawNotes = (o as any).notes || "";
+    const distStr = o.distance_km ? `${o.distance_km.toFixed(1)} km away` : "";
+    let finalNotes = rawNotes;
+    if (distStr) {
+        finalNotes = finalNotes ? `${finalNotes} · ${distStr}` : distStr;
+    }
+    return {
+      id: o.offer_id,
+      patient_address: o.patient_address,
+      patient_lat: 0, patient_lng: 0,
+      status: "pending",
+      service_type: o.service_subtype || o.provider_type || "",
+      estimated_distance_km: o.distance_km || 0,
+      created_at: o.expires_at || "",
+      priority: o.priority || "normal",
+      notes: finalNotes,
+      _isOffer: true,
+      _dispatch_request_id: o.dispatch_request_id,
+    };
+  }), ...pendingTasks];
 
   return (
     <div className={embedded ? undefined : "cm-tracker--standalone"}>

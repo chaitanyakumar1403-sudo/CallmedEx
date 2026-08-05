@@ -261,7 +261,7 @@ async def get_pending_offers(
     try:
         result = (
             supabase.table("dispatch_offers")
-            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority)")
+            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority, notes)")
             .eq("provider_id", current_user["sub"])
             .eq("status", "pending")
             .order("offered_at", desc=True)
@@ -279,6 +279,7 @@ async def get_pending_offers(
                 "distance_km": o.get("distance_km", 0),
                 "expires_at": o.get("expires_at", ""),
                 "priority": dr.get("priority", "normal"),
+                "notes": dr.get("notes", ""),
             })
         # Urgent first, then nearest. A provider scanning their inbox must not
         # have to hunt for the emergency among routine work.

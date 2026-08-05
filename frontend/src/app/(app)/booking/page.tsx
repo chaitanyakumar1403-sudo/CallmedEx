@@ -528,7 +528,7 @@ function BookingPageContent() {
       }
       const { lat, lng } = coords;
 
-      const providerTypeStr = bookingType === "home_collection" ? "phlebotomist" : bookingType === "nurse_visit" ? "nurse" : "doctor";
+      const providerTypeStr = (bookingType === "home_collection" || bookingType === "lab") ? "phlebotomist" : bookingType === "nurse_visit" ? "nurse" : "doctor";
       const serviceTypeStr =
         bookingType === "home_collection"
           ? "home_collection"
