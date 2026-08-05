@@ -9,7 +9,7 @@ set -e
 
 celery -A app.workers.celery_app worker --loglevel=info --concurrency=2 &
 celery -A app.workers.celery_app beat --loglevel=info &
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --loop uvloop --http httptools --access-log &
+uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 4 --loop uvloop --http httptools --access-log &
 
 # If any of the three dies, exit so Render restarts the whole container —
 # a bare `&` background process dying silently is the exact bug this fixes.

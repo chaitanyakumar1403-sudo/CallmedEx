@@ -23,9 +23,9 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check (Render injects PORT; docker-compose leaves it at 8000)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+    CMD curl -f "http://localhost:${PORT:-8000}/api/health" || exit 1
 
 # Runs Celery worker + beat in the background and Uvicorn in the
 # foreground, all in this one container (start.sh).
