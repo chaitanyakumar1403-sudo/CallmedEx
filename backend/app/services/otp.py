@@ -71,9 +71,10 @@ class OTPService:
 
         if supabase:
             try:
-                # Store OTP HASH in the dispatch_requests row (not plaintext)
+                # Store OTP HASH in the dispatch_requests row for verification, and plaintext for patient dashboard
                 supabase.table("dispatch_requests").update({
                     "verification_otp": otp_hash,
+                    "patient_otp": otp,
                     "otp_generated_at": now.isoformat(),
                     "otp_verified": False,
                     "otp_attempts": 0,
@@ -85,6 +86,7 @@ class OTPService:
                 # Fallback to in-memory
                 _local_otps[dispatch_id] = {
                     "otp_hash": otp_hash,
+                    "patient_otp": otp,
                     "created_at": now,
                     "verified": False,
                     "attempts": 0,
@@ -93,6 +95,7 @@ class OTPService:
         else:
             _local_otps[dispatch_id] = {
                 "otp_hash": otp_hash,
+                "patient_otp": otp,
                 "created_at": now,
                 "verified": False,
                 "attempts": 0,
@@ -222,17 +225,13 @@ class OTPService:
     @staticmethod
     def get_patient_otp(dispatch_id: str) -> dict:
         """
-        Get the OTP status for the patient's tracking screen.
-        NOTE: The plaintext OTP is only returned at generation time.
-        This endpoint returns whether the OTP is verified and active,
-        but does NOT return the plaintext OTP (it's stored as a hash).
-        The patient already has the OTP from the generate_otp response.
+        Get the OTP status and plaintext PIN for the patient's tracking screen.
         """
         if supabase:
             try:
                 result = (
                     supabase.table("dispatch_requests")
-                    .select("otp_verified, otp_generated_at, status, otp_attempts, otp_locked_until")
+                    .select("otp_verified, otp_generated_at, status, otp_attempts, otp_locked_until, patient_otp")
                     .eq("id", dispatch_id)
                     .execute()
                 )
@@ -245,6 +244,7 @@ class OTPService:
                 generated_at = record.get("otp_generated_at")
                 attempts = record.get("otp_attempts", 0)
                 locked_until = record.get("otp_locked_until")
+                patient_otp = record.get("patient_otp")
 
                 # Only show OTP status when provider has arrived
                 if status not in ("arrived", "in_progress"):
@@ -269,6 +269,7 @@ class OTPService:
                     "expired": expired,
                     "attempts_used": attempts,
                     "locked": locked_until is not None,
+                    "otp": patient_otp if not verified and not expired else None,
                     "message": (
                         "OTP verified ✅" if verified
                         else "OTP expired. Please request a new one." if expired
@@ -291,6 +292,7 @@ class OTPService:
         verified = otp_data.get("verified", False)
         now = datetime.now(timezone.utc)
         expired = (now - otp_data["created_at"]) > timedelta(minutes=OTP_EXPIRY_MINUTES)
+        patient_otp = otp_data.get("patient_otp")
 
         return {
             "success": True,
@@ -299,5 +301,10 @@ class OTPService:
             "expired": expired,
             "attempts_used": otp_data.get("attempts", 0),
             "locked": otp_data.get("locked_until") is not None,
-            "message": "OTP verified ✅" if verified else "Share the OTP with your provider",
+            "otp": patient_otp if not verified and not expired else None,
+            "message": (
+                "OTP verified ✅" if verified
+                else "OTP expired. Please request a new one." if expired
+                else "Share the OTP with your provider"
+            ),
         }

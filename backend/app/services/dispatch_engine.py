@@ -221,6 +221,11 @@ class UniversalDispatchEngine:
                 r["user_id"] for r in (getattr(binding, "data", None) or [])
                 if isinstance(r, dict) and r.get("user_id")
             }
+            # Fallback: if no centre members are currently online/available, broadcast to all
+            available_uids = {p.get("user_id") or p.get("users", {}).get("id") for p in providers}
+            if not any(uid in centre_members for uid in available_uids):
+                logger.warning(f"No phlebotomists from centre {processing_center_id} are online. Falling back to city-wide broadcast.")
+                centre_members = None
 
         # Calculate distances and filter
         candidates = []
@@ -437,22 +442,26 @@ class UniversalDispatchEngine:
                     }
                     supabase.table("dispatch_offers").insert(offer).execute()
 
-                    # Send Magic Email Alert
+                    # Send Magic Email Alert in a non-blocking background task
                     provider_email = candidate.get("email")
                     if provider_email:
-                        EmailService.send_magic_dispatch_email(
-                            to_email=provider_email,
-                            provider_name=candidate.get("name"),
-                            task_details={
-                                "service_subtype": service_subtype,
-                                "patient_address": patient_address,
-                                "distance_km": candidate["distance_km"],
-                                "notes": notes,
-                                "priority": priority,
-                                "window_minutes": offer_window_minutes(),
-                            },
-                            offer_id=offer["id"],
-                            provider_id=candidate["user_id"]
+                        import asyncio
+                        asyncio.create_task(
+                            asyncio.to_thread(
+                                EmailService.send_magic_dispatch_email,
+                                to_email=provider_email,
+                                provider_name=candidate.get("name"),
+                                task_details={
+                                    "service_subtype": service_subtype,
+                                    "patient_address": patient_address,
+                                    "distance_km": candidate["distance_km"],
+                                    "notes": notes,
+                                    "priority": priority,
+                                    "window_minutes": offer_window_minutes(),
+                                },
+                                offer_id=offer["id"],
+                                provider_id=candidate["user_id"]
+                            )
                         )
 
             except Exception as e:

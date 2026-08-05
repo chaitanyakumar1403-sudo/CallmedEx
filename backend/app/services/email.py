@@ -418,12 +418,14 @@ DECLINE: {decline_link}
 
             # Console fallback
             logger.warning(f"Email delivery degraded to console fallback (magic dispatch, {to_email})")
-            print("\n" + "=" * 70)
-            print(f"[MAGIC DISPATCH EMAIL TO] {to_email}")
-            print(f"[SUBJECT] {subject}")
-            print("=" * 70)
+            print("\n" + "🔴" * 35)
+            print("🚨 URGENT EMAIL DELIVERY FAILED 🚨".center(70))
+            print("🔴" * 35)
+            print(f"TO: {to_email}")
+            print(f"SUBJECT: {subject}")
+            print("-" * 70)
             print(text_content)
-            print("=" * 70 + "\n")
+            print("🔴" * 35 + "\n")
 
     @staticmethod
     def send_password_reset_email(to_email: str, otp_code: str, reset_link: str, user_name: str = "User"):
