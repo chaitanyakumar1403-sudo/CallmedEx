@@ -44,6 +44,30 @@ def _strip_otp_fields(rows):
     return [{k: v for k, v in r.items() if k not in _OTP_FIELDS} for r in (rows or [])]
 
 
+def _attach_slot_times(tasks):
+    """Merge each task's booking slot_start/slot_id in place so the provider
+    dashboard can show when a task is actually scheduled for, not just when
+    it was accepted."""
+    booking_ids = list({t["booking_id"] for t in tasks if t.get("booking_id")})
+    if not booking_ids or not supabase:
+        return
+    try:
+        b_res = (
+            supabase.table("bookings")
+            .select("id, slot_start, slot_id")
+            .in_("id", booking_ids)
+            .execute()
+        )
+    except Exception:
+        return
+    slots_by_booking = {b["id"]: b for b in (b_res.data or [])}
+    for t in tasks:
+        b = slots_by_booking.get(t.get("booking_id"))
+        if b:
+            t["slot_start"] = b.get("slot_start")
+            t["slot_id"] = b.get("slot_id")
+
+
 # ─── Request Models ──────────────────────────────────────────────────────
 
 class UniversalDispatchRequest(BaseModel):
@@ -364,7 +388,9 @@ async def get_my_tasks(
             .execute()
         )
         if result.data:
-            return {"tasks": _strip_otp_fields(result.data)}
+            tasks = _strip_otp_fields(result.data)
+            _attach_slot_times(tasks)
+            return {"tasks": tasks}
     except Exception:
         pass
 

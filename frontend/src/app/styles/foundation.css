@@ -851,6 +851,11 @@ input[type="radio"] {
   margin: var(--cm-1) 0 0; font-size: var(--cm-text-xs); color: var(--cm-ink-3);
   text-transform: capitalize;
 }
+.cm-active__slot {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: var(--cm-2) 0 0; font-size: var(--cm-text-sm); font-weight: 600;
+  color: var(--cm-active);
+}
 .cm-active__spine { margin-bottom: var(--cm-4); }
 .cm-active__nav { display: flex; gap: var(--cm-2); margin-bottom: var(--cm-4); }
 .cm-active__nav > a { flex: 1; }
@@ -907,6 +912,11 @@ input[type="radio"] {
   text-decoration: none; min-height: var(--cm-tap);
 }
 .cm-alltasks__item--current { border-left: 4px solid var(--cm-active); }
+.cm-alltasks__slot {
+  display: flex; align-items: center; gap: var(--cm-2);
+  margin: var(--cm-1) 0; font-size: var(--cm-text-xs); font-weight: 600;
+  color: var(--cm-active);
+}
 .cm-alltasks__empty { text-align: center; color: var(--cm-ink-3); padding: var(--cm-6) 0; }
 
 /* ── Selfie / lab handover / vitals modals ───────────────────────────── */

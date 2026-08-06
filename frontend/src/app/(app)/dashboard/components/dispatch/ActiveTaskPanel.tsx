@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Field, Icon, TextInput } from "@/components/ui";
-import { FlaskConical, MapPin, Navigation, Stethoscope } from "@/components/ui/icons";
+import { Clock, FlaskConical, MapPin, Navigation, Stethoscope } from "@/components/ui/icons";
 import StatusSpine, { StatusPill, dispatchSteps } from "@/app/components/StatusSpine";
 import type { DispatchTask } from "../ProviderDispatchTracker";
 import { TaskNotes } from "./TaskNotes";
@@ -16,6 +16,23 @@ const STATUS_NEXT: Record<string, { label: string; next: string }> = {
   en_route: { label: "Mark Arrived", next: "arrived" },
   in_progress: { label: "Mark Complete", next: "completed" },
 };
+
+/** Format slot_start into a human-readable string for the active task view. */
+function formatSlotLabel(iso?: string): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return `Scheduled for today at ${time}`;
+    const date = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    return `Scheduled for ${date} at ${time}`;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The only two provider types that reach the role-specific handover action
@@ -50,6 +67,7 @@ export function ActiveTaskPanel({
   providerType: ActiveTaskProviderType;
 }) {
   const next = STATUS_NEXT[task.status];
+  const slotLabel = formatSlotLabel(task.slot_start);
   // Derived from the `otp` prop, not local state, so the panel stays pure —
   // this is only an inline hint. The real 6-digit gate that blocks submission
   // still lives in the parent's handleVerifyOtp, unchanged.
@@ -71,6 +89,12 @@ export function ActiveTaskPanel({
           <Icon as={MapPin} size={16} />
           {task.patient_address}
         </p>
+        {slotLabel && (
+          <p className="cm-active__slot">
+            <Icon as={Clock} size={16} />
+            {slotLabel}
+          </p>
+        )}
         <p className="cm-active__meta">
           {task.estimated_distance_km != null && `${task.estimated_distance_km.toFixed(1)} km away · `}
           {serviceLabel(task.service_type)}

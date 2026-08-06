@@ -124,6 +124,18 @@ def _resolve_home_service(entry: str, by_id: dict, by_code: dict, by_name: dict)
     return None
 
 
+def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
+    """True when a picked slot is already close enough that waiting for the
+    next trigger_dispatch_for_upcoming_bookings poll tick (every 10 min)
+    would leave the phlebotomist with too little lead time. Uses the same
+    lookahead window that task runs on, so a booking never falls into the
+    gap between the immediate and polled dispatch paths.
+    """
+    from app.workers.tasks.scheduled_dispatch import LOOKAHEAD_MINUTES
+    slot_dt = datetime.fromisoformat(slot_start_str)
+    return slot_dt - datetime.now(timezone.utc) <= timedelta(minutes=LOOKAHEAD_MINUTES)
+
+
 def _provision_home_collection(
     booking_id: str, patient_id: str, full_name: str, selected_tests: list,
     family_member_id: Optional[str] = None,
@@ -608,11 +620,22 @@ async def create_booking(
                                     f"booking {booking_id}: {pc_err}"
                                 )
 
-                            # Only spawn a LIVE dispatch immediately if this is an on-demand/reorder booking.
-                            # For scheduled future bookings (e.g. 21:00), advance rostering handles assignment.
+                            # Only spawn a LIVE dispatch immediately if this is an on-demand/reorder booking,
+                            # or the picked slot is already close enough that waiting for the next
+                            # trigger_dispatch_for_upcoming_bookings poll tick (every 10 min) would leave
+                            # the phlebotomist with too little lead time — same lookahead window that
+                            # task uses, so a booking never falls into the gap between the two paths.
                             slot_id_str = booking.slot_id or ""
                             is_immediate = slot_id_str.startswith("on_demand|") or slot_id_str.startswith("reorder|")
-                            
+                            if not is_immediate:
+                                try:
+                                    is_immediate = _slot_needs_immediate_dispatch(slot_start_str)
+                                except Exception as slot_parse_err:
+                                    logger.warning(
+                                        f"Could not parse slot_start {slot_start_str!r} for booking "
+                                        f"{booking_id} to check near-term dispatch: {slot_parse_err}"
+                                    )
+
                             if is_immediate:
                                 await UniversalDispatchEngine.create_dispatch(
                                     patient_id=current_user["sub"],
@@ -1541,7 +1564,33 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
             # 4. Cancel related live_dispatch if it exists
             # Wait, live_dispatch is not a table, dispatch_requests is. But leaving as is since it doesn't hurt.
             try:
+                d_req_res = (
+                    supabase.table("dispatch_requests")
+                    .select("assigned_provider_id")
+                    .eq("booking_id", booking_id)
+                    .execute()
+                )
+                assigned_provider_ids = [
+                    row["assigned_provider_id"] for row in (d_req_res.data or [])
+                    if row.get("assigned_provider_id")
+                ]
+
                 supabase.table("dispatch_requests").update({"status": "cancelled"}).eq("booking_id", booking_id).execute()
+
+                # A phlebotomist who already accepted this task needs to know it's
+                # off, or they'll keep it sitting in their active tasks list.
+                for provider_id in assigned_provider_ids:
+                    try:
+                        from app.services.notification_engine import NotificationEngine
+                        await NotificationEngine.send(
+                            user_id=provider_id,
+                            channel="in_app",
+                            title="Booking cancelled",
+                            body="The patient cancelled this booking. It has been removed from your active tasks.",
+                            data={"booking_id": booking_id, "status": "cancelled"},
+                        )
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to notify provider {provider_id} of booking {booking_id} cancellation: {notify_err}")
             except Exception:
                 pass
         

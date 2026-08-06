@@ -27,6 +27,27 @@ export interface DispatchTask {
   notes?: string;
   created_at: string;
   priority?: string;
+  /** Scheduled slot start time (ISO), attached by _attach_slot_times on the backend */
+  slot_start?: string;
+  /** Raw slot_id (e.g. "|2026-08-06|15:00"), attached by _attach_slot_times */
+  slot_id?: string;
+}
+
+/** Format a slot_start ISO string into a compact human-readable form for the dashboard. */
+function formatSlotTime(iso?: string): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (isToday) return `Today at ${time}`;
+    const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
+    return `${date} at ${time}`;
+  } catch {
+    return null;
+  }
 }
 
 type StatusMsg = { tone: "done" | "urgent" | "active"; text: string } | null;
@@ -603,35 +624,50 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
             <p className="cm-alltasks__empty">No active tasks in your queue.</p>
           ) : (
             <div className="cm-tasklist">
-              {tasks.map(task => (
-                <Card
-                  key={task.id}
-                  className={task.id === activeTask?.id ? "cm-alltasks__item--current" : undefined}
-                >
-                  <div className="cm-alltasks__row">
-                    <span className="cm-alltasks__type">
-                      {serviceLabel(task.service_type)}
-                    </span>
-                    <StatusPill status={task.status} />
-                  </div>
-                  <p className="cm-alltasks__address">
-                    <Icon as={MapPin} size={14} />
-                    {task.patient_address}
-                  </p>
-                  <div className="cm-alltasks__row">
-                    <span className="cm-alltasks__meta">Created: {new Date(task.created_at).toLocaleString()}</span>
-                    <a
-                      className="cm-alltasks__map"
-                      href={`https://maps.google.com/?q=${task.patient_lat},${task.patient_lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Icon as={Navigation} size={14} />
-                      Map
-                    </a>
-                  </div>
-                </Card>
-              ))}
+              {tasks.map(task => {
+                const slotLabel = formatSlotTime(task.slot_start);
+                return (
+                  <Card
+                    key={task.id}
+                    interactive
+                    className={task.id === activeTask?.id ? "cm-alltasks__item--current" : undefined}
+                    onClick={() => {
+                      setActiveTask(task);
+                      setShowAllTasks(false);
+                    }}
+                  >
+                    <div className="cm-alltasks__row">
+                      <span className="cm-alltasks__type">
+                        {serviceLabel(task.service_type)}
+                      </span>
+                      <StatusPill status={task.status} />
+                    </div>
+                    <p className="cm-alltasks__address">
+                      <Icon as={MapPin} size={14} />
+                      {task.patient_address}
+                    </p>
+                    {slotLabel && (
+                      <p className="cm-alltasks__slot">
+                        <Icon as={Clock} size={14} />
+                        {slotLabel}
+                      </p>
+                    )}
+                    <div className="cm-alltasks__row">
+                      <span className="cm-alltasks__meta">Created: {new Date(task.created_at).toLocaleString()}</span>
+                      <a
+                        className="cm-alltasks__map"
+                        href={`https://maps.google.com/?q=${task.patient_lat},${task.patient_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Icon as={Navigation} size={14} />
+                        Map
+                      </a>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </Modal>

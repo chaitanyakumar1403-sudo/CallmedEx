@@ -1,10 +1,13 @@
 export function Card({
-  children, className = "", interactive = false,
+  children, className = "", interactive = false, onClick,
 }: {
-  children: React.ReactNode; className?: string; interactive?: boolean;
+  children: React.ReactNode; className?: string; interactive?: boolean; onClick?: () => void;
 }) {
   return (
-    <div className={`cm-card${interactive ? " cm-card--interactive" : ""}${className ? ` ${className}` : ""}`}>
+    <div
+      className={`cm-card${interactive ? " cm-card--interactive" : ""}${className ? ` ${className}` : ""}`}
+      onClick={onClick}
+    >
       {children}
     </div>
   );
