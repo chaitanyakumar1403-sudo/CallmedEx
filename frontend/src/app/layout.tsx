@@ -29,6 +29,8 @@ export const metadata: Metadata = {
   keywords: "healthcare, diagnostics, telemedicine, pharmacy, ABHA, home collection, Vizag",
 };
 
+import { Toaster } from 'sonner';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -39,6 +41,7 @@ export default function RootLayout({
       <body>
         <a className="cm-skip" href="#main">Skip to main content</a>
         {children}
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

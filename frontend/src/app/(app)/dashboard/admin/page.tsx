@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardShell from '../components/DashboardShell';
 import LOCATIONS from '@/data/india-locations.json';
+import { toast } from 'sonner';
+import { customConfirm } from '@/lib/customConfirm';
 
 const LOCATION_MAP = LOCATIONS as Record<string, string[]>;
 const INDIAN_STATES = Object.keys(LOCATION_MAP).sort();
@@ -257,7 +259,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to completely delete this user? This action cannot be undone.")) return;
+    if (!(await customConfirm("Are you sure you want to completely delete this user? This action cannot be undone."))) return;
     try {
       const token = getToken();
       const res = await fetch(`${apiBase}/api/admin/users/${userId}`, {
@@ -268,10 +270,10 @@ export default function AdminDashboard() {
         setUsers(users.filter((u: any) => u.id !== userId));
       } else {
         const data = await res.json();
-        alert(data.detail || "Failed to delete user");
+        toast.error(data.detail || "Failed to delete user");
       }
     } catch {
-      alert("Network error");
+      toast.error("Network error");
     }
   };
 
@@ -289,10 +291,10 @@ export default function AdminDashboard() {
         setWeeklyReportData(data.report);
         setShowWeeklyReportModal(true);
       } else {
-        alert(data.detail || "Failed to generate weekly report");
+        toast.error(data.detail || "Failed to generate weekly report");
       }
     } catch (e) {
-      alert("Error contacting server for weekly report.");
+      toast.error("Error contacting server for weekly report.");
     } finally {
       setReportLoading(false);
     }
@@ -402,7 +404,7 @@ export default function AdminDashboard() {
   };
 
   const handleRemovePhlebo = async (centreId: string, userId: string) => {
-    if (!confirm('Unbind this phlebotomist from the centre? They will stop receiving this centre\'s dispatch offers.')) return;
+    if (!(await customConfirm('Unbind this phlebotomist from the centre? They will stop receiving this centre\'s dispatch offers.'))) return;
     const token = getToken();
     if (!token) return;
     try {
@@ -415,7 +417,7 @@ export default function AdminDashboard() {
   };
 
   const handleRemoveStaff = async (centreId: string, userId: string) => {
-    if (!confirm('Remove this staff member from the centre?')) return;
+    if (!(await customConfirm('Remove this staff member from the centre?'))) return;
     const token = getToken();
     if (!token) return;
     try {
@@ -455,7 +457,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteCentre = async (centreId: string, code: string) => {
-    if (!confirm(`Are you sure you want to delete Processing Centre "${code}"?`)) return;
+    if (!(await customConfirm(`Are you sure you want to delete Processing Centre "${code}"?`))) return;
     const token = getToken();
     if (!token) return;
     try {
@@ -468,7 +470,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeduplicateCentres = async () => {
-    if (!confirm('Scan and remove duplicate processing centres?')) return;
+    if (!(await customConfirm('Scan and remove duplicate processing centres?'))) return;
     const token = getToken();
     if (!token) return;
     try {
@@ -478,7 +480,7 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        alert(`Successfully cleaned up ${data.removed} duplicate centre(s).`);
+        toast.success(`Successfully cleaned up ${data.removed} duplicate centre(s).`);
         fetchCentres();
       }
     } catch { /* silent */ }
@@ -800,8 +802,8 @@ export default function AdminDashboard() {
           const handleBulkAction = async (action: 'suspend' | 'activate' | 'delete') => {
             const ids = Array.from(selectedUserIds);
             if (ids.length === 0) return;
-            if (action === 'delete' && !confirm(`Are you sure you want to DELETE ${ids.length} user(s)? This action cannot be undone.`)) return;
-            if (action === 'suspend' && !confirm(`Suspend ${ids.length} user(s)?`)) return;
+            if (action === 'delete' && !(await customConfirm(`Are you sure you want to DELETE ${ids.length} user(s)? This action cannot be undone.`))) return;
+            if (action === 'suspend' && !(await customConfirm(`Suspend ${ids.length} user(s)?`))) return;
 
             setBulkActionLoading(true);
             const token = getToken();

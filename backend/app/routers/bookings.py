@@ -246,42 +246,6 @@ def _provision_home_collection(
 
     assign_booking(booking_id)
 
-# ─── In-memory stores for local dev ──────────────────────────────────────
-_local_slots = []
-_local_bookings = []
-
-
-def _init_demo_slots():
-    """Generate demo slots for local dev if empty."""
-    if _local_slots:
-        return
-    # Names are deliberately unmistakable. This only runs when Supabase is
-    # absent (local dev), but it previously used "Vizag Diagnostics Center" and
-    # "Apollo Health Hub" — the latter being a real hospital chain's name — so a
-    # dropped database connection would have offered patients bookable slots at
-    # centres that do not exist and read as if they did.
-    providers = [
-        {"id": "org-demo-1", "type": "organization", "name": "[DEMO DATA] Test Centre A"},
-        {"id": "org-demo-2", "type": "organization", "name": "[DEMO DATA] Test Centre B"},
-    ]
-    base_date = date.today()
-    for provider in providers:
-        for day_offset in range(7):
-            slot_date = base_date + timedelta(days=day_offset)
-            for hour in [8, 9, 10, 11, 14, 15, 16, 17]:
-                _local_slots.append({
-                    "id": str(uuid.uuid4()),
-                    "provider_id": provider["id"],
-                    "provider_type": provider["type"],
-                    "provider_name": provider["name"],
-                    "date": slot_date.isoformat(),
-                    "start_time": f"{hour:02d}:00:00",
-                    "end_time": f"{hour:02d}:30:00",
-                    "is_available": True,
-                    "capacity": 3,
-                })
-
-
 @router.get("/slots", response_model=APIResponse)
 async def get_available_slots(
     provider_id: Optional[str] = None,
@@ -289,28 +253,21 @@ async def get_available_slots(
     service_type: Optional[str] = None,
 ):
     """Get available booking slots, optionally filtered by provider and date."""
-    if supabase:
-        query = supabase.table("slots").select("*").eq("is_available", True)
-        if provider_id:
-            query = query.eq("provider_id", provider_id)
-        if date_str:
-            query = query.eq("date", date_str)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+        
+    query = supabase.table("slots").select("*").eq("is_available", True)
+    if provider_id:
+        query = query.eq("provider_id", provider_id)
+    if date_str:
+        query = query.eq("date", date_str)
+    
+    try:
         result = query.execute()
         return APIResponse(success=True, message="Available slots", data={"slots": result.data})
-
-    # Local fallback with demo data
-    _init_demo_slots()
-    filtered = [s for s in _local_slots if s["is_available"]]
-    if provider_id:
-        filtered = [s for s in filtered if s["provider_id"] == provider_id]
-    if date_str:
-        filtered = [s for s in filtered if s["date"] == date_str]
-
-    return APIResponse(
-        success=True,
-        message="Available slots",
-        data={"slots": filtered}
-    )
+    except Exception as e:
+        logger.error(f"Failed to fetch slots: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while fetching slots")
 
 
 @router.post("", response_model=APIResponse)
@@ -341,38 +298,9 @@ async def create_booking(
         slot_start = f"{slot_date}T00:00:00+05:30"
         slot_end = f"{slot_date}T23:59:59+05:30"
     else:
-        # Fallback: try to find in local slots by UUID
-        slot = None
-        _init_demo_slots()
-        slot = next((s for s in _local_slots if s["id"] == booking.slot_id), None)
-        if not slot:
-            # Default to full day if slot_id is dynamic/custom
-            slot_start = f"{now.split('T')[0]}T00:00:00+05:30"
-            slot_end = f"{now.split('T')[0]}T23:59:59+05:30"
-        else:
-            slot_start = f"{slot['date']}T{slot['start_time']}+05:30"
-            slot_end = f"{slot['date']}T{slot['end_time']}+05:30"
-
-    # Prevent double-booking: same user, same slot
-    conflict = False
-    if supabase:
-        try:
-            # Checking using slot_start string instead of slot_id to avoid UUID error
-            # Exclude cancelled bookings so the patient can re-book a previously cancelled slot.
-            existing = supabase.table("bookings").select("id").eq("patient_id", current_user["sub"]).eq("slot_start", slot_start).neq("status", "cancelled").execute()
-            if existing.data:
-                conflict = True
-        except Exception:
-            pass # Fallback to local
-
-    if not conflict:
-        for b in _local_bookings:
-            if b["patient_id"] == current_user["sub"] and b.get("slot_start") == slot_start and b.get("status") != "cancelled":
-                conflict = True
-                break
-
-    if conflict:
-        raise HTTPException(status_code=409, detail="You have already booked this slot. Please choose a different time.")
+        # Default to full day if slot_id is dynamic/custom
+        slot_start = f"{now.split('T')[0]}T00:00:00+05:30"
+        slot_end = f"{now.split('T')[0]}T23:59:59+05:30"
 
     # Determine if this is a diagnostic/lab booking that uses the review workflow
     is_diagnostic_review = booking.service_type in (
@@ -702,10 +630,13 @@ async def create_booking(
                         f"for booking {booking_id}, booking still created: {e}"
                     )
         except Exception as e:
-            logger.error(f"Supabase insert failed, falling back to local: {e}")
-            _local_bookings.append(booking_data)
+            error_msg = str(e).lower()
+            if "23505" in error_msg or "duplicate key" in error_msg:
+                raise HTTPException(status_code=409, detail="You have already booked this slot. Please choose a different time.")
+            logger.error(f"Supabase insert failed: {e}")
+            raise HTTPException(status_code=500, detail="Database insertion failed")
     else:
-        _local_bookings.append(booking_data)
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
     # Walk-in lab booking: the patient must now learn where to go. Reveal the
     # allocated centre's name/address only here, on the CONFIRMED booking —
@@ -769,41 +700,33 @@ async def get_my_bookings(
     limit = max(1, min(limit, 200))  # Clamp: 1-200
     offset = max(0, offset)
 
-    total_count = 0
-    supabase_bookings = []
-    if supabase:
-        try:
-            # Get total count first
-            count_result = (
-                supabase.table("bookings")
-                .select("id", count="exact")
-                .eq("patient_id", user_id)
-                .execute()
-            )
-            total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
-            # Fetch paginated results
-            result = (
-                supabase.table("bookings")
-                .select("*")
-                .eq("patient_id", user_id)
-                .order("created_at", desc=True)
-                .range(offset, offset + limit - 1)
-                .execute()
-            )
-            supabase_bookings = result.data or []
-        except Exception as e:
-            logger.error(f"Supabase read failed, falling back to local: {e}")
+    try:
+        # Get total count first
+        count_result = (
+            supabase.table("bookings")
+            .select("id", count="exact")
+            .eq("patient_id", user_id)
+            .execute()
+        )
+        total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
 
-    # Combine Local fallback and Supabase
-    user_bookings = [b for b in _local_bookings if b["patient_id"] == user_id]
+        # Fetch paginated results
+        result = (
+            supabase.table("bookings")
+            .select("*")
+            .eq("patient_id", user_id)
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        sorted_bookings = result.data or []
+    except Exception as e:
+        logger.error(f"Supabase read failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch bookings")
 
-    # Merge avoiding duplicates (prefer Supabase)
-    merged = {b["id"]: b for b in user_bookings}
-    for sb in supabase_bookings:
-        merged[sb["id"]] = sb
-
-    sorted_bookings = sorted(merged.values(), key=lambda x: x.get("created_at", ""), reverse=True)
     sorted_bookings = [_strip_centre_identity(b) for b in sorted_bookings]
 
     return APIResponse(
@@ -828,40 +751,31 @@ async def update_booking_status(
     """Update booking status (confirm, cancel, complete)."""
     # Get old status for history
     old_status = "unknown"
-    if supabase:
-        try:
-            old_result = supabase.table("bookings").select("status").eq("id", booking_id).execute()
-            if old_result.data:
-                old_status = old_result.data[0].get("status", "unknown")
-        except Exception:
-            pass
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+    try:
+        old_result = supabase.table("bookings").select("status").eq("id", booking_id).execute()
+        if old_result.data:
+            old_status = old_result.data[0].get("status", "unknown")
+    except Exception as e:
+        logger.error(f"Failed to fetch old status: {e}")
 
-    if supabase:
-        try:
-            result = (
-                supabase.table("bookings")
-                .update({"status": status.value, "updated_at": datetime.now(timezone.utc).isoformat()})
-                .eq("id", booking_id)
-                .execute()
-            )
-            if not result.data:
-                raise HTTPException(status_code=404, detail="Booking not found")
-            _record_booking_history(booking_id, old_status, status.value, current_user.get("sub"))
-            return APIResponse(success=True, message=f"Booking {status.value}", data=result.data[0])
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Supabase update failed, falling back to local: {e}")
-
-    # Local fallback
-    for b in _local_bookings:
-        if b["id"] == booking_id:
-            old_status = b.get("status", "unknown")
-            b["status"] = status.value
-            _record_booking_history(booking_id, old_status, status.value, current_user.get("sub"))
-            return APIResponse(success=True, message=f"Booking {status.value}", data=b)
-
-    raise HTTPException(status_code=404, detail="Booking not found")
+    try:
+        result = (
+            supabase.table("bookings")
+            .update({"status": status.value, "updated_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", booking_id)
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        _record_booking_history(booking_id, old_status, status.value, current_user.get("sub"))
+        return APIResponse(success=True, message=f"Booking {status.value}", data=result.data[0])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Supabase update failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update booking status")
 
 
 @router.get("/health-packages", response_model=APIResponse)
@@ -1021,40 +935,33 @@ async def get_org_bookings(
 
     # Fetch bookings by provider_id with pagination
     total_count = 0
-    org_bookings = []
-    if supabase:
-        try:
-            # Get total count
-            count_result = (
-                supabase.table("bookings")
-                .select("id", count="exact")
-                .eq("provider_id", org_id)
-                .execute()
-            )
-            total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
+    all_bookings = []
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
-            # Fetch paginated results
-            result = (
-                supabase.table("bookings")
-                .select("*")
-                .eq("provider_id", org_id)
-                .order("created_at", desc=True)
-                .range(offset, offset + limit - 1)
-                .execute()
-            )
-            org_bookings = result.data or []
-        except Exception as e:
-            logger.error(f"Supabase org bookings fetch failed: {e}")
+    try:
+        # Get total count
+        count_result = (
+            supabase.table("bookings")
+            .select("id", count="exact")
+            .eq("provider_id", org_id)
+            .execute()
+        )
+        total_count = count_result.count if hasattr(count_result, "count") and count_result.count else len(count_result.data or [])
 
-    # Local fallback — also search by provider_id
-    local_matches = [b for b in _local_bookings if b.get("provider_id") == org_id]
-
-    # Merge (prefer Supabase)
-    merged = {b["id"]: b for b in local_matches}
-    for sb in org_bookings:
-        merged[sb["id"]] = sb
-
-    all_bookings = sorted(merged.values(), key=lambda x: x.get("created_at", ""), reverse=True)
+        # Fetch paginated results
+        result = (
+            supabase.table("bookings")
+            .select("*")
+            .eq("provider_id", org_id)
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        all_bookings = result.data or []
+    except Exception as e:
+        logger.error(f"Supabase org bookings fetch failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch organization bookings")
 
     return APIResponse(
         success=True,
@@ -1081,25 +988,21 @@ async def checkin_patient(
 
     now = datetime.now(timezone.utc).isoformat()
 
-    if supabase:
-        try:
-            result = (
-                supabase.table("bookings")
-                .update({"status": "checked_in", "updated_at": now})
-                .eq("id", booking_id)
-                .execute()
-            )
-            if result.data:
-                return APIResponse(success=True, message="Patient checked in", data=result.data[0])
-        except Exception as e:
-            logger.error(f"Supabase checkin failed: {e}")
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
-    # Local fallback
-    for b in _local_bookings:
-        if b["id"] == booking_id:
-            b["status"] = "checked_in"
-            b["updated_at"] = now
-            return APIResponse(success=True, message="Patient checked in", data=b)
+    try:
+        result = (
+            supabase.table("bookings")
+            .update({"status": "checked_in", "updated_at": now})
+            .eq("id", booking_id)
+            .execute()
+        )
+        if result.data:
+            return APIResponse(success=True, message="Patient checked in", data=result.data[0])
+    except Exception as e:
+        logger.error(f"Supabase checkin failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check in patient")
 
     raise HTTPException(status_code=404, detail="Booking not found")
 
@@ -1116,25 +1019,21 @@ async def complete_booking(
 
     now = datetime.now(timezone.utc).isoformat()
 
-    if supabase:
-        try:
-            result = (
-                supabase.table("bookings")
-                .update({"status": "completed", "updated_at": now})
-                .eq("id", booking_id)
-                .execute()
-            )
-            if result.data:
-                return APIResponse(success=True, message="Booking completed", data=result.data[0])
-        except Exception as e:
-            logger.error(f"Supabase complete failed: {e}")
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
 
-    # Local fallback
-    for b in _local_bookings:
-        if b["id"] == booking_id:
-            b["status"] = "completed"
-            b["updated_at"] = now
-            return APIResponse(success=True, message="Booking completed", data=b)
+    try:
+        result = (
+            supabase.table("bookings")
+            .update({"status": "completed", "updated_at": now})
+            .eq("id", booking_id)
+            .execute()
+        )
+        if result.data:
+            return APIResponse(success=True, message="Booking completed", data=result.data[0])
+    except Exception as e:
+        logger.error(f"Supabase complete failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to complete booking")
 
     raise HTTPException(status_code=404, detail="Booking not found")
 
@@ -1292,33 +1191,24 @@ async def get_pending_review_bookings(current_user: dict = Depends(get_current_u
         )
 
     pending_bookings = []
-    if supabase:
-        try:
-            result = (
-                supabase.table("bookings")
-                .select("*")
-                .eq("provider_id", org_id)
-                .eq("status", "pending_review")
-                .order("created_at", desc=True)
-                .execute()
-            )
-            pending_bookings = result.data or []
-        except Exception as e:
-            logger.error(f"Failed to fetch pending reviews: {e}")
-
-    # Local fallback
-    local_pending = [
-        b for b in _local_bookings
-        if b.get("provider_id") == org_id and b.get("status") == "pending_review"
-    ]
-    merged = {b["id"]: b for b in local_pending}
-    for sb in pending_bookings:
-        merged[sb["id"]] = sb
+    try:
+        result = (
+            supabase.table("bookings")
+            .select("*")
+            .eq("provider_id", org_id)
+            .eq("status", "pending_review")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        pending_bookings = result.data or []
+    except Exception as e:
+        logger.error(f"Failed to fetch pending reviews: {e}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
     return APIResponse(
         success=True,
         message="Pending review bookings",
-        data={"bookings": list(merged.values()), "total": len(merged)}
+        data={"bookings": pending_bookings, "total": len(pending_bookings)}
     )
 
 
@@ -1336,23 +1226,12 @@ async def allot_slot(
     now = datetime.now(timezone.utc).isoformat()
 
     # Find the booking
-    booking = None
-    is_local = False
-
-    if supabase:
-        try:
-            result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
-            if result.data:
-                booking = result.data[0]
-        except Exception:
-            pass
-
-    if not booking:
-        for b in _local_bookings:
-            if b["id"] == booking_id:
-                booking = b
-                is_local = True
-                break
+    try:
+        result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+        booking = result.data[0] if result.data else None
+    except Exception as e:
+        logger.error(f"Failed to query booking: {e}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -1372,24 +1251,17 @@ async def allot_slot(
         "status": BookingStatus.SLOT_ALLOTTED.value,
         "slot_start": allotted_start,
         "slot_end": allotted_end,
-        "slot_id": f"{booking.get('provider_id')}|{preferred_date}|{allotment.allotted_start_time}",
         "updated_at": now,
     }
     if allotment.message:
         existing_notes = booking.get("notes", "")
         update_data["notes"] = f"{existing_notes}\n[Org] {allotment.message}".strip()
 
-    if is_local:
-        for b in _local_bookings:
-            if b["id"] == booking_id:
-                b.update(update_data)
-                break
-    elif supabase:
-        try:
-            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
-        except Exception as e:
-            logger.error(f"Failed to allot slot: {e}")
-            raise HTTPException(status_code=500, detail="Failed to allot slot")
+    try:
+        supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to allot slot: {e}")
+        raise HTTPException(status_code=500, detail="Failed to allot slot")
 
     _record_booking_history(
         booking_id, booking.get("status", "pending_review"),
@@ -1422,23 +1294,12 @@ async def respond_to_slot(
     now = datetime.now(timezone.utc).isoformat()
 
     # Find the booking
-    booking = None
-    is_local = False
-
-    if supabase:
-        try:
-            result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
-            if result.data:
-                booking = result.data[0]
-        except Exception:
-            pass
-
-    if not booking:
-        for b in _local_bookings:
-            if b["id"] == booking_id:
-                booking = b
-                is_local = True
-                break
+    try:
+        result = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+        booking = result.data[0] if result.data else None
+    except Exception as e:
+        logger.error(f"Failed to query booking: {e}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -1461,17 +1322,11 @@ async def respond_to_slot(
         existing_notes = booking.get("notes", "")
         update_data["notes"] = f"{existing_notes}\n[Patient] Declined: {response.reason}".strip()
 
-    if is_local:
-        for b in _local_bookings:
-            if b["id"] == booking_id:
-                b.update(update_data)
-                break
-    elif supabase:
-        try:
-            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
-        except Exception as e:
-            logger.error(f"Failed to respond to slot: {e}")
-            raise HTTPException(status_code=500, detail="Failed to process response")
+    try:
+        supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to respond to slot: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process response")
 
     _record_booking_history(
         booking_id, "slot_allotted", new_status, current_user.get("sub"),
@@ -1496,20 +1351,15 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
         return APIResponse(success=True, message="Simulated cancellation", data={"status": "cancelled"})
         
     # 1. Fetch booking
-    b_res = supabase.table("bookings").select("*").eq("id", booking_id).execute()
-    booking = None
-    is_local = False
-    if not b_res.data:
-        # Check local fallback
-        for b in _local_bookings:
-            if b["id"] == booking_id:
-                booking = b
-                is_local = True
-                break
-        if not booking:
-            raise HTTPException(status_code=404, detail="Booking not found")
-    else:
-        booking = b_res.data[0]
+    try:
+        b_res = supabase.table("bookings").select("*").eq("id", booking_id).execute()
+        booking = b_res.data[0] if b_res.data else None
+    except Exception as e:
+        logger.error(f"Failed to query booking for cancellation: {e}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
     
     if booking.get("patient_id") != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to cancel this booking")
@@ -1551,48 +1401,39 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
         # We will keep total_price intact for history, and just add it to notes.
         
     try:
-        if is_local:
-            for b in _local_bookings:
-                if b["id"] == booking_id:
-                    b["status"] = "cancelled"
-                    if "notes" in update_data:
-                        b["notes"] = update_data["notes"]
-                    break
-        else:
-            supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
-            
-            # 4. Cancel related live_dispatch if it exists
-            # Wait, live_dispatch is not a table, dispatch_requests is. But leaving as is since it doesn't hurt.
-            try:
-                d_req_res = (
-                    supabase.table("dispatch_requests")
-                    .select("assigned_provider_id")
-                    .eq("booking_id", booking_id)
-                    .execute()
-                )
-                assigned_provider_ids = [
-                    row["assigned_provider_id"] for row in (d_req_res.data or [])
-                    if row.get("assigned_provider_id")
-                ]
+        supabase.table("bookings").update(update_data).eq("id", booking_id).execute()
+        
+        # 4. Cancel related live_dispatch if it exists
+        try:
+            d_req_res = (
+                supabase.table("dispatch_requests")
+                .select("assigned_provider_id")
+                .eq("booking_id", booking_id)
+                .execute()
+            )
+            assigned_provider_ids = [
+                row["assigned_provider_id"] for row in (d_req_res.data or [])
+                if row.get("assigned_provider_id")
+            ]
 
-                supabase.table("dispatch_requests").update({"status": "cancelled"}).eq("booking_id", booking_id).execute()
+            supabase.table("dispatch_requests").update({"status": "cancelled"}).eq("booking_id", booking_id).execute()
 
-                # A phlebotomist who already accepted this task needs to know it's
-                # off, or they'll keep it sitting in their active tasks list.
-                for provider_id in assigned_provider_ids:
-                    try:
-                        from app.services.notification_engine import NotificationEngine
-                        await NotificationEngine.send(
-                            user_id=provider_id,
-                            channel="in_app",
-                            title="Booking cancelled",
-                            body="The patient cancelled this booking. It has been removed from your active tasks.",
-                            data={"booking_id": booking_id, "status": "cancelled"},
-                        )
-                    except Exception as notify_err:
-                        logger.warning(f"Failed to notify provider {provider_id} of booking {booking_id} cancellation: {notify_err}")
-            except Exception:
-                pass
+            # A phlebotomist who already accepted this task needs to know it's
+            # off, or they'll keep it sitting in their active tasks list.
+            for provider_id in assigned_provider_ids:
+                try:
+                    from app.services.notification_engine import NotificationEngine
+                    await NotificationEngine.send(
+                        user_id=provider_id,
+                        channel="in_app",
+                        title="Booking cancelled",
+                        body="The patient cancelled this booking. It has been removed from your active tasks.",
+                        data={"booking_id": booking_id, "status": "cancelled"},
+                    )
+                except Exception as notify_err:
+                    logger.warning(f"Failed to notify provider {provider_id} of booking {booking_id} cancellation: {notify_err}")
+        except Exception as e:
+            logger.warning(f"Failed to cancel dispatch request: {e}")
         
         _record_booking_history(booking_id, current_status, "cancelled", changed_by=user_id, notes=notes)
         

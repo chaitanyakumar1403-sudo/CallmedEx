@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { customConfirm } from "@/lib/customConfirm";
 import DashboardProfile from "../components/DashboardProfile";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
@@ -307,7 +309,7 @@ export default function PatientDashboard() {
         if (res.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
-          alert("Your login session has expired. Please log in again to continue.");
+          toast("Your login session has expired. Please log in again to continue.");
           window.location.href = "/auth/login";
           return;
         }
@@ -316,20 +318,20 @@ export default function PatientDashboard() {
         if (res.ok && data.dispatch_id) {
           localStorage.setItem("activeDispatchId", data.dispatch_id);
           setActiveDispatchId(data.dispatch_id);
-          alert(data.message || "Dispatch request created! Searching for nearby providers.");
+          toast(data.message || "Dispatch request created! Searching for nearby providers.");
         } else {
           if (data.detail === "Invalid or expired token") {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            alert("Your login session has expired. Please log in again to continue.");
+            toast("Your login session has expired. Please log in again to continue.");
             window.location.href = "/auth/login";
             return;
           }
-          alert(data.detail || data.message || "Failed to request dispatch.");
+          toast(data.detail || data.message || "Failed to request dispatch.");
         }
       } catch (e: any) {
         console.error("Dispatch request network error:", e);
-        alert(e?.message === "Failed to fetch" ? "Unable to connect to CallMedex server (http://localhost:8000). Please check your backend connection." : (e?.message || "Failed to request dispatch."));
+        toast(e?.message === "Failed to fetch" ? "Unable to connect to CallMedex server (http://localhost:8000). Please check your backend connection." : (e?.message || "Failed to request dispatch."));
       } finally {
         setRequestingDispatch(null);
       }
@@ -381,14 +383,14 @@ export default function PatientDashboard() {
 
   const handleCancelRequest = async (dispatchId: string | undefined, currentStatus: string) => {
     if (!dispatchId) {
-      alert("Unable to cancel: Missing dispatch ID. Please contact support.");
+      toast("Unable to cancel: Missing dispatch ID. Please contact support.");
       return;
     }
     let msg = "Are you sure you want to cancel this request?";
     if (currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "confirmed") {
       msg = "Are you sure? If the provider is already on the way or it has been more than 5 minutes since acceptance, a cancellation fee may apply.";
     }
-    if (!confirm(msg)) return;
+    if (!await customConfirm(msg)) return;
 
     try {
       const res = await dispatchAPI.cancelDispatch(dispatchId);
@@ -398,7 +400,7 @@ export default function PatientDashboard() {
       setTrackingData(null);
 
       if (res.success || res.message?.includes("cancelled")) {
-        alert(res.message || "Request cancelled successfully.");
+        toast(res.message || "Request cancelled successfully.");
         // Refresh bookings
         const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
@@ -408,13 +410,13 @@ export default function PatientDashboard() {
           setBookings(bData.bookings || []);
         }
       } else {
-        alert(res.message || "Failed to cancel");
+        toast(res.message || "Failed to cancel");
       }
     } catch (e: any) {
       localStorage.removeItem("activeDispatchId");
       setActiveDispatchId(null);
       setTrackingData(null);
-      alert(e.message || "Request cancelled.");
+      toast(e.message || "Request cancelled.");
     }
   };
 
@@ -423,12 +425,12 @@ export default function PatientDashboard() {
     if (currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "confirmed") {
       msg = "Are you sure? If the provider is already on the way or it has been more than 5 minutes since acceptance, a cancellation fee may apply.";
     }
-    if (!confirm(msg)) return;
+    if (!await customConfirm(msg)) return;
 
     try {
       const res = await bookingsAPI.cancelBooking(bookingId);
       if (res.success) {
-        alert(res.message);
+        toast(res.message);
         // Refresh bookings
         const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
           headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
@@ -438,10 +440,10 @@ export default function PatientDashboard() {
           setBookings(bData.bookings || []);
         }
       } else {
-        alert(res.message || "Failed to cancel booking");
+        toast(res.message || "Failed to cancel booking");
       }
     } catch (e: any) {
-      alert(e.message || "Failed to cancel booking");
+      toast(e.message || "Failed to cancel booking");
     }
   };
 
@@ -474,7 +476,7 @@ export default function PatientDashboard() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        alert("✅ Quick Re-Order placed successfully! Check active dispatches & bookings.");
+        toast("✅ Quick Re-Order placed successfully! Check active dispatches & bookings.");
         setShowReorderModal(false);
         // Refresh bookings
         const bRes = await fetch(`${apiBase}/api/bookings/my`, {
@@ -483,10 +485,10 @@ export default function PatientDashboard() {
         const bData = await bRes.json();
         if (bData.success) setBookings(bData.data.bookings || []);
       } else {
-        alert(data.detail || data.message || "Failed to re-order");
+        toast(data.detail || data.message || "Failed to re-order");
       }
     } catch (e) {
-      alert("Network error processing re-order.");
+      toast("Network error processing re-order.");
     } finally {
       setReorderLoading(false);
     }
@@ -510,7 +512,7 @@ export default function PatientDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(data.message);
+        toast(data.message);
         // Refresh bookings
         const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my-bookings`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -518,10 +520,10 @@ export default function PatientDashboard() {
         const bData = await bRes.json();
         if (bData.success) setBookings(bData.data.bookings || []);
       } else {
-        alert(data.detail || "Failed to respond");
+        toast(data.detail || "Failed to respond");
       }
     } catch (e) {
-      alert("Network error");
+      toast("Network error");
     }
   };
 
@@ -1025,7 +1027,7 @@ export default function PatientDashboard() {
       <button
         className="sos-floating-btn"
         onClick={async () => {
-          if (!confirm("🚨 EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
+          if (!await customConfirm("🚨 EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
 
           try {
             // Get actual GPS coordinates from the browser
@@ -1053,13 +1055,13 @@ export default function PatientDashboard() {
               const manualLat = prompt("Could not get your GPS location. Please enter your latitude:");
               const manualLng = prompt("Please enter your longitude:");
               if (!manualLat || !manualLng) {
-                alert("Emergency SOS cancelled — location is required.");
+                toast("Emergency SOS cancelled — location is required.");
                 return;
               }
               lat = parseFloat(manualLat);
               lng = parseFloat(manualLng);
               if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-                alert("Invalid coordinates. Emergency SOS cancelled.");
+                toast("Invalid coordinates. Emergency SOS cancelled.");
                 return;
               }
               address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
@@ -1075,12 +1077,12 @@ export default function PatientDashboard() {
             if (res.ok && data.dispatch_id) {
               localStorage.setItem("activeDispatchId", data.dispatch_id);
               setActiveDispatchId(data.dispatch_id);
-              alert(data.message || "🚨 EMERGENCY BEACON DISPATCHED!");
+              toast(data.message || "🚨 EMERGENCY BEACON DISPATCHED!");
             } else {
-              alert(data.detail || data.message || "Failed to send emergency SOS. Please call emergency services directly.");
+              toast(data.detail || data.message || "Failed to send emergency SOS. Please call emergency services directly.");
             }
           } catch (e) {
-            alert("Failed to send emergency SOS. Please call emergency services directly (108 for ambulance).");
+            toast("Failed to send emergency SOS. Please call emergency services directly (108 for ambulance).");
           }
         }}
       >

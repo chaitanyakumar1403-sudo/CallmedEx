@@ -4,6 +4,8 @@
  */
 'use client';
 
+import { toast } from 'sonner';
+
 interface Medicine {
   generic_name: string;
   dosage: string;
@@ -47,7 +49,7 @@ export default function PrescriptionView({
       navigator.share({ title: 'E-Prescription', text });
     } else {
       navigator.clipboard.writeText(text);
-      alert('Prescription copied to clipboard!');
+      toast.success('Prescription copied to clipboard!');
     }
   };
 
@@ -177,9 +179,9 @@ export default function PrescriptionView({
                   body: JSON.stringify({ consultation_id: consultationId, action_type: "pharmacy" })
                 });
                 const data = await res.json();
-                alert(data.message || "Prescribed medicines routed to nearby partner pharmacy for home delivery!");
+                toast.success(data.message || "Prescribed medicines routed to nearby partner pharmacy for home delivery!");
               } catch (e: any) {
-                alert("Failed to create medicine order. Please try again.");
+                toast.error("Failed to create medicine order. Please try again.");
               }
             }}
           >
@@ -198,9 +200,9 @@ export default function PrescriptionView({
                   body: JSON.stringify({ consultation_id: consultationId, action_type: "diagnostics" })
                 });
                 const data = await res.json();
-                alert(data.message || "Home blood sample collection dispatched! A phlebotomist will be assigned shortly.");
+                toast.success(data.message || "Home blood sample collection dispatched! A phlebotomist will be assigned shortly.");
               } catch (e: any) {
-                alert("Failed to book sample collection. Please try again.");
+                toast.error("Failed to book sample collection. Please try again.");
               }
             }}
           >
