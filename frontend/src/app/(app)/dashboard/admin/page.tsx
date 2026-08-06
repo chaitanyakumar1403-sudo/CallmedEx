@@ -131,6 +131,8 @@ export default function AdminDashboard() {
   const [staffEmail, setStaffEmail] = useState('');
   const [staffRole, setStaffRole] = useState('technician');
   const [staffMsg, setStaffMsg] = useState('');
+  const [phleboEmail, setPhleboEmail] = useState('');
+  const [phleboMsg, setPhleboMsg] = useState('');
   const [areaForm, setAreaForm] = useState({ city: '', pincode: '', radius_km: '', priority: 100 });
   const [areaMsg, setAreaMsg] = useState('');
 
@@ -365,6 +367,51 @@ export default function AdminDashboard() {
         setStaffMsg(`❌ ${d.detail || 'Failed'}`);
       }
     } catch { setStaffMsg('❌ Error adding staff'); }
+  };
+
+  const handleAddPhlebo = async (centreId: string) => {
+    if (!phleboEmail.trim()) return;
+    setPhleboMsg('Looking up user...');
+    const token = getToken();
+    if (!token) return;
+    try {
+      const userRes = await fetch(`${apiBase}/api/admin/users?q=${encodeURIComponent(phleboEmail.trim())}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!userRes.ok) { setPhleboMsg('❌ Failed to search users'); return; }
+      const userData = await userRes.json();
+      const matched = (userData.users || []).filter((u: any) => u.email.toLowerCase() === phleboEmail.trim().toLowerCase());
+      if (matched.length === 0) { setPhleboMsg('❌ No user found with that email'); return; }
+      if (matched[0].role !== 'phlebotomist') { setPhleboMsg('❌ That user is not registered as a phlebotomist'); return; }
+      const userId = matched[0].id;
+
+      const addRes = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/phlebotomists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (addRes.ok) {
+        setPhleboMsg(`✅ ${matched[0].full_name} bound to this centre`);
+        setPhleboEmail('');
+        fetchCentres();
+      } else {
+        const d = await addRes.json();
+        setPhleboMsg(`❌ ${d.detail || 'Failed'}`);
+      }
+    } catch { setPhleboMsg('❌ Error binding phlebotomist'); }
+  };
+
+  const handleRemovePhlebo = async (centreId: string, userId: string) => {
+    if (!confirm('Unbind this phlebotomist from the centre? They will stop receiving this centre\'s dispatch offers.')) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/phlebotomists/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      fetchCentres();
+    } catch { /* silent */ }
   };
 
   const handleRemoveStaff = async (centreId: string, userId: string) => {
@@ -1189,6 +1236,7 @@ export default function AdminDashboard() {
                   const statusBg = c.status === 'active' ? '#d1fae5' : c.status === 'paused' ? '#fef3c7' : '#f3f4f6';
                   const staffList = c.staff || [];
                   const areaList = c.areas || [];
+                  const phleboList = c.phlebotomists || [];
                   return (
                     <div key={c.id} style={{
                       backgroundColor: 'white', borderRadius: 12, padding: 20,
@@ -1294,6 +1342,55 @@ export default function AdminDashboard() {
                         </div>
                         {selectedCentre === c.id && staffMsg && (
                           <p style={{ fontSize: '0.78rem', color: staffMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{staffMsg}</p>
+                        )}
+                      </div>
+
+                      {/* ── Phlebotomists section ─────────────────────── */}
+                      {/* Home-collection dispatch only offers this centre's
+                          bookings to phlebos bound here — an unbound phlebo
+                          never gets a request or email for it. */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                          Phlebotomists ({phleboList.length})
+                        </div>
+                        {phleboList.length > 0 && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                            {phleboList.map((p: any) => (
+                              <span key={p.user_id} style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
+                                backgroundColor: p.on_duty ? '#fff7ed' : '#f3f4f6',
+                                color: p.on_duty ? '#ea580c' : '#6b7280',
+                              }}>
+                                {p.users?.full_name || p.user_id?.slice(0, 8)}
+                                {p.verification_status !== 'verified' && ' (unverified)'}
+                                <button onClick={() => handleRemovePhlebo(c.id, p.user_id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.7rem', padding: 0, marginLeft: 2 }}
+                                  title="Unbind phlebotomist">✕</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            placeholder="Phlebotomist email"
+                            value={selectedCentre === c.id ? phleboEmail : ''}
+                            onChange={e => { setSelectedCentre(c.id); setPhleboEmail(e.target.value); setPhleboMsg(''); }}
+                            onFocus={() => setSelectedCentre(c.id)}
+                            style={{
+                              flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
+                              fontSize: '0.8rem', maxWidth: 240,
+                            }}
+                          />
+                          <button onClick={() => { setSelectedCentre(c.id); handleAddPhlebo(c.id); }}
+                            style={{
+                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
+                              border: '1px solid #ea580c', borderRadius: 6, backgroundColor: '#fff7ed',
+                              color: '#c2410c', fontWeight: 600,
+                            }}>Bind Phlebotomist</button>
+                        </div>
+                        {selectedCentre === c.id && phleboMsg && (
+                          <p style={{ fontSize: '0.78rem', color: phleboMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{phleboMsg}</p>
                         )}
                       </div>
 

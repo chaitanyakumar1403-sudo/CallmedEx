@@ -73,6 +73,10 @@ class StaffIn(BaseModel):
     pc_role: str = "technician"
 
 
+class PhleboBindIn(BaseModel):
+    user_id: str
+
+
 class AreaIn(BaseModel):
     city: Optional[str] = None
     pincode: Optional[str] = None
@@ -135,6 +139,15 @@ async def list_centers(user: dict = Depends(get_current_user)):
         c["areas"] = _rows(
             supabase.table("processing_center_areas").select("*")
             .eq("processing_center_id", c["id"]).eq("is_active", True).execute()
+        )
+        # Phlebos bound to this centre — the exact set dispatch will offer
+        # this centre's home-collection bookings to (dispatch_engine's
+        # centre-bound candidate filter). A phlebo with no binding at all is
+        # silently excluded from every offer for every centre.
+        c["phlebotomists"] = _rows(
+            supabase.table("phlebotomists")
+            .select("user_id, on_duty, verification_status, users!phlebotomists_user_id_fkey!inner(id, full_name, email)")
+            .eq("processing_center_id", c["id"]).execute()
         )
     return {"centers": centers}
 
@@ -234,6 +247,34 @@ async def remove_staff(center_id: str, user_id: str,
     if not still_pc_staff and prior_role:
         supabase.table("users").update({"role": prior_role}) \
             .eq("id", user_id).execute()
+    return {"ok": True}
+
+
+@router.post("/{center_id}/phlebotomists")
+async def bind_phlebotomist(center_id: str, payload: PhleboBindIn,
+                             user: dict = Depends(get_current_user)):
+    """Bind a phlebotomist to this centre so home-collection dispatch for the
+    centre's bookings actually includes them as a candidate. Without this
+    binding a phlebo is silently excluded from every offer for the centre —
+    see dispatch_engine.find_nearby_providers' centre-bound filter."""
+    _require_admin(user)
+    existing = _rows(
+        supabase.table("phlebotomists").select("id")
+        .eq("user_id", payload.user_id).limit(1).execute()
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="No phlebotomist profile for this user.")
+    supabase.table("phlebotomists").update({"processing_center_id": center_id}) \
+        .eq("user_id", payload.user_id).execute()
+    return {"ok": True}
+
+
+@router.delete("/{center_id}/phlebotomists/{user_id}")
+async def unbind_phlebotomist(center_id: str, user_id: str,
+                               user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    supabase.table("phlebotomists").update({"processing_center_id": None}) \
+        .eq("user_id", user_id).eq("processing_center_id", center_id).execute()
     return {"ok": True}
 
 
