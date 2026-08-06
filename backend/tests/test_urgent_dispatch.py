@@ -377,6 +377,59 @@ async def test_create_dispatch_urgent_home_collection_uses_centre_fanout_not_the
     assert far  # the seeded far phlebo is the one that had to be reached
 
 
+# ── Orphaned booking_id recovery (production incident, Aug 2026) ────────────
+
+class _OrphanedBookingFake(FakeSupabase):
+    """Rejects the first dispatch_requests insert if it references a
+    booking_id that was never actually persisted to `bookings` — reproducing
+    the dispatch_requests_booking_id_fkey violation that used to silently
+    drop the whole dispatch (and every phlebo notification with it) whenever
+    the frontend's "on_demand" provider_id sentinel failed the bookings
+    insert.
+    """
+    def table(self, name):
+        q = super().table(name)
+        if name == "dispatch_requests":
+            orig_execute = q.execute
+
+            def execute():
+                if q._op == "insert":
+                    records = q._payload if isinstance(q._payload, list) else [q._payload]
+                    for rec in records:
+                        bid = rec.get("booking_id")
+                        if bid and not any(b.get("id") == bid for b in self.db.get("bookings", [])):
+                            raise Exception(
+                                'insert or update on table "dispatch_requests" violates '
+                                'foreign key constraint "dispatch_requests_booking_id_fkey"'
+                            )
+                return orig_execute()
+
+            q.execute = execute
+        return q
+
+
+@pytest.mark.asyncio
+async def test_create_dispatch_recovers_from_an_orphaned_booking_id(monkeypatch):
+    """The bug: a dead booking_id used to kill the ENTIRE dispatch, so no
+    phlebo was ever notified. The fix: retry the insert without the link.
+    """
+    fake = _OrphanedBookingFake()
+    monkeypatch.setattr(engine_mod, "supabase", fake)
+    monkeypatch.setattr(engine_mod.EmailService, "send_magic_dispatch_email",
+                         staticmethod(lambda **kw: None))
+    _seed_provider(fake, 17.70, 83.30)
+    orphan_booking_id = str(uuid.uuid4())  # never inserted into "bookings"
+
+    result = await UniversalDispatchEngine.create_dispatch(
+        patient_id=str(uuid.uuid4()), patient_lat=17.70, patient_lng=83.30,
+        patient_address="T", provider_type="nurse", booking_id=orphan_booking_id,
+    )
+
+    assert result["all_candidates"] == 1
+    assert fake.db["dispatch_requests"][0]["booking_id"] is None
+    assert fake.db["dispatch_offers"]  # the phlebo still got an offer/notification
+
+
 @pytest.mark.asyncio
 async def test_create_dispatch_urgent_nurse_still_uses_the_radius_multiplier(fake_db):
     """Negative case: non-home-collection urgent dispatch is untouched."""

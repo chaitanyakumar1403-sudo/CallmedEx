@@ -128,24 +128,3 @@ def send_booking_confirmation(booking_id: str, patient_mobile: str, patient_name
         logger.error(f"Booking confirmation notification failed for {booking_id}: {e}")
 
 
-@celery_app.task(name="app.workers.tasks.notifications.send_dispatch_update")
-def send_dispatch_update(patient_mobile: str, patient_name: str, status: str, provider_name: str = "", eta_mins: int = 0):
-    """
-    Async task: Notify patient of dispatch status changes in real-time.
-    Rendering (assigned/en_route/arrived/in_progress/completed wording) is
-    MediAssist's responsibility via the dispatch_status_update template.
-    """
-    try:
-        _run_async(mediassist_client.send_notification(
-            channel="whatsapp",
-            recipient={"phone": patient_mobile},
-            template="dispatch_status_update",
-            template_data={
-                "patient_name": patient_name,
-                "status": status,
-                "provider_name": provider_name,
-                "eta_minutes": eta_mins,
-            },
-        ))
-    except MediAssistError as e:
-        logger.error(f"Dispatch update notification failed: {e}")

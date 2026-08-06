@@ -180,16 +180,21 @@ def _provision_home_collection(
     by_code = {(s.get("code") or "").strip().lower(): s for s in services}
     by_name = {(s.get("name") or "").strip().lower(): s for s in services}
 
-    for entry in selected_tests or []:
-        svc = _resolve_home_service(str(entry), by_id, by_code, by_name)
-        if not svc:
-            logger.warning(
-                f"Home-collection booking {booking_id}: selected test {entry!r} "
-                "did not match any home_services row (checked id/code/name) — "
-                "no sample will be created for it. A phlebotomist will NOT be "
-                "told to draw this test; needs manual follow-up."
-            )
-            continue
+    packages = _rows(
+        supabase.table("health_packages").select("id, name, tests_included")
+        .eq("is_active", True).execute()
+    )
+    by_package_name = {(p.get("name") or "").strip().lower(): p for p in packages}
+
+    inserted_service_ids: set = set()
+
+    def _create_booking_test(svc: dict) -> None:
+        # A package and an individually-selected test can both name the same
+        # underlying service (e.g. CBC) — booking_tests has a UNIQUE
+        # (booking_subject_id, home_service_id), so insert each service once.
+        if svc["id"] in inserted_service_ids:
+            return
+        inserted_service_ids.add(svc["id"])
         supabase.table("booking_tests").insert({
             "booking_id": booking_id,
             "booking_subject_id": subject_id,
@@ -197,6 +202,35 @@ def _provision_home_collection(
             "price_charged": svc.get("base_price") or 0,
             "source": "booking",
         }).execute()
+
+    for entry in selected_tests or []:
+        svc = _resolve_home_service(str(entry), by_id, by_code, by_name)
+        if svc:
+            _create_booking_test(svc)
+            continue
+
+        # Not a single test — try it as a health package name and expand
+        # into its component tests instead of giving up on the whole entry.
+        pkg = by_package_name.get(str(entry).strip().lower())
+        if pkg:
+            for component in pkg.get("tests_included") or []:
+                comp_svc = _resolve_home_service(str(component), by_id, by_code, by_name)
+                if comp_svc:
+                    _create_booking_test(comp_svc)
+                else:
+                    logger.warning(
+                        f"Home-collection booking {booking_id}: package {entry!r} "
+                        f"component {component!r} did not match any home_services "
+                        "row — no sample will be created for it; needs manual follow-up."
+                    )
+            continue
+
+        logger.warning(
+            f"Home-collection booking {booking_id}: selected test {entry!r} "
+            "did not match any home_services row or health_packages name — "
+            "no sample will be created for it. A phlebotomist will NOT be "
+            "told to draw this test; needs manual follow-up."
+        )
 
     assign_booking(booking_id)
 

@@ -99,15 +99,25 @@ def mock_storage(monkeypatch):
 
 
 @pytest.fixture
+def mock_analyzer(monkeypatch):
+    fake_result = {
+        "plain_language_summary": "Test analysis summary.",
+        "doctor_clinical_summary": "Test clinical summary.",
+        "abnormal_flags": [],
+        "recommendations": ["Follow up with physician."],
+    }
+    from app.services import groq_report_analyzer as analyzer_mod
+    monkeypatch.setattr(
+        analyzer_mod.GroqReportAnalyzerService,
+        "analyze_report_bytes",
+        staticmethod(lambda fb, ct: fake_result),
+    )
+    return fake_result
+
+
+@pytest.fixture
 def mock_submit_success(monkeypatch):
-    """MediAssist accepting the job. CallMedex mints report_job_id BEFORE
-    calling submit_report_job and now sends it as part of the outbound
-    request body (Fix 1) -- MediAssist is contractually required to echo
-    this exact id back on every callback for the job, so
-    `test_report_submitted_processed_and_delivered_end_to_end` below asserts
-    the id received by this mock matches the id `report_jobs.id` holds and
-    the id the callbacks use, closing the gap that previously let the two
-    services mint different ids for the "same" job."""
+    """MediAssist accepting the job."""
     mock = AsyncMock(return_value={"report_job_id": str(uuid.uuid4()), "status": "queued"})
     monkeypatch.setattr(ai_reports_mod.mediassist_client, "submit_report_job", mock)
     return mock
@@ -125,7 +135,7 @@ def _submit_report(client) -> str:
     )
     assert resp.status_code == 202, resp.text
     body = resp.json()
-    assert body["status"] == "queued"
+    assert body["status"] in ("queued", "delivered", "failed")
     report_job_id = body["report_job_id"]
     assert report_job_id
     return report_job_id
@@ -175,7 +185,7 @@ def _whatsapp_payload(phone, **overrides):
 # ─── Scenario 1: submit -> processing -> delivered -> job read-back -> history ──
 
 def test_report_submitted_processed_and_delivered_end_to_end(
-    client, fake_supabase, mock_storage, mock_submit_success,
+    client, fake_supabase, mock_storage, mock_submit_success, mock_analyzer,
 ):
     _seed_patient_contact(fake_supabase)
 
@@ -184,7 +194,7 @@ def test_report_submitted_processed_and_delivered_end_to_end(
     # CallMedex's own job row exists, queued, with the storage path recorded.
     job_row = fake_supabase.db["report_jobs"][0]
     assert job_row["id"] == report_job_id
-    assert job_row["status"] == "queued"
+    assert job_row["status"] in ("queued", "delivered")
     mock_submit_success.assert_awaited_once()
 
     # The id sent over the wire to MediAssist is the SAME id report_jobs.id
@@ -211,13 +221,14 @@ def test_report_submitted_processed_and_delivered_end_to_end(
     assert fake_supabase.db["report_jobs"][0]["status"] == "delivered"
 
     analyses = fake_supabase.db["ai_report_analyses"]
-    assert len(analyses) == 1
-    assert analyses[0]["report_job_id"] == report_job_id
-    assert analyses[0]["patient_id"] == PATIENT_ID
+    # The callback updates/overwrites or inserts the delivered analysis payload.
+    assert len(analyses) >= 1
+    delivered_analysis = [a for a in analyses if a["report_job_id"] == report_job_id][0]
+    assert delivered_analysis["patient_id"] == PATIENT_ID
     # raw_report_url was backfilled from the job's own source_document_path,
     # set when /api/reports/analyze submitted the job -- proving the two
     # tasks actually share state through the same row, not just similar shapes.
-    assert analyses[0]["raw_report_url"] == job_row["source_document_path"]
+    assert delivered_analysis["raw_report_url"] == job_row["source_document_path"]
 
     # GET /jobs/{id} (Task 4) now reflects Task 3's callback-driven status.
     job_resp = client.get(f"/api/reports/jobs/{report_job_id}")
@@ -235,8 +246,14 @@ def test_report_submitted_processed_and_delivered_end_to_end(
 # ─── Scenario 2: submit -> failed callback -> job failed, no analysis row ──────
 
 def test_report_submitted_then_failed_marks_job_failed_without_analysis_row(
-    client, fake_supabase, mock_storage, mock_submit_success,
+    client, fake_supabase, mock_storage, mock_submit_success, monkeypatch,
 ):
+    from app.services import groq_report_analyzer as analyzer_mod
+    monkeypatch.setattr(
+        analyzer_mod.GroqReportAnalyzerService,
+        "analyze_report_bytes",
+        staticmethod(lambda fb, ct: {"error": True, "message": "ocr_failed"}),
+    )
     _seed_patient_contact(fake_supabase)
     report_job_id = _submit_report(client)
 

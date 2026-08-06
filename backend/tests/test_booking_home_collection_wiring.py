@@ -105,6 +105,14 @@ def _seed_home_service(fake, code, name, tube="edta_lavender", base_price=350.0)
     return sid
 
 
+def _seed_health_package(fake, name, tests_included, active=True):
+    pid = str(uuid.uuid4())
+    fake.db.setdefault("health_packages", []).append({
+        "id": pid, "name": name, "tests_included": tests_included, "is_active": active,
+    })
+    return pid
+
+
 def _home_booking(**overrides):
     fields = dict(
         provider_id="", provider_type="",
@@ -302,3 +310,55 @@ async def test_patient_response_leaks_no_centre_identity(fake_db):
     assert "processing_center" not in blob
     assert "hyd-01" not in blob
     assert "laboratory" not in blob
+
+
+# ── 5. Health package selection expands into its component tests ───────────
+
+@pytest.mark.asyncio
+async def test_a_package_selection_expands_into_its_component_tests(fake_db):
+    """Picking a package (e.g. from /packages) sends its NAME as the
+    selected_tests entry, not its component tests — that name never matches
+    a home_services row directly, so it must be looked up in health_packages
+    and expanded instead of silently producing zero samples."""
+    cid_catalog = _seed_catalog(fake_db, "Complete Blood Count", "cbc")
+    _seed_home_capable_provider(fake_db, cid_catalog, city="hyderabad")
+    centre_id = _seed_centre(fake_db, "HYD-01", "hyderabad")
+    _seed_area(fake_db, centre_id, "hyderabad")
+    _seed_home_service(fake_db, "CBC", "CBC")
+    _seed_home_service(fake_db, "ESR", "Erythrocyte Sedimentation Rate (ESR)")
+    _seed_health_package(fake_db, "Fever Profile - Basic",
+                          ["CBC", "Erythrocyte Sedimentation Rate (ESR)", "Some Retired Test"])
+
+    booking = _home_booking(catalog_id=cid_catalog, selected_tests=["Fever Profile - Basic"])
+    result = await create_booking(
+        booking, current_user={"sub": str(uuid.uuid4()), "role": "patient", "full_name": "P"}
+    )
+    assert result.success
+
+    # Two of the three components matched a home_services row -> two
+    # booking_tests rows; the retired one is skipped, not invented, same as
+    # the existing single-test unmatched behaviour. Both share the same tube
+    # type, so assign_booking consolidates them into one physical draw.
+    tests = fake_db.db["booking_tests"]
+    assert len(tests) == 2
+    assert len(fake_db.db["samples"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_package_and_an_overlapping_individual_test_are_not_double_billed(fake_db):
+    """CBC picked individually AND pulled in via a package must create ONE
+    booking_tests row, not two — booking_tests has a UNIQUE
+    (booking_subject_id, home_service_id) the DB would otherwise reject."""
+    cid_catalog = _seed_catalog(fake_db, "Complete Blood Count", "cbc")
+    _seed_home_capable_provider(fake_db, cid_catalog, city="hyderabad")
+    centre_id = _seed_centre(fake_db, "HYD-01", "hyderabad")
+    _seed_area(fake_db, centre_id, "hyderabad")
+    _seed_home_service(fake_db, "CBC", "CBC")
+    _seed_health_package(fake_db, "Fever Profile - Basic", ["CBC"])
+
+    booking = _home_booking(catalog_id=cid_catalog, selected_tests=["CBC", "Fever Profile - Basic"])
+    result = await create_booking(
+        booking, current_user={"sub": str(uuid.uuid4()), "role": "patient", "full_name": "Q"}
+    )
+    assert result.success
+    assert len(fake_db.db["booking_tests"]) == 1

@@ -443,9 +443,33 @@ class UniversalDispatchEngine:
 
         if supabase:
             try:
-                await asyncio.to_thread(
-                    lambda: supabase.table("dispatch_requests").insert(dispatch_data).execute()
-                )
+                try:
+                    await asyncio.to_thread(
+                        lambda: supabase.table("dispatch_requests").insert(dispatch_data).execute()
+                    )
+                except Exception as insert_err:
+                    # booking_id can point at a booking that only ever made it
+                    # into the local in-memory fallback (its own Supabase
+                    # insert failed, e.g. a bad provider_id sentinel like
+                    # "on_demand") — the FK on dispatch_requests.booking_id
+                    # then rejects this row too, and every caller funnels
+                    # through this one method, so silently dropping the whole
+                    # dispatch here means NO provider is ever notified. That
+                    # booking record is never required to actually notify a
+                    # provider (candidate search is by lat/lng, not
+                    # booking_id) — drop the stale link and retry once rather
+                    # than losing the notification over it.
+                    if valid_booking_id and "booking_id" in str(insert_err):
+                        logger.warning(
+                            f"dispatch_requests insert failed on booking_id={valid_booking_id} "
+                            f"(booking not found in DB), retrying without it: {insert_err}"
+                        )
+                        dispatch_data["booking_id"] = None
+                        await asyncio.to_thread(
+                            lambda: supabase.table("dispatch_requests").insert(dispatch_data).execute()
+                        )
+                    else:
+                        raise
 
                 # Build every offer up front, then insert them in ONE round
                 # trip instead of one blocking .execute() per candidate.
@@ -648,14 +672,14 @@ class UniversalDispatchEngine:
                             provider_name=provider_name,
                             provider_type=d_req["provider_type"]
                         )
-                    if patient_data.get("mobile"):
-                        from app.workers.tasks.notifications import send_dispatch_update
-                        send_dispatch_update.delay(
-                            patient_mobile=patient_data["mobile"],
-                            patient_name=patient_data.get("full_name", "Patient"),
-                            status="assigned",
-                            provider_name=provider_name,
-                        )
+                    from app.services.notification_engine import NotificationEngine
+                    await NotificationEngine.send(
+                        user_id=d_req["patient_id"],
+                        channel="in_app",
+                        title="Phlebotomist assigned",
+                        body=f"{provider_name} has been assigned to your booking and is preparing to head your way.",
+                        data={"dispatch_id": dispatch_id, "status": "assigned", "provider_name": provider_name},
+                    )
             except Exception as e:
                 logger.error(f"Failed to send tracking email/notification: {e}")
 
@@ -733,13 +757,20 @@ class UniversalDispatchEngine:
             OTPService.generate_otp(dispatch_id)
 
         if new_status in ("en_route", "arrived", "in_progress", "completed"):
-            UniversalDispatchEngine._notify_patient_of_status(dispatch_row, new_status)
+            await UniversalDispatchEngine._notify_patient_of_status(dispatch_row, new_status)
 
         return {"success": True, "dispatch": dispatch_row}
 
+    _STATUS_COPY = {
+        "en_route": ("Phlebotomist on the way", "{provider} is on the way to your location."),
+        "arrived": ("Phlebotomist has arrived", "{provider} has arrived. Have your OTP ready to verify them."),
+        "in_progress": ("Sample collection started", "{provider} has started your sample collection."),
+        "completed": ("Sample collection completed", "Your sample collection is complete. Reports will appear on your dashboard once ready."),
+    }
+
     @staticmethod
-    def _notify_patient_of_status(dispatch_row: dict, new_status: str) -> None:
-        """Best-effort WhatsApp status notification via MediAssist AI.
+    async def _notify_patient_of_status(dispatch_row: dict, new_status: str) -> None:
+        """Best-effort in-app status notification, shown on the patient dashboard.
 
         Never raises — a notification failure must never block a dispatch
         status transition that has already been committed.
@@ -750,35 +781,37 @@ class UniversalDispatchEngine:
             patient_id = dispatch_row.get("patient_id")
             if not patient_id:
                 return
-            patient_res = (
-                supabase.table("users").select("full_name, mobile")
-                .eq("id", patient_id).limit(1).execute()
-            )
-            if not patient_res.data or not patient_res.data[0].get("mobile"):
-                return
-            patient = patient_res.data[0]
 
-            provider_name = ""
+            provider_name = "Your phlebotomist"
             provider_id = dispatch_row.get("assigned_provider_id")
             if provider_id:
                 prov_res = (
                     supabase.table("users").select("full_name")
                     .eq("id", provider_id).limit(1).execute()
                 )
-                if prov_res.data:
-                    provider_name = prov_res.data[0].get("full_name", "")
+                if prov_res.data and prov_res.data[0].get("full_name"):
+                    provider_name = prov_res.data[0]["full_name"]
 
-            from app.workers.tasks.notifications import send_dispatch_update
-            send_dispatch_update.delay(
-                patient_mobile=patient["mobile"],
-                patient_name=patient.get("full_name", "Patient"),
-                status=new_status,
-                provider_name=provider_name,
-                eta_mins=int(dispatch_row.get("estimated_eta_minutes") or 0),
+            title, body_template = UniversalDispatchEngine._STATUS_COPY.get(
+                new_status, ("Booking update", "Your booking status changed to {status}.")
+            )
+
+            from app.services.notification_engine import NotificationEngine
+            await NotificationEngine.send(
+                user_id=patient_id,
+                channel="in_app",
+                title=title,
+                body=body_template.format(provider=provider_name, status=new_status),
+                data={
+                    "dispatch_id": dispatch_row.get("id"),
+                    "status": new_status,
+                    "provider_name": provider_name,
+                    "eta_minutes": int(dispatch_row.get("estimated_eta_minutes") or 0),
+                },
             )
         except Exception as e:
             logger.warning(
-                f"Dispatch status notification enqueue failed for "
+                f"Dispatch status notification failed for "
                 f"{dispatch_row.get('id')}: {e}"
             )
 
