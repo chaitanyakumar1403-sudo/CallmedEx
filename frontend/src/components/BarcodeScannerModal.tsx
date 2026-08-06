@@ -127,10 +127,10 @@ export function BarcodeScannerModal({
         stream.getTracks().forEach((t) => t.stop());
         return;
       }
+      // The <video> element doesn't exist yet — it only mounts once mode
+      // becomes "native" below. Attaching streamRef.current to it happens
+      // in the mode-driven effect further down, once it's actually in the DOM.
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setMode("native");
       setHintText("");
     } catch (err: unknown) {
@@ -270,6 +270,15 @@ export function BarcodeScannerModal({
     if (mode !== "native" || !videoRef.current) return;
 
     const video = videoRef.current;
+
+    // The <video> element only mounts once mode flips to "native", which
+    // happens after the stream was captured — so the srcObject assignment
+    // in startNativeScanner ran against a still-null ref and silently no-op'd.
+    // Attach it here, now that the element actually exists in the DOM.
+    if (streamRef.current && video.srcObject !== streamRef.current) {
+      video.srcObject = streamRef.current;
+    }
+
     const tick = () => handleScan(video);
     intervalRef.current = setInterval(tick, SCAN_INTERVAL_MS);
 
