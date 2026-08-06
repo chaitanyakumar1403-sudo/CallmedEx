@@ -701,6 +701,8 @@ async def update_task_status_lifecycle(
     now = datetime.now(timezone.utc).isoformat()
     update_data: dict = {"status": body.status, "updated_at": now}
 
+    if body.status == "arrived":
+        update_data["arrived_at"] = now
     if body.status == "completed":
         update_data["completed_at"] = now
 
@@ -730,6 +732,12 @@ async def update_task_status_lifecycle(
             .execute()
         )
         if result.data:
+            # The patient's verification code is only ever produced here — the
+            # arrival transition is its trigger. Without this call the patient
+            # dashboard has nothing to show and the provider's /verify-otp
+            # step can never succeed.
+            if body.status == "arrived":
+                OTPService.generate_otp(dispatch_id)
             return {"success": True, "status": body.status, "message": f"Status updated to {body.status}"}
         raise HTTPException(404, "Dispatch not found or not assigned to you")
     except HTTPException:
