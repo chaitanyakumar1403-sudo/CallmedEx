@@ -110,11 +110,32 @@ async def queue_summary(staff: dict = Depends(get_current_pc_staff)):
     )
     tube_map = {t["code"]: t for t in tube_types}
 
-    # Pending collection (tomorrow's expected)
+    # All report_jobs for this centre
+    all_jobs = _rows(
+        supabase.table("report_jobs")
+        .select("id, status, created_at")
+        .eq("processing_center_id", centre_id)
+        .execute()
+    ) if supabase else []
+
+    # 10 Laboratory Workflow Widgets (100% DB-driven)
+    pending_receipt = len([s for s in all_samples if s.get("status") in ("pending_collection", "in_transit", "handover_requested")])
+    received_cnt = len([s for s in all_samples if s.get("status") == "received"])
+    verification_queue = received_cnt
+    verified_cnt = len([s for s in all_samples if s.get("status") in ("verified", "batched", "sent_to_lab")])
+
+    submitted_to_mediassist = len([j for j in all_jobs if j.get("status") in ("submitted", "accepted")])
+    awaiting_report = len([j for j in all_jobs if j.get("status") in ("queued", "submitted", "accepted", "processing")])
+    report_processing = len([j for j in all_jobs if j.get("status") == "processing"])
+    delivered_cnt = len([j for j in all_jobs if j.get("status") == "delivered"])
+    corrected_reports = len([j for j in all_jobs if j.get("status") == "corrected"])
+    failed_jobs = len([j for j in all_jobs if j.get("status") in ("failed", "dead_letter", "expired")])
+
+    # Pending collection (backward compatibility)
     pending = [s for s in all_samples if s.get("status") == "pending_collection"]
-    # Samples awaiting verification (received but not verified)
+    # Samples awaiting verification
     received = [s for s in all_samples if s.get("status") == "received"]
-    # Already verified today
+    # Already verified
     verified = [s for s in all_samples if s.get("status") == "verified"]
     # Rejected
     rejected = [s for s in all_samples if s.get("status") == "rejected"]
@@ -139,11 +160,23 @@ async def queue_summary(staff: dict = Depends(get_current_pc_staff)):
         "centre_code": centre_row.get("code", ""),
         "centre_name": centre_row.get("name", ""),
         "daily_capacity": centre_row.get("daily_capacity", 0),
+        # Legacy/Backward compatibility fields
         "pending_collection": len(pending),
         "awaiting_verification": len(received),
         "verified_today": len(verified),
         "rejected_today": len(rejected),
         "total_samples": len(all_samples),
+        # 10 Canonical Laboratory Workflow Widgets
+        "pending_receipt": pending_receipt,
+        "received": received_cnt,
+        "verification_queue": verification_queue,
+        "verified": verified_cnt,
+        "submitted_to_mediassist": submitted_to_mediassist,
+        "awaiting_report": awaiting_report,
+        "report_processing": report_processing,
+        "delivered": delivered_cnt,
+        "corrected_reports": corrected_reports,
+        "failed_jobs": failed_jobs,
         "tube_breakdown": tube_breakdown,
     }
 

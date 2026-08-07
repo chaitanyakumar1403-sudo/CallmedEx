@@ -448,3 +448,106 @@ async def admin_resolve_ops_alert(
 
     return {"success": True, "message": "Alert resolved."}
 
+
+# ─── ReportJob Retry Management ───────────────────────────────────────────
+
+@router.post("/report-jobs/{report_job_id}/retry")
+async def admin_retry_report_job(
+    report_job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Manually retry a failed or dead-letter ReportJob."""
+    check_admin_access(current_user)
+
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database uninitialized.")
+
+    rows = _rows(
+        supabase.table("report_jobs").select("*").eq("id", report_job_id).limit(1).execute()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="ReportJob not found.")
+
+    job = rows[0]
+
+    # Reset retry state
+    now_str = datetime.now(timezone.utc).isoformat()
+    supabase.table("report_jobs").update({
+        "status": "queued",
+        "dead_letter": False,
+        "last_error": None,
+        "next_retry_at": None,
+        "updated_at": now_str,
+    }).eq("id", report_job_id).execute()
+
+    from app.services.report_submission import submit_report_job_to_mediassist
+    try:
+        res = await submit_report_job_to_mediassist(
+            report_job_id=job["id"],
+            patient_id=job.get("patient_id") or "",
+            booking_id=job.get("booking_id"),
+            sample_id=job.get("sample_id"),
+            processing_center_id=job.get("processing_center_id"),
+            barcode=job.get("barcode"),
+            connector_type=job.get("connector_type") or "mocdoc",
+            idempotency_key=job.get("idempotency_key"),
+            correlation_id=job.get("correlation_id"),
+            db=supabase,
+        )
+        return {"success": True, "message": f"ReportJob {report_job_id} retried successfully.", "result": res}
+    except Exception as exc:
+        logger.error(f"Manual retry for ReportJob {report_job_id} failed: {exc}")
+        return {"success": False, "message": f"Retry failed: {exc}", "report_job_id": report_job_id}
+
+
+@router.post("/report-jobs/retry-failed")
+async def admin_batch_retry_failed_report_jobs(
+    current_user: dict = Depends(get_current_user),
+):
+    """Batch retry all failed/retryable ReportJobs past their next_retry_at."""
+    check_admin_access(current_user)
+
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database uninitialized.")
+
+    now_str = datetime.now(timezone.utc).isoformat()
+    rows = _rows(
+        supabase.table("report_jobs")
+        .select("*")
+        .in_("status", ["failed", "retry"])
+        .eq("dead_letter", False)
+        .lte("next_retry_at", now_str)
+        .execute()
+    )
+
+    retried_count = 0
+    errors = []
+
+    from app.services.report_submission import submit_report_job_to_mediassist
+    for job in rows:
+        try:
+            await submit_report_job_to_mediassist(
+                report_job_id=job["id"],
+                patient_id=job.get("patient_id") or "",
+                booking_id=job.get("booking_id"),
+                sample_id=job.get("sample_id"),
+                processing_center_id=job.get("processing_center_id"),
+                barcode=job.get("barcode"),
+                connector_type=job.get("connector_type") or "mocdoc",
+                idempotency_key=job.get("idempotency_key"),
+                correlation_id=job.get("correlation_id"),
+                db=supabase,
+            )
+            retried_count += 1
+        except Exception as e:
+            errors.append({"report_job_id": job["id"], "error": str(e)})
+
+    return {
+        "success": True,
+        "scanned_count": len(rows),
+        "retried_count": retried_count,
+        "failed_count": len(errors),
+        "errors": errors,
+    }
+
+

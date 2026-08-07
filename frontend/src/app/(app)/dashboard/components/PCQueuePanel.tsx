@@ -80,37 +80,84 @@ export default function PCQueuePanel() {
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      {/* ── Summary tiles ──────────────────────────────────────────── */}
-      <StatGrid>
-        <Stat
-          label="Pending Collection"
-          value={data.pending_collection}
-          meta="Expected tubes arriving"
-          icon={Clock}
-          tone="default"
-        />
-        <Stat
-          label="Awaiting Verification"
-          value={data.awaiting_verification}
-          meta="Received, not yet checked"
-          icon={ShieldCheck}
-          tone={data.awaiting_verification > 0 ? "urgent" : "default"}
-        />
-        <Stat
-          label="Verified Today"
-          value={data.verified_today}
-          meta="Passed 5-point check"
-          icon={Package}
-          tone="done"
-        />
-        <Stat
-          label="Rejected Today"
-          value={data.rejected_today}
-          meta="Failed quality check"
-          icon={Ban}
-          tone={data.rejected_today > 0 ? "urgent" : "default"}
-        />
-      </StatGrid>
+      {/* ── 10 Canonical Laboratory Workflow Widgets ─────────────────── */}
+      <div>
+        <h3 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "#0f172a", fontWeight: 700 }}>
+          Laboratory Workflow Pipeline
+        </h3>
+        <StatGrid>
+          <Stat
+            label="Pending Receipt"
+            value={data.pending_receipt ?? data.pending_collection}
+            meta="In transit / expecting arrival"
+            icon={Clock}
+            tone="default"
+          />
+          <Stat
+            label="Received"
+            value={data.received ?? data.awaiting_verification}
+            meta="Intake desk scanned"
+            icon={Package}
+            tone="default"
+          />
+          <Stat
+            label="Verification Queue"
+            value={data.verification_queue ?? data.awaiting_verification}
+            meta="Awaiting 5-point quality check"
+            icon={ShieldCheck}
+            tone={(data.verification_queue ?? 0) > 0 ? "urgent" : "default"}
+          />
+          <Stat
+            label="Verified"
+            value={data.verified ?? data.verified_today}
+            meta="Passed quality check"
+            icon={ShieldCheck}
+            tone="done"
+          />
+          <Stat
+            label="Submitted to MediAssist"
+            value={data.submitted_to_mediassist ?? 0}
+            meta="Handoff payload sent"
+            icon={Package}
+            tone="default"
+          />
+          <Stat
+            label="Awaiting Report"
+            value={data.awaiting_report ?? 0}
+            meta="In processing pipeline"
+            icon={Clock}
+            tone="default"
+          />
+          <Stat
+            label="Report Processing"
+            value={data.report_processing ?? 0}
+            meta="OCR / interpretation active"
+            icon={BarChart3}
+            tone="default"
+          />
+          <Stat
+            label="Delivered"
+            value={data.delivered ?? 0}
+            meta="Patient notified on WhatsApp"
+            icon={Package}
+            tone="done"
+          />
+          <Stat
+            label="Corrected Reports"
+            value={data.corrected_reports ?? 0}
+            meta="Updated version released"
+            icon={ShieldCheck}
+            tone="default"
+          />
+          <Stat
+            label="Failed Jobs"
+            value={data.failed_jobs ?? 0}
+            meta="Requires admin retry"
+            icon={Ban}
+            tone={(data.failed_jobs ?? 0) > 0 ? "urgent" : "default"}
+          />
+        </StatGrid>
+      </div>
 
       {/* ── Capacity bar ───────────────────────────────────────────── */}
       {capacity > 0 && (

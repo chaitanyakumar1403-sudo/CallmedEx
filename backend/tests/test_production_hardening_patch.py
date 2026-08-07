@@ -90,7 +90,7 @@ async def test_sample_verification_creates_and_submits_report_job(fake_db, monke
     jobs = fake_db.db.get("report_jobs", [])
     assert len(jobs) == 1
     assert jobs[0]["sample_id"] == sample_id
-    assert jobs[0]["status"] == "queued"
+    assert jobs[0]["status"] == "submitted"
 
     # Verify MediAssist submission was called via shared submission service
     assert mock_submit.called is True

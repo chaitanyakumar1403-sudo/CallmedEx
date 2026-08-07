@@ -9,6 +9,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from datetime import datetime, timezone, timedelta
+from typing import Any, Dict, Optional, Set
+
 from app.database import supabase
 from app.integrations.mediassist_client import (
     mediassist_client,
@@ -17,6 +20,39 @@ from app.integrations.mediassist_client import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Strict ReportJob FSM Transition Matrix
+ALLOWED_REPORT_JOB_TRANSITIONS: Dict[str, Set[str]] = {
+    "queued": {"submitted", "failed"},
+    "submitted": {"accepted", "processing", "delivered", "failed", "retry"},
+    "accepted": {"processing", "failed"},
+    "processing": {"delivered", "failed", "expired"},
+    "delivered": {"corrected"},
+    "failed": {"retry", "dead_letter"},
+    "expired": {"retry", "dead_letter"},
+    "retry": {"submitted", "failed", "dead_letter"},
+    "corrected": {"corrected"},
+    "dead_letter": {"retry"},
+}
+
+
+def validate_report_job_transition(current_status: str, new_status: str) -> None:
+    """Validate allowed report_job FSM transitions."""
+    if not current_status or current_status == new_status:
+        return
+    allowed = ALLOWED_REPORT_JOB_TRANSITIONS.get(current_status, set())
+    if new_status not in allowed:
+        raise ValueError(
+            f"Illegal ReportJob state transition from '{current_status}' to '{new_status}'"
+        )
+
+
+def calculate_exponential_backoff(
+    retry_count: int, initial_delay_seconds: int = 30, max_delay_seconds: int = 3600
+) -> str:
+    """Calculate ISO timestamp for next_retry_at using 30s * 2^retry_count backoff."""
+    delay = min(initial_delay_seconds * (2 ** max(0, retry_count)), max_delay_seconds)
+    return (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat()
 
 
 def _rows(result) -> list:
@@ -78,21 +114,7 @@ async def submit_report_job_to_mediassist(
     Guarantees:
     - Exactly-once submission pattern with preserved correlation_id.
     - Single-source implementation shared between patient uploads & PC verification.
-    - Safe handling of transient errors without marking recoverable jobs as permanently failed.
-
-    Args:
-        already_analyzed: True when the caller already produced and persisted
-            a real (non-fabricated) analysis for this report_job_id via the
-            in-process Groq/OpenRouter engine before calling this function
-            (ai_reports.py's synchronous /analyze path). This call is then
-            only for WhatsApp delivery via MediAssist — on failure, we must
-            NOT re-run analysis (the P0 engine already produced a real
-            result; re-running would double OpenRouter cost/latency for no
-            benefit) and must NOT mark the job "failed" (it is already
-            correctly "delivered"). Processing-center verified samples
-            (pc_operations.py) never set this — they have no prior
-            in-process analysis, so the existing fallback-analysis behavior
-            is what gets them a result when MediAssist is down.
+    - FSM state transition validation and exponential backoff retry scheduling.
     """
     if client is None:
         client = mediassist_client
@@ -120,23 +142,20 @@ async def submit_report_job_to_mediassist(
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
         )
-        # Record analysis source for audit
         if db:
             try:
-                db.table("report_jobs").update({
+                update_data = {
                     "analysis_source": "mediassist",
-                }).eq("id", report_job_id).execute()
-            except Exception:
-                pass  # Column may not exist yet
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if not already_analyzed:
+                    update_data["status"] = "submitted"
+                db.table("report_jobs").update(update_data).eq("id", report_job_id).execute()
+            except Exception as update_err:
+                logger.warning(f"Could not update status to submitted for {report_job_id}: {update_err}")
         return response
     except (MediAssistError, Exception) as e:
         if already_analyzed:
-            # P0/P2.7 gate: a real analysis already exists for this job
-            # (delivered synchronously by the in-process engine before this
-            # function was ever called). MediAssist failing here only means
-            # WhatsApp delivery didn't happen — re-running analysis would
-            # just double OpenRouter cost, and marking the job "failed"
-            # below would incorrectly overwrite an already-delivered result.
             logger.info(
                 f"MediAssist WhatsApp handoff failed for already-analyzed "
                 f"report job {report_job_id}: {e}. Report was already "
@@ -146,34 +165,43 @@ async def submit_report_job_to_mediassist(
             return {"status": "delivered", "analysis_source": "native", "whatsapp_handoff": "failed"}
 
         logger.warning(
-            f"MediAssist unavailable for report job {report_job_id}: {e}. "
-            f"Attempting Groq/OpenRouter fallback."
+            f"MediAssist submission failed for report job {report_job_id}: {e}. Scheduling retry."
         )
 
-        # ── P2.7: Fall back to in-process AI analysis ────────────────────
-        try:
-            fallback_result = _run_fallback_analysis(
-                report_job_id=report_job_id,
-                patient_id=patient_id,
-                source_document_url=source_document_url,
-                db=db,
-            )
-            if fallback_result:
-                return fallback_result
-        except Exception as fallback_err:
-            logger.error(f"Fallback analysis also failed for {report_job_id}: {fallback_err}")
-
-        # Both MediAssist and fallback failed — mark as failed
         if db:
             try:
-                db.table("report_jobs").update({
-                    "status": "failed",
-                    "failure_reason": f"MediAssist: {str(e)[:200]}. Fallback also failed.",
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", report_job_id).execute()
+                job_rows = _rows(
+                    db.table("report_jobs").select("retry_count, max_retries, status").eq("id", report_job_id).limit(1).execute()
+                )
+                curr_count = 0
+                max_retries = 3
+                if job_rows:
+                    curr_count = job_rows[0].get("retry_count") or 0
+                    max_retries = job_rows[0].get("max_retries") or 3
+
+                new_count = curr_count + 1
+                now_str = datetime.now(timezone.utc).isoformat()
+                if new_count >= max_retries:
+                    db.table("report_jobs").update({
+                        "status": "dead_letter",
+                        "dead_letter": True,
+                        "retry_count": new_count,
+                        "last_error": str(e)[:500],
+                        "updated_at": now_str,
+                    }).eq("id", report_job_id).execute()
+                else:
+                    next_retry = calculate_exponential_backoff(new_count)
+                    db.table("report_jobs").update({
+                        "status": "retry",
+                        "retry_count": new_count,
+                        "next_retry_at": next_retry,
+                        "last_error": str(e)[:500],
+                        "updated_at": now_str,
+                    }).eq("id", report_job_id).execute()
             except Exception as db_err:
-                logger.error(f"Failed to update report_job {report_job_id} to failed: {db_err}")
+                logger.error(f"Failed to update report_job {report_job_id} retry state: {db_err}")
         raise e
+
 
 
 def _run_fallback_analysis(

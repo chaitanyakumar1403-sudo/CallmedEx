@@ -213,7 +213,8 @@ def test_corrected_report_versioning_and_idempotency_replay(client, fake_db):
     r2 = _post(client, "/callbacks/report-delivered", delivered_payload_2, idem_key=idem_2, correlation_id=_new_corr())
     assert r2.status_code == 200
     assert len(fake_db.db["report_jobs"]) == 1  # ReportJob count remains 1!
-    assert fake_db.db["ai_report_analyses"][0]["plain_language_summary"] == "Corrected Summary v2"
+    assert len(fake_db.db["ai_report_analyses"]) == 2  # Version history preserved!
+    assert fake_db.db["ai_report_analyses"][-1]["plain_language_summary"] == "Corrected Summary v2"
 
 
 def test_invalid_signature_callback_rejected(client, fake_db):

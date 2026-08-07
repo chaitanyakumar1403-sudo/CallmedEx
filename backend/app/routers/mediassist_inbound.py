@@ -256,9 +256,35 @@ async def report_processing_callback(
     return _store_and_respond(x_idempotency_key, endpoint, 200, {"received": True})
 
 
+# ─── 1b. Report job accepted by MediAssist worker ─────────────────────────
+
+@router.post("/callbacks/report-accepted")
+async def report_accepted_callback(
+    body: ReportCallback,
+    request: Request,
+    x_idempotency_key: str = Header(..., alias="X-Idempotency-Key"),
+    x_correlation_id: str = Header(..., alias="X-Correlation-Id"),
+):
+    endpoint = request.url.path
+    if (cached := _idempotent_or(x_idempotency_key, endpoint)) is not None:
+        return cached
+
+    job = _get_report_job(body.report_job_id)
+    if not job:
+        return _not_found_report_job(x_idempotency_key, endpoint)
+
+    supabase.table("report_jobs").update({
+        "status": "accepted",
+        "updated_at": _now_iso(),
+    }).eq("id", body.report_job_id).execute()
+
+    return _store_and_respond(x_idempotency_key, endpoint, 200, {"received": True})
+
+
 # ─── 2. Report delivered ────────────────────────────────────────────────────
 
 @router.post("/callbacks/report-delivered")
+@router.post("/callbacks/report-corrected")
 async def report_delivered_callback(
     body: ReportDeliveredCallback,
     request: Request,
@@ -274,39 +300,43 @@ async def report_delivered_callback(
         return _not_found_report_job(x_idempotency_key, endpoint)
 
     now = _now_iso()
+    is_corrected = endpoint.endswith("/report-corrected")
+    new_job_status = "corrected" if is_corrected else "delivered"
+
     supabase.table("report_jobs").update({
-        "status": "delivered",
+        "status": new_job_status,
         "updated_at": now,
     }).eq("id", body.report_job_id).execute()
 
     analysis = body.analysis
-    analysis_fields = {
+    existing_analyses = _rows(
+        supabase.table("ai_report_analyses")
+        .select("*").eq("report_job_id", body.report_job_id).execute()
+    )
+
+    max_version = 0
+    raw_url = job.get("source_document_path") or ""
+    if existing_analyses:
+        versions = [r.get("report_version", 1) for r in existing_analyses if r.get("report_version") is not None]
+        max_version = max(versions) if versions else 1
+        raw_url = existing_analyses[0].get("raw_report_url") or raw_url
+
+    new_version = max_version + 1 if existing_analyses else 1
+    report_status = "corrected" if (is_corrected or max_version >= 1) else "final"
+
+    analysis_row = {
+        "id": str(uuid.uuid4()),
         "patient_id": job["patient_id"],
+        "report_job_id": body.report_job_id,
+        "raw_report_url": raw_url,
         "plain_language_summary": analysis.plain_language_summary,
         "doctor_clinical_summary": analysis.doctor_clinical_summary,
         "abnormal_flags": [f.model_dump(exclude_none=True) for f in analysis.abnormal_flags],
-        "report_job_id": body.report_job_id,
+        "report_version": new_version,
+        "report_status": report_status,
+        "created_at": now,
     }
-
-    existing_rows = _rows(
-        supabase.table("ai_report_analyses")
-        .select("id").eq("report_job_id", body.report_job_id).limit(1).execute()
-    )
-    if existing_rows:
-        # Update only — `raw_report_url` is left exactly as whatever created
-        # this row (Task 4's job-submission path) set it to.
-        supabase.table("ai_report_analyses").update(analysis_fields).eq("id", existing_rows[0]["id"]).execute()
-    else:
-        # No pre-existing row for this report_job_id (e.g. this callback
-        # arrived for a job created before Task 4's rewiring existed).
-        # raw_report_url is NOT NULL on ai_report_analyses with no default,
-        # so reuse report_jobs.source_document_path — the original document
-        # reference recorded when the job was submitted — rather than
-        # inventing a value here.
-        analysis_fields["id"] = str(uuid.uuid4())
-        analysis_fields["raw_report_url"] = job.get("source_document_path") or ""
-        analysis_fields["created_at"] = now
-        supabase.table("ai_report_analyses").insert(analysis_fields).execute()
+    supabase.table("ai_report_analyses").insert(analysis_row).execute()
 
     AuditService.log(
         action=AuditActions.MEDIASSIST_REPORT_JOB_DELIVERED,
@@ -317,6 +347,8 @@ async def report_delivered_callback(
             "correlation_id": x_correlation_id,
             "delivered_channel": body.delivered_channel,
             "message_id": body.message_id,
+            "report_version": new_version,
+            "report_status": report_status,
         },
     )
 
