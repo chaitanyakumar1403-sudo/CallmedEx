@@ -47,21 +47,10 @@ export interface FamilyHubState {
 }
 
 let state: FamilyHubState = {
-  members: [
-    { id: 'self', fullName: 'Self (Account Owner)', relationship: 'Primary', hasActiveAlert: false, alertCount: 0, healthStatus: 'optimal' },
-    { id: 'fam-1', fullName: 'Sita Sharma (Mother)', relationship: 'Mother', hasActiveAlert: true, alertCount: 1, healthStatus: 'attention' },
-    { id: 'fam-2', fullName: 'Ramesh Sharma (Father)', relationship: 'Father', hasActiveAlert: false, alertCount: 0, healthStatus: 'optimal' },
-  ],
+  members: [],
   activeMemberId: 'self',
-  emergencyContacts: [
-    { id: 'c-1', contactName: 'Dr. Anita Roy', phone: '+919876543210', relationship: 'Primary Physician', isActive: true },
-    { id: 'c-2', contactName: 'Rajesh Sharma', phone: '+919812345678', relationship: 'Brother', isActive: true },
-  ],
-  medications: [
-    { id: 'm-1', medicineName: 'Metformin 500mg', dosage: '1 tablet twice daily after meals', totalPills: 60, remainingPills: 14, pillsPerDay: 2, refillDate: '2026-08-14' },
-    { id: 'm-2', medicineName: 'Atorvastatin 10mg', dosage: '1 tablet at bedtime', totalPills: 30, remainingPills: 5, pillsPerDay: 1, refillDate: '2026-08-12' },
-    { id: 'm-3', medicineName: 'Multivitamin Complex', dosage: '1 capsule daily morning', totalPills: 30, remainingPills: 22, pillsPerDay: 1, refillDate: '2026-08-29' },
-  ],
+  emergencyContacts: [],
+  medications: [],
   sosActive: false,
   sosCountdownSeconds: 5,
   setActiveMemberId: (id: string) => updateState({ activeMemberId: id }),
@@ -90,6 +79,13 @@ function subscribe(listener: () => void) {
 function getSnapshot() {
   return state;
 }
+
+export const familyHubStore = {
+  getState: () => state,
+  setMembers: (members: FamilyMemberContext[]) => updateState({ members }),
+  setEmergencyContacts: (contacts: EmergencyContact[]) => updateState({ emergencyContacts: contacts }),
+  setMedications: (meds: MedicationItem[]) => updateState({ medications: meds }),
+};
 
 export function useFamilyHubStore(): FamilyHubState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

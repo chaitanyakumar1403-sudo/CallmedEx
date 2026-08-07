@@ -75,7 +75,15 @@ export const BiomarkerMatrix: React.FC = () => {
         </div>
       </div>
 
-      {viewMode === 'compass' ? (
+      {!riskScore || biomarkers.length === 0 ? (
+        <div style={{ padding: '24px', background: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
+          <Activity style={{ width: 32, height: 32, color: '#94a3b8', margin: '0 auto 8px' }} />
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#334155', marginBottom: 4 }}>No Lab Biomarkers Recorded Yet</div>
+          <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+            Book a diagnostic lab test to generate your 5-year AI health trajectory and risk projections.
+          </div>
+        </div>
+      ) : viewMode === 'compass' ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'center' }}>
           {/* Health Index Card */}
           <div

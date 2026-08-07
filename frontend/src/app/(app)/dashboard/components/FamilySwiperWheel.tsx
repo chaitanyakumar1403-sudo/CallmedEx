@@ -25,57 +25,63 @@ export const FamilySwiperWheel: React.FC = () => {
         <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{members.length} Members</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
-        {members.map((member) => {
-          const isActive = member.id === activeMemberId;
-          return (
-            <button
-              key={member.id}
-              onClick={() => setActiveMemberId(member.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '8px 14px',
-                borderRadius: 12,
-                border: isActive ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                background: isActive ? '#e0f2fe' : '#f8fafc',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <div
+      {members.length === 0 ? (
+        <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1', fontSize: '0.82rem', color: '#64748b', textAlign: 'center' }}>
+          No family members added yet. Add family members in the Family Members section below to switch profiles.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+          {members.map((member) => {
+            const isActive = member.id === activeMemberId;
+            return (
+              <button
+                key={member.id}
+                onClick={() => setActiveMemberId(member.id)}
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%',
-                  background: isActive ? '#0284c7' : '#cbd5e1',
-                  color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  fontSize: '0.75rem',
+                  gap: 10,
+                  padding: '8px 14px',
+                  borderRadius: 12,
+                  border: isActive ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                  background: isActive ? '#e0f2fe' : '#f8fafc',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <User style={{ width: 16, height: 16 }} />
-              </div>
-
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: isActive ? 800 : 600, fontSize: '0.85rem', color: isActive ? '#0369a1' : '#1e293b' }}>
-                  {member.fullName.split(' ')[0]}
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: isActive ? '#0284c7' : '#cbd5e1',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  <User style={{ width: 16, height: 16 }} />
                 </div>
-                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{member.relationship}</div>
-              </div>
 
-              {member.hasActiveAlert && (
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706', display: 'inline-block', marginLeft: 4 }} />
-              )}
-            </button>
-          );
-        })}
-      </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: isActive ? 800 : 600, fontSize: '0.85rem', color: isActive ? '#0369a1' : '#1e293b' }}>
+                    {member.fullName.split(' ')[0]}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{member.relationship}</div>
+                </div>
+
+                {member.hasActiveAlert && (
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706', display: 'inline-block', marginLeft: 4 }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

@@ -157,8 +157,113 @@ export default function PatientDashboard() {
         console.error(e);
       }
     };
-    // Fetch both in parallel — independent calls, no need to wait sequentially
-    Promise.all([fetchBookings(), fetchMe()]);
+
+    const fetchPatientUpgradeData = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // 1. Fetch real Family Members
+      try {
+        const famRes = await fetch(`${apiBase}/api/family-members`, { headers });
+        if (famRes.ok) {
+          const famData = await famRes.json();
+          const mappedMembers = (famData.members || []).map((m: any) => ({
+            id: m.id,
+            fullName: m.full_name,
+            relationship: m.relationship || (m.is_self ? 'Self' : 'Family'),
+            hasActiveAlert: false,
+            alertCount: 0,
+            healthStatus: 'optimal',
+          }));
+          const { familyHubStore } = await import('@/store/useFamilyHubStore');
+          familyHubStore.setMembers(mappedMembers);
+        }
+      } catch (e) {
+        console.error("Family members fetch error:", e);
+      }
+
+      // 2. Fetch real Biomarkers & Risk Score
+      try {
+        const bioRes = await fetch(`${apiBase}/api/v1/patient/biomarkers`, { headers });
+        if (bioRes.ok) {
+          const bioData = await bioRes.json();
+          const { healthMatrixStore } = await import('@/store/useHealthMatrixStore');
+          if (bioData.biomarkers) {
+            const mappedPoints = bioData.biomarkers.map((b: any) => ({
+              recordedAt: b.recorded_at ? b.recorded_at.split('T')[0] : '',
+              observationCode: b.observation_code,
+              observationName: b.observation_name,
+              valueNumber: b.value_number,
+              unit: b.unit,
+            }));
+            healthMatrixStore.setBiomarkers(mappedPoints);
+            if (mappedPoints.length > 0 && !healthMatrixStore.getState().selectedCode) {
+              healthMatrixStore.setSelectedCode(mappedPoints[0].observationCode);
+            }
+          }
+          if (bioData.risk_summary) {
+            healthMatrixStore.setRiskScore({
+              cardiovascularRisk: bioData.risk_summary.cardiovascular_risk,
+              metabolicRisk: bioData.risk_summary.metabolic_risk,
+              inflammationRisk: bioData.risk_summary.inflammation_risk,
+              overallScore: bioData.risk_summary.overall_score,
+              summaryText: bioData.risk_summary.summary_text,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Biomarkers fetch error:", e);
+      }
+
+      // 3. Fetch real Medications
+      try {
+        const medRes = await fetch(`${apiBase}/api/v1/patient/medications`, { headers });
+        if (medRes.ok) {
+          const medData = await medRes.json();
+          if (medData.medications) {
+            const mappedMeds = medData.medications.map((m: any) => ({
+              id: m.id,
+              medicineName: m.medicine_name,
+              dosage: m.dosage,
+              totalPills: m.total_pills,
+              remainingPills: m.remaining_pills,
+              pillsPerDay: m.pills_per_day,
+              refillDate: m.refill_date,
+            }));
+            const { familyHubStore } = await import('@/store/useFamilyHubStore');
+            familyHubStore.setMedications(mappedMeds);
+          }
+        }
+      } catch (e) {
+        console.error("Medications fetch error:", e);
+      }
+
+      // 4. Fetch real Emergency Contacts
+      try {
+        const sosRes = await fetch(`${apiBase}/api/v1/patient/sos/contacts`, { headers });
+        if (sosRes.ok) {
+          const sosData = await sosRes.json();
+          if (sosData.contacts) {
+            const mappedContacts = sosData.contacts.map((c: any) => ({
+              id: c.id,
+              contactName: c.contact_name,
+              phone: c.phone,
+              relationship: c.relationship,
+              isActive: c.is_active,
+            }));
+            const { familyHubStore } = await import('@/store/useFamilyHubStore');
+            familyHubStore.setEmergencyContacts(mappedContacts);
+          }
+        }
+      } catch (e) {
+        console.error("Emergency contacts fetch error:", e);
+      }
+    };
+
+    // Fetch all in parallel
+    Promise.all([fetchBookings(), fetchMe(), fetchPatientUpgradeData()]);
   }, []);
 
   // Discover the dispatch_id for a scheduled (slot-booked) appointment once
