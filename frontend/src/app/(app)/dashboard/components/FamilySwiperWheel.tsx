@@ -2,63 +2,76 @@
 
 import React from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
-import { Users, User, ShieldCheck, AlertCircle, Plus } from 'lucide-react';
+import { Users, User, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export const FamilySwiperWheel: React.FC = () => {
   const { members, activeMemberId, setActiveMemberId } = useFamilyHubStore();
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900/95 to-slate-950/90 p-5 text-white shadow-xl backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-0.5 text-xs font-extrabold uppercase tracking-wider text-cyan-400">
-            <Users className="h-3.5 w-3.5" />
-            Family Caregiver Hub
-          </span>
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 16,
+        border: '1px solid #e2e8f0',
+        padding: '16px 20px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Users style={{ width: 16, height: 16, color: '#0284c7' }} />
+          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>Family Caregiver Switcher</span>
         </div>
-        <span className="text-xs font-semibold text-slate-400">{members.length} Dependents Active</span>
+        <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{members.length} Members</span>
       </div>
 
-      <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+      <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
         {members.map((member) => {
           const isActive = member.id === activeMemberId;
-          const statusColor =
-            member.healthStatus === 'optimal'
-              ? 'border-emerald-400 ring-emerald-400/40'
-              : member.healthStatus === 'attention'
-              ? 'border-amber-400 ring-amber-400/40 animate-pulse'
-              : 'border-rose-400 ring-rose-400/40';
-
           return (
             <button
               key={member.id}
               onClick={() => setActiveMemberId(member.id)}
-              className={`relative flex min-w-[120px] flex-col items-center rounded-2xl border p-3.5 transition-all duration-200 ${
-                isActive
-                  ? 'border-cyan-500/80 bg-gradient-to-b from-cyan-950/60 to-slate-950/90 shadow-lg shadow-cyan-500/15 scale-[1.02]'
-                  : 'border-slate-800 bg-slate-950/40 hover:border-slate-700 hover:bg-slate-900/60'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 14px',
+                borderRadius: 12,
+                border: isActive ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                background: isActive ? '#e0f2fe' : '#f8fafc',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap',
+              }}
             >
-              {/* Alert Badge */}
-              {member.hasActiveAlert && (
-                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-slate-950 shadow-md ring-2 ring-slate-900 animate-bounce">
-                  !
-                </span>
-              )}
-
-              {/* Glowing Avatar Ring */}
               <div
-                className={`relative mb-2 flex h-14 w-14 items-center justify-center rounded-full border-2 bg-slate-800 transition-all ${statusColor} ${
-                  isActive ? 'ring-4 ring-offset-2 ring-offset-slate-900' : ''
-                }`}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
+                  background: isActive ? '#0284c7' : '#cbd5e1',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                }}
               >
-                <User className={`h-7 w-7 ${isActive ? 'text-cyan-300' : 'text-slate-400'}`} />
+                <User style={{ width: 16, height: 16 }} />
               </div>
 
-              <span className={`max-w-[100px] truncate text-xs font-extrabold ${isActive ? 'text-white' : 'text-slate-300'}`}>
-                {member.fullName.split(' ')[0]}
-              </span>
-              <span className="mt-0.5 text-[10px] font-medium text-slate-400">{member.relationship}</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: isActive ? 800 : 600, fontSize: '0.85rem', color: isActive ? '#0369a1' : '#1e293b' }}>
+                  {member.fullName.split(' ')[0]}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{member.relationship}</div>
+              </div>
+
+              {member.hasActiveAlert && (
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706', display: 'inline-block', marginLeft: 4 }} />
+              )}
             </button>
           );
         })}

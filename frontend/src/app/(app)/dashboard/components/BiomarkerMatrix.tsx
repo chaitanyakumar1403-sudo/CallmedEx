@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHealthMatrixStore } from '@/store/useHealthMatrixStore';
-import { Activity, TrendingDown, ShieldCheck, Heart, Zap, AlertCircle, Compass, LineChart } from 'lucide-react';
+import { Activity, TrendingDown, ShieldCheck, Compass, LineChart, Heart, Zap } from 'lucide-react';
 
 export const BiomarkerMatrix: React.FC = () => {
   const { biomarkers, selectedCode, setSelectedCode, riskScore } = useHealthMatrixStore();
@@ -11,210 +11,162 @@ export const BiomarkerMatrix: React.FC = () => {
   const availableCodes = Array.from(new Set(biomarkers.map((b) => b.observationCode)));
   const filteredData = biomarkers.filter((b) => b.observationCode === selectedCode);
   const activeObservationName = filteredData[0]?.observationName || selectedCode;
-
-  // Max value calculation for scaling chart bars
   const maxVal = Math.max(...filteredData.map((d) => d.valueNumber), 1);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-slate-950/95 p-6 text-white shadow-2xl backdrop-blur-2xl transition-all duration-300">
-      {/* Decorative Neon Background Glows */}
-      <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 -bottom-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
-
-      {/* Top Header & Switcher */}
-      <div className="relative z-10 mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+    <div
+      style={{
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+        borderRadius: 20,
+        border: '1px solid #e2e8f0',
+        padding: 24,
+        boxShadow: '0 10px 30px -5px rgba(15, 23, 42, 0.05)',
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-0.5 text-xs font-extrabold uppercase tracking-wider text-emerald-400">
-              <Activity className="h-3.5 w-3.5 animate-pulse" />
-              Preventive AI Engine
+          <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Activity style={{ width: 18, height: 18, color: '#059669' }} />
+            Preventive Biomarker Matrix & Risk Projections
+            <span style={{ backgroundColor: '#d1fae5', color: '#047857', padding: '2px 8px', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700 }}>
+              AI Risk Engine
             </span>
-            <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300">
-              5-Yr Risk Projections
-            </span>
-          </div>
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-100 sm:text-2xl">
-            Biomarker Matrix & Health Risk Compass
-          </h2>
+          </h3>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+            5-year health trajectory analysis based on lab observations & ABDM history.
+          </p>
         </div>
 
-        {/* View Mode Toggle Pill */}
-        <div className="flex items-center gap-1 rounded-2xl border border-slate-700/70 bg-slate-950/80 p-1.5 shadow-inner">
+        {/* View Toggle */}
+        <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', padding: 4, borderRadius: 12, border: '1px solid #cbd5e1' }}>
           <button
             onClick={() => setViewMode('compass')}
-            className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 ${
-              viewMode === 'compass'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/25'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              background: viewMode === 'compass' ? '#0284c7' : 'transparent',
+              color: viewMode === 'compass' ? '#fff' : '#64748b',
+              transition: 'all 0.2s',
+            }}
           >
-            <Compass className="h-3.5 w-3.5" />
-            3D Risk Compass
+            Risk Compass
           </button>
           <button
             onClick={() => setViewMode('chart')}
-            className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all duration-200 ${
-              viewMode === 'chart'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/25'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            style={{
+              padding: '6px 14px',
+              borderRadius: 8,
+              border: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              background: viewMode === 'chart' ? '#0284c7' : 'transparent',
+              color: viewMode === 'chart' ? '#fff' : '#64748b',
+              transition: 'all 0.2s',
+            }}
           >
-            <LineChart className="h-3.5 w-3.5" />
             Time-Series Trend
           </button>
         </div>
       </div>
 
-      {/* View Mode 1: 3D Health Risk Compass Ring */}
       {viewMode === 'compass' ? (
-        <div className="relative z-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-          {/* Circular Risk Index Gauge */}
-          <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-center shadow-inner">
-            <div className="relative flex h-40 w-40 items-center justify-center">
-              {/* Radial Progress Ring SVG */}
-              <svg className="h-full w-full transform -rotate-90" viewBox="0 0 120 120">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  stroke="rgba(30, 41, 59, 0.8)"
-                  strokeWidth="10"
-                  fill="transparent"
-                />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  stroke="url(#compassGlowGradient)"
-                  strokeWidth="10"
-                  strokeDasharray={314.15}
-                  strokeDashoffset={314.15 * (1 - riskScore.overallScore / 100)}
-                  strokeLinecap="round"
-                  fill="transparent"
-                  className="transition-all duration-1000 ease-out"
-                />
-                <defs>
-                  <linearGradient id="compassGlowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#10B981" />
-                    <stop offset="50%" stopColor="#06B6D4" />
-                    <stop offset="100%" stopColor="#3B82F6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-
-              <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-4xl font-black tracking-tight text-white drop-shadow-md">
-                  {riskScore.overallScore}
-                </span>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">
-                  Health Index
-                </span>
-              </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'center' }}>
+          {/* Health Index Card */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+              padding: 20,
+              borderRadius: 16,
+              border: '1px solid #a7f3d0',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Overall Health Index
             </div>
-
-            <div className="mt-4 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              Optimal 5-Year Profile
+            <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#065f46', margin: '4px 0' }}>
+              {riskScore.overallScore} <span style={{ fontSize: '1rem', fontWeight: 600, color: '#059669' }}>/ 100</span>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700, color: '#047857', border: '1px solid #6ee7b7' }}>
+              <ShieldCheck style={{ width: 14, height: 14 }} /> Optimal Trajectory
             </div>
           </div>
 
-          {/* Subsystem Risk Cards */}
-          <div className="flex flex-col justify-between space-y-4 md:col-span-2">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 transition-all hover:border-emerald-500/40">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400">Cardio Risk</span>
-                  <Heart className="h-4 w-4 text-rose-400" />
-                </div>
-                <div className="text-2xl font-black text-emerald-400">{riskScore.cardiovascularRisk}%</div>
-                <span className="mt-1 block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Low Risk Tier
-                </span>
+          {/* Subsystem Risk Metrics */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Cardio Risk</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', marginTop: 2 }}>{riskScore.cardiovascularRisk}%</div>
+                <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: 2 }}>Low Risk</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 transition-all hover:border-amber-500/40">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400">Metabolic</span>
-                  <Zap className="h-4 w-4 text-amber-400" />
-                </div>
-                <div className="text-2xl font-black text-amber-400">{riskScore.metabolicRisk}%</div>
-                <span className="mt-1 block text-[10px] font-bold text-amber-500/80 uppercase tracking-wider">
-                  Mild Watch
-                </span>
+              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Metabolic</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d97706', marginTop: 2 }}>{riskScore.metabolicRisk}%</div>
+                <div style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: 600, marginTop: 2 }}>Mild Watch</div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 transition-all hover:border-cyan-500/40">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400">Inflammation</span>
-                  <Activity className="h-4 w-4 text-cyan-400" />
-                </div>
-                <div className="text-2xl font-black text-cyan-400">{riskScore.inflammationRisk}%</div>
-                <span className="mt-1 block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  Normal Range
-                </span>
+              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Inflammation</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0284c7', marginTop: 2 }}>{riskScore.inflammationRisk}%</div>
+                <div style={{ fontSize: '0.68rem', color: '#0284c7', fontWeight: 600, marginTop: 2 }}>Normal</div>
               </div>
             </div>
 
-            {/* AI Summary Box */}
-            <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-950/40 to-slate-950/80 p-4.5 text-xs">
-              <div className="mb-1.5 flex items-center gap-2 font-bold text-emerald-300">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>AI Clinical Projection Summary</span>
-              </div>
-              <p className="leading-relaxed text-slate-300">{riskScore.summaryText}</p>
+            <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0', fontSize: '0.82rem', color: '#334155' }}>
+              <strong style={{ color: '#0f172a' }}>AI Insight:</strong> {riskScore.summaryText}
             </div>
           </div>
         </div>
       ) : (
-        /* View Mode 2: Time-Series Biomarker Trend */
-        <div className="relative z-10 space-y-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        /* Time-Series Trend View */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
             {availableCodes.map((code) => (
               <button
                 key={code}
                 onClick={() => setSelectedCode(code)}
-                className={`whitespace-nowrap rounded-xl border px-4 py-2 text-xs font-bold transition-all ${
-                  selectedCode === code
-                    ? 'border-cyan-500/60 bg-cyan-500/20 text-cyan-300 shadow-md shadow-cyan-500/10'
-                    : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                }`}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 16,
+                  border: selectedCode === code ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                  background: selectedCode === code ? '#e0f2fe' : '#fff',
+                  color: selectedCode === code ? '#0369a1' : '#475569',
+                  fontWeight: selectedCode === code ? 700 : 500,
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
               >
                 {code}
               </button>
             ))}
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-bold text-white">{activeObservationName} Observation Trend</h4>
-                <span className="text-xs text-slate-400">Historical lab values over last 6 months</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs font-bold text-emerald-400">
-                <TrendingDown className="h-4 w-4" />
-                <span>Baseline Stable</span>
-              </div>
+          <div style={{ background: '#fff', padding: 16, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{activeObservationName} Trend</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <TrendingDown style={{ width: 14, height: 14 }} /> Baseline Stable
+              </span>
             </div>
 
-            {/* Visual Bar & Point Graphic */}
-            <div className="grid grid-cols-3 gap-4">
-              {filteredData.map((item, idx) => {
-                const heightPercent = Math.min(100, Math.max(30, (item.valueNumber / maxVal) * 100));
-                return (
-                  <div key={idx} className="flex flex-col items-center rounded-xl border border-slate-800/80 bg-slate-900/60 p-4">
-                    <span className="mb-2 text-[10px] font-semibold text-slate-400">{item.recordedAt}</span>
-                    <div className="relative mb-2 flex h-24 w-full items-end justify-center rounded-lg bg-slate-950 p-2">
-                      <div
-                        style={{ height: `${heightPercent}%` }}
-                        className="w-8 rounded-t-lg bg-gradient-to-t from-cyan-600 to-emerald-400 transition-all duration-500 shadow-lg shadow-cyan-500/20"
-                      />
-                    </div>
-                    <span className="text-base font-black text-white">
-                      {item.valueNumber} <span className="text-[10px] font-medium text-slate-400">{item.unit}</span>
-                    </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {filteredData.map((item, idx) => (
+                <div key={idx} style={{ background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{item.recordedAt}</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '2px 0' }}>
+                    {item.valueNumber} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>{item.unit}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         </div>

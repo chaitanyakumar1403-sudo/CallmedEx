@@ -2,19 +2,12 @@
 
 import React, { useState } from 'react';
 import { useHealthMatrixStore } from '@/store/useHealthMatrixStore';
-import { FileText, Share2, QrCode, X, Sparkles, Heart, Activity, Stethoscope, Pill, CheckCircle2 } from 'lucide-react';
+import { FileText, Share2, QrCode, X, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const SPECIALTIES = [
-  { id: 'Cardiology', label: 'Cardiology', icon: Heart, color: 'from-rose-500 to-red-600' },
-  { id: 'Endocrinology', label: 'Endocrinology', icon: Activity, color: 'from-amber-500 to-orange-600' },
-  { id: 'Gastroenterology', label: 'Gastroenterology', icon: Pill, color: 'from-emerald-500 to-teal-600' },
-  { id: 'General Practice', label: 'General Practice', icon: Stethoscope, color: 'from-indigo-500 to-blue-600' },
-];
 
 export const DoctorBriefingModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { activeBriefing, setActiveBriefing } = useHealthMatrixStore();
@@ -53,146 +46,144 @@ export const DoctorBriefingModal: React.FC<Props> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl animate-fadeIn">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-indigo-500/40 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 p-6 text-white shadow-2xl shadow-indigo-500/20">
-        {/* Top Glow Accent */}
-        <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-48 w-96 rounded-full bg-indigo-500/20 blur-3xl" />
-
-        {/* Modal Header */}
-        <div className="relative z-10 flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-500/30 bg-indigo-500/20 text-indigo-400">
-              <Sparkles className="h-5 w-5 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-white">AI Doctor Briefing Compiler</h3>
-              <p className="text-xs text-slate-400">Synthesize FHIR records into a 1-page clinical summary</p>
-            </div>
-          </div>
-
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'white',
+          padding: '32px',
+          borderRadius: '20px',
+          width: '90%',
+          maxWidth: '520px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#1f2937', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles style={{ width: 20, height: 20, color: '#4f46e5' }} />
+            AI Doctor Briefing Compiler
+          </h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800/80 text-slate-400 transition-all hover:bg-slate-700 hover:text-white"
+            style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#9ca3af' }}
           >
-            <X className="h-4 w-4" />
+            &times;
           </button>
         </div>
 
-        {/* Specialty Selector Cards */}
-        <div className="relative z-10 my-5">
-          <label className="mb-2.5 block text-xs font-bold uppercase tracking-wider text-slate-400">
-            Target Specialist Category
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>
+            Target Specialty Category
           </label>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            {SPECIALTIES.map((spec) => {
-              const IconComponent = spec.icon;
-              const isSelected = specialty === spec.id;
-              return (
-                <button
-                  key={spec.id}
-                  onClick={() => setSpecialty(spec.id)}
-                  className={`flex flex-col items-center justify-center rounded-2xl border p-3 text-center transition-all ${
-                    isSelected
-                      ? 'border-indigo-500/80 bg-indigo-500/20 text-white font-bold shadow-lg shadow-indigo-500/20 scale-[1.02]'
-                      : 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                  }`}
-                >
-                  <IconComponent className={`mb-1.5 h-5 w-5 ${isSelected ? 'text-indigo-400' : 'text-slate-500'}`} />
-                  <span className="text-xs">{spec.label}</span>
-                </button>
-              );
-            })}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {['Cardiology', 'Endocrinology', 'Gastroenterology', 'General Practice'].map((spec) => (
+              <button
+                key={spec}
+                onClick={() => setSpecialty(spec)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: specialty === spec ? '2px solid #4f46e5' : '1px solid #d1d5db',
+                  background: specialty === spec ? '#eef2ff' : '#fff',
+                  color: specialty === spec ? '#4338ca' : '#374151',
+                  fontWeight: specialty === spec ? 700 : 500,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                {spec}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Action / Briefing Output Area */}
         {!activeBriefing ? (
-          <div className="relative z-10 my-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/70 p-8 text-center">
-            <FileText className="mb-3 h-12 w-12 text-slate-600" />
-            <h4 className="text-sm font-bold text-slate-200">No Active Briefing Compiled</h4>
-            <p className="mt-1 max-w-sm text-xs text-slate-400">
-              Generates an encrypted 1-page PDF briefing containing lab anomalies, active medications, and risk indices tailored for {specialty}.
+          <div style={{ padding: 24, background: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1', textAlign: 'center', marginBottom: 20 }}>
+            <FileText style={{ width: 36, height: 36, color: '#94a3b8', margin: '0 auto 8px' }} />
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', lineHeight: 1.4 }}>
+              Compiles ABHA records, lab anomalies, and current prescriptions into a 1-page clinical summary tailored for {specialty}.
             </p>
             <button
               onClick={handleCompile}
               disabled={isCompiling}
-              className="mt-5 flex items-center gap-2 rounded-2xl border border-indigo-400/40 bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-xs font-black tracking-wider uppercase text-white shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 disabled:opacity-50"
+              style={{
+                marginTop: 16,
+                padding: '10px 24px',
+                borderRadius: 10,
+                border: 'none',
+                backgroundColor: '#4f46e5',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                cursor: isCompiling ? 'not-allowed' : 'pointer',
+              }}
             >
-              <Sparkles className="h-4 w-4" />
               {isCompiling ? 'Compiling AI Summary...' : 'Compile Briefing PDF'}
             </button>
           </div>
         ) : (
-          /* Compiled Briefing View */
-          <div className="relative z-10 my-4 space-y-4">
-            <div className="relative overflow-hidden rounded-2xl border border-indigo-500/30 bg-slate-950 p-5 text-xs">
-              {/* Document Header */}
-              <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-3">
-                <span className="font-extrabold uppercase tracking-widest text-indigo-400">
-                  {activeBriefing.specialtyType} Clinical Summary
-                </span>
-                <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  Verified ABDM Record
-                </span>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ background: '#f8fafc', padding: 16, borderRadius: 14, border: '1px solid #e2e8f0', fontSize: '0.85rem', marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, color: '#4338ca', marginBottom: 8, textTransform: 'uppercase', fontSize: '0.78rem' }}>
+                {activeBriefing.specialtyType} Clinical Summary
               </div>
 
-              {/* Anomalies List */}
-              <div className="mb-3">
-                <span className="mb-1 block font-bold text-slate-300">Chief Lab Observations:</span>
-                <ul className="space-y-1 text-slate-300">
+              <div style={{ marginBottom: 8 }}>
+                <strong style={{ color: '#334155' }}>Chief Observations:</strong>
+                <ul style={{ margin: '4px 0 0 0', paddingLeft: 18, color: '#475569' }}>
                   {activeBriefing.chiefAnomalies.map((anom, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                      <span>{anom}</span>
-                    </li>
+                    <li key={idx}>{anom}</li>
                   ))}
                 </ul>
               </div>
 
-              {/* Doctor Focus Points */}
               <div>
-                <span className="mb-1 block font-bold text-slate-300">Recommended Doctor Focus:</span>
-                <ul className="space-y-1 text-slate-300">
+                <strong style={{ color: '#334155' }}>Doctor Focus:</strong>
+                <ul style={{ margin: '4px 0 0 0', paddingLeft: 18, color: '#475569' }}>
                   {activeBriefing.recommendedFocusPoints.map((pt, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
-                      <span>{pt}</span>
-                    </li>
+                    <li key={idx}>{pt}</li>
                   ))}
                 </ul>
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="flex gap-3">
+            <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => setShowQR(!showQR)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 py-3 text-xs font-bold text-slate-200 transition-all hover:bg-slate-700"
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                <QrCode className="h-4 w-4 text-emerald-400" />
-                {showQR ? 'Hide QR' : 'Doctor QR Code'}
+                <QrCode style={{ width: 16, height: 16, color: '#059669' }} /> {showQR ? 'Hide QR' : 'Doctor QR Code'}
               </button>
 
               <a
                 href={`https://wa.me/?text=${encodeURIComponent(`CallMedex AI Doctor Briefing (${specialty}): Patient ID ${activeBriefing.patientId}`)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-600 py-3 text-xs font-bold text-white shadow-lg shadow-emerald-600/25 transition-all hover:bg-emerald-500"
+                style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 600, fontSize: '0.82rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                <Share2 className="h-4 w-4" />
-                Share WhatsApp
+                <Share2 style={{ width: 16, height: 16 }} /> Share WhatsApp
               </a>
             </div>
 
-            {/* Encrypted QR Box */}
             {showQR && (
-              <div className="rounded-2xl border border-emerald-500/40 bg-white p-4 text-center text-slate-950 animate-fadeIn">
-                <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-xl border-4 border-slate-950 bg-slate-100 p-2 font-mono text-[9px] font-bold break-all">
+              <div style={{ marginTop: 12, padding: 16, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, textAlign: 'center' }}>
+                <div style={{ width: 90, height: 90, margin: '0 auto 8px', border: '2px solid #0f172a', padding: 4, background: '#f8fafc', fontSize: '9px', fontWeight: 'bold', wordBreak: 'break-all' }}>
                   [ABDM-QR-{activeBriefing.patientId.slice(0, 8)}]
                 </div>
-                <p className="mt-2 text-[10px] font-bold text-slate-700">
-                  Scan with clinic tablet for instant encrypted access to FHIR patient records
-                </p>
+                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Scan with clinic tablet for instant encrypted access</div>
               </div>
             )}
           </div>

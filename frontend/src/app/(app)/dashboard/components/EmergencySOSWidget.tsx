@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
-import { AlertTriangle, ShieldAlert, X, Radio, MapPin } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, X, MapPin } from 'lucide-react';
 
 export const EmergencySOSWidget: React.FC = () => {
   const { sosActive, sosCountdownSeconds, triggerSOS, cancelSOS, decrementSOSCountdown, emergencyContacts } = useFamilyHubStore();
@@ -30,66 +30,76 @@ export const EmergencySOSWidget: React.FC = () => {
   };
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-red-500/50 bg-gradient-to-r from-red-950/90 via-slate-900/95 to-slate-950/90 p-6 text-white shadow-2xl backdrop-blur-xl">
-      {/* Background Pulse Ambient Light */}
-      <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-red-600/20 blur-3xl" />
-
-      <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-red-500/40 bg-red-600/20 text-red-400">
-            <Radio className="h-6 w-6 animate-pulse" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+    <div
+      style={{
+        background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
+        borderRadius: 16,
+        borderLeft: '4px solid #dc2626',
+        borderTop: '1px solid #fca5a5',
+        borderRight: '1px solid #fca5a5',
+        borderBottom: '1px solid #fca5a5',
+        padding: '16px 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AlertTriangle style={{ width: 20, height: 20 }} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+            Emergency SOS Triage
+            <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '1px 8px', borderRadius: 10, fontSize: '0.7rem', fontWeight: 700 }}>
+              24/7 Active
             </span>
           </div>
-
-          <div>
-            <div className="mb-1 flex items-center gap-2">
-              <span className="rounded-md border border-red-500/40 bg-red-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-300">
-                24/7 Triage Ready
-              </span>
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
-                <MapPin className="h-3 w-3 text-red-400" /> GPS Telemetry Active
-              </span>
-            </div>
-            <h3 className="text-base font-extrabold text-white">Emergency SOS Alert System</h3>
-            <p className="text-xs text-slate-400">
-              Notifies {emergencyContacts.length} emergency contacts + CallMedex dispatch unit instantly.
-            </p>
+          <div style={{ fontSize: '0.8rem', color: '#7f1d1d', marginTop: 2 }}>
+            Instant dispatch alert to {emergencyContacts.length} emergency contacts & CallMedex unit with GPS.
           </div>
         </div>
-
-        {!sosActive ? (
-          <button
-            onClick={() => {
-              triggerSOS();
-              handleDispatchNow();
-            }}
-            className="group flex items-center justify-center gap-2 rounded-2xl border border-red-400/50 bg-gradient-to-r from-red-600 to-rose-600 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-xl shadow-red-600/30 transition-all hover:scale-105 active:scale-95"
-          >
-            <ShieldAlert className="h-4 w-4 transition-transform group-hover:rotate-12" />
-            Trigger Emergency SOS
-          </button>
-        ) : (
-          <div className="flex items-center gap-3 rounded-2xl border border-red-500/80 bg-red-950/90 p-2.5 px-4 shadow-lg shadow-red-600/30">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-red-400 font-black text-sm text-red-200 shadow-inner">
-                {sosCountdownSeconds}s
-              </div>
-              <span className="text-xs font-bold text-red-200">Alert Dispatched!</span>
-            </div>
-
-            <button
-              onClick={cancelSOS}
-              className="flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition-all hover:bg-slate-700"
-            >
-              <X className="h-3.5 w-3.5" />
-              Cancel SOS
-            </button>
-          </div>
-        )}
       </div>
+
+      {!sosActive ? (
+        <button
+          onClick={() => {
+            triggerSOS();
+            handleDispatchNow();
+          }}
+          style={{
+            padding: '8px 18px',
+            borderRadius: 10,
+            border: 'none',
+            backgroundColor: '#dc2626',
+            color: 'white',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <ShieldAlert style={{ width: 16, height: 16 }} />
+          Trigger Emergency SOS
+        </button>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#fff', padding: '6px 14px', borderRadius: 10, border: '1px solid #fca5a5' }}>
+          <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#dc2626' }}>
+            Dispatched! ({sosCountdownSeconds}s)
+          </span>
+          <button
+            onClick={cancelSOS}
+            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 };

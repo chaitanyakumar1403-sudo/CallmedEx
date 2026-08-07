@@ -2,33 +2,52 @@
 
 import React from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
-import { Pill, AlertTriangle, Plus, RotateCcw, Clock } from 'lucide-react';
+import { Pill, AlertTriangle, Plus, RotateCcw } from 'lucide-react';
 
 export const MedicineCabinetGrid: React.FC = () => {
   const { medications } = useFamilyHubStore();
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900/90 via-slate-900/95 to-slate-950/90 p-6 text-white shadow-xl backdrop-blur-xl">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+    <div
+      style={{
+        background: 'white',
+        borderRadius: 20,
+        border: '1px solid #e2e8f0',
+        padding: 24,
+        boxShadow: '0 10px 30px -5px rgba(15, 23, 42, 0.05)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-0.5 text-xs font-extrabold uppercase tracking-wider text-violet-400">
-              <Pill className="h-3.5 w-3.5" />
-              Smart Pill Cabinet
-            </span>
-          </div>
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-100 sm:text-2xl">
-            Medication Inventory & Refill Radar
-          </h2>
+          <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Pill style={{ width: 18, height: 18, color: '#7c3aed' }} />
+            Smart Medicine Cabinet & Refill Radar
+          </h3>
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+            Track active prescription pills, daily dosages, and refill dates.
+          </p>
         </div>
 
-        <button className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-xs font-bold text-slate-200 transition-all hover:border-slate-600 hover:bg-slate-700">
-          <Plus className="h-4 w-4" />
-          Add Medication
+        <button
+          style={{
+            padding: '8px 16px',
+            borderRadius: 10,
+            border: '1px solid #cbd5e1',
+            background: '#f8fafc',
+            color: '#334155',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <Plus style={{ width: 14, height: 14 }} /> Add Medication
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
         {medications.map((med) => {
           const daysLeft = Math.max(0, Math.floor(med.remainingPills / med.pillsPerDay));
           const percentRemaining = Math.min(100, Math.round((med.remainingPills / med.totalPills) * 100));
@@ -37,65 +56,65 @@ export const MedicineCabinetGrid: React.FC = () => {
           return (
             <div
               key={med.id}
-              className={`relative flex flex-col justify-between rounded-2xl border p-5 transition-all duration-300 ${
-                isLow
-                  ? 'border-amber-500/50 bg-gradient-to-b from-amber-950/20 to-slate-950/80 shadow-lg shadow-amber-500/5'
-                  : 'border-slate-800 bg-slate-950/60 hover:border-slate-700 hover:bg-slate-900/40'
-              }`}
+              style={{
+                background: isLow ? '#fffbeb' : '#f8fafc',
+                borderRadius: 14,
+                border: isLow ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+                padding: 16,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}
             >
               <div>
-                <div className="mb-3 flex items-start justify-between">
-                  <div>
-                    <h3 className="text-base font-extrabold text-white">{med.medicineName}</h3>
-                    <p className="mt-1 text-xs text-slate-400">{med.dosage}</p>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>{med.medicineName}</div>
                   {isLow && (
-                    <span className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-400">
-                      <AlertTriangle className="h-3 w-3" /> Refill Soon
+                    <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <AlertTriangle style={{ width: 12, height: 12 }} /> Refill Soon
                     </span>
                   )}
                 </div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 12 }}>{med.dosage}</div>
               </div>
 
-              {/* Progress Ring & Inventory Counter */}
-              <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-4">
-                <div className="flex items-center gap-3">
-                  {/* Small Circular Gauge SVG */}
-                  <div className="relative flex h-10 w-10 items-center justify-center">
-                    <svg className="h-full w-full transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke="rgba(30, 41, 59, 0.8)"
-                        strokeWidth="4"
-                      />
-                      <path
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none"
-                        stroke={isLow ? '#F59E0B' : '#8B5CF6'}
-                        strokeWidth="4"
-                        strokeDasharray={`${percentRemaining}, 100`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="absolute text-[9px] font-extrabold text-white">{percentRemaining}%</span>
-                  </div>
-
-                  <div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-lg font-black text-white">{med.remainingPills}</span>
-                      <span className="text-xs text-slate-400">/ {med.totalPills} pills</span>
-                    </div>
-                    <span className={`text-[10px] font-bold ${isLow ? 'text-amber-400' : 'text-slate-400'}`}>
-                      ~{daysLeft} days supply remaining
-                    </span>
-                  </div>
+              <div>
+                {/* Horizontal Progress Bar */}
+                <div style={{ background: '#e2e8f0', height: 6, borderRadius: 999, overflow: 'hidden', marginBottom: 8 }}>
+                  <div
+                    style={{
+                      width: `${percentRemaining}%`,
+                      height: '100%',
+                      background: isLow ? '#f59e0b' : '#7c3aed',
+                      borderRadius: 999,
+                      transition: 'width 0.3s',
+                    }}
+                  />
                 </div>
 
-                <button className="flex items-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-600/20 px-3.5 py-2 text-xs font-extrabold text-violet-300 transition-all hover:bg-violet-600 hover:text-white">
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Order
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                    <strong style={{ color: '#0f172a' }}>{med.remainingPills}</strong>/{med.totalPills} pills ({daysLeft} days left)
+                  </span>
+
+                  <button
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: '#7c3aed',
+                      color: '#fff',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <RotateCcw style={{ width: 12, height: 12 }} /> Refill
+                  </button>
+                </div>
               </div>
             </div>
           );
