@@ -1,4 +1,6 @@
-import { create } from 'zustand';
+'use client';
+
+import { useSyncExternalStore } from 'react';
 
 export interface BiomarkerPoint {
   recordedAt: string;
@@ -9,10 +11,10 @@ export interface BiomarkerPoint {
 }
 
 export interface RiskCompassScore {
-  cardiovascularRisk: number; // 0 - 100
-  metabolicRisk: number;     // 0 - 100
-  inflammationRisk: number;  // 0 - 100
-  overallScore: number;       // 0 - 100 (100 is ideal health)
+  cardiovascularRisk: number;
+  metabolicRisk: number;
+  inflammationRisk: number;
+  overallScore: number;
   summaryText: string;
 }
 
@@ -27,7 +29,7 @@ export interface DoctorBriefingData {
   recommendedFocusPoints: string[];
 }
 
-interface HealthMatrixState {
+export interface HealthMatrixState {
   biomarkers: BiomarkerPoint[];
   selectedCode: string;
   riskScore: RiskCompassScore;
@@ -42,7 +44,7 @@ interface HealthMatrixState {
   setError: (error: string | null) => void;
 }
 
-export const useHealthMatrixStore = create<HealthMatrixState>((set) => ({
+let state: HealthMatrixState = {
   biomarkers: [
     { recordedAt: '2026-03-10', observationCode: 'HB', observationName: 'Hemoglobin', valueNumber: 13.5, unit: 'g/dL' },
     { recordedAt: '2026-05-15', observationCode: 'HB', observationName: 'Hemoglobin', valueNumber: 13.8, unit: 'g/dL' },
@@ -65,10 +67,32 @@ export const useHealthMatrixStore = create<HealthMatrixState>((set) => ({
   activeBriefing: null,
   isLoading: false,
   error: null,
-  setSelectedCode: (code) => set({ selectedCode: code }),
-  setBiomarkers: (data) => set({ biomarkers: data }),
-  setRiskScore: (score) => set({ riskScore: score }),
-  setActiveBriefing: (briefing) => set({ activeBriefing: briefing }),
-  setLoading: (loading) => set({ isLoading: loading }),
-  setError: (error) => set({ error: error }),
-}));
+  setSelectedCode: (code: string) => updateState({ selectedCode: code }),
+  setBiomarkers: (data: BiomarkerPoint[]) => updateState({ biomarkers: data }),
+  setRiskScore: (score: RiskCompassScore) => updateState({ riskScore: score }),
+  setActiveBriefing: (briefing: DoctorBriefingData | null) => updateState({ activeBriefing: briefing }),
+  setLoading: (loading: boolean) => updateState({ isLoading: loading }),
+  setError: (err: string | null) => updateState({ error: err }),
+};
+
+const listeners = new Set<() => void>();
+
+function updateState(partial: Partial<HealthMatrixState>) {
+  state = { ...state, ...partial };
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot() {
+  return state;
+}
+
+export function useHealthMatrixStore(): HealthMatrixState {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}

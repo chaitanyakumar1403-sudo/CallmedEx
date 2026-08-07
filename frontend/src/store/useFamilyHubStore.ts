@@ -1,4 +1,6 @@
-import { create } from 'zustand';
+'use client';
+
+import { useSyncExternalStore } from 'react';
 
 export interface FamilyMemberContext {
   id: string;
@@ -28,7 +30,7 @@ export interface MedicationItem {
   refillDate?: string;
 }
 
-interface FamilyHubState {
+export interface FamilyHubState {
   members: FamilyMemberContext[];
   activeMemberId: string;
   emergencyContacts: EmergencyContact[];
@@ -44,7 +46,7 @@ interface FamilyHubState {
   decrementSOSCountdown: () => void;
 }
 
-export const useFamilyHubStore = create<FamilyHubState>((set) => ({
+let state: FamilyHubState = {
   members: [
     { id: 'self', fullName: 'Self (Account Owner)', relationship: 'Primary', hasActiveAlert: false, alertCount: 0, healthStatus: 'optimal' },
     { id: 'fam-1', fullName: 'Sita Sharma (Mother)', relationship: 'Mother', hasActiveAlert: true, alertCount: 1, healthStatus: 'attention' },
@@ -62,11 +64,33 @@ export const useFamilyHubStore = create<FamilyHubState>((set) => ({
   ],
   sosActive: false,
   sosCountdownSeconds: 5,
-  setActiveMemberId: (id) => set({ activeMemberId: id }),
-  setMembers: (members) => set({ members }),
-  setEmergencyContacts: (contacts) => set({ emergencyContacts: contacts }),
-  setMedications: (meds) => set({ medications: meds }),
-  triggerSOS: () => set({ sosActive: true, sosCountdownSeconds: 5 }),
-  cancelSOS: () => set({ sosActive: false, sosCountdownSeconds: 5 }),
-  decrementSOSCountdown: () => set((state) => ({ sosCountdownSeconds: Math.max(0, state.sosCountdownSeconds - 1) })),
-}));
+  setActiveMemberId: (id: string) => updateState({ activeMemberId: id }),
+  setMembers: (members: FamilyMemberContext[]) => updateState({ members }),
+  setEmergencyContacts: (contacts: EmergencyContact[]) => updateState({ emergencyContacts: contacts }),
+  setMedications: (meds: MedicationItem[]) => updateState({ medications: meds }),
+  triggerSOS: () => updateState({ sosActive: true, sosCountdownSeconds: 5 }),
+  cancelSOS: () => updateState({ sosActive: false, sosCountdownSeconds: 5 }),
+  decrementSOSCountdown: () => updateState({ sosCountdownSeconds: Math.max(0, state.sosCountdownSeconds - 1) }),
+};
+
+const listeners = new Set<() => void>();
+
+function updateState(partial: Partial<FamilyHubState>) {
+  state = { ...state, ...partial };
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function getSnapshot() {
+  return state;
+}
+
+export function useFamilyHubStore(): FamilyHubState {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
