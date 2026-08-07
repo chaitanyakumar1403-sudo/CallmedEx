@@ -93,38 +93,7 @@ async def get_patient_medications(
         logger.warning(f"Error fetching patient_medications: {exc}")
         db_rows = []
 
-    if not db_rows:
-        medications = [
-            {
-                "id": "m-1",
-                "medicine_name": "Metformin 500mg",
-                "dosage": "1 tablet twice daily after meals",
-                "total_pills": 60,
-                "remaining_pills": 14,
-                "pills_per_day": 2,
-                "refill_date": "2026-08-14"
-            },
-            {
-                "id": "m-2",
-                "medicine_name": "Atorvastatin 10mg",
-                "dosage": "1 tablet at bedtime",
-                "total_pills": 30,
-                "remaining_pills": 5,
-                "pills_per_day": 1,
-                "refill_date": "2026-08-12"
-            },
-            {
-                "id": "m-3",
-                "medicine_name": "Multivitamin Complex",
-                "dosage": "1 capsule daily morning",
-                "total_pills": 30,
-                "remaining_pills": 22,
-                "pills_per_day": 1,
-                "refill_date": "2026-08-29"
-            }
-        ]
-    else:
-        medications = db_rows
+    medications = db_rows if db_rows else []
 
     return {
         "patient_id": account_id,

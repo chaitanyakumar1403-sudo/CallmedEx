@@ -49,27 +49,17 @@ async def get_biomarker_matrix(
 
     # Fallback to rich baseline data if no records exist in DB yet
     if not db_rows:
-        biomarkers = [
-            {"recorded_at": "2026-03-10", "observation_code": "HB", "observation_name": "Hemoglobin", "value_number": 13.5, "unit": "g/dL"},
-            {"recorded_at": "2026-05-15", "observation_code": "HB", "observation_name": "Hemoglobin", "value_number": 13.8, "unit": "g/dL"},
-            {"recorded_at": "2026-07-20", "observation_code": "HB", "observation_name": "Hemoglobin", "value_number": 14.1, "unit": "g/dL"},
-            {"recorded_at": "2026-03-10", "observation_code": "HBA1C", "observation_name": "HbA1c", "value_number": 5.6, "unit": "%"},
-            {"recorded_at": "2026-05-15", "observation_code": "HBA1C", "observation_name": "HbA1c", "value_number": 5.8, "unit": "%"},
-            {"recorded_at": "2026-07-20", "observation_code": "HBA1C", "observation_name": "HbA1c", "value_number": 5.7, "unit": "%"},
-            {"recorded_at": "2026-03-10", "observation_code": "CHOL", "observation_name": "Total Cholesterol", "value_number": 195, "unit": "mg/dL"},
-            {"recorded_at": "2026-05-15", "observation_code": "CHOL", "observation_name": "Total Cholesterol", "value_number": 188, "unit": "mg/dL"},
-            {"recorded_at": "2026-07-20", "observation_code": "CHOL", "observation_name": "Total Cholesterol", "value_number": 182, "unit": "mg/dL"},
-        ]
+        biomarkers = []
+        risk_score = None
     else:
         biomarkers = db_rows
-
-    risk_score = {
-        "cardiovascular_risk": 18,
-        "metabolic_risk": 22,
-        "inflammation_risk": 14,
-        "overall_score": 88,
-        "summary_text": "Low 5-year cardiovascular and metabolic risk profile. Preventive trajectory stable."
-    }
+        risk_score = {
+            "cardiovascular_risk": 18,
+            "metabolic_risk": 22,
+            "inflammation_risk": 14,
+            "overall_score": 88,
+            "summary_text": "Low 5-year cardiovascular and metabolic risk profile. Preventive trajectory stable."
+        }
 
     return {
         "patient_id": account_id,
