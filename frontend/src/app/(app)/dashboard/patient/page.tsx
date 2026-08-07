@@ -10,6 +10,13 @@ import SampleStatusRail from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import FamilyMembersPanel from "../components/FamilyMembersPanel";
 import { bookingsAPI, dispatchAPI } from "@/lib/api";
+import { FEATURE_FLAGS } from "@/config/featureFlags";
+import { BiomarkerMatrix } from "../components/BiomarkerMatrix";
+import { DoctorBriefingModal } from "../components/DoctorBriefingModal";
+import { FamilySwiperWheel } from "../components/FamilySwiperWheel";
+import { EmergencySOSWidget } from "../components/EmergencySOSWidget";
+import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
+import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 
 interface UserData {
   full_name: string;
@@ -39,6 +46,7 @@ export default function PatientDashboard() {
   // Industry-First Feature Modals
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showDrugShieldModal, setShowDrugShieldModal] = useState(false);
+  const [showBriefingModal, setShowBriefingModal] = useState(false);
 
   // Quick Reorder State
   const [showReorderModal, setShowReorderModal] = useState(false);
@@ -576,6 +584,17 @@ export default function PatientDashboard() {
       }
     >
 
+        {/* ── Patient Dashboard Upgrade Subsystems ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
+          {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && <FamilySwiperWheel />}
+          {FEATURE_FLAGS.ENABLE_EMERGENCY_SOS && <EmergencySOSWidget />}
+          {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && <BiomarkerMatrix />}
+          {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && <MedicineCabinetGrid />}
+          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && (
+            <PhlebotomistRadar otpPin={patientOtp || "4829"} />
+          )}
+        </div>
+
         {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
         <div style={{ marginBottom: 24 }}>
           <SampleStatusRail />
@@ -597,7 +616,21 @@ export default function PatientDashboard() {
           >
             🛡️ DrugShield AI (80% Generic Savings)
           </button>
+          {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
+            <button
+              className="btn"
+              style={{ background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)", color: "white", fontWeight: 700 }}
+              onClick={() => setShowBriefingModal(true)}
+            >
+              📄 AI Doctor Briefing (PDF / QR)
+            </button>
+          )}
         </div>
+
+        {/* Doctor Briefing Modal */}
+        {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
+          <DoctorBriefingModal isOpen={showBriefingModal} onClose={() => setShowBriefingModal(false)} />
+        )}
 
         {/* ─── INTERACTIVE ORGAN BODY MAP & HEALTH TWIN ─── */}
         <InteractiveBodyMap />

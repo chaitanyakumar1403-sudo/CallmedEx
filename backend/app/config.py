@@ -140,6 +140,15 @@ class Settings:
     MEDIASSIST_INBOUND_BEARER_TOKEN: str = os.getenv("MEDIASSIST_INBOUND_BEARER_TOKEN", "")
 
 
+    # ─── Patient Dashboard Upgrade Feature Flags ─────────────────────────
+    ENABLE_PREVENTIVE_BIOMARKERS: bool = os.getenv("ENABLE_PREVENTIVE_BIOMARKERS", "true").lower() in ("true", "1", "yes")
+    ENABLE_DOCTOR_BRIEFING: bool = os.getenv("ENABLE_DOCTOR_BRIEFING", "true").lower() in ("true", "1", "yes")
+    ENABLE_FAMILY_SWIPER: bool = os.getenv("ENABLE_FAMILY_SWIPER", "true").lower() in ("true", "1", "yes")
+    ENABLE_EMERGENCY_SOS: bool = os.getenv("ENABLE_EMERGENCY_SOS", "true").lower() in ("true", "1", "yes")
+    ENABLE_SMART_MEDICINE_CABINET: bool = os.getenv("ENABLE_SMART_MEDICINE_CABINET", "true").lower() in ("true", "1", "yes")
+    ENABLE_PHLEBO_RADAR: bool = os.getenv("ENABLE_PHLEBO_RADAR", "true").lower() in ("true", "1", "yes")
+
+
 settings = Settings()
 
 
