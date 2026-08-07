@@ -73,6 +73,31 @@ async def trigger_emergency_sos(
     }
 
 
+@router.get("/sos/contacts")
+async def get_emergency_contacts(
+    user: dict = Depends(get_current_user)
+):
+    """
+    Retrieve emergency SOS contacts for the authenticated patient.
+    """
+    account_id = user.get("sub")
+    try:
+        contacts = _rows(
+            supabase.table("emergency_sos_contacts")
+            .select("*")
+            .eq("patient_id", account_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"Error fetching emergency_sos_contacts: {exc}")
+        contacts = []
+
+    return {
+        "patient_id": account_id,
+        "contacts": contacts
+    }
+
+
 @router.get("/medications")
 async def get_patient_medications(
     user: dict = Depends(get_current_user)
