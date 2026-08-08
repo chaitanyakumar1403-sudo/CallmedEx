@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useHealthMatrixStore } from '@/store/useHealthMatrixStore';
-import { Activity, TrendingDown, ShieldCheck, Compass, LineChart, Heart, Zap } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, Minus, FileText } from 'lucide-react';
 
 export const BiomarkerMatrix: React.FC = () => {
   const { biomarkers, selectedCode, setSelectedCode, riskScore } = useHealthMatrixStore();
@@ -11,64 +11,33 @@ export const BiomarkerMatrix: React.FC = () => {
   const availableCodes = Array.from(new Set(biomarkers.map((b) => b.observationCode)));
   const filteredData = biomarkers.filter((b) => b.observationCode === selectedCode);
   const activeObservationName = filteredData[0]?.observationName || selectedCode;
-  const maxVal = Math.max(...filteredData.map((d) => d.valueNumber), 1);
+  const activeTrend = riskScore?.trends.find((t) => t.observationCode === selectedCode);
 
   return (
-    <div
-      style={{
-        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        borderRadius: 20,
-        border: '1px solid #e2e8f0',
-        padding: 24,
-        boxShadow: '0 10px 30px -5px rgba(15, 23, 42, 0.05)',
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+    <div className="cm-panel">
+      <div className="cm-row-between" style={{ marginBottom: 'var(--cm-5)' }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Activity style={{ width: 18, height: 18, color: '#059669' }} />
-            Preventive Biomarker Matrix & Risk Projections
-            <span style={{ backgroundColor: '#d1fae5', color: '#047857', padding: '2px 8px', borderRadius: 12, fontSize: '0.72rem', fontWeight: 700 }}>
-              AI Risk Engine
-            </span>
+          <h3 className="cm-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
+            <Activity className="cm-icon" size={18} style={{ color: 'var(--cm-done)' }} />
+            Preventive Biomarker Matrix
           </h3>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-            5-year health trajectory analysis based on lab observations & ABDM history.
+          <p className="cm-panel__note" style={{ marginBottom: 0 }}>
+            Lab observations on file. Clinical risk interpretation requires doctor review.
           </p>
         </div>
 
-        {/* View Toggle */}
-        <div style={{ display: 'flex', gap: 4, background: '#f1f5f9', padding: 4, borderRadius: 12, border: '1px solid #cbd5e1' }}>
+        <div style={{ display: 'flex', gap: 4, background: 'var(--cm-surface-3)', padding: 4, borderRadius: 'var(--cm-radius)' }}>
           <button
+            type="button"
+            className={`cm-btn cm-btn--sm ${viewMode === 'compass' ? 'cm-btn--primary' : 'cm-btn--ghost'}`}
             onClick={() => setViewMode('compass')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              border: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              background: viewMode === 'compass' ? '#0284c7' : 'transparent',
-              color: viewMode === 'compass' ? '#fff' : '#64748b',
-              transition: 'all 0.2s',
-            }}
           >
             Risk Compass
           </button>
           <button
+            type="button"
+            className={`cm-btn cm-btn--sm ${viewMode === 'chart' ? 'cm-btn--primary' : 'cm-btn--ghost'}`}
             onClick={() => setViewMode('chart')}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              border: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              background: viewMode === 'chart' ? '#0284c7' : 'transparent',
-              color: viewMode === 'chart' ? '#fff' : '#64748b',
-              transition: 'all 0.2s',
-            }}
           >
             Time-Series Trend
           </button>
@@ -76,102 +45,90 @@ export const BiomarkerMatrix: React.FC = () => {
       </div>
 
       {!riskScore || biomarkers.length === 0 ? (
-        <div style={{ padding: '24px', background: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-          <Activity style={{ width: 32, height: 32, color: '#94a3b8', margin: '0 auto 8px' }} />
-          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#334155', marginBottom: 4 }}>No Lab Biomarkers Recorded Yet</div>
-          <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-            Book a diagnostic lab test to generate your 5-year AI health trajectory and risk projections.
-          </div>
+        <div className="cm-empty">
+          <span className="cm-empty__icon">
+            <Activity size={22} />
+          </span>
+          <p className="cm-empty__title">No Lab Biomarkers Recorded Yet</p>
+          <p className="cm-empty__body">
+            Book a diagnostic lab test to start building your biomarker history and trend view.
+          </p>
         </div>
       ) : viewMode === 'compass' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'center' }}>
-          {/* Health Index Card */}
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-              padding: 20,
-              borderRadius: 16,
-              border: '1px solid #a7f3d0',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Overall Health Index
-            </div>
-            <div style={{ fontSize: '2.4rem', fontWeight: 900, color: '#065f46', margin: '4px 0' }}>
-              {riskScore.overallScore} <span style={{ fontSize: '1rem', fontWeight: 600, color: '#059669' }}>/ 100</span>
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700, color: '#047857', border: '1px solid #6ee7b7' }}>
-              <ShieldCheck style={{ width: 14, height: 14 }} /> Optimal Trajectory
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--cm-5)', alignItems: 'start' }}>
+          <div className="cm-stat cm-stat--done" style={{ alignItems: 'center', textAlign: 'center' }}>
+            <span className="cm-stat__label">Readings On File</span>
+            <span className="cm-stat__value">{riskScore.totalReadings}</span>
+            <span className="cm-pill cm-pill--done" style={{ marginTop: 'var(--cm-2)' }}>
+              <FileText size={12} /> {riskScore.distinctBiomarkers} biomarker(s)
+            </span>
           </div>
 
-          {/* Subsystem Risk Metrics */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Cardio Risk</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', marginTop: 2 }}>{riskScore.cardiovascularRisk}%</div>
-                <div style={{ fontSize: '0.68rem', color: '#059669', fontWeight: 600, marginTop: 2 }}>Low Risk</div>
-              </div>
-
-              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Metabolic</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#d97706', marginTop: 2 }}>{riskScore.metabolicRisk}%</div>
-                <div style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: 600, marginTop: 2 }}>Mild Watch</div>
-              </div>
-
-              <div style={{ background: '#fff', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Inflammation</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0284c7', marginTop: 2 }}>{riskScore.inflammationRisk}%</div>
-                <div style={{ fontSize: '0.68rem', color: '#0284c7', fontWeight: 600, marginTop: 2 }}>Normal</div>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cm-3)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cm-2)' }}>
+              {riskScore.trends.map((t) => (
+                <div
+                  key={t.observationCode}
+                  className="cm-card"
+                  style={{ padding: 'var(--cm-3) var(--cm-4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <span style={{ fontSize: 'var(--cm-text-sm)', fontWeight: 600, color: 'var(--cm-ink-2)' }}>{t.observationName}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
+                    <span style={{ fontSize: 'var(--cm-text-sm)', fontWeight: 700, color: 'var(--cm-ink)' }}>{t.latestValue} {t.unit}</span>
+                    {t.direction === 'up' && <TrendingUp size={14} style={{ color: 'var(--cm-waiting)' }} />}
+                    {t.direction === 'down' && <TrendingDown size={14} style={{ color: 'var(--cm-done)' }} />}
+                    {t.direction === 'flat' && <Minus size={14} style={{ color: 'var(--cm-ink-faint)' }} />}
+                  </span>
+                </div>
+              ))}
             </div>
 
-            <div style={{ background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid #e2e8f0', fontSize: '0.82rem', color: '#334155' }}>
-              <strong style={{ color: '#0f172a' }}>AI Insight:</strong> {riskScore.summaryText}
+            <div className="cm-notes" style={{ marginTop: 0 }}>
+              {riskScore.summaryText}
             </div>
           </div>
         </div>
       ) : (
-        /* Time-Series Trend View */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-            {availableCodes.map((code) => (
-              <button
-                key={code}
-                onClick={() => setSelectedCode(code)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 16,
-                  border: selectedCode === code ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                  background: selectedCode === code ? '#e0f2fe' : '#fff',
-                  color: selectedCode === code ? '#0369a1' : '#475569',
-                  fontWeight: selectedCode === code ? 700 : 500,
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {code}
-              </button>
-            ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cm-4)' }}>
+          <div style={{ display: 'flex', gap: 'var(--cm-2)', overflowX: 'auto', paddingBottom: 4 }}>
+            {availableCodes.map((code) => {
+              const isSelected = selectedCode === code;
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setSelectedCode(code)}
+                  className="cm-btn cm-btn--sm"
+                  style={{
+                    borderRadius: 'var(--cm-radius-pill)',
+                    border: isSelected ? '2px solid var(--cm-navy)' : '1px solid var(--cm-line-strong)',
+                    background: isSelected ? 'var(--cm-active-bg)' : 'var(--cm-surface)',
+                    color: isSelected ? 'var(--cm-navy)' : 'var(--cm-ink-2)',
+                  }}
+                >
+                  {code}
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ background: '#fff', padding: 16, borderRadius: 14, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{activeObservationName} Trend</span>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <TrendingDown style={{ width: 14, height: 14 }} /> Baseline Stable
+          <div className="cm-card">
+            <div className="cm-row-between" style={{ marginBottom: 'var(--cm-3)' }}>
+              <span style={{ fontWeight: 700, fontSize: 'var(--cm-text-base)', color: 'var(--cm-ink)' }}>{activeObservationName} Trend</span>
+              <span className={`cm-pill ${activeTrend?.direction === 'up' ? 'cm-pill--waiting' : activeTrend?.direction === 'down' ? 'cm-pill--done' : 'cm-pill--halted'}`}>
+                {activeTrend?.direction === 'up' && <TrendingUp size={12} />}
+                {activeTrend?.direction === 'down' && <TrendingDown size={12} />}
+                {(!activeTrend || activeTrend.direction === 'flat') && <Minus size={12} />}
+                {activeTrend?.direction === 'up' ? 'Trending Up' : activeTrend?.direction === 'down' ? 'Trending Down' : 'Stable'}
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--cm-3)' }}>
               {filteredData.map((item, idx) => (
-                <div key={idx} style={{ background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{item.recordedAt}</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '2px 0' }}>
-                    {item.valueNumber} <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748b' }}>{item.unit}</span>
+                <div key={idx} style={{ background: 'var(--cm-surface-2)', padding: 'var(--cm-3)', borderRadius: 'var(--cm-radius)', border: '1px solid var(--cm-line)', textAlign: 'center' }}>
+                  <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-3)', fontWeight: 600 }}>{item.recordedAt}</div>
+                  <div style={{ fontSize: 'var(--cm-text-lg)', fontWeight: 800, color: 'var(--cm-ink)', margin: '2px 0' }}>
+                    {item.valueNumber} <span style={{ fontSize: 'var(--cm-text-xs)', fontWeight: 500, color: 'var(--cm-ink-3)' }}>{item.unit}</span>
                   </div>
                 </div>
               ))}

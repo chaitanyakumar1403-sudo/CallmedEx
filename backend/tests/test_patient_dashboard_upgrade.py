@@ -36,32 +36,84 @@ def test_feature_flags_exist():
 
 @pytest.mark.asyncio
 async def test_get_biomarker_matrix_fallback():
+    """A patient with no rows in patient_biomarkers gets a clean empty state,
+    not fabricated readings — CallMedex reports real data only."""
     user = _mock_user()
     result = await patient_health.get_biomarker_matrix(user=user)
-    
+
     assert "patient_id" in result
     assert result["patient_id"] == user["sub"]
-    assert "biomarkers" in result
-    assert len(result["biomarkers"]) > 0
-    assert "risk_compass" in result
-    assert result["risk_compass"]["overall_score"] == 88
+    assert result["biomarkers"] == []
+    assert result["risk_compass"] is None
+
+
+def test_build_risk_compass_computes_real_trend_direction_not_fabricated():
+    """risk_compass must reflect the actual readings, not a canned score —
+    CallMedex has no doctor-reviewed clinical risk model, so it must never
+    claim one (see CLAUDE.md Clinical Liability Firewall)."""
+    rows = [
+        {  # most recent (rows arrive ordered by recorded_at desc)
+            "observation_code": "HBA1C", "observation_name": "HbA1c",
+            "value_number": 5.9, "unit": "%", "recorded_at": "2026-07-20T00:00:00Z",
+        },
+        {
+            "observation_code": "HBA1C", "observation_name": "HbA1c",
+            "value_number": 5.7, "unit": "%", "recorded_at": "2026-05-15T00:00:00Z",
+        },
+    ]
+
+    compass = patient_health._build_risk_compass(rows)
+
+    assert compass["total_readings"] == 2
+    assert compass["distinct_biomarkers"] == 1
+    trend = compass["trends"][0]
+    assert trend["direction"] == "up"
+    assert trend["latest_value"] == 5.9
+    # No invented percentages anywhere in the payload.
+    assert "cardiovascular_risk" not in compass
+    assert "overall_score" not in compass
 
 
 # ── 3. Doctor Briefing Endpoint Test ────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_generate_doctor_briefing():
+async def test_generate_doctor_briefing_fallback():
+    """A patient with no biomarker/medication rows gets an honest 'no data'
+    briefing, not fabricated anomalies — see CLAUDE.md Clinical Liability Firewall."""
     user = _mock_user()
     req = patient_health.DoctorBriefingRequest(specialty_type="Cardiology")
-    
+
     result = await patient_health.generate_doctor_briefing(payload=req, user=user)
-    
+
     assert result["status"] == "success"
     briefing = result["briefing"]
     assert briefing["specialty_type"] == "Cardiology"
     assert briefing["patient_id"] == user["sub"]
-    assert len(briefing["chief_anomalies"]) > 0
-    assert len(briefing["recommended_focus_points"]) > 0
+    assert briefing["chief_anomalies"] == []
+    assert briefing["active_medications_count"] == 0
+    assert briefing["recommended_focus_points"] == [
+        "No lab or medication data on file yet — request updated records before this consultation."
+    ]
+
+
+def test_build_doctor_briefing_content_reflects_real_trends_not_fabricated():
+    biomarker_rows = [
+        {"observation_code": "HBA1C", "observation_name": "HbA1c", "value_number": 5.9,
+         "unit": "%", "recorded_at": "2026-07-20T00:00:00Z"},
+        {"observation_code": "HBA1C", "observation_name": "HbA1c", "value_number": 5.7,
+         "unit": "%", "recorded_at": "2026-05-15T00:00:00Z"},
+    ]
+    medication_rows = [{"medicine_name": "Aspirin 75mg"}]
+
+    briefing = patient_health._build_doctor_briefing_content(
+        "patient-1", "Cardiology", biomarker_rows, medication_rows
+    )
+
+    assert briefing["active_medications_count"] == 1
+    assert briefing["recent_report_count"] == 2
+    assert "HbA1c trending up" in briefing["chief_anomalies"][0]
+    assert any("HbA1c" in fp for fp in briefing["recommended_focus_points"])
+    assert any("1 active medication" in fp for fp in briefing["recommended_focus_points"])
 
 
 # ── 4. Emergency SOS Trigger Test ─────────────────────────────────────────
@@ -84,13 +136,14 @@ async def test_trigger_emergency_sos():
 
 @pytest.mark.asyncio
 async def test_get_patient_medications_fallback():
+    """A patient with no rows in patient_medications gets an empty cabinet,
+    not fabricated prescriptions."""
     user = _mock_user()
     result = await patient_sos.get_patient_medications(user=user)
-    
+
     assert "patient_id" in result
     assert result["patient_id"] == user["sub"]
-    assert "medications" in result
-    assert len(result["medications"]) >= 3
+    assert result["medications"] == []
 
 
 @pytest.mark.asyncio

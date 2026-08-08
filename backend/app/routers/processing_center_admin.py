@@ -5,10 +5,15 @@ Centres are created by CallMedex, never by self-signup. Deciding who becomes a
 processing centre is a business decision, not a registration form.
 """
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+# Real lab systems a processing centre can run — excludes report_jobs-only
+# connector values (future_connector, patient_upload) that aren't a centre's
+# own lab software.
+LAB_CONNECTOR_TYPES = ("mocdoc", "crelio", "cloudlims", "manual")
 
 from app.database import supabase
 from app.middleware.auth import get_current_user
@@ -66,6 +71,7 @@ class CenterIn(BaseModel):
     partner_lab_name: str = ""
     daily_capacity: int = 0
     status: str = "active"
+    lab_connector_type: Literal["mocdoc", "crelio", "cloudlims", "manual"] = "mocdoc"
 
 
 class StaffIn(BaseModel):
@@ -178,6 +184,8 @@ async def update_center(center_id: str, payload: dict,
     _require_admin(user)
     if "city" in payload and payload["city"]:
         payload["city"] = str(payload["city"]).strip().lower()
+    if "lab_connector_type" in payload and payload["lab_connector_type"] not in LAB_CONNECTOR_TYPES:
+        raise HTTPException(status_code=400, detail=f"lab_connector_type must be one of {LAB_CONNECTOR_TYPES}")
     updated = _rows(
         supabase.table("processing_centers").update(payload).eq("id", center_id).execute()
     )

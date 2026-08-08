@@ -698,3 +698,38 @@ async def test_list_centers_never_rewrites_an_existing_area_configuration(pca_db
     areas = pca_db.db["processing_center_areas"]
     assert len(areas) == 1
     assert areas[0]["is_active"] is False
+
+
+from app.routers.processing_center_admin import CenterIn, create_center, update_center
+
+
+@pytest.mark.asyncio
+async def test_create_center_defaults_lab_connector_type_to_mocdoc(pca_db):
+    payload = CenterIn(code="VSPK-03", name="VSPK-03", city="visakhapatnam")
+
+    result = await create_center(payload, user={"role": "admin", "sub": "admin-1"})
+
+    assert result["center"]["lab_connector_type"] == "mocdoc"
+
+
+@pytest.mark.asyncio
+async def test_create_center_accepts_a_configured_connector(pca_db):
+    payload = CenterIn(code="HYD-01", name="HYD-01", city="hyderabad", lab_connector_type="crelio")
+
+    result = await create_center(payload, user={"role": "admin", "sub": "admin-1"})
+
+    assert result["center"]["lab_connector_type"] == "crelio"
+
+
+@pytest.mark.asyncio
+async def test_update_center_rejects_an_unknown_connector_type(pca_db):
+    cid = str(uuid.uuid4())
+    pca_db.db["processing_centers"] = [{
+        "id": cid, "code": "VSPK-01", "name": "VSPK-01",
+        "city": "visakhapatnam", "status": "active", "lab_connector_type": "mocdoc",
+    }]
+
+    with pytest.raises(HTTPException) as exc:
+        await update_center(cid, {"lab_connector_type": "some_random_lab_software"}, user={"role": "admin"})
+
+    assert exc.value.status_code == 400

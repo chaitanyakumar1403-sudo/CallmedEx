@@ -54,6 +54,10 @@ BEGIN
     END IF;
 END $$;
 
+ALTER TABLE processing_centers DROP CONSTRAINT IF EXISTS chk_processing_centers_lab_connector_type;
+ALTER TABLE processing_centers ADD CONSTRAINT chk_processing_centers_lab_connector_type
+    CHECK (lab_connector_type IN ('mocdoc', 'crelio', 'cloudlims', 'manual'));
+
 -- ─── P2.7: Report Jobs Analysis Source ──────────────────────────────────────
 DO $$
 BEGIN

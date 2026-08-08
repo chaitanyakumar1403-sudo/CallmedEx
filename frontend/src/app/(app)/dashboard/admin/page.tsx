@@ -127,7 +127,7 @@ export default function AdminDashboard() {
   const [centres, setCentres] = useState<any[]>([]);
   const [pcLoading, setPcLoading] = useState(false);
   const [showPcForm, setShowPcForm] = useState(false);
-  const [pcForm, setPcForm] = useState({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0 });
+  const [pcForm, setPcForm] = useState({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0, lab_connector_type: 'mocdoc' });
   const [pcFormMsg, setPcFormMsg] = useState('');
   const [selectedCentre, setSelectedCentre] = useState<any>(null);
   const [staffEmail, setStaffEmail] = useState('');
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok) {
         setPcFormMsg(`✅ Created ${pcForm.code}`);
-        setPcForm({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0 });
+        setPcForm({ code: '', name: '', city: '', state: '', address: '', pincode: '', daily_capacity: 0, lab_connector_type: 'mocdoc' });
         setShowPcForm(false);
         fetchCentres();
       } else {
@@ -333,6 +333,19 @@ export default function AdminDashboard() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status }),
+      });
+      if (res.ok) fetchCentres();
+    } catch { /* silent */ }
+  };
+
+  const handleUpdateCentreConnector = async (centreId: string, lab_connector_type: string) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ lab_connector_type }),
       });
       if (res.ok) fetchCentres();
     } catch { /* silent */ }
@@ -1216,6 +1229,18 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                <div>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Lab Software (Connector) *</label>
+                  <select required value={pcForm.lab_connector_type}
+                    onChange={e => setPcForm({ ...pcForm, lab_connector_type: e.target.value })}
+                    style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}>
+                    <option value="mocdoc">MocDoc</option>
+                    <option value="crelio">CrelioHealth</option>
+                    <option value="cloudlims">CloudLIMS</option>
+                    <option value="manual">Manual / No connector</option>
+                  </select>
+                </div>
+
                 <button type="submit" style={{
                   backgroundColor: '#059669', color: 'white', border: 'none',
                   padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 4,
@@ -1256,6 +1281,20 @@ export default function AdminDashboard() {
                           </div>
                           <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
                             {c.name} &middot; {c.city}{c.state ? `, ${c.state}` : ''}
+                          </div>
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280' }}>Lab Software:</label>
+                            <select value={c.lab_connector_type || 'mocdoc'}
+                              onChange={e => handleUpdateCentreConnector(c.id, e.target.value)}
+                              style={{
+                                fontSize: '0.75rem', padding: '3px 8px', borderRadius: 6,
+                                border: '1px solid #d1d5db', backgroundColor: 'white',
+                              }}>
+                              <option value="mocdoc">MocDoc</option>
+                              <option value="crelio">CrelioHealth</option>
+                              <option value="cloudlims">CloudLIMS</option>
+                              <option value="manual">Manual / No connector</option>
+                            </select>
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>

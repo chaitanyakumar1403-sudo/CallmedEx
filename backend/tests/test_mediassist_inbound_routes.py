@@ -295,6 +295,23 @@ def test_report_failed_success(client, fake_supabase):
     assert job["failure_reason"] == "ocr_failed"
 
 
+def test_report_failed_accepts_mode2_connector_reasons(client, fake_supabase):
+    """MocDoc Mode 2 (automated report download) failure reasons must not 422 —
+    see docs/integrations/mediassist-ai/callmedex-integration.openapi.yaml."""
+    fake_supabase.db["report_jobs"] = [{"id": "job-5c", "patient_id": "pat-1", "status": "processing"}]
+    resp = _post(
+        client, "/callbacks/report-failed",
+        {
+            "report_job_id": "job-5c", "occurred_at": "2026-08-02T10:00:00Z",
+            "failure_reason": "report_not_ready_timeout",
+        },
+        idem_key=_new_idem(), correlation_id=_new_corr(),
+    )
+    assert resp.status_code == 200
+    job = fake_supabase.db["report_jobs"][0]
+    assert job["failure_reason"] == "report_not_ready_timeout"
+
+
 def test_report_failed_unknown_job_404(client, fake_supabase):
     resp = _post(
         client, "/callbacks/report-failed",

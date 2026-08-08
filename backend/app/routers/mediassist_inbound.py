@@ -85,7 +85,11 @@ class ReportDeliveredCallback(ReportCallback):
 
 
 class ReportFailedCallback(ReportCallback):
-    failure_reason: Literal["ocr_failed", "interpretation_failed", "delivery_failed", "invalid_source_document"]
+    failure_reason: Literal[
+        "ocr_failed", "interpretation_failed", "delivery_failed", "invalid_source_document",
+        # Mode 2 (MocDoc connector automated download) failure reasons.
+        "report_not_ready_timeout", "bill_payment_pending", "download_automation_failed",
+    ]
     details: Optional[str] = None
 
 

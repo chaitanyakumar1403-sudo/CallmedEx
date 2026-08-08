@@ -10,11 +10,19 @@ export interface BiomarkerPoint {
   unit: string;
 }
 
+export interface BiomarkerTrend {
+  observationCode: string;
+  observationName: string;
+  latestValue: number;
+  unit: string;
+  direction: 'up' | 'down' | 'flat';
+}
+
 export interface RiskCompassScore {
-  cardiovascularRisk: number;
-  metabolicRisk: number;
-  inflammationRisk: number;
-  overallScore: number;
+  totalReadings: number;
+  distinctBiomarkers: number;
+  latestRecordedAt: string | null;
+  trends: BiomarkerTrend[];
   summaryText: string;
 }
 

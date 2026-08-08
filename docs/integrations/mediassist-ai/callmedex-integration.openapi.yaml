@@ -363,7 +363,8 @@ components:
           properties:
             failure_reason:
               type: string
-              enum: [ocr_failed, interpretation_failed, delivery_failed, invalid_source_document]
+              enum: [ocr_failed, interpretation_failed, delivery_failed, invalid_source_document,
+                report_not_ready_timeout, bill_payment_pending, download_automation_failed]
             details:
               type: string
               nullable: true

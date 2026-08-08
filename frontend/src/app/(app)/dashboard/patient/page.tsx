@@ -186,7 +186,7 @@ export default function PatientDashboard() {
 
       // 2. Fetch real Biomarkers & Risk Score
       try {
-        const bioRes = await fetch(`${apiBase}/api/v1/patient/biomarkers`, { headers });
+        const bioRes = await fetch(`${apiBase}/api/v1/patient/biomarkers/matrix`, { headers });
         if (bioRes.ok) {
           const bioData = await bioRes.json();
           const { healthMatrixStore } = await import('@/store/useHealthMatrixStore');
@@ -203,13 +203,19 @@ export default function PatientDashboard() {
               healthMatrixStore.setSelectedCode(mappedPoints[0].observationCode);
             }
           }
-          if (bioData.risk_summary) {
+          if (bioData.risk_compass) {
             healthMatrixStore.setRiskScore({
-              cardiovascularRisk: bioData.risk_summary.cardiovascular_risk,
-              metabolicRisk: bioData.risk_summary.metabolic_risk,
-              inflammationRisk: bioData.risk_summary.inflammation_risk,
-              overallScore: bioData.risk_summary.overall_score,
-              summaryText: bioData.risk_summary.summary_text,
+              totalReadings: bioData.risk_compass.total_readings,
+              distinctBiomarkers: bioData.risk_compass.distinct_biomarkers,
+              latestRecordedAt: bioData.risk_compass.latest_recorded_at,
+              trends: (bioData.risk_compass.trends || []).map((t: any) => ({
+                observationCode: t.observation_code,
+                observationName: t.observation_name,
+                latestValue: t.latest_value,
+                unit: t.unit,
+                direction: t.direction,
+              })),
+              summaryText: bioData.risk_compass.summary_text,
             });
           }
         }
