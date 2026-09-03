@@ -39,6 +39,12 @@ import {
   BarChart3,
   Bell,
   RefreshCw,
+  Bike,
+  ShieldCheck,
+  MapPin,
+  MessageCircle,
+  Star,
+  AlertTriangle,
 } from "lucide-react";
 
 interface UserData {
@@ -65,6 +71,8 @@ export default function PatientDashboard() {
   const [trackingData, setTrackingData] = useState<any>(null);
   const [requestingDispatch, setRequestingDispatch] = useState<string | null>(null);
   const [patientOtp, setPatientOtp] = useState<string | null>(null);
+  const [showLiveTracker, setShowLiveTracker] = useState(false);
+  const [simStage, setSimStage] = useState<"searching" | "en_route" | "arrived">("en_route");
 
   // Industry-First Feature Modals
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -612,13 +620,13 @@ export default function PatientDashboard() {
           provider_type: reorderBooking.provider_type || "phlebotomist",
           service_type: reorderBooking.service_type || "lab_test",
           slot_id: `reorder|${yyyymmdd}|${hhmm}`,
-          notes: `🔄 Quick Re-Order of ${reorderBooking.notes || reorderBooking.service_type}`,
+          notes: `Quick Re-Order of ${reorderBooking.notes || reorderBooking.service_type}`,
           total_price: reorderBooking.total_price || 0
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast("✅ Quick Re-Order placed successfully! Check active dispatches & bookings.");
+        toast("Quick Re-Order placed successfully! Check active dispatches & bookings.");
         setShowReorderModal(false);
         // Refresh bookings
         const bRes = await fetch(`${apiBase}/api/bookings/my`, {
@@ -754,6 +762,20 @@ export default function PatientDashboard() {
             <Shield size={16} />
             DrugShield AI (80% Generic Savings)
           </button>
+          <button
+            type="button"
+            className="cm-action-chip"
+            style={{
+              borderColor: showLiveTracker ? "var(--cm-active)" : "var(--cm-line-strong)",
+              background: showLiveTracker ? "var(--cm-active-surface)" : "var(--cm-surface)",
+              color: showLiveTracker ? "var(--cm-active)" : "var(--cm-ink)",
+              fontWeight: 700
+            }}
+            onClick={() => setShowLiveTracker(!showLiveTracker)}
+          >
+            <Bike size={16} />
+            {showLiveTracker ? "Hide Phlebo Tracker" : "Rapido Live Phlebo Dispatch"}
+          </button>
           {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
             <button
               type="button"
@@ -772,92 +794,272 @@ export default function PatientDashboard() {
           <DoctorBriefingModal isOpen={showBriefingModal} onClose={() => setShowBriefingModal(false)} />
         )}
 
+        {/* ─── RAPIDO-STYLE LIVE PHLEBOTOMIST DISPATCH & ORDER TRACKER ─── */}
+        {((activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status)) || showLiveTracker) && (() => {
+          const isReal = !!(activeDispatchId && trackingData);
+          const currentStatus = isReal ? trackingData.status : simStage;
+          const isSearching = currentStatus === "searching" || currentStatus === "provider_notified";
+          const isEnRoute = currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "in_progress";
+          const isArrived = currentStatus === "arrived";
+
+          const provider = isReal && trackingData.provider ? trackingData.provider : {
+            name: "Ramesh Kumar",
+            mobile: "+91 98490 23145",
+            distance_km: 1.8,
+            eta_minutes: 12,
+            vehicle: "Hero Splendor Plus · Temperature Carrier Box",
+            rating: "4.9",
+            collections: "1,240+",
+          };
+
+          const otp = isReal ? patientOtp : "4829";
+
+          return (
+            <div className="cm-rapido-panel" style={{ animation: "fadeIn 0.4s ease-out" }}>
+              {/* Header */}
+              <div className="cm-rapido-panel__header">
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span className="cm-pulse-indicator">
+                      <span className="cm-pulse-ring" />
+                      <span className="cm-pulse-dot" />
+                    </span>
+                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Bike size={20} style={{ color: "var(--cm-active)" }} />
+                      CallMedex Rapido Phlebo Dispatch
+                    </h3>
+                  </div>
+                  <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>
+                    {isSearching
+                      ? "Connecting with verified phlebotomists in your immediate delivery radius..."
+                      : isArrived
+                      ? "Phlebotomist is at your doorstep. Please share the sterile OTP to begin."
+                      : "Phlebotomist is en route with temperature-controlled cold chain sample kit."}
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  {/* Status Badge */}
+                  <span className={`cm-rapido-badge ${
+                    isSearching ? "cm-rapido-badge--searching" : isArrived ? "cm-rapido-badge--arrived" : "cm-rapido-badge--enroute"
+                  }`}>
+                    {isSearching ? "Broadcasting Request" : isArrived ? "Arrived at Doorstep" : "Phlebo En Route"}
+                  </span>
+
+                  {/* Demo Stage Switcher */}
+                  {!isReal && (
+                    <div style={{ display: "flex", background: "var(--cm-surface-2)", borderRadius: 9999, padding: 2, border: "1px solid var(--cm-line)" }}>
+                      <button
+                        type="button"
+                        onClick={() => setSimStage("searching")}
+                        style={{
+                          padding: "4px 10px", borderRadius: 9999, border: "none",
+                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          background: simStage === "searching" ? "var(--cm-waiting)" : "transparent",
+                          color: simStage === "searching" ? "#fff" : "var(--cm-ink-3)"
+                        }}
+                      >
+                        Search
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSimStage("en_route")}
+                        style={{
+                          padding: "4px 10px", borderRadius: 9999, border: "none",
+                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          background: simStage === "en_route" ? "var(--cm-active)" : "transparent",
+                          color: simStage === "en_route" ? "#fff" : "var(--cm-ink-3)"
+                        }}
+                      >
+                        En Route
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSimStage("arrived")}
+                        style={{
+                          padding: "4px 10px", borderRadius: 9999, border: "none",
+                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          background: simStage === "arrived" ? "var(--cm-done)" : "transparent",
+                          color: simStage === "arrived" ? "#fff" : "var(--cm-ink-3)"
+                        }}
+                      >
+                        Arrived & OTP
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Close / Cancel Button */}
+                  {isReal ? (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelRequest(activeDispatchId || trackingData?.dispatch_id, trackingData?.status)}
+                      style={{
+                        background: "none", border: "none", color: "var(--cm-urgent)", fontWeight: 700,
+                        fontSize: "0.85rem", cursor: "pointer", textDecoration: "underline"
+                      }}
+                    >
+                      Cancel Request
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowLiveTracker(false)}
+                      style={{
+                        background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)",
+                        borderRadius: "var(--cm-radius)", padding: "4px 10px", fontSize: "0.78rem",
+                        color: "var(--cm-ink-2)", fontWeight: 700, cursor: "pointer"
+                      }}
+                    >
+                      Close Tracker
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 5-Step Progress Stepper */}
+              <div className="cm-rapido-stepper">
+                <div className="cm-rapido-step cm-rapido-step--completed">
+                  <div className="cm-rapido-step__bar" />
+                  <div className="cm-rapido-step__label">Confirmed</div>
+                </div>
+                <div className={`cm-rapido-step ${isSearching ? "cm-rapido-step--current" : "cm-rapido-step--completed"}`}>
+                  <div className="cm-rapido-step__bar" />
+                  <div className="cm-rapido-step__label">Phlebo Search</div>
+                </div>
+                <div className={`cm-rapido-step ${isEnRoute ? "cm-rapido-step--current" : isArrived ? "cm-rapido-step--completed" : ""}`}>
+                  <div className="cm-rapido-step__bar" />
+                  <div className="cm-rapido-step__label">En Route</div>
+                </div>
+                <div className={`cm-rapido-step ${isArrived ? "cm-rapido-step--current" : ""}`}>
+                  <div className="cm-rapido-step__bar" />
+                  <div className="cm-rapido-step__label">Doorstep Arrival</div>
+                </div>
+                <div className="cm-rapido-step">
+                  <div className="cm-rapido-step__bar" />
+                  <div className="cm-rapido-step__label">Sample in Lab</div>
+                </div>
+              </div>
+
+              {/* VIEW 1: Searching for Phlebotomist */}
+              {isSearching && (
+                <div className="cm-rapido-radar-box">
+                  <div className="cm-rapido-radar-anim">
+                    <div className="cm-rapido-radar-wave" />
+                    <div className="cm-rapido-radar-ring" />
+                    <Bike size={36} />
+                  </div>
+                  <h4 style={{ margin: "0 0 6px 0", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                    Broadcasting to Nearby Certified Phlebotomists...
+                  </h4>
+                  <p style={{ margin: "0 0 16px 0", fontSize: "0.85rem", color: "var(--cm-ink-3)", maxWidth: 500 }}>
+                    Scanning 8 verified NABL phlebotomists within 4.5 km of your location. Typical assignment takes under 2 minutes.
+                  </p>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> 100% Vaccinated
+                    </span>
+                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> Sterile Single-Use Vacutainer Kits
+                    </span>
+                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> 2°C–8°C Temperature Monitored Box
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 2 & 3: Phlebotomist Assigned / En Route / Arrived */}
+              {!isSearching && (
+                <div>
+                  {/* Captain Card */}
+                  <div className="cm-rapido-captain">
+                    <div className="cm-rapido-captain__profile">
+                      <div className="cm-rapido-captain__avatar">
+                        {provider.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                        <span className="cm-rapido-captain__online-badge" />
+                      </div>
+                      <div>
+                        <div className="cm-rapido-captain__name">
+                          {provider.name}
+                          <span className="cm-rapido-captain__rating">
+                            <Star size={12} fill="currentColor" /> {provider.rating || "4.9"}
+                          </span>
+                          <span style={{ fontSize: "0.72rem", background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)", padding: "2px 8px", borderRadius: 9999, fontWeight: 700 }}>
+                            <ShieldCheck size={11} style={{ display: "inline", marginRight: 3 }} /> NABL Verified
+                          </span>
+                        </div>
+                        <div className="cm-rapido-captain__vehicle">
+                          <Bike size={14} style={{ color: "var(--cm-active)" }} />
+                          {provider.vehicle || "Hero Splendor · Cold Chain Carrier"} · {provider.collections || "1,200+"} collections
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Distance & Contact Actions */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
+                          {isArrived ? "At Your Doorstep" : `~${provider.eta_minutes || 12} mins`}
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
+                          {isArrived ? "Ring Bell / Meet Provider" : `${provider.distance_km || 1.8} km away`}
+                        </div>
+                      </div>
+
+                      <div className="cm-rapido-captain__actions">
+                        <a
+                          href={`tel:${provider.mobile || "+919849023145"}`}
+                          className="cm-btn cm-btn--primary cm-btn--sm"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
+                        >
+                          <Phone size={14} /> Call Phlebo
+                        </a>
+                        <a
+                          href={`https://wa.me/${(provider.mobile || "919849023145").replace(/[^0-9]/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="cm-btn cm-btn--secondary cm-btn--sm"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
+                        >
+                          <MessageCircle size={14} /> WhatsApp
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* High-Contrast Doorstep OTP Card (Shown when Arrived or Previewing) */}
+                  {(isArrived || simStage === "arrived") && (
+                    <div className="cm-rapido-otp-card">
+                      <div>
+                        <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 700 }}>
+                          Doorstep Sample Verification
+                        </div>
+                        <h4 style={{ margin: "2px 0 6px 0", fontSize: "1.2rem", color: "#fff", fontWeight: 800 }}>
+                          Share this OTP with Phlebotomist
+                        </h4>
+                        <p style={{ margin: 0, fontSize: "0.85rem", color: "rgba(255,255,255,0.85)", maxWidth: 460 }}>
+                          Share this secure code only when the phlebotomist arrives at your doorstep with sterile, tamper-evident vacutainer tubes.
+                        </p>
+                      </div>
+
+                      <div style={{ textAlign: "center" }}>
+                        <div className="cm-rapido-otp-code">
+                          {otp}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 4, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <CheckCircle2 size={12} style={{ color: "#38bdf8" }} /> Sterile Vacuum Seal Assured
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ─── INTERACTIVE ORGAN BODY MAP & HEALTH TWIN ─── */}
         <InteractiveBodyMap />
-
-        {/* ─── LIVE SERVICE TRACKER ─── */}
-        {activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status) && (
-          <div className="cm-telemetry-panel" style={{ animation: "fadeIn 0.5s ease-out" }}>
-            <div className="cm-telemetry-panel__head">
-              <h3 className="cm-telemetry-panel__title">
-                <span className="cm-pulse-indicator">
-                  <span className="cm-pulse-ring" />
-                  <span className="cm-pulse-dot" />
-                </span>
-                Live Service Tracking
-              </h3>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{
-                  backgroundColor: trackingData.status === "searching" ? "var(--cm-waiting-surface)" : "var(--cm-done-surface)",
-                  color: trackingData.status === "searching" ? "var(--cm-waiting)" : "var(--cm-done)",
-                  border: `1px solid ${trackingData.status === "searching" ? "var(--cm-waiting-line)" : "var(--cm-done-line)"}`,
-                  padding: "6px 16px", borderRadius: "999px", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase"
-                }}>
-                  {trackingData.status?.replace("_", " ") || "In Progress"}
-                </span>
-
-                {trackingData.status !== "arrived" && trackingData.status !== "in_progress" && trackingData.status !== "completed" && trackingData.status !== "cancelled" && (
-                  <button
-                    type="button"
-                    onClick={() => handleCancelRequest(activeDispatchId || trackingData.dispatch_id, trackingData.status)}
-                    style={{
-                      background: "none", border: "none", color: "var(--cm-urgent)", fontWeight: 600,
-                      fontSize: "0.85rem", cursor: "pointer", textDecoration: "underline"
-                    }}
-                  >
-                    Cancel Request
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {trackingData.provider && trackingData.provider.distance_km != null ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, background: "var(--cm-surface-2)", padding: "12px 18px", borderRadius: "var(--cm-radius)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cm-ink)" }}>
-                  <Navigation size={18} style={{ color: "var(--cm-active)" }} />
-                  <span style={{ fontWeight: 800, fontSize: "1.1rem" }}>{trackingData.provider.distance_km} km</span> away
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--cm-ink-3)", fontSize: "0.9rem" }}>
-                  <Clock size={16} />
-                  <span>ETA: ~<strong>{trackingData.provider.eta_minutes} mins</strong></span>
-                </div>
-              </div>
-            ) : trackingData.status === "searching" ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--cm-waiting)", background: "var(--cm-waiting-surface)", borderRadius: "var(--cm-radius)", marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontWeight: 700 }}>
-                  <Activity size={18} className="animate-spin" /> Broadcasting Request to Nearby Phlebotomists...
-                </div>
-              </div>
-            ) : null}
-
-            {trackingData.provider ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--cm-surface)", padding: 16, borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--cm-surface-3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cm-navy)" }}>
-                    <Stethoscope size={22} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--cm-ink)" }}>{trackingData.provider.name}</div>
-                    <div style={{ fontSize: "0.88rem", color: "var(--cm-ink-3)", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                      <Phone size={14} /> {trackingData.provider.mobile}
-                    </div>
-                  </div>
-                </div>
-
-                {patientOtp && trackingData.status === "arrived" && (
-                  <div style={{ background: "var(--cm-navy)", color: "#fff", padding: 20, borderRadius: "var(--cm-radius)", textAlign: "center", animation: "fadeIn 0.5s ease-out" }}>
-                    <h4 style={{ margin: "0 0 8px 0", fontSize: "1.1rem" }}>Healthcare Provider Arrived!</h4>
-                    <p style={{ margin: "0 0 14px 0", fontSize: "0.9rem", color: "rgba(255,255,255,0.8)" }}>Share this secure OTP to initiate your sample collection:</p>
-                    <div style={{ fontSize: "2.2rem", letterSpacing: "8px", fontWeight: 900, background: "rgba(255,255,255,0.15)", color: "#fff", padding: "10px 24px", borderRadius: "var(--cm-radius)", display: "inline-block", border: "1px solid rgba(255,255,255,0.3)" }}>
-                      {patientOtp}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </div>
-        )}
 
         {/* Modern KPI Stats */}
         <div className="cm-kpi-grid">
@@ -975,58 +1177,161 @@ export default function PatientDashboard() {
         )}
 
         {/* Quick Actions */}
-        <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.quick}</h3>
-        <div className="quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.2rem", color: "var(--cm-ink)", fontWeight: 800 }}>
+            {t.quick}
+          </h3>
+          <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
+            Instant Doorstep Healthcare & Telemedicine
+          </span>
+        </div>
 
-          {/* Dispatch Buttons */}
-          <button type="button" onClick={() => openDispatchModal("phlebotomist", "home_collection", "Blood Collection")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: '1px solid var(--cm-line)', cursor: 'pointer', textAlign: 'center', background: 'var(--cm-surface)', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Droplet size={22} />
+        <div className="cm-quick-grid">
+          {/* Urgent Home Collection */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("phlebotomist", "home_collection", "Blood Collection")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #06b6d4)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}>
+                <Droplet size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "phlebotomist" ? "Requesting..." : "Urgent Home Collection"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                Certified Phlebotomist at your doorstep in 15–30 mins.
+              </p>
             </div>
-            <h4 style={{ margin: 0, fontSize: "0.92rem", color: "var(--cm-ink)" }}>{requestingDispatch === "phlebotomist" ? "Requesting..." : "Urgent Home Collection"}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+              Free Home Visit · NABL Lab
+            </span>
           </button>
 
-          <button type="button" onClick={() => openDispatchModal("doctor", "home_visit", "Home Doctor")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: '1px solid var(--cm-line)', cursor: 'pointer', textAlign: 'center', background: 'var(--cm-surface)', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Stethoscope size={22} />
+          {/* Urgent Home Doctor */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("doctor", "home_visit", "Home Doctor")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #3b82f6, #6366f1)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(59, 130, 246, 0.12)", color: "#3b82f6" }}>
+                <Stethoscope size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "doctor" ? "Requesting..." : "Urgent Home Doctor"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                MBBS / MD Physician physical examination & prescription.
+              </p>
             </div>
-            <h4 style={{ margin: 0, fontSize: "0.92rem", color: "var(--cm-ink)" }}>{requestingDispatch === "doctor" ? "Requesting..." : "Urgent Home Doctor"}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#2563eb", border: "1px solid rgba(59, 130, 246, 0.25)" }}>
+              Verified Physician
+            </span>
           </button>
 
-          <button type="button" onClick={() => openDispatchModal("nurse", "nursing_care", "Home Nurse")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: '1px solid var(--cm-line)', cursor: 'pointer', textAlign: 'center', background: 'var(--cm-surface)', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <HeartHandshake size={22} />
+          {/* Urgent Home Nurse */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("nurse", "nursing_care", "Home Nurse")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #f43f5e, #e11d48)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(244, 63, 94, 0.12)", color: "#f43f5e" }}>
+                <HeartHandshake size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "nurse" ? "Requesting..." : "Urgent Home Nurse"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                IV drip, wound dressing, vitals check & post-op nursing.
+              </p>
             </div>
-            <h4 style={{ margin: 0, fontSize: "0.92rem", color: "var(--cm-ink)" }}>{requestingDispatch === "nurse" ? "Requesting..." : "Urgent Home Nurse"}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(244, 63, 94, 0.1)", color: "#e11d48", border: "1px solid rgba(244, 63, 94, 0.25)" }}>
+              B.Sc Nursing Certified
+            </span>
           </button>
 
-          <button type="button" onClick={() => openDispatchModal("pharmacy_delivery", "medicine_delivery", "Pharmacy Delivery")} disabled={requestingDispatch !== null} className="card quick-action" style={{ border: '1px solid var(--cm-line)', cursor: 'pointer', textAlign: 'center', background: 'var(--cm-surface)', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Truck size={22} />
+          {/* Urgent Medicine Delivery */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("pharmacy_delivery", "medicine_delivery", "Pharmacy Delivery")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #f59e0b, #ea580c)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}>
+                <Truck size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "pharmacy_delivery" ? "Requesting..." : "Urgent Medicine Delivery"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                Hyperlocal pharmacy delivery with 80% generic savings.
+              </p>
             </div>
-            <h4 style={{ margin: 0, fontSize: "0.92rem", color: "var(--cm-ink)" }}>{requestingDispatch === "pharmacy_delivery" ? "Requesting..." : "Urgent Medicine Delivery"}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#d97706", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+              Under 45 Mins
+            </span>
           </button>
 
-          {/* Standard Navigation Buttons */}
-          <a href="/booking?type=video_consult" className="card quick-action" style={{ border: '1px solid var(--cm-line)', textDecoration: 'none', textAlign: 'center', background: 'var(--cm-surface)', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Video size={22} />
+          {/* Video Consultation */}
+          <a href="/booking?type=video_consult" className="cm-quick-card">
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #8b5cf6, #a855f7)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6" }}>
+                <Video size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">{t.video}</h4>
+              <p className="cm-quick-card__subtitle">
+                Connect with specialist doctor in 60 seconds with AI summary.
+              </p>
             </div>
-            <h4 style={{ margin: 0, fontSize: "0.92rem", color: "var(--cm-ink)" }}>{t.video}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(139, 92, 246, 0.1)", color: "#7c3aed", border: "1px solid rgba(139, 92, 246, 0.25)" }}>
+              Instant HD Connect
+            </span>
           </a>
 
-          <a href="/dashboard/patient/pmjay" className="card quick-action" style={{ border: '1px solid var(--cm-done-line)', backgroundColor: 'var(--cm-done-surface)', textDecoration: 'none', textAlign: 'center', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-done)", color: "white", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Building2 size={22} />
+          {/* AB-PMJAY Cashless */}
+          <a href="/dashboard/patient/pmjay" className="cm-quick-card">
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #f59e0b)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                <Building2 size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">{t.pmjay}</h4>
+              <p className="cm-quick-card__subtitle">
+                Government Ayushman Bharat ₹5 Lakh Cashless Coverage.
+              </p>
             </div>
-            <h4 style={{ color: 'var(--cm-done)', margin: 0, fontSize: "0.92rem" }}>{t.pmjay}</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+              Zero Out-of-Pocket
+            </span>
           </a>
 
-          <a href="/dashboard/patient/reports" className="card quick-action" style={{ border: '1px solid var(--cm-active-line)', backgroundColor: 'var(--cm-active-surface)', textDecoration: 'none', textAlign: 'center', padding: 16, borderRadius: 'var(--cm-radius)' }}>
-            <div className="quick-action__icon" style={{ background: "var(--cm-active)", color: "white", margin: "0 auto 12px", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Sparkles size={22} />
+          {/* AI Reports */}
+          <a href="/dashboard/patient/reports" className="cm-quick-card">
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #06b6d4, #8b5cf6)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(6, 182, 212, 0.12)", color: "#06b6d4" }}>
+                <Sparkles size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">AI Reports & Insights</h4>
+              <p className="cm-quick-card__subtitle">
+                Instant plain-language translation of complex lab reports.
+              </p>
             </div>
-            <h4 style={{ color: 'var(--cm-active)', margin: 0, fontSize: "0.92rem" }}>AI Reports</h4>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(6, 182, 212, 0.1)", color: "#0284c7", border: "1px solid rgba(6, 182, 212, 0.25)" }}>
+              NextGen Liquid AI
+            </span>
           </a>
         </div>
 
@@ -1095,18 +1400,37 @@ export default function PatientDashboard() {
                       Cancel
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleQuickReorder(booking)}
-                    style={{
-                      padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-active-line)",
-                      backgroundColor: "var(--cm-active-surface)", color: "var(--cm-active)", fontWeight: 700,
-                      fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-                      transition: "all 0.15s ease"
-                    }}
-                  >
-                    <RefreshCw size={13} /> Quick Re-Order
-                  </button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {(booking.service_type === "lab_test" || booking.service_type === "home_collection") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLiveTracker(true);
+                          window.scrollTo({ top: 320, behavior: "smooth" });
+                        }}
+                        style={{
+                          padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-done-line)",
+                          backgroundColor: "var(--cm-done-surface)", color: "var(--cm-done)", fontWeight: 700,
+                          fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <Bike size={13} /> Track Phlebo
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleQuickReorder(booking)}
+                      style={{
+                        padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-active-line)",
+                        backgroundColor: "var(--cm-active-surface)", color: "var(--cm-active)", fontWeight: 700,
+                        fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <RefreshCw size={13} /> Quick Re-Order
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1125,15 +1449,17 @@ export default function PatientDashboard() {
         </div>
 
         {/* Health Records Placeholder */}
-        <div className="card" style={{ marginTop: 32, padding: 32, textAlign: "center", border: abhaLinkedNumber ? "2px solid #319795" : "2px dashed var(--color-gray-200)", backgroundColor: abhaLinkedNumber ? "#e6fffa" : "white" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>🔗</div>
-          <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8 }}>ABHA Health Records</h3>
+        <div className="card" style={{ marginTop: 32, padding: 32, textAlign: "center", border: abhaLinkedNumber ? "2px solid var(--cm-done-line)" : "2px dashed var(--cm-line)", backgroundColor: abhaLinkedNumber ? "var(--cm-done-surface)" : "var(--cm-surface)" }}>
+          <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "var(--cm-surface-3)", color: "var(--cm-navy)", marginBottom: 8 }}>
+            <ShieldCheck size={30} />
+          </div>
+          <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8, color: "var(--cm-ink)" }}>ABHA Health Records</h3>
           {abhaLinkedNumber ? (
             <div>
-              <p style={{ color: "#285e61", fontSize: "1rem", fontWeight: "bold", margin: "16px 0" }}>
-                ✅ ABHA Linked: <span style={{ letterSpacing: 1.5 }}>{abhaLinkedNumber}</span>
+              <p style={{ color: "var(--cm-done)", fontSize: "1rem", fontWeight: "bold", margin: "16px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <CheckCircle2 size={16} /> ABHA Linked: <span style={{ letterSpacing: 1.5 }}>{abhaLinkedNumber}</span>
               </p>
-              <p style={{ color: "var(--color-gray-500)", fontSize: "0.9rem", maxWidth: 400, margin: "0 auto 16px" }}>
+              <p style={{ color: "var(--cm-ink-3)", fontSize: "0.9rem", maxWidth: 400, margin: "0 auto 16px" }}>
                 Your health records are synced with ABDM.
               </p>
             </div>
@@ -1248,11 +1574,11 @@ export default function PatientDashboard() {
         </div>
       )}
 
-      {/* 🚨 Floating Emergency SOS Button */}
+      {/* Floating Emergency SOS Button */}
       <button
         className="sos-floating-btn"
         onClick={async () => {
-          if (!await customConfirm("🚨 EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
+          if (!await customConfirm("EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
 
           try {
             // Get actual GPS coordinates from the browser
@@ -1302,7 +1628,7 @@ export default function PatientDashboard() {
             if (res.ok && data.dispatch_id) {
               localStorage.setItem("activeDispatchId", data.dispatch_id);
               setActiveDispatchId(data.dispatch_id);
-              toast(data.message || "🚨 EMERGENCY BEACON DISPATCHED!");
+              toast(data.message || "EMERGENCY BEACON DISPATCHED!");
             } else {
               toast(data.detail || data.message || "Failed to send emergency SOS. Please call emergency services directly.");
             }
@@ -1311,7 +1637,7 @@ export default function PatientDashboard() {
           }
         }}
       >
-        🚨 EMERGENCY SOS
+        <AlertTriangle size={18} style={{ marginRight: 6 }} /> EMERGENCY SOS
       </button>
 
       {/* Industry-First Feature Modals */}
@@ -1343,21 +1669,21 @@ export default function PatientDashboard() {
             backgroundColor: "white", borderRadius: 16, padding: 28,
             width: "100%", maxWidth: 480, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
           }}>
-            <h3 style={{ margin: "0 0 12px", color: "#1e293b", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
-              <span>🔄</span> Quick Re-Order Confirmation
+            <h3 style={{ margin: "0 0 12px", color: "var(--cm-ink)", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
+              <RefreshCw size={20} style={{ color: "var(--cm-active)" }} /> Quick Re-Order Confirmation
             </h3>
-            <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>
+            <p style={{ fontSize: "0.85rem", color: "var(--cm-ink-3)", marginBottom: 16 }}>
               Re-book your past test package or prescription order with 1 click:
             </p>
 
-            <div style={{ backgroundColor: "#f8fafc", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid #e2e8f0" }}>
-              <div style={{ fontWeight: 700, color: "#1e293b", fontSize: "0.95rem", textTransform: "capitalize", marginBottom: 4 }}>
+            <div style={{ backgroundColor: "var(--cm-surface-2)", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid var(--cm-line)" }}>
+              <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "0.95rem", textTransform: "capitalize", marginBottom: 4 }}>
                 {reorderBooking.service_type.replace('_', ' ')}
               </div>
-              <div style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 8 }}>
+              <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", marginBottom: 8 }}>
                 {reorderBooking.notes || `Previous Booking ID: ${reorderBooking.id?.slice(0, 8)}`}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "#0f4c81", borderTop: "1px dashed #cbd5e1", paddingTop: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "var(--cm-active)", borderTop: "1px dashed var(--cm-line)", paddingTop: 8 }}>
                 <span>Estimated Price:</span>
                 <span>₹{reorderBooking.total_price || 350}</span>
               </div>
@@ -1366,16 +1692,16 @@ export default function PatientDashboard() {
             <div style={{ display: "flex", gap: 10 }}>
               <button
                 onClick={() => setShowReorderModal(false)}
-                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer", fontWeight: 600 }}
+                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid var(--cm-line)", background: "var(--cm-surface)", cursor: "pointer", fontWeight: 600, color: "var(--cm-ink)" }}
               >
                 Cancel
               </button>
               <button
                 onClick={confirmQuickReorder}
                 disabled={reorderLoading}
-                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)", color: "white", fontWeight: 700, cursor: reorderLoading ? "wait" : "pointer" }}
+                style={{ flex: 1, padding: "12px", borderRadius: 8, border: "none", background: "var(--cm-active)", color: "white", fontWeight: 700, cursor: reorderLoading ? "wait" : "pointer" }}
               >
-                {reorderLoading ? "Processing..." : "⚡ Confirm & Re-Order"}
+                {reorderLoading ? "Processing..." : "Confirm & Re-Order"}
               </button>
             </div>
           </div>

@@ -1241,3 +1241,405 @@ input[type="radio"] {
   border-color: var(--cm-navy-soft);
 }
 
+/* ─── Rapido-Style Phlebotomist Dispatch & Live Order Tracker ────────── */
+.cm-rapido-panel {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line-strong);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-5);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  margin-bottom: var(--cm-6);
+  position: relative;
+  overflow: hidden;
+}
+
+.cm-rapido-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cm-3);
+  padding-bottom: var(--cm-4);
+  border-bottom: 1px solid var(--cm-line);
+  margin-bottom: var(--cm-4);
+}
+
+.cm-rapido-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-2);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cm-rapido-badge--searching {
+  background: var(--cm-waiting-surface);
+  color: var(--cm-waiting);
+  border: 1px solid var(--cm-waiting-line);
+}
+
+.cm-rapido-badge--enroute {
+  background: var(--cm-active-surface);
+  color: var(--cm-active);
+  border: 1px solid var(--cm-active-line);
+}
+
+.cm-rapido-badge--arrived {
+  background: var(--cm-done-surface);
+  color: var(--cm-done);
+  border: 1px solid var(--cm-done-line);
+}
+
+/* Stepper */
+.cm-rapido-stepper {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--cm-2);
+  margin: var(--cm-4) 0;
+  position: relative;
+}
+
+.cm-rapido-step {
+  text-align: center;
+  position: relative;
+}
+
+.cm-rapido-step__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--cm-line);
+  margin-bottom: var(--cm-2);
+  transition: background 0.3s ease;
+}
+
+.cm-rapido-step--completed .cm-rapido-step__bar {
+  background: var(--cm-done);
+}
+
+.cm-rapido-step--current .cm-rapido-step__bar {
+  background: var(--cm-active);
+  animation: cm-bar-glow 1.5s infinite alternate;
+}
+
+.cm-rapido-step__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--cm-ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cm-rapido-step--completed .cm-rapido-step__label {
+  color: var(--cm-ink);
+}
+
+.cm-rapido-step--current .cm-rapido-step__label {
+  color: var(--cm-active);
+  font-weight: 800;
+}
+
+@keyframes cm-bar-glow {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+/* Searching Radar State */
+.cm-rapido-radar-box {
+  background: linear-gradient(135deg, var(--cm-surface-2), var(--cm-surface));
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cm-rapido-radar-anim {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--cm-active-surface);
+  color: var(--cm-active);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: var(--cm-3);
+}
+
+.cm-rapido-radar-ring {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  border: 2px dashed var(--cm-active-line);
+  border-radius: 50%;
+  animation: cm-spin-slow 8s linear infinite;
+}
+
+.cm-rapido-radar-wave {
+  position: absolute;
+  inset: -15px;
+  border-radius: 50%;
+  background: var(--cm-active);
+  opacity: 0.2;
+  animation: cm-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes cm-spin-slow {
+  100% { transform: rotate(360deg); }
+}
+
+/* Captain Card */
+.cm-rapido-captain {
+  background: var(--cm-surface-2);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--cm-3);
+}
+
+.cm-rapido-captain__profile {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-3);
+}
+
+.cm-rapido-captain__avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--cm-navy), var(--cm-active));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  position: relative;
+}
+
+.cm-rapido-captain__online-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cm-done);
+  border: 2px solid #fff;
+}
+
+.cm-rapido-captain__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--cm-ink);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-2);
+}
+
+.cm-rapido-captain__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--cm-waiting-surface);
+  color: var(--cm-waiting);
+  border: 1px solid var(--cm-waiting-line);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.cm-rapido-captain__vehicle {
+  font-size: 0.82rem;
+  color: var(--cm-ink-3);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-1);
+  margin-top: 4px;
+}
+
+.cm-rapido-captain__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-2);
+}
+
+/* Doorstep OTP Card */
+.cm-rapido-otp-card {
+  background: linear-gradient(135deg, #091428, #13274c);
+  color: #fff;
+  padding: var(--cm-4) var(--cm-5);
+  border-radius: var(--cm-radius);
+  margin-top: var(--cm-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--cm-3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 20px rgba(9, 20, 40, 0.25);
+}
+
+.cm-rapido-otp-code {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #38bdf8;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 20px;
+  border-radius: var(--cm-radius-sm);
+  border: 1px dashed rgba(56, 189, 248, 0.5);
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+/* ─── Modern Vibrant Quick Action Cards ──────────────────────────────── */
+.cm-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--cm-4);
+  margin-bottom: var(--cm-6);
+}
+
+.cm-quick-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-4);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.03);
+}
+
+.cm-quick-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--cm-line-strong);
+  box-shadow: 0 12px 24px -6px rgba(15, 23, 42, 0.08), 0 6px 12px -4px rgba(15, 23, 42, 0.04);
+}
+
+.cm-quick-card__stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+.cm-quick-card__icon-disc {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--cm-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--cm-3);
+  transition: transform 0.2s ease;
+}
+
+.cm-quick-card:hover .cm-quick-card__icon-disc {
+  transform: scale(1.08);
+}
+
+.cm-quick-card__title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--cm-ink);
+  margin: 0 0 4px 0;
+}
+
+.cm-quick-card__subtitle {
+  font-size: 0.78rem;
+  color: var(--cm-ink-3);
+  line-height: 1.35;
+  margin: 0 0 var(--cm-3) 0;
+}
+
+.cm-quick-card__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  align-self: flex-start;
+}
+
+/* ─── Futuristic Anatomical Scanner & Heat Map Twin ─────────────────── */
+.cm-scanner-enclosure {
+  background: linear-gradient(180deg, #091428 0%, #0d1e38 100%);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-5);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: 0 16px 36px -8px rgba(9, 20, 40, 0.45);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.cm-scanner-grid-bg {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+}
+
+.cm-scanner-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+  box-shadow: 0 0 12px #38bdf8;
+  animation: cm-scanline 4s ease-in-out infinite alternate;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+@keyframes cm-scanline {
+  0% { top: 10%; }
+  100% { top: 90%; }
+}
+
+@keyframes cm-heartbeat-ring {
+  0% { transform: scale(0.9); opacity: 0.9; }
+  50% { transform: scale(1.4); opacity: 0.2; }
+  100% { transform: scale(0.9); opacity: 0.9; }
+}
+
+.cm-organ-node {
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.cm-organ-node:hover {
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+

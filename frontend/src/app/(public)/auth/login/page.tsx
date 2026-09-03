@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, HeartPulse } from "lucide-react";
 
 /** Decode JWT payload to check expiry without verifying signature */
 function isTokenExpired(token: string): boolean {
@@ -73,7 +73,9 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="card auth-card auth-card--login">
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: "3rem", marginBottom: 8 }}>🫀</div>
+          <div style={{ display: "inline-flex", padding: 14, borderRadius: "50%", background: "var(--cm-active-surface)", color: "var(--cm-active)", marginBottom: 12 }}>
+            <HeartPulse size={36} />
+          </div>
           <h2>Welcome Back</h2>
           <p className="subtitle">Login to your CallMedex account</p>
         </div>

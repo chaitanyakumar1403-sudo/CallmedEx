@@ -13,5 +13,7 @@ export {
   Search, Plus, Trash2, Pencil, Eye, Download, RefreshCw, Menu, Building2,
   Mail, GraduationCap, ScanLine, Boxes, CalendarDays, Truck, ShieldCheck,
   Ban, BarChart3, CircleDot, ArrowRight, Award, Droplets, Tag, TrendingDown,
+  Bike, Sparkles, Smile, Ear, Brain, Heart, Wind, Droplet, Bone, HeartHandshake, Video, Activity,
+  UserCheck, Shield, AlertCircle, Calendar,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";
