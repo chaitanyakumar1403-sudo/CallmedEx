@@ -18,9 +18,9 @@ router = APIRouter(prefix="/api/v1/patient", tags=["Patient Emergency & Meds"])
 
 
 class SOSTriggerPayload(BaseModel):
-    lat: Optional[float] = Field(None, example=12.9716)
-    lng: Optional[float] = Field(None, example=77.5946)
-    notes: Optional[str] = Field(None, example="Feeling sudden chest tightness")
+    lat: Optional[float] = Field(None, json_schema_extra={"example": 12.9716})
+    lng: Optional[float] = Field(None, json_schema_extra={"example": 77.5946})
+    notes: Optional[str] = Field(None, json_schema_extra={"example": "Feeling sudden chest tightness"})
 
 
 class MedicationIn(BaseModel):

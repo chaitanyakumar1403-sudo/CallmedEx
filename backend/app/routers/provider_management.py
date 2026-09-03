@@ -244,7 +244,7 @@ async def update_availability(
     if not supabase:
         raise HTTPException(500, "Database not configured")
 
-    updates = {k: v for k, v in body.dict().items() if v is not None}
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
 
@@ -292,7 +292,7 @@ async def update_availability_group(
     if not supabase:
         raise HTTPException(500, "Database not configured")
 
-    updates = {k: v for k, v in body.dict().items() if v is not None}
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No fields to update")
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()

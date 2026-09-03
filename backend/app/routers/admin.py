@@ -10,6 +10,7 @@ import json
 from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.fraud_detection import FraudDetectionService
+from app.utils.db_helpers import _rows
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -92,51 +93,7 @@ async def get_users(role: Optional[str] = None, q: Optional[str] = None, current
     return {"success": True, "city_scope": city or "Global", "users": result.data or []}
 
 
-@router.get("/verifications")
-async def get_pending_verifications(current_user: dict = Depends(get_current_user)):
-    """List pending provider verifications. City Supervisors only see their city's providers."""
-    admin_data = check_admin_access(current_user)
-    city = admin_data.get("managed_city")
 
-    if not supabase:
-        return {"success": True, "verifications": []}
-
-    # Fetch users first to filter by city
-    user_query = supabase.table("users").select("id, full_name, city, role").in_("role", ["doctor", "pharmacy", "phlebotomist", "organization"])
-    if city:
-        user_query = user_query.eq("city", city)
-    
-    users = user_query.execute().data or []
-    if not users:
-        return {"success": True, "verifications": []}
-
-    user_ids = [u["id"] for u in users]
-    user_map = {u["id"]: u for u in users}
-
-    # Fetch pending verifications across all role tables
-    verifications = []
-    
-    # 1. Doctors
-    docs = supabase.table("doctors").select("*").in_("user_id", user_ids).eq("verification_status", "pending").execute().data or []
-    for d in docs:
-        verifications.append({"role": "doctor", "user": user_map[d["user_id"]], "data": d})
-        
-    # 2. Pharmacies
-    pharms = supabase.table("pharmacies").select("*").in_("user_id", user_ids).eq("verification_status", "pending").execute().data or []
-    for p in pharms:
-        verifications.append({"role": "pharmacy", "user": user_map[p["user_id"]], "data": p})
-
-    # 3. Phlebotomists
-    phlebs = supabase.table("phlebotomists").select("*").in_("user_id", user_ids).eq("verification_status", "pending").execute().data or []
-    for ph in phlebs:
-        verifications.append({"role": "phlebotomist", "user": user_map[ph["user_id"]], "data": ph})
-        
-    # 4. Organizations
-    orgs = supabase.table("organizations").select("*").in_("user_id", user_ids).eq("verification_status", "pending").execute().data or []
-    for o in orgs:
-        verifications.append({"role": "organization", "user": user_map[o["user_id"]], "data": o})
-
-    return {"success": True, "city_scope": city or "Global", "verifications": verifications}
 
 
 @router.get("/fraud/anomalies")

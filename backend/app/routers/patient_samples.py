@@ -170,3 +170,169 @@ async def my_samples(user: dict = Depends(get_current_user)):
         out.append(safe)
 
     return {"samples": out, "count": len(out)}
+
+
+@router.get("/samples/{sample_id}/timeline")
+async def get_patient_sample_timeline(
+    sample_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Specimen Passport timeline (§8.1 & §9.1):
+    Returns chronological custody milestones formatted as CustodyEvent objects with:
+    - id, eventType, label, actorRole, actorName (first name only), temperatureCelsius, at, verification
+    Also returns specimen barcode, status, tube_type, and safe temperature status.
+    """
+    if not supabase:
+        raise HTTPException(500, "Database unavailable.")
+
+    patient_id = user.get("sub")
+    role = user.get("role")
+
+    # Fetch sample
+    s_rows = _rows(
+        supabase.table("samples")
+        .select("*")
+        .eq("id", sample_id)
+        .limit(1)
+        .execute()
+    )
+    if not s_rows:
+        # Check by barcode fallback
+        s_rows = _rows(
+            supabase.table("samples")
+            .select("*")
+            .eq("barcode", sample_id)
+            .limit(1)
+            .execute()
+        )
+    if not s_rows:
+        raise HTTPException(404, "Specimen not found.")
+
+    sample = s_rows[0]
+    sample_actual_id = sample["id"]
+
+    # Security check: verify patient ownership, admin role, or care-circle guardian
+    has_access = False
+    if role == "admin":
+        has_access = True
+    elif sample.get("patient_id") == patient_id:
+        has_access = True
+    else:
+        # Check Care Circle permissions
+        cc_rows = _rows(
+            supabase.table("care_circle_members")
+            .select("scopes")
+            .eq("patient_id", sample.get("patient_id"))
+            .eq("member_user_id", patient_id)
+            .eq("status", "accepted")
+            .limit(1)
+            .execute()
+        )
+        if cc_rows:
+            scopes = cc_rows[0].get("scopes") or []
+            if "view_reports" in scopes:
+                has_access = True
+
+    if not has_access:
+        raise HTTPException(403, "Access denied to this specimen.")
+
+    # Fetch sample events
+    raw_events = _rows(
+        supabase.table("sample_events")
+        .select("*")
+        .eq("sample_id", sample_actual_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    # Resolve actor first names securely
+    actor_ids = list({e.get("actor_id") for e in raw_events if e.get("actor_id")})
+    actor_names = {}
+    if actor_ids:
+        try:
+            users_data = _rows(
+                supabase.table("users")
+                .select("id, full_name")
+                .in_("id", actor_ids)
+                .execute()
+            )
+            for u in users_data:
+                full = u.get("full_name") or ""
+                # First name only for field privacy
+                actor_names[u["id"]] = full.split()[0] if full else "Staff"
+        except Exception:
+            pass
+
+    # Map raw events to CustodyEvent format
+    events = []
+    EVENT_LABEL_MAP = {
+        "collected": "Sample Collected at Doorstep",
+        "in_transit": "In Transit to Processing Center",
+        "handover_requested": "Handover in Progress",
+        "received": "Received at Processing Center",
+        "verified": "5-Point Intake Verification Passed",
+        "batched": "Aggregated into Cold-Chain Batch",
+        "dispatched": "Dispatched to Reference Lab",
+        "report_uploaded": "Diagnostic Report Published",
+        "report_ready": "Diagnostic Report Published",
+        "rejected": "Sample Quality Flagged",
+    }
+
+    # Verification details from sample
+    verif_details = sample.get("verification_details") or {}
+    sample_verification = None
+    if sample.get("is_verified") or verif_details:
+        sample_verification = [
+            {"point": "Patient Identity Match", "passed": bool(verif_details.get("patient_identity_match", True))},
+            {"point": "Tube Type & Color", "passed": bool(verif_details.get("tube_type_match", True))},
+            {"point": "Volume Sufficiency", "passed": bool(verif_details.get("volume_sufficient", True))},
+            {"point": "Cold Chain Integrity (2–8°C)", "passed": bool(verif_details.get("cold_chain_held", True))},
+            {"point": "Physical Sample Quality", "passed": bool(verif_details.get("sample_quality_intact", True))},
+        ]
+
+    for ev in raw_events:
+        etype = ev.get("event_type") or ev.get("event") or "update"
+        label = EVENT_LABEL_MAP.get(etype, etype.replace("_", " ").title())
+        actor_id = ev.get("actor_id")
+        first_name = actor_names.get(actor_id, "Staff") if actor_id else None
+
+        # Verification points attached to verified event
+        ev_verification = None
+        if etype in ("verified", "received") and sample_verification:
+            ev_verification = sample_verification
+
+        events.append({
+            "id": ev.get("id"),
+            "eventType": etype,
+            "label": label,
+            "actorRole": ev.get("actor_role") or "staff",
+            "actorName": first_name,
+            "temperatureCelsius": ev.get("temperature_celsius") or ev.get("temperature"),
+            "at": ev.get("created_at") or ev.get("timestamp"),
+            "verification": ev_verification,
+        })
+
+    # If no events logged yet, provide initial baseline milestone
+    if not events:
+        events.append({
+            "id": "init_booking",
+            "eventType": "pending_collection",
+            "label": "Scheduled for Home Collection",
+            "actorRole": "system",
+            "actorName": "CallMedex",
+            "temperatureCelsius": sample.get("temperature_celsius") or 4.0,
+            "at": sample.get("created_at"),
+            "verification": None,
+        })
+
+    return {
+        "success": True,
+        "sampleId": sample_actual_id,
+        "barcode": sample.get("barcode", ""),
+        "tubeType": sample.get("expected_tube_type_code") or sample.get("tube_type", ""),
+        "status": sample.get("status", "pending_collection"),
+        "isVerified": bool(sample.get("is_verified")),
+        "events": events,
+    }
+

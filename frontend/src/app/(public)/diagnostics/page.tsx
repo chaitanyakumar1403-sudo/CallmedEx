@@ -24,7 +24,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import FIXED_PRICES from "@/data/lab-test-prices.json";
-import HEALTH_PACKAGES from "@/data/health-packages.json";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -693,70 +692,7 @@ export default function DiagnosticsPage() {
         {/* ── Popular grid / Fixed-rate catalog ────────────────────── */}
         {!selected && !category && (
           <>
-            {/* Health Packages section */}
-            <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
-              📦 Health Packages
-            </h3>
-            <div className="grid-3" style={{ marginBottom: 32 }}>
-              {(HEALTH_PACKAGES as any[]).slice(0, 6).map((pkg) => {
-                const pct = pkg.mrp > 0 ? Math.round((1 - pkg.price / pkg.mrp) * 100) : 0;
-                return (
-                  <a
-                    key={pkg.id}
-                    href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.price}`}
-                    className="card"
-                    style={{
-                      padding: 20,
-                      textAlign: "left",
-                      border: "1px solid #e9d5ff",
-                      background: "#faf5ff",
-                      textDecoration: "none",
-                      color: "inherit",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div>
-                      <h4 style={{ margin: "0 0 6px", fontSize: "0.95rem", color: "#0f172a" }}>{pkg.name}</h4>
-                      <div style={{ fontSize: "0.72rem", color: "#7c3aed", lineHeight: 1.5, marginBottom: 8 }}>
-                        {pkg.tests.split(",").slice(0, 4).map((t: string) => t.trim()).join(" · ")}
-                        {pkg.tests.split(",").length > 4 ? " …" : ""}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-                      <div>
-                        <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.8rem" }}>
-                          ₹{pkg.mrp.toLocaleString("en-IN")}
-                        </span>
-                        <span style={{ fontWeight: 800, color: "#0f172a", fontSize: "1.1rem", marginLeft: 6 }}>
-                          ₹{pkg.price.toLocaleString("en-IN")}
-                        </span>
-                        {pct > 0 && (
-                          <span style={{
-                            background: "#dcfce7", color: "#166534",
-                            padding: "2px 8px", borderRadius: 999,
-                            fontSize: "0.68rem", fontWeight: 700, marginLeft: 6,
-                          }}>{pct}% off</span>
-                        )}
-                      </div>
-                      <span className="btn btn-primary" style={{ padding: "6px 14px", fontSize: "0.78rem", borderRadius: 8 }}>Book</span>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-            <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <a
-                href="/packages"
-                style={{
-                  color: "#0284c7", fontWeight: 600, fontSize: "0.88rem",
-                  textDecoration: "none", borderBottom: "1px dashed #0284c7",
-                }}
-              >
-                View all {(HEALTH_PACKAGES as any[]).length} health packages →
-              </a>
-            </div>
+
 
             {/* Frequently booked lab tests with prices */}
             <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>

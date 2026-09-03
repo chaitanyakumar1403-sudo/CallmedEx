@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/patient/biomarkers", tags=["Patient Health"])
 
 
 class DoctorBriefingRequest(BaseModel):
-    specialty_type: str = Field(..., example="Cardiology")
+    specialty_type: str = Field(..., json_schema_extra={"example": "Cardiology"})
     target_patient_id: Optional[str] = None
 
 

@@ -57,9 +57,52 @@ def decode_access_token(token: str) -> Optional[dict]:
         payload = jwt.decode(
             token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
         )
+        if payload.get("type") == "refresh":
+            # Refresh tokens cannot be used as access tokens
+            return None
         return payload
     except JWTError:
         return None
+
+
+def create_refresh_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    token_version: int = 1,
+) -> str:
+    """
+    Create a signed long-lived refresh token.
+
+    Args:
+        data: Core claims (sub, email, role)
+        expires_delta: Optional custom expiry. Defaults to REFRESH_TOKEN_EXPIRE_DAYS.
+        token_version: Version for revocation checking.
+    """
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "ver": token_version,
+        "type": "refresh",
+    })
+    return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_refresh_token(token: str) -> Optional[dict]:
+    """Decode and verify a refresh token. Ensures token type is 'refresh'."""
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
+        )
+        if payload.get("type") != "refresh":
+            return None
+        return payload
+    except JWTError:
+        return None
+
 
 
 async def validate_token_version(user_id: str, token_version: int) -> bool:
@@ -75,28 +118,31 @@ async def validate_token_version(user_id: str, token_version: int) -> bool:
 
     try:
         from app.database import supabase
-        if not supabase:
-            # No DB — allow all tokens in dev mode
-            return True
+        if supabase:
+            try:
+                result = await __import__("asyncio").to_thread(
+                    lambda: supabase.table("users")
+                        .select("token_version")
+                        .eq("id", user_id)
+                        .limit(1)
+                        .execute()
+                )
+                if result.data and len(result.data) > 0:
+                    current_version = result.data[0].get("token_version", 1)
+                    return token_version >= current_version
+            except Exception:
+                pass
 
-        result = await __import__("asyncio").to_thread(
-            lambda: supabase.table("users")
-                .select("token_version")
-                .eq("id", user_id)
-                .limit(1)
-                .execute()
-        )
+        # Check local in-memory users
+        try:
+            from app.routers.auth import _local_users
+            for u in _local_users.values():
+                if u.get("id") == user_id:
+                    return token_version >= u.get("token_version", 1)
+        except Exception:
+            pass
 
-        if result.data and len(result.data) > 0:
-            current_version = result.data[0].get("token_version", 1)
-            return token_version >= current_version
-
-        # User not found — reject
         return False
     except Exception:
-        # DB error — fail open in dev, closed in production
-        import logging
-        logging.getLogger(__name__).warning(
-            f"Failed to validate token version for user {user_id}"
-        )
-        return True  # Don't lock users out due to a transient DB error
+        return False
+

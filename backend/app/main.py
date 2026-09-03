@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -100,25 +100,36 @@ def is_origin_allowed(origin: str, allowlist: list) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup/shutdown."""
-    logger.info("🚀 CallMedex API starting up...")
+    logger.info(f"🚀 CallMedex API starting up [ENV: {settings.APP_ENV.upper()}]...")
+    logger.info(f"   Environment: {settings.APP_ENV}")
     logger.info(f"   Supabase: {'✅ configured' if settings.SUPABASE_URL else '❌ not configured'}")
-    logger.info(f"   Razorpay: {'✅ configured' if settings.RAZORPAY_KEY_ID else '❌ not configured'}")
+    logger.info(f"   Razorpay: {'✅ configured' if settings.RAZORPAY_KEY_ID else '⚠️ not configured (online payments disabled)'}")
     logger.info(f"   Gemini AI: {'✅ configured' if settings.GEMINI_API_KEY else '❌ not configured'}")
+    logger.info(f"   MSG91 OTP: {'✅ configured (live)' if settings.MSG91_AUTH_KEY else f'⚠️ not configured (OTP_PROVIDER={settings.OTP_PROVIDER})'}")
+    logger.info(f"   Daily.co: {'✅ configured' if settings.DAILY_API_KEY else '⚠️ not configured (Jitsi fallback active)'}")
+    logger.info(f"   MediAssist: {'✅ configured' if settings.MEDIASSIST_BEARER_TOKEN else '⚠️ not configured'}")
+
     redis_default = settings.REDIS_URL in ("redis://localhost:6379/0", "redis://localhost:6379", "redis://127.0.0.1:6379/0")
     logger.info(f"   Redis: {'✅ configured' if not redis_default else '⚠️ default (local, no auth)'}")
-    if redis_default and not settings.FRONTEND_URL.startswith("http://localhost"):
-        logger.critical("🔴 SECURITY: REDIS_URL is the default localhost with no authentication. "
-                         "Set a production Redis URL with password.")
+    
+    if settings.APP_ENV == "production":
+        if settings.FRONTEND_URL.startswith("http://localhost"):
+            logger.critical("❌ Refusing to start in PRODUCTION with localhost FRONTEND_URL.")
+            import sys
+            sys.exit(1)
+        if redis_default:
+            logger.critical("🔴 SECURITY: In production, REDIS_URL cannot be default localhost with no authentication.")
+
     if (warning := jwt_secret_warning()):
         logger.critical("=" * 78)
         logger.critical(f"🔴 SECURITY: {warning}")
         logger.critical("=" * 78)
-        # Refuse to start in production with a weak or missing JWT secret.
-        # In development (localhost), allow it but log loudly.
-        import sys
-        if not settings.FRONTEND_URL.startswith("http://localhost"):
-            logger.critical("❌ Refusing to start with insecure JWT_SECRET in production.")
+        # Refuse to start in production or staging with a weak or missing JWT secret.
+        if settings.APP_ENV in ("production", "staging") or not settings.FRONTEND_URL.startswith("http://localhost"):
+            logger.critical(f"❌ Refusing to start in {settings.APP_ENV} with insecure JWT_SECRET.")
+            import sys
             sys.exit(1)
+
     if (warning := mock_verification_warning()):
         logger.critical("=" * 78)
         logger.critical(f"🔴 VERIFICATION: {warning}")
@@ -321,6 +332,27 @@ app.include_router(mediassist_inbound.router)
 from app.routers import patient_health, patient_sos
 app.include_router(patient_health.router)
 app.include_router(patient_sos.router)
+from app.routers import device_tokens
+app.include_router(device_tokens.router)
+from app.routers import patient_handoff
+app.include_router(patient_handoff.router)
+from app.routers import care_circle
+app.include_router(care_circle.router)
+from app.routers import nurse_visits
+app.include_router(nurse_visits.router)
+
+# Direct Public Guardian Tracking Alias (§8.2)
+@app.get("/api/track/{token}")
+async def public_track_alias(token: str):
+    from app.routers.dispatch import get_public_guardian_track
+    return await get_public_guardian_track(token)
+
+# Direct Patient Savings Alias (§8.7)
+@app.get("/api/v1/patient/savings")
+async def patient_savings_alias(current_user: dict = Depends(auth.get_current_user)):
+    from app.routers.pharmacy_orders import get_patient_generic_savings
+    return await get_patient_generic_savings(current_user)
+
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")
@@ -330,9 +362,13 @@ async def health_check():
         "status": "healthy",
         "service": "CallMedex API",
         "version": "3.1.0",
+        "environment": settings.APP_ENV,
         "supabase_configured": bool(settings.SUPABASE_URL),
         "razorpay_configured": bool(settings.RAZORPAY_KEY_ID),
         "gemini_configured": bool(settings.GEMINI_API_KEY),
+        "daily_configured": bool(settings.DAILY_API_KEY),
+        "msg91_configured": bool(settings.MSG91_AUTH_KEY),
+        "mediassist_configured": bool(settings.MEDIASSIST_BEARER_TOKEN),
         "features": [
             "universal_provider",
             "legal_documents",

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "types": []
+  },
+  "include": [
+    "frontend/src/**/*",
+    "mobile/src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "backend",
+    "venv"
+  ]
+}

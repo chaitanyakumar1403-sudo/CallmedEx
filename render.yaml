@@ -1,0 +1,103 @@
+services:
+  # ─── CallMedex Staging / Production Backend API ───────────────────────────
+  - type: web
+    name: callmedex-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      # ─── Core Architecture & Environment ──────────────────────────────────
+      - key: APP_ENV
+        value: staging # Set to 'production' for production service
+      - key: BACKEND_PORT
+        value: 8000
+      - key: FRONTEND_URL
+        value: https://callmedex-frontend.vercel.app
+
+      # ─── Supabase (Staging Project) ───────────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+
+      # ─── Auth & Security ──────────────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: 7
+
+      # ─── Redis (Caching & Rate Limiting) ─────────────────────────────────
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: callmedex-redis
+          property: connectionString
+
+      # ─── AI Services ──────────────────────────────────────────────────────
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_VISION_MODEL
+        value: qwen/qwen3.7-flash
+      - key: OPENROUTER_ANALYSIS_MODEL
+        value: deepseek/deepseek-v4-flash-0731
+
+      # ─── Geolocation & Maps ───────────────────────────────────────────────
+      - key: GEOAPIFY_API_KEY
+        sync: false
+
+      # ─── Razorpay Payment Gateway (Test Mode / Staging) ───────────────────
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+
+      # ─── MSG91 SMS OTP Gateway ────────────────────────────────────────────
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_TEMPLATE_ID
+        sync: false
+      - key: MSG91_SENDER_ID
+        value: CLMDEX
+      - key: OTP_PROVIDER
+        value: msg91
+
+      # ─── Telemedicine (Daily.co) ──────────────────────────────────────────
+      - key: DAILY_API_KEY
+        sync: false
+
+      # ─── Email Delivery (Resend API) ──────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: support@mail.callmedex.com
+
+      # ─── MediAssist Integration Secrets ───────────────────────────────────
+      - key: MEDIASSIST_BASE_URL
+        value: https://mediassist.callmedex.com
+      - key: MEDIASSIST_BEARER_TOKEN
+        sync: false
+      - key: MEDIASSIST_INBOUND_BEARER_TOKEN
+        sync: false
+      - key: MEDIASSIST_HMAC_SECRET
+        sync: false
+      - key: CALLMEDEX_PUBLIC_BASE_URL
+        value: https://staging-api.callmedex.com
+
+# ─── Managed Redis Service ────────────────────────────────────────────────
+  - type: redis
+    name: callmedex-redis
+    region: singapore
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # internal access only

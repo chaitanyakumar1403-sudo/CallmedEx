@@ -43,6 +43,8 @@ class TelemedicineService:
         Auto-expires after 45 minutes for security.
         """
         if not getattr(settings, "DAILY_API_KEY", ""):
+            if getattr(settings, "APP_ENV", "development") == "production":
+                raise ValueError("Daily.co API key is not configured for production telemedicine.")
             return TelemedicineService.generate_jitsi_room(consultation_id)
 
         import time
@@ -50,8 +52,7 @@ class TelemedicineService:
         import urllib.request
         import urllib.error
 
-        room_suffix = consultation_id[:12] if consultation_id else str(uuid.uuid4())[:12]
-        room_name = f"cmx-{room_suffix}"
+        room_name = f"cmx-{consultation_id[:12]}" if consultation_id else f"cmx-{uuid.uuid4().hex[:12]}"
         exp_time = int(time.time()) + (CONSULTATION_TIMEOUT_MINUTES * 60)
 
         payload = {
@@ -87,8 +88,14 @@ class TelemedicineService:
                         "room_name": data.get("name"),
                         "provider": "daily",
                     }
+                else:
+                    if getattr(settings, "APP_ENV", "development") == "production":
+                        raise RuntimeError(f"Daily.co API returned status {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.warning(f"Daily.co API room creation failed, falling back to Jitsi: {e}")
+            if getattr(settings, "APP_ENV", "development") == "production":
+                logger.error(f"Daily.co API room creation failed in production: {e}")
+                raise RuntimeError(f"Daily.co video room creation failed: {e}")
+            logger.warning(f"Daily.co API room creation failed, falling back to Jitsi in non-production: {e}")
 
         return TelemedicineService.generate_jitsi_room(consultation_id)
 
@@ -152,9 +159,9 @@ class TelemedicineService:
         }
 
     @staticmethod
-    def generate_video_room(consultation_id: str = None) -> dict:
+    async def generate_video_room(consultation_id: str = None) -> dict:
         """Generates a video room (Daily.co with Jitsi fallback)."""
-        return TelemedicineService.generate_daily_room(consultation_id)
+        return await TelemedicineService.generate_daily_room(consultation_id)
 
     # ──────────────────────────────────────────────────────────────────
     # Consultation Lifecycle
@@ -172,7 +179,7 @@ class TelemedicineService:
         """
         consultation_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
-        room_info = TelemedicineService.generate_video_room(consultation_id)
+        room_info = await TelemedicineService.generate_video_room(consultation_id)
 
         consultation_data = {
             "id": consultation_id,
@@ -475,7 +482,7 @@ class TelemedicineService:
         Finalize a consultation: run AI pipeline and store results.
         """
         # Run AI pipeline
-        ai_output = TelemedicineService.process_consultation_transcript(transcript)
+        ai_output = await TelemedicineService.process_consultation_transcript(transcript)
         now = datetime.now(timezone.utc).isoformat()
 
         if supabase:

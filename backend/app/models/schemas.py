@@ -283,6 +283,58 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: dict
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+
+
+class SendOTPRequest(BaseModel):
+    phone: str = Field(..., description="E.164 phone number or 10-digit mobile, e.g. +919876543210")
+    role: Optional[UserRole] = UserRole.PATIENT
+
+
+class VerifyOTPRequest(BaseModel):
+    phone: str = Field(..., description="Phone number that received the OTP")
+    otp: str = Field(..., min_length=4, max_length=8, description="OTP code received via SMS")
+    full_name: Optional[str] = None
+    role: Optional[UserRole] = UserRole.PATIENT
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., description="Valid CallMedex refresh token")
+
+
+class BiometricRegisterRequest(BaseModel):
+    device_id: str = Field(..., description="Unique client hardware or app-installation UUID")
+    public_key: str = Field(..., description="Base64-encoded public key generated on device secure enclave")
+    platform: str = Field("ios", description="'ios' or 'android'")
+    device_name: Optional[str] = ""
+
+
+class BiometricChallengeRequest(BaseModel):
+    device_id: str = Field(..., description="Unique device ID for challenge request")
+
+
+class BiometricChallengeResponse(BaseModel):
+    challenge: str
+    expires_at: str
+
+
+class BiometricVerifyRequest(BaseModel):
+    device_id: str = Field(..., description="Device ID associated with public key")
+    signature: str = Field(..., description="Signature of the challenge signed by device private key")
+    challenge: str = Field(..., description="Active server challenge received previously")
+
+
+class DeviceTokenRegisterRequest(BaseModel):
+    push_token: str = Field(..., description="FCM or APNs device push token")
+    platform: str = Field("android", description="'ios' | 'android' | 'web'")
+    device_name: Optional[str] = ""
+    app_version: Optional[str] = "1.0.0"
+
+
+class DeviceTokenUnregisterRequest(BaseModel):
+    push_token: str
+
 
 
 class UserResponse(BaseModel):

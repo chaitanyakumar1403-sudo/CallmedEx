@@ -87,6 +87,8 @@ function BookingPageContent() {
   const serviceParam = searchParams.get("service");
   const packageParam = searchParams.get("package");
   const priceParam = searchParams.get("price");
+  const addonsParam = searchParams.get("addons");
+  const planTypeParam = searchParams.get("plan_type");
   const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
   const priorityParam = searchParams.get("priority"); // "urgent" — from the diagnostics "priority slot" checkbox
 
@@ -223,20 +225,42 @@ function BookingPageContent() {
     }
   }, [typeParam, orgParam, serviceParam, packageParam, bookingType]);
 
-  // Auto-add package to selectedTests when arriving from /packages page
+  // Auto-add package and any 30% discounted add-ons to selectedTests when arriving from /packages page
   useEffect(() => {
     if (packageParam && bookingType === "lab" && step === 2) {
       const pkgPrice = Number(priceParam) || 0;
-      const alreadyAdded = selectedTests.some((t) => t.name === packageParam);
+      const alreadyAdded = selectedTests.some((t) => t.isPackage || t.name === packageParam);
       if (!alreadyAdded) {
-        setSelectedTests((prev) => [
-          ...prev,
-          { name: packageParam, price: pkgPrice, description: "Health Package", isPackage: true },
-        ]);
+        const pkgDisplayName = planTypeParam === "couple" ? `${packageParam} (Couple Plan)` : packageParam;
+        const initialItems: any[] = [
+          { name: pkgDisplayName, price: pkgPrice, description: "Health Package", isPackage: true },
+        ];
+
+        if (addonsParam) {
+          try {
+            const parsedAddons = JSON.parse(addonsParam);
+            if (Array.isArray(parsedAddons)) {
+              parsedAddons.forEach((addon: any) => {
+                if (addon && addon.name && addon.price !== undefined) {
+                  initialItems.push({
+                    name: addon.name,
+                    price: Number(addon.price) || 0,
+                    description: "Add-on Test (30% OFF Applied)",
+                    isAddon: true,
+                  });
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Failed to parse addonsParam", e);
+          }
+        }
+
+        setSelectedTests((prev) => [...prev, ...initialItems]);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packageParam, bookingType, step]);
+  }, [packageParam, addonsParam, planTypeParam, bookingType, step]);
 
   // Fetch real registered organizations or doctors when step === 2.
   // Lab/diagnostics no longer has a centre-selection step (partner-blind —
@@ -462,7 +486,7 @@ function BookingPageContent() {
           slot_id: slotKey,
           notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
-          total_price: (packageParam ? (Number(priceParam) || 0) : (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
+          total_price: (selectedTests.length > 0 ? multiTestTotal : (packageParam ? (Number(priceParam) || 0) : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
           preferred_date: selectedDate,
           // Lab is partner-blind: no centre was chosen (providerId is ""), so
           // the backend resolves the allocation itself from these. catalog_id
@@ -1124,7 +1148,7 @@ function BookingPageContent() {
               <div
                 style={{
                   padding: "14px 18px",
-                  borderRadius: 10,
+                  borderRadius: 12,
                   border: "2px solid #0284c7",
                   background: "#f0f9ff",
                   marginBottom: 20,
@@ -1136,11 +1160,12 @@ function BookingPageContent() {
                 }}
               >
                 <div>
-                  <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.92rem" }}>
-                    📦 Booking package: {packageParam}
+                  <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>
+                    📦 Booking Package: {packageParam} {planTypeParam === "couple" ? "(Couple Plan)" : ""}
                   </span>
                   <span style={{ display: "block", fontSize: "0.82rem", color: "#0284c7", marginTop: 2 }}>
-                    Fixed CallMedex rate — home collection included
+                    Fixed CallMedex rate — free home sample collection included
+                    {addonsParam && " • Flat 30% OFF applied on all add-on tests"}
                   </span>
                 </div>
                 <span style={{ fontWeight: 800, color: "#059669", fontSize: "1.1rem" }}>

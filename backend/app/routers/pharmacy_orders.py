@@ -9,8 +9,10 @@ from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.pharmacy import PharmacyService
 from app.models.schemas import PharmacyInventoryCreate, PharmacyInventoryUpdate
+from app.utils.db_helpers import _rows
 import uuid
 import logging
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/pharmacy", tags=["Pharmacy Phase 3"])
@@ -302,4 +304,102 @@ async def bulk_import_inventory(req: BulkImportRequest, current_user: dict = Dep
         "message": f"Successfully batch imported {len(imported_items)} medicine SKUs!",
         "items": imported_items
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GENERIC SAVINGS LEDGER (§8.7)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.get("/savings")
+async def get_patient_generic_savings(current_user: dict = Depends(get_current_user)):
+    """
+    Generic Savings Ledger (§8.7):
+    Calculates lifetime, year-to-date, and per-order savings from choosing
+    verified generic medicines over branded equivalents.
+    """
+    if not supabase:
+        return {
+            "success": True,
+            "lifetime_saved": 0.0,
+            "year_to_date": 0.0,
+            "last_order_saved": 0.0,
+            "orders_count": 0,
+            "breakdown": [],
+        }
+
+    patient_id = current_user["sub"]
+    current_year = datetime.now(timezone.utc).year
+
+    try:
+        order_rows = _rows(
+            supabase.table("pharmacy_orders")
+            .select("*")
+            .eq("patient_id", patient_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        if not order_rows:
+            order_rows = _rows(
+                supabase.table("orders")
+                .select("*")
+                .eq("patient_id", patient_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+    except Exception:
+        order_rows = []
+
+    lifetime_saved = 0.0
+    year_to_date = 0.0
+    last_order_saved = 0.0
+    breakdown = []
+
+    for idx, ord in enumerate(order_rows):
+        items = ord.get("items") or ord.get("medicines_list") or []
+        if isinstance(items, str):
+            import json
+            try:
+                items = json.loads(items)
+            except Exception:
+                items = []
+
+        order_saved = 0.0
+        for it in items:
+            price = float(it.get("price") or 0.0)
+            # If branded_mrp is recorded use it, else generic standard baseline savings
+            branded_mrp = float(it.get("branded_mrp") or (price * 1.65))
+            qty = int(it.get("quantity") or 1)
+            item_saved = max(0.0, (branded_mrp - price) * qty)
+            order_saved += item_saved
+
+
+        lifetime_saved += order_saved
+
+        # Check calendar year
+        created_at_str = ord.get("created_at", "")
+        if created_at_str and str(current_year) in created_at_str:
+            year_to_date += order_saved
+
+        if idx == 0:
+            last_order_saved = order_saved
+
+        if order_saved > 0:
+            breakdown.append({
+                "order_id": ord.get("id"),
+                "date": created_at_str[:10],
+                "order_total": ord.get("total_amount"),
+                "saved_amount": round(order_saved, 2),
+                "item_count": len(items),
+            })
+
+    return {
+        "success": True,
+        "lifetime_saved": round(lifetime_saved, 2),
+        "year_to_date": round(year_to_date, 2),
+        "last_order_saved": round(last_order_saved, 2),
+        "orders_count": len(order_rows),
+        "currency": "INR",
+        "breakdown": breakdown[:10],
+    }
+
 

@@ -1,22 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import healthPackages from "@/data/health-packages.json";
-import labTests from "@/data/lab-test-prices.json";
-
-type HealthPackage = {
-  id: string;
-  name: string;
-  tests: string;
-  mrp: number;
-  price: number;
-};
-
-type LabTest = {
-  name: string;
-  mrp: number;
-  price: number;
-};
+import PackageAddonModal, { HealthPackageItem, SelectedAddonTest } from "@/app/components/PackageAddonModal";
 
 function inr(n: number) {
   return `₹${Number(n || 0).toLocaleString("en-IN")}`;
@@ -28,266 +15,275 @@ function savingsPct(mrp: number, price: number): number {
 }
 
 export default function PackagesPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showAll, setShowAll] = useState(false);
+  const router = useRouter();
+  const [selectedPkgForAddon, setSelectedPkgForAddon] = useState<HealthPackageItem | null>(null);
+  const [isAddonModalOpen, setIsAddonModalOpen] = useState(false);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return labTests as LabTest[];
-    const q = searchQuery.toLowerCase().trim();
-    return (labTests as LabTest[]).filter((t) =>
-      t.name.toLowerCase().includes(q)
-    );
-  }, [searchQuery]);
+  const packagesList = healthPackages as HealthPackageItem[];
 
-  const visible = filtered.length === (labTests as LabTest[]).length && !showAll
-    ? filtered.slice(0, 50)
-    : filtered;
+  const handleOpenAddons = (pkg: HealthPackageItem) => {
+    setSelectedPkgForAddon(pkg);
+    setIsAddonModalOpen(true);
+  };
+
+  const handleConfirmBookingWithAddons = (
+    pkg: HealthPackageItem,
+    planType: "single" | "couple",
+    pkgPrice: number,
+    selectedAddons: SelectedAddonTest[]
+  ) => {
+    setIsAddonModalOpen(false);
+
+    // Build URL query parameters
+    const params = new URLSearchParams();
+    params.set("type", "lab");
+    params.set("package", pkg.name);
+    params.set("price", String(pkgPrice));
+    params.set("plan_type", planType);
+
+    if (selectedAddons.length > 0) {
+      params.set(
+        "addons",
+        JSON.stringify(
+          selectedAddons.map((a) => ({
+            name: `${a.name} (Add-on 30% OFF)`,
+            price: a.discountedPrice,
+            original_price: a.originalPrice,
+          }))
+        )
+      );
+    }
+
+    router.push(`/booking?${params.toString()}`);
+  };
 
   return (
-    <div className="section">
+    <div className="section" style={{ backgroundColor: "#f8fafc", minHeight: "85vh", paddingBottom: 64 }}>
       <div className="container">
-        {/* ── Section 1: Health Packages ──────────────────────────────── */}
-        <div className="section-title">
-          <h1>Health Packages</h1>
-          <p>
-            Fixed CallMedex rates, home collection included. Book a curated
-            package and save up to{" "}
-            {savingsPct(
-              Math.max(...(healthPackages as HealthPackage[]).map((p) => p.mrp)),
-              Math.min(...(healthPackages as HealthPackage[]).map((p) => p.price))
-            )}
-            % off MRP.
+        {/* ── Section Title ────────────────────────────────────────── */}
+        <div className="section-title" style={{ textAlign: "center", marginBottom: 36 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: "rgba(2, 132, 199, 0.1)",
+              border: "1px solid rgba(2, 132, 199, 0.25)",
+              color: "#0284c7",
+              padding: "6px 16px",
+              borderRadius: 999,
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              marginBottom: 12,
+            }}
+          >
+            🎁 100% TRANSPARENT HEALTH PACKAGES • VIZAG HOME COLLECTION INCLUDED
+          </div>
+          <h1 style={{ fontSize: "2.4rem", fontWeight: 900, color: "#0f172a", margin: "0 0 8px" }}>
+            Health Packages
+          </h1>
+          <p style={{ maxWidth: 650, margin: "0 auto", color: "#64748b", fontSize: "1.05rem" }}>
+            Fixed CallMedex rates with free doorstep blood collection. Add any individual test or imaging scan with your package for an instant <strong>Flat 30% Discount</strong>.
           </p>
         </div>
 
-        <div className="grid-3" style={{ marginBottom: 48 }}>
-          {(healthPackages as HealthPackage[]).map((pkg) => {
-            const pct = savingsPct(pkg.mrp, pkg.price);
-            const tests = pkg.tests.split(",").map((t) => t.trim());
+        {/* ── Packages Grid (Exclusively 15 Health Packages) ─────── */}
+        <div className="grid-3" style={{ gap: 24 }}>
+          {packagesList.map((pkg) => {
+            const singlePrice = pkg.single_price || pkg.price;
+            const couplePrice = pkg.couple_price;
+            const singleSavings = savingsPct(pkg.mrp, singlePrice);
+            const tests = pkg.tests.split(/[,/]/).map((t) => t.trim()).filter(Boolean);
+
             return (
               <div
                 key={pkg.id}
                 className="card"
                 style={{
-                  padding: 20,
+                  padding: 24,
+                  borderRadius: 20,
                   border: "1px solid #e2e8f0",
-                  background: "#fff",
+                  background: "#ffffff",
                   display: "flex",
                   flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                  position: "relative",
+                  overflow: "hidden",
                 }}
               >
-                <h3 style={{ margin: "0 0 6px", fontSize: "1.05rem", color: "#0f172a" }}>
-                  {pkg.name}
-                </h3>
+                {/* Top Accent Strip */}
                 <div
                   style={{
-                    fontSize: "0.75rem",
-                    color: "#64748b",
-                    lineHeight: 1.5,
-                    marginBottom: 12,
-                    flex: 1,
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 4,
+                    background: "linear-gradient(90deg, #0284c7, #10b981)",
                   }}
-                >
-                  {tests.map((t, i) => (
-                    <span key={i} style={{ display: "inline-block", marginRight: 4 }}>
-                      {t}
-                      {i < tests.length - 1 ? " · " : ""}
-                    </span>
-                  ))}
-                </div>
+                />
 
-                {/* Price block */}
-                <div style={{ marginBottom: 12 }}>
-                  <div
-                    style={{
-                      color: "#94a3b8",
-                      textDecoration: "line-through",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    {inr(pkg.mrp)}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
+                      {pkg.name}
+                    </h3>
                   </div>
-                  <div
-                    style={{
-                      fontSize: "1.5rem",
-                      fontWeight: 800,
-                      color: "#0f172a",
-                    }}
-                  >
-                    {inr(pkg.price)}
-                  </div>
-                  {pct > 0 && (
-                    <span
+
+                  {/* Designated Add-on Tag if any */}
+                  {pkg.special_add_on && (
+                    <div
                       style={{
                         display: "inline-block",
                         marginTop: 4,
-                        background: "#dcfce7",
-                        color: "#166534",
-                        padding: "2px 10px",
-                        borderRadius: 999,
-                        fontSize: "0.75rem",
+                        marginBottom: 10,
+                        background: "#ecfdf5",
+                        border: "1px solid #a7f3d0",
+                        color: "#059669",
+                        fontSize: "0.72rem",
                         fontWeight: 700,
-                      }}
-                    >
-                      Save {inr(pkg.mrp - pkg.price)} ({pct}% off)
-                    </span>
-                  )}
-                </div>
-
-                <a
-                  href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.price}`}
-                  className="btn btn-primary"
-                  style={{
-                    display: "block",
-                    textAlign: "center",
-                    borderRadius: 10,
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  Book
-                </a>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── Section 2: Lab Test Price List ──────────────────────────── */}
-        <div className="section-title" style={{ marginTop: 32 }}>
-          <h1>Individual Lab Tests</h1>
-          <p>CallMedex rates — all tests include home collection where available.</p>
-        </div>
-
-        <div style={{ maxWidth: 780, margin: "0 auto 28px" }}>
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search lab tests by name..."
-            style={{
-              width: "100%",
-              padding: "14px 18px",
-              borderRadius: 12,
-              border: "1.5px solid #cbd5e1",
-              fontSize: "1rem",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            maxWidth: 780,
-            margin: "0 auto",
-            border: "1px solid #e2e8f0",
-            borderRadius: 12,
-            overflow: "hidden",
-          }}
-        >
-          {visible.map((test, i) => {
-            const pct = savingsPct(test.mrp, test.price);
-            return (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 18px",
-                  borderBottom:
-                    i < visible.length - 1 ? "1px solid #f1f5f9" : "none",
-                  background: i % 2 === 0 ? "#fff" : "#f8fafc",
-                }}
-              >
-                <div style={{ flex: 1, fontSize: "0.9rem", color: "#0f172a", fontWeight: 500 }}>
-                  {test.name}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "#94a3b8",
-                      textDecoration: "line-through",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    {inr(test.mrp)}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "1.05rem",
-                      fontWeight: 800,
-                      color: "#0f172a",
-                    }}
-                  >
-                    {inr(test.price)}
-                  </span>
-                  {pct > 0 && (
-                    <span
-                      style={{
-                        background: "#dcfce7",
-                        color: "#166534",
                         padding: "2px 8px",
-                        borderRadius: 999,
-                        fontSize: "0.68rem",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
+                        borderRadius: 6,
                       }}
                     >
-                      {pct}% off
-                    </span>
+                      ⭐ Recommended Add-on: {pkg.special_add_on} (30% OFF)
+                    </div>
                   )}
-                  <a
-                    href="/booking?type=lab"
-                    className="btn btn-primary"
+
+                  {/* Included Tests Pill List */}
+                  <div
                     style={{
-                      padding: "6px 14px",
                       fontSize: "0.78rem",
-                      borderRadius: 8,
-                      whiteSpace: "nowrap",
+                      color: "#64748b",
+                      lineHeight: 1.6,
+                      marginTop: 8,
+                      marginBottom: 16,
+                      background: "#f8fafc",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid #f1f5f9",
                     }}
                   >
-                    Book
-                  </a>
+                    <div style={{ fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                      ✓ Includes {tests.length} Parameters:
+                    </div>
+                    <div>
+                      {tests.slice(0, 5).join(" · ")}
+                      {tests.length > 5 && ` · +${tests.length - 5} more`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price & Action Section */}
+                <div>
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      backgroundColor: "#f0fdf4",
+                      borderRadius: 14,
+                      border: "1px solid #bbf7d0",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div>
+                        <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.85rem" }}>
+                          {inr(pkg.mrp)}
+                        </span>
+                        <div style={{ fontSize: "1.65rem", fontWeight: 900, color: "#0f172a" }}>
+                          {inr(singlePrice)}
+                        </div>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>Single Person</span>
+                      </div>
+
+                      {couplePrice ? (
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#059669" }}>
+                            {inr(couplePrice)}
+                          </div>
+                          <span style={{ fontSize: "0.72rem", color: "#059669", fontWeight: 700 }}>
+                            Couple (2 Persons)
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "right" }}>
+                          <span
+                            style={{
+                              background: "#dcfce7",
+                              color: "#166534",
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              fontSize: "0.75rem",
+                              fontWeight: 800,
+                            }}
+                          >
+                            {singleSavings}% OFF
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Primary Attention-Grabbing Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddons(pkg)}
+                    style={{
+                      width: "100%",
+                      backgroundColor: "#0284c7",
+                      color: "#ffffff",
+                      border: "none",
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      fontSize: "0.92rem",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span>🎁 Add Tests & Save 30%</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.push(`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${singlePrice}`);
+                    }}
+                    style={{
+                      width: "100%",
+                      backgroundColor: "transparent",
+                      color: "#475569",
+                      border: "1px solid #cbd5e1",
+                      padding: "8px 14px",
+                      borderRadius: 10,
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Quick Book Base Package
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Show all / fewer toggle */}
-        {filtered.length === (labTests as LabTest[]).length && (
-          <div style={{ textAlign: "center", marginTop: 16 }}>
-            <button
-              onClick={() => setShowAll((s) => !s)}
-              style={{
-                background: "none",
-                border: "1px solid #cbd5e1",
-                borderRadius: 10,
-                padding: "10px 24px",
-                cursor: "pointer",
-                fontWeight: 600,
-                color: "#1a2b4a",
-                fontSize: "0.88rem",
-              }}
-            >
-              {showAll
-                ? "Show fewer tests"
-                : `Show all ${(labTests as LabTest[]).length} tests`}
-            </button>
-          </div>
-        )}
-
-        {filtered.length === 0 && searchQuery.trim() && (
-          <p style={{ textAlign: "center", color: "#94a3b8", marginTop: 24 }}>
-            No tests match &quot;{searchQuery}&quot;. Try a different search term.
-          </p>
-        )}
       </div>
+
+      {/* ── 30% Add-On Test Customizer Modal ────────────────────── */}
+      <PackageAddonModal
+        packageItem={selectedPkgForAddon}
+        isOpen={isAddonModalOpen}
+        onClose={() => setIsAddonModalOpen(false)}
+        onConfirmBooking={handleConfirmBookingWithAddons}
+      />
     </div>
   );
 }

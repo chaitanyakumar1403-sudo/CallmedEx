@@ -36,6 +36,11 @@ class Settings:
     MAGIC_LINK_SECRET: str = os.getenv("MAGIC_LINK_SECRET", "") or os.getenv("JWT_SECRET", "")
     TASK_SESSION_SECRET: str = os.getenv("TASK_SESSION_SECRET", "") or os.getenv("JWT_SECRET", "")
 
+    # Environment Architecture (development | staging | production)
+    APP_ENV: str = os.getenv("APP_ENV", "development").lower()
+    OTP_PROVIDER: str = os.getenv("OTP_PROVIDER", "mock" if os.getenv("APP_ENV", "development").lower() == "development" else "msg91").lower()
+    ENABLE_DEV_MOCK_PAYMENT: bool = os.getenv("ENABLE_DEV_MOCK_PAYMENT", "true" if os.getenv("APP_ENV", "development").lower() == "development" else "false").lower() in ("true", "1", "yes")
+
     # Server
     BACKEND_PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://callmedex-frontend.vercel.app")
@@ -102,7 +107,7 @@ class Settings:
     ALLOWED_ORIGINS: list = [
         o.strip() for o in os.getenv(
             "ALLOWED_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,"
+            "http://localhost:3000,http://localhost:3001,http://localhost:8081,http://localhost:19006,"
             "https://callmedex-v1.vercel.app,https://callmedex-frontend.vercel.app,"
             "https://www.callmedex.com,https://callmedex.com"
         ).split(",") if o.strip()
@@ -139,6 +144,20 @@ class Settings:
     # Token MediAssist presents calling INTO CallMedex; inbound signatures reuse MEDIASSIST_HMAC_SECRET (one shared secret, both directions — no rotation system needed for this plan's scope).
     MEDIASSIST_INBOUND_BEARER_TOKEN: str = os.getenv("MEDIASSIST_INBOUND_BEARER_TOKEN", "")
 
+
+    # ─── Mobile Platform & Notifications ──────────────────────────────
+    MOBILE_BUNDLE_ID: str = os.getenv("MOBILE_BUNDLE_ID", "com.callmedex.app")
+    BIOMETRIC_CHALLENGE_SECRET: str = os.getenv("BIOMETRIC_CHALLENGE_SECRET", "") or os.getenv("JWT_SECRET", "")
+    FCM_SERVER_KEY: str = os.getenv("FCM_SERVER_KEY", "")
+    APNS_KEY_ID: str = os.getenv("APNS_KEY_ID", "")
+    APNS_TEAM_ID: str = os.getenv("APNS_TEAM_ID", "")
+
+    # ─── MSG91 SMS OTP Gateway ─────────────────────────────────────────
+    MSG91_AUTH_KEY: str = os.getenv("MSG91_AUTH_KEY", "")
+    MSG91_TEMPLATE_ID: str = os.getenv("MSG91_TEMPLATE_ID", "")
+    MSG91_SENDER_ID: str = os.getenv("MSG91_SENDER_ID", "CLMDEX")
+    MSG91_OTP_LENGTH: int = int(os.getenv("MSG91_OTP_LENGTH", "6"))
+    MSG91_OTP_EXPIRY_MINUTES: int = int(os.getenv("MSG91_OTP_EXPIRY_MINUTES", "5"))
 
     # ─── Patient Dashboard Upgrade Feature Flags ─────────────────────────
     ENABLE_PREVENTIVE_BIOMARKERS: bool = os.getenv("ENABLE_PREVENTIVE_BIOMARKERS", "true").lower() in ("true", "1", "yes")

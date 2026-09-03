@@ -92,9 +92,13 @@ class PaymentService:
                 logger.error(f"Razorpay order creation failed: {e}")
                 raise ValueError(f"Payment gateway error: {str(e)}")
         else:
-            # Simulate for development
-            razorpay_order_id = f"order_dev_{uuid.uuid4().hex[:12]}"
-            logger.warning("Razorpay not configured — using simulated order ID")
+            if settings.APP_ENV == "development" and settings.ENABLE_DEV_MOCK_PAYMENT:
+                # Simulate strictly for local development
+                razorpay_order_id = f"order_dev_{uuid.uuid4().hex[:12]}"
+                logger.warning("Razorpay not configured — using simulated order ID in local development mode")
+            else:
+                logger.error("Razorpay payment gateway credentials not configured on backend.")
+                raise ValueError("Online payment is currently unavailable. Payment gateway is not configured.")
 
         # Store in database
         payment_record = {
