@@ -160,8 +160,9 @@ export default function DoctorDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) setTodayBookings(data.bookings || []);
-    } catch (e) { /* endpoint may not exist yet */ }
+      // APIResponse envelope: { success, message, data: { bookings, date } }
+      if (data.success) setTodayBookings(data.data?.bookings || []);
+    } catch (e) { console.error(e); }
   }, []);
 
   const fetchDispatchData = useCallback(async () => {
@@ -170,7 +171,10 @@ export default function DoctorDashboard() {
       if (!token) return;
       const [offersRes, tasksRes] = await Promise.allSettled([
         fetch(`${apiBase}/api/dispatch/offers/pending`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${apiBase}/api/dispatch/active`, { headers: { Authorization: `Bearer ${token}` } }),
+        // /api/dispatch/active is admin/organization-only and 403s for a
+        // doctor. my-tasks is the field-provider equivalent and returns
+        // { tasks: [...] }.
+        fetch(`${apiBase}/api/dispatch/my-tasks`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (offersRes.status === 'fulfilled' && offersRes.value.ok) {
         const d = await offersRes.value.json();
@@ -178,7 +182,7 @@ export default function DoctorDashboard() {
       }
       if (tasksRes.status === 'fulfilled' && tasksRes.value.ok) {
         const d = await tasksRes.value.json();
-        setActiveTasks(d.dispatches || []);
+        setActiveTasks(d.tasks || []);
       }
     } catch (e) { console.error(e); }
   }, []);

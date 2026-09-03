@@ -44,6 +44,31 @@ def _strip_otp_fields(rows):
     return [{k: v for k, v in r.items() if k not in _OTP_FIELDS} for r in (rows or [])]
 
 
+def _require_own_dispatch(dispatch_id: str, current_user: dict) -> str:
+    """Assert the caller is the provider assigned to this dispatch, and return
+    its existing notes so the caller can append to them.
+
+    Field-log endpoints append to a shared notes column keyed only by
+    dispatch_id, so without this any provider could write a handover or a set
+    of clinical vitals onto a stranger's visit record.
+    """
+    rows = _rows(
+        supabase.table("dispatch_requests")
+        .select("notes, assigned_provider_id")
+        .eq("id", dispatch_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Dispatch not found.")
+    if (
+        rows[0].get("assigned_provider_id") != current_user["sub"]
+        and current_user.get("role") != "admin"
+    ):
+        raise HTTPException(403, "This dispatch is not assigned to you.")
+    return rows[0].get("notes") or ""
+
+
 def _attach_slot_times(tasks):
     """Merge each task's booking slot_start/slot_id in place so the provider
     dashboard can show when a task is actually scheduled for, not just when
@@ -359,8 +384,11 @@ async def get_pending_offers(
             x.get("distance_km") or 0,
         ))
         return {"offers": offers}
-    except Exception:
-        return {"offers": []}
+    except Exception as e:
+        # An empty list here reads as "no work available" — the provider stops
+        # looking and the offer expires unanswered. Surface the outage instead.
+        logger.error(f"Failed to load pending offers for {current_user['sub']}: {e}")
+        raise HTTPException(503, "Could not load your offers. Please retry.")
 
 
 @router.get("/my-tasks")
@@ -377,7 +405,11 @@ async def get_my_tasks(
 
     active_statuses = ["provider_accepted", "en_route", "arrived", "in_progress"]
 
-    # Check universal dispatch_requests table first
+    # Check universal dispatch_requests table first. A failure here is
+    # remembered rather than swallowed: falling through to an empty list tells
+    # the provider "you have no runs today" during an outage, which is how a
+    # live collection gets missed.
+    primary_error = None
     try:
         result = (
             supabase.table("dispatch_requests")
@@ -391,8 +423,9 @@ async def get_my_tasks(
             tasks = _strip_otp_fields(result.data)
             _attach_slot_times(tasks)
             return {"tasks": tasks}
-    except Exception:
-        pass
+    except Exception as e:
+        primary_error = e
+        logger.error(f"my-tasks primary query failed for {current_user['sub']}: {e}")
 
     # Fallback: legacy phlebotomist dispatches
     if current_user.get("role") == "phlebotomist":
@@ -409,8 +442,12 @@ async def get_my_tasks(
                     .execute()
                 )
                 return {"tasks": tasks_result.data or []}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"my-tasks legacy fallback failed for {current_user['sub']}: {e}")
+            primary_error = primary_error or e
+
+    if primary_error is not None:
+        raise HTTPException(503, "Could not load your tasks. Please retry.")
 
     return {"tasks": []}
 
@@ -671,7 +708,7 @@ async def reject_task(
     from app.database import supabase
     from datetime import datetime, timezone
     if not supabase:
-        return {"success": True, "message": "Task declined"}
+        raise HTTPException(503, "Database unavailable — decline not recorded. Please retry.")
 
     now = datetime.now(timezone.utc).isoformat()
     try:
@@ -679,8 +716,12 @@ async def reject_task(
             "status": "searching",
             "updated_at": now,
         }).eq("id", dispatch_id).eq("assigned_provider_id", current_user["sub"]).execute()
-    except Exception:
-        pass
+    except Exception as e:
+        # Reporting "declined" on a failed write leaves the request still
+        # assigned to this provider while they believe they are free of it,
+        # so the job silently stalls until it expires.
+        logger.error(f"Failed to record decline of dispatch {dispatch_id}: {e}")
+        raise HTTPException(503, "Could not record the decline. Please retry.")
 
     return {"success": True, "message": "Task declined. You will receive the next available request."}
 
@@ -1041,8 +1082,11 @@ async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_cur
     if supabase:
         try:
             supabase.table("dispatch_requests").update(update_data).eq("id", dispatch_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            # Telling the patient their visit is cancelled while the provider
+            # is still dispatched and en route is worse than an honest error.
+            logger.error(f"Failed to cancel dispatch {dispatch_id}: {e}")
+            raise HTTPException(503, "Could not cancel the request. Please retry.")
 
     # 2. Cancel the associated booking if it exists
     booking_id = dispatch.get("booking_id")
@@ -1143,17 +1187,23 @@ async def lab_handover(
     timestamp = datetime.now(timezone.utc).isoformat()
     handover_log = f"\n🧪 LAB HANDOVER [{timestamp}]: Hub: {req.hub_name} | Barcodes: {req.sample_barcodes} | Temp: {req.temperature_status} | Notes: {req.notes or 'None'}"
 
-    if supabase:
-        try:
-            res = supabase.table("dispatch_requests").select("notes").eq("id", dispatch_id).execute()
-            existing = res.data[0].get("notes", "") if res.data else ""
-            supabase.table("dispatch_requests").update({
-                "status": "samples_delivered_to_lab",
-                "notes": existing + handover_log,
-                "updated_at": timestamp
-            }).eq("id", dispatch_id).execute()
-        except Exception:
-            pass
+    if not supabase:
+        raise HTTPException(503, "Database unavailable — handover not recorded. Please retry.")
+
+    try:
+        existing = _require_own_dispatch(dispatch_id, current_user)
+        # A handover the centre never sees breaks the chain of custody, so a
+        # failed write must not be reported back as a completed drop-off.
+        supabase.table("dispatch_requests").update({
+            "status": "samples_delivered_to_lab",
+            "notes": existing + handover_log,
+            "updated_at": timestamp
+        }).eq("id", dispatch_id).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to record lab handover for dispatch {dispatch_id}: {e}")
+        raise HTTPException(503, "Could not record the handover. Please retry.")
 
     return {
         "success": True,
@@ -1176,16 +1226,21 @@ async def record_clinical_notes(
     vitals_summary = f"BP: {req.blood_pressure or 'N/A'}, Pulse: {req.pulse_rate or 'N/A'} bpm, Temp: {req.temperature_f or 'N/A'}°F, SpO2: {req.spo2_percent or 'N/A'}%"
     notes_log = f"\n🩺 CLINICAL NOTES [{timestamp}]: Vitals: ({vitals_summary}) | Procedure: {req.procedure_notes}{f' | Attachment: {req.attachment_url}' if req.attachment_url else ''}"
 
-    if supabase:
-        try:
-            res = supabase.table("dispatch_requests").select("notes").eq("id", dispatch_id).execute()
-            existing = res.data[0].get("notes", "") if res.data else ""
-            supabase.table("dispatch_requests").update({
-                "notes": existing + notes_log,
-                "updated_at": timestamp
-            }).eq("id", dispatch_id).execute()
-        except Exception:
-            pass
+    if not supabase:
+        raise HTTPException(503, "Database unavailable — notes not saved. Please retry.")
+
+    try:
+        existing = _require_own_dispatch(dispatch_id, current_user)
+        # Clinical notes silently dropped are lost care documentation.
+        supabase.table("dispatch_requests").update({
+            "notes": existing + notes_log,
+            "updated_at": timestamp
+        }).eq("id", dispatch_id).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to save clinical notes for dispatch {dispatch_id}: {e}")
+        raise HTTPException(503, "Could not save the clinical notes. Please retry.")
 
     return {
         "success": True,
@@ -1194,9 +1249,50 @@ async def record_clinical_notes(
     }
 
 
+class RateVisitRequest(BaseModel):
+    stars: int
+    comment: str = ""
+
+
+@router.post("/{dispatch_id}/rate")
+async def rate_visit(
+    dispatch_id: str,
+    body: RateVisitRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Patient rates the provider who attended their visit.
+
+    This is where the stars shown on the tracking screens come from. Before
+    it existed, `rating REAL DEFAULT 5.0` on the role tables was the only
+    source and nothing ever wrote to it.
+    """
+    from app.services import ratings
+
+    result = ratings.submit_rating(
+        dispatch_id=dispatch_id,
+        patient_user_id=current_user["sub"],
+        stars=body.stars,
+        comment=body.comment,
+    )
+    if not result["success"]:
+        raise HTTPException(result.get("status", 400), result["error"])
+
+    return {
+        "success": True,
+        "message": "Thanks — your rating has been recorded.",
+        "summary": result["summary"],
+    }
+
+
 @router.get("/debug/booking/{booking_id}")
-async def debug_dispatch_state(booking_id: str):
-    """Debug endpoint: show dispatch state for a booking."""
+async def debug_dispatch_state(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Debug endpoint: show dispatch state for a booking. Admin only —
+    it dumps whole dispatch rows plus provider names and email addresses."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
     if not supabase:
         return {"error": "No database"}
     try:
@@ -1311,7 +1407,10 @@ async def get_public_guardian_track(token: str):
     # 1. Fetch dispatch request
     dr_rows = _rows(
         supabase.table("dispatch_requests")
-        .select("id, status, assigned_provider_id, scheduled_time, completed_at, updated_at")
+        .select(
+            "id, status, assigned_provider_id, scheduled_time, completed_at, "
+            "updated_at, estimated_eta_minutes, estimated_distance_km"
+        )
         .eq("booking_id", booking_id)
         .order("created_at", desc=True)
         .limit(1)
@@ -1323,8 +1422,8 @@ async def get_public_guardian_track(token: str):
             "success": True,
             "status": "scheduled",
             "provider_name": "Assigned Provider",
-            "eta_minutes": 15,
-            "distance_km": 2.5,
+            "eta_minutes": None,
+            "distance_km": None,
             "coarse_lat": None,
             "coarse_lng": None,
             "is_completed": False,
@@ -1346,17 +1445,33 @@ async def get_public_guardian_track(token: str):
         except Exception:
             pass
 
-    # Provider first name and verification
+    # Provider first name, verification, rating and visit count — all read
+    # from real records. A family member deciding whether to let this person
+    # into the house must never be shown an invented 4.9★ / 120-jobs badge, so
+    # anything without a source stays null and the page omits it.
     provider_first_name = "Health Specialist"
-    provider_rating = 4.9
-    provider_jobs = 120
+    provider_rating = None
+    provider_jobs = None
+    provider_verified = False
+    if provider_id:
+        from app.services import ratings as _ratings
+
+        summary = _ratings.get_summary(provider_id)
+        provider_rating = summary["average_stars"]
+        provider_jobs = _ratings.completed_visit_count(provider_id)
     if provider_id:
         try:
-            u_rows = _rows(supabase.table("users").select("full_name").eq("id", provider_id).limit(1).execute())
-            if u_rows and u_rows[0].get("full_name"):
-                provider_first_name = u_rows[0]["full_name"].split()[0]
-        except Exception:
-            pass
+            u_rows = _rows(
+                supabase.table("users")
+                .select("full_name, verification_status")
+                .eq("id", provider_id).limit(1).execute()
+            )
+            if u_rows:
+                if u_rows[0].get("full_name"):
+                    provider_first_name = u_rows[0]["full_name"].split()[0]
+                provider_verified = u_rows[0].get("verification_status") == "verified"
+        except Exception as e:
+            logger.warning(f"Guardian track: could not load provider {provider_id}: {e}")
 
     # Fetch provider location (coarse only: 2 decimals = ~1km accuracy)
     coarse_lat, coarse_lng = None, None
@@ -1371,18 +1486,15 @@ async def get_public_guardian_track(token: str):
         except Exception:
             pass
 
-    # Simulated ETA & distance based on status
-    eta_minutes = 12
-    distance_km = 3.2
-    if status == "arrived":
+    # ETA/distance: zero once the provider is on site, otherwise whatever the
+    # dispatch row actually estimated. A made-up "12 min / 3.2 km" that never
+    # moves is worse than showing nothing to someone waiting at the door.
+    if status in ("arrived", "in_progress", "completed"):
         eta_minutes = 0
         distance_km = 0.0
-    elif status == "in_progress":
-        eta_minutes = 0
-        distance_km = 0.0
-    elif status == "completed":
-        eta_minutes = 0
-        distance_km = 0.0
+    else:
+        eta_minutes = dispatch.get("estimated_eta_minutes")
+        distance_km = dispatch.get("estimated_distance_km")
 
     return {
         "success": True,
@@ -1391,7 +1503,7 @@ async def get_public_guardian_track(token: str):
             "first_name": provider_first_name,
             "rating": provider_rating,
             "completed_jobs": provider_jobs,
-            "verified": True,
+            "verified": provider_verified,
         },
         "eta_minutes": eta_minutes,
         "distance_km": distance_km,

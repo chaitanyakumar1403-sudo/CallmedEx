@@ -141,7 +141,7 @@ class UniversalDispatchEngine:
     ) -> list:
         """
         Find online providers of the specified type within radius.
-        Ranked by: distance → (future: rating → acceptance_rate → load).
+        Ranked by: distance (bucketed to the km) → rating → exact distance.
 
         Uses provider_locations table for a unified provider location store.
         Falls back to legacy role-specific tables if provider_locations is empty.
@@ -279,8 +279,30 @@ class UniversalDispatchEngine:
                     "provider_type": provider_type,
                 })
 
-        # Sort by distance (closest first)
-        candidates.sort(key=lambda x: x["distance_km"])
+        # Rank by distance first, then by rating. Distance stays dominant —
+        # a well-rated collector 9 km away is worse for the patient than a
+        # decent one 2 km away — so distance is bucketed to the nearest
+        # kilometre and rating only breaks ties inside a bucket.
+        #
+        # An unrated provider sorts as neutral (3.0), not last: a new joiner
+        # must still get work, or nobody can ever earn a first rating.
+        from app.services import ratings as _ratings
+
+        summaries = _ratings.get_summaries(
+            [c.get("user_id") for c in candidates if c.get("user_id")]
+        )
+        for c in candidates:
+            summary = summaries.get(c.get("user_id") or "") or {}
+            c["rating"] = summary.get("average_stars")
+            c["rating_count"] = summary.get("rating_count", 0)
+
+        candidates.sort(
+            key=lambda x: (
+                round(x["distance_km"]),
+                -(x["rating"] if x["rating"] is not None else 3.0),
+                x["distance_km"],
+            )
+        )
         return candidates[:limit]
 
     @staticmethod
@@ -524,8 +546,31 @@ class UniversalDispatchEngine:
                             )
                         )
 
+                    # Push alongside the email. Email plus dashboard polling
+                    # only reaches a provider who happens to be looking, and an
+                    # offer expires in minutes — it has to be able to wake the
+                    # phone. Fire-and-forget for the same reason the email is:
+                    # a push failure must never sink the dispatch.
+                    asyncio.create_task(
+                        UniversalDispatchEngine._push_offer_to_candidate(
+                            provider_id=candidate["user_id"],
+                            service_subtype=service_subtype,
+                            distance_km=candidate["distance_km"],
+                            patient_address=patient_address,
+                            priority=priority,
+                            dispatch_id=dispatch_id,
+                            offer_id=offer["id"],
+                        )
+                    )
+
             except Exception as e:
+                # Returning the success dict here is how a patient gets told
+                # "Phlebotomist X assigned, ~15 min away" while no
+                # dispatch_requests/dispatch_offers row exists and no provider
+                # was ever notified. Raise so the caller's retry path (see
+                # bookings.py -> retry_dispatch_creation) actually fires.
                 logger.error(f"Failed to create dispatch: {e}")
+                raise
 
         return {
             "dispatch_id": dispatch_id,
@@ -544,6 +589,57 @@ class UniversalDispatchEngine:
                 else f"No {provider_type.replace('_', ' ')}s available nearby. Your request has been queued."
             ),
         }
+
+    @staticmethod
+    async def _push_offer_to_candidate(
+        *,
+        provider_id: str,
+        service_subtype: str,
+        distance_km: float,
+        patient_address: str,
+        priority: str,
+        dispatch_id: str,
+        offer_id: str,
+    ) -> None:
+        """Wake a candidate's phone for a new offer. Never raises.
+
+        Carries no patient identity and no address fragment — a push preview
+        renders on a locked screen anyone nearby can read. Distance and
+        urgency are enough to decide whether to tap; the address comes from
+        the app once the provider opens the offer.
+
+        (`patient_address` stays in the signature so the caller reads
+        naturally and a future locality lookup has it, but it is deliberately
+        not rendered: splitting an Indian address on commas yields the flat
+        number, not the locality.)
+        """
+        from app.services import push as push_service
+
+        urgent = priority == "urgent"
+        service_label = (service_subtype or "home collection").replace("_", " ")
+
+        title = "Urgent collection nearby" if urgent else "New collection request"
+        body = (
+            f"{service_label.title()} · {distance_km} km away · "
+            f"respond within {offer_window_minutes()} min"
+        )
+
+        try:
+            await push_service.send_to_user(
+                user_id=provider_id,
+                title=title,
+                body=body,
+                data={
+                    "type": "dispatch_offer",
+                    "dispatch_id": dispatch_id,
+                    "offer_id": offer_id,
+                    "priority": priority,
+                    "distance_km": distance_km,
+                },
+                channel_id=push_service.CHANNEL_DISPATCH,
+            )
+        except Exception as e:
+            logger.warning(f"Offer push to provider {provider_id} failed: {e}")
 
     # ──────────────────────────────────────────────────────────────────
     # Provider Responds to Offer
@@ -673,12 +769,18 @@ class UniversalDispatchEngine:
                             provider_type=d_req["provider_type"]
                         )
                     from app.services.notification_engine import NotificationEngine
-                    await NotificationEngine.send(
+                    from app.services.push import CHANNEL_DISPATCH
+                    await NotificationEngine.send_multi(
                         user_id=d_req["patient_id"],
-                        channel="in_app",
+                        channels=["in_app", "push"],
                         title="Phlebotomist assigned",
                         body=f"{provider_name} has been assigned to your booking and is preparing to head your way.",
-                        data={"dispatch_id": dispatch_id, "status": "assigned", "provider_name": provider_name},
+                        data={
+                            "dispatch_id": dispatch_id,
+                            "status": "assigned",
+                            "provider_name": provider_name,
+                            "channel_id": CHANNEL_DISPATCH,
+                        },
                     )
             except Exception as e:
                 logger.error(f"Failed to send tracking email/notification: {e}")
@@ -797,9 +899,12 @@ class UniversalDispatchEngine:
             )
 
             from app.services.notification_engine import NotificationEngine
-            await NotificationEngine.send(
+            from app.services.push import CHANNEL_DISPATCH
+            # "Your phlebotomist has arrived" is worth a phone buzz, not just
+            # an in-app row the patient sees whenever they next open the app.
+            await NotificationEngine.send_multi(
                 user_id=patient_id,
-                channel="in_app",
+                channels=["in_app", "push"],
                 title=title,
                 body=body_template.format(provider=provider_name, status=new_status),
                 data={
@@ -807,6 +912,7 @@ class UniversalDispatchEngine:
                     "status": new_status,
                     "provider_name": provider_name,
                     "eta_minutes": int(dispatch_row.get("estimated_eta_minutes") or 0),
+                    "channel_id": CHANNEL_DISPATCH,
                 },
             )
         except Exception as e:

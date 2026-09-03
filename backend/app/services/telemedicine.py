@@ -201,7 +201,11 @@ class TelemedicineService:
             try:
                 supabase.table("consultations").insert(consultation_data).execute()
             except Exception as e:
+                # Returning a room URL for a consultation that was never
+                # persisted hands both parties a link that dies on the next
+                # call (get_consultation -> None -> "Consultation not found").
                 logger.error(f"Failed to create consultation: {e}")
+                raise RuntimeError("Could not create the consultation record") from e
 
         return {
             "consultation_id": consultation_id,

@@ -12,6 +12,10 @@ bcrypt==3.2.2
 Pillow
 groq>=0.9.0
 google-generativeai>=0.8.3
+# Direct dependency of app/services/push.py (FCM HTTP v1 service-account auth).
+# It already arrives via google-generativeai, but pinning it explicitly keeps
+# push working if that package is ever dropped.
+google-auth>=2.35.0
 pymupdf>=1.24.0
 # ─── Phase 3: Telephony (Masked Calling) ─────────
 twilio>=9.0.0

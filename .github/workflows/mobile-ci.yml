@@ -1,0 +1,64 @@
+name: CallMedex Mobile CI & Release Verification
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'mobile/**'
+      - 'backend/app/routers/mobile_auth.py'
+      - 'backend/tests/test_mobile_auth_phase0.py'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'mobile/**'
+      - 'backend/app/routers/mobile_auth.py'
+      - 'backend/tests/test_mobile_auth_phase0.py'
+
+jobs:
+  mobile-typecheck-and-test:
+    name: Mobile Typecheck & Unit Test Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mobile/package.json
+
+      - name: Install Mobile Dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Mobile TypeScript Strict Compilation Check
+        working-directory: mobile
+        run: npx tsc --project tsconfig.json --noEmit
+
+      - name: Run Mobile Test Suites (Phase 2, 3, 4)
+        run: node --test mobile/tests/*.mjs
+
+  backend-mobile-auth-gate:
+    name: Backend Mobile Auth Regression Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Mobile Auth Pytest Suite
+        run: pytest backend/tests/test_mobile_auth_phase0.py -v

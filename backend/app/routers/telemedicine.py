@@ -73,11 +73,14 @@ async def start_consultation(
             detail="Digital consent is mandatory under NMC 2026 guidelines.",
         )
 
-    result = await TelemedicineService.create_consultation(
-        patient_id=current_user["sub"],
-        doctor_id=req.doctor_id,
-        booking_id=req.booking_id,
-    )
+    try:
+        result = await TelemedicineService.create_consultation(
+            patient_id=current_user["sub"],
+            doctor_id=req.doctor_id,
+            booking_id=req.booking_id,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
     return {
         "success": True,
@@ -254,12 +257,20 @@ async def get_daily_meeting_token(
     if not consultation:
         raise HTTPException(status_code=404, detail="Consultation not found")
 
+    # Same participant check as /room/{id} — a meeting token is a key to a live
+    # medical consultation, so it must never be issued to a non-participant.
     user_id = current_user["sub"]
-    is_doctor = (current_user.get("role") in ("doctor", "admin") or consultation.get("doctor_id") == user_id)
+    if consultation.get("patient_id") != user_id and consultation.get("doctor_id") != user_id:
+        if current_user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    # Moderator privileges follow THIS consultation's doctor, not the caller's
+    # role — an unrelated doctor must not get owner rights on someone's call.
+    is_doctor = (consultation.get("doctor_id") == user_id or current_user.get("role") == "admin")
     user_name = current_user.get("name") or ("Dr. Provider" if is_doctor else "Patient")
     room_name = consultation.get("video_room_name") or f"cmx-{consultation_id[:8]}"
 
-    token = TelemedicineService.generate_daily_meeting_token(
+    token = await TelemedicineService.generate_daily_meeting_token(
         room_name=room_name,
         user_name=user_name,
         is_doctor=is_doctor,

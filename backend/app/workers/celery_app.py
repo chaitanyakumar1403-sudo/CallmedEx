@@ -42,6 +42,7 @@ celery_app = Celery(
         "app.workers.tasks.attendance",
         "app.workers.tasks.roster",
         "app.workers.tasks.scheduled_dispatch",
+        "app.workers.tasks.report_retry",
     ],
 )
 
@@ -125,6 +126,14 @@ celery_app.conf.update(
         "trigger-upcoming-scheduled-dispatch": {
             "task": "app.workers.tasks.scheduled_dispatch.trigger_dispatch_for_upcoming_bookings",
             "schedule": crontab(minute="*/10"),  # Every 10 minutes
+        },
+        # Drains the ReportJob retry queue. report_submission writes
+        # status="retry" + next_retry_at on a failed MediAssist handoff, but
+        # nothing consumed it — only a manual admin endpoint no UI calls — so
+        # a failed lab report never reached the patient.
+        "retry-due-report-jobs": {
+            "task": "app.workers.tasks.report_retry.retry_due_report_jobs",
+            "schedule": crontab(minute="*/5"),  # Every 5 minutes
         },
     },
 )

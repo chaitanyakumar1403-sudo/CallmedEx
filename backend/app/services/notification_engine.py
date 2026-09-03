@@ -195,26 +195,60 @@ class NotificationEngine:
     async def _send_sms(user_id: str, body: str) -> dict:
         """Send SMS notification (MSG91/Twilio).
 
-        Not yet wired to a real SMS gateway. Returns simulated success so
-        the notification record is created, but logs a warning so ops knows
-        the message was NOT actually delivered.
+        Goes through MSG91's Flow API (app/services/sms_otp.py), which is the
+        DLT-compliant path for notification text — the OTP endpoint cannot
+        carry it. Needs MSG91_FLOW_ID pointing at a registered template.
+
+        Reports honest failure: recording status "sent" for a message nobody
+        received makes the notifications table lie, and ops then sees 100%
+        delivery on a channel that delivered nothing.
         """
-        logger.warning(
-            f"📱 SMS to {user_id}: NOT DELIVERED (SMS gateway not configured). "
-            f"Message: {body[:80]}..."
-        )
-        return {"success": True, "simulated": True}
+        from app.services.sms_otp import send_transactional_sms
+
+        phone = None
+        if supabase and user_id:
+            try:
+                res = (
+                    supabase.table("users").select("mobile")
+                    .eq("id", user_id).limit(1).execute()
+                )
+                if res.data:
+                    phone = res.data[0].get("mobile")
+            except Exception as e:
+                logger.warning(f"Could not look up mobile for {user_id}: {e}")
+
+        if not phone:
+            logger.warning(f"📱 SMS to {user_id}: no mobile number on file")
+            return {"success": False, "error": "No mobile number on file for user"}
+
+        result = await send_transactional_sms(phone, body)
+        if not result.get("success"):
+            logger.warning(
+                f"📱 SMS to {user_id}: NOT DELIVERED — {result.get('error')}"
+            )
+        return {"success": result.get("success", False), "error": result.get("error")}
 
     @staticmethod
     async def _send_push(user_id: str, title: str, body: str, data: dict = None) -> dict:
-        """Send push notification (FCM).
+        """Send push notification via FCM HTTP v1 (app/services/push.py).
 
-        Not yet wired to FCM. Returns simulated success so the notification
-        record is created, but logs a warning so ops knows the message was
-        NOT actually delivered.
+        The Android channel comes from `data["channel_id"]` when the caller
+        names one, so a dispatch offer lands on the max-importance channel
+        rather than the quiet default. Failure stays honest — an unconfigured
+        or undelivered push records as `failed`, never `sent`.
         """
-        logger.warning(
-            f"🔔 Push to {user_id}: NOT DELIVERED (FCM not configured). "
-            f"Title: {title}"
+        from app.services import push as push_service
+
+        channel_id = (data or {}).get("channel_id") or push_service.CHANNEL_APPOINTMENTS
+        result = await push_service.send_to_user(
+            user_id=user_id,
+            title=title,
+            body=body,
+            data=data,
+            channel_id=channel_id,
         )
-        return {"success": True, "simulated": True}
+        return {
+            "success": result["success"],
+            "error": result.get("error"),
+            "delivered": result.get("delivered", 0),
+        }

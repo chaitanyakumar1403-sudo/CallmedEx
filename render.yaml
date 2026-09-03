@@ -72,6 +72,29 @@ services:
       - key: OTP_PROVIDER
         value: msg91
 
+      # ─── Push Notifications (FCM HTTP v1) ─────────────────────────────────
+      # Paste the whole Firebase service-account JSON as the value. The legacy
+      # FCM_SERVER_KEY endpoint was shut down by Google in June 2024 and is not
+      # used. Without this, push records as `failed` rather than silently
+      # pretending to deliver.
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
+      # iOS goes to APNs directly — Expo's getDevicePushTokenAsync() returns an
+      # APNs token on iOS, which FCM cannot address. APNS_PRIVATE_KEY is the
+      # .p8 file contents.
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_PRIVATE_KEY
+        sync: false
+      - key: APNS_USE_SANDBOX
+        value: false
+
+      # ─── Notification SMS (DLT-registered MSG91 flow, not the OTP template) ──
+      - key: MSG91_FLOW_ID
+        sync: false
+
       # ─── Telemedicine (Daily.co) ──────────────────────────────────────────
       - key: DAILY_API_KEY
         sync: false

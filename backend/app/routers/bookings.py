@@ -1152,6 +1152,52 @@ async def get_org_services_for_booking(org_id: str):
         return APIResponse(success=False, message="Failed to fetch services", data={"services": [], "packages": [], "doctors": []})
 
 
+@router.get("/provider/today", response_model=APIResponse)
+async def get_provider_today_bookings(current_user: dict = Depends(get_current_user)):
+    """Today's bookings for the authenticated provider.
+
+    The doctor dashboard has always called this route; it did not exist, so
+    the 404 was swallowed client-side and "Today's Bookings" rendered empty
+    for every doctor regardless of how many appointments they had.
+
+    bookings.provider_id holds the provider's *user* id (see the slot_id
+    "provider_id|date|time" convention in create_booking), so it matches
+    current_user["sub"] directly.
+    """
+    role = current_user.get("role")
+    if role not in ("doctor", "nurse", "phlebotomist", "organization", "admin"):
+        raise HTTPException(status_code=403, detail="Not a provider account")
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+
+    # slot_start is stored with an explicit +05:30 offset, so bound the day in
+    # IST rather than UTC or the evening slots land on the wrong date.
+    ist_today = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
+    day_start = f"{ist_today.isoformat()}T00:00:00+05:30"
+    day_end = f"{ist_today.isoformat()}T23:59:59+05:30"
+
+    try:
+        bookings = _rows(
+            supabase.table("bookings")
+            .select("*")
+            .eq("provider_id", current_user["sub"])
+            .gte("slot_start", day_start)
+            .lte("slot_start", day_end)
+            .order("slot_start")
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"Failed to load today's bookings for {current_user['sub']}: {e}")
+        raise HTTPException(status_code=503, detail="Could not load today's bookings")
+
+    return APIResponse(
+        success=True,
+        message=f"{len(bookings)} booking(s) today",
+        data={"bookings": bookings, "date": ist_today.isoformat()},
+    )
+
+
 # ─── Diagnostic Booking Workflow: Request → Review → Allot → Accept ──────
 
 @router.get("/pending-review", response_model=APIResponse)

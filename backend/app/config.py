@@ -148,9 +148,26 @@ class Settings:
     # ─── Mobile Platform & Notifications ──────────────────────────────
     MOBILE_BUNDLE_ID: str = os.getenv("MOBILE_BUNDLE_ID", "com.callmedex.app")
     BIOMETRIC_CHALLENGE_SECRET: str = os.getenv("BIOMETRIC_CHALLENGE_SECRET", "") or os.getenv("JWT_SECRET", "")
-    FCM_SERVER_KEY: str = os.getenv("FCM_SERVER_KEY", "")
+    # Push delivery (app/services/push.py) uses FCM HTTP v1: paste the whole
+    # service-account JSON into FCM_SERVICE_ACCOUNT_JSON. FCM_PROJECT_ID is
+    # optional — it defaults to the project_id inside that JSON.
+    FCM_SERVICE_ACCOUNT_JSON: str = os.getenv("FCM_SERVICE_ACCOUNT_JSON", "")
+    FCM_PROJECT_ID: str = os.getenv("FCM_PROJECT_ID", "")
+
+    # APNs token-based auth for iOS. The mobile client's
+    # getDevicePushTokenAsync() returns a raw APNs token on iOS, which FCM v1
+    # cannot address, so iOS is delivered directly. APNS_PRIVATE_KEY is the
+    # contents of the .p8 file (BEGIN PRIVATE KEY ... END PRIVATE KEY).
     APNS_KEY_ID: str = os.getenv("APNS_KEY_ID", "")
     APNS_TEAM_ID: str = os.getenv("APNS_TEAM_ID", "")
+    APNS_PRIVATE_KEY: str = os.getenv("APNS_PRIVATE_KEY", "")
+    # "production" once the app ships; sandbox is what a dev build registers
+    # against, and a token from one environment is invalid in the other.
+    APNS_USE_SANDBOX: bool = os.getenv("APNS_USE_SANDBOX", "false").lower() in ("true", "1", "yes")
+
+    # DEPRECATED — Google shut down the legacy FCM server-key endpoint in
+    # June 2024. Nothing reads this; use FCM_SERVICE_ACCOUNT_JSON.
+    FCM_SERVER_KEY: str = os.getenv("FCM_SERVER_KEY", "")
 
     # ─── MSG91 SMS OTP Gateway ─────────────────────────────────────────
     MSG91_AUTH_KEY: str = os.getenv("MSG91_AUTH_KEY", "")
@@ -158,9 +175,18 @@ class Settings:
     MSG91_SENDER_ID: str = os.getenv("MSG91_SENDER_ID", "CLMDEX")
     MSG91_OTP_LENGTH: int = int(os.getenv("MSG91_OTP_LENGTH", "6"))
     MSG91_OTP_EXPIRY_MINUTES: int = int(os.getenv("MSG91_OTP_EXPIRY_MINUTES", "5"))
+    # DLT-registered flow/template used for notification SMS (not OTP). The
+    # message text is sent as that template's VAR1, so register a template of
+    # the form "CallMedex: ##VAR1##" before setting this.
+    MSG91_FLOW_ID: str = os.getenv("MSG91_FLOW_ID", "")
 
     # ─── Patient Dashboard Upgrade Feature Flags ─────────────────────────
     ENABLE_PREVENTIVE_BIOMARKERS: bool = os.getenv("ENABLE_PREVENTIVE_BIOMARKERS", "true").lower() in ("true", "1", "yes")
+    # NHCX insurance is scaffolding: app/services/nhcx.py returns a fixed
+    # "Star Health, Rs 5,00,000, Active" for any ABHA and claim submission
+    # persists a mock insurer id. Off by default so it cannot answer
+    # confidently in production; flip on only against a real NHCX sandbox.
+    ENABLE_NHCX_INSURANCE: bool = os.getenv("ENABLE_NHCX_INSURANCE", "false").lower() in ("true", "1", "yes")
     ENABLE_DOCTOR_BRIEFING: bool = os.getenv("ENABLE_DOCTOR_BRIEFING", "true").lower() in ("true", "1", "yes")
     ENABLE_FAMILY_SWIPER: bool = os.getenv("ENABLE_FAMILY_SWIPER", "true").lower() in ("true", "1", "yes")
     ENABLE_EMERGENCY_SOS: bool = os.getenv("ENABLE_EMERGENCY_SOS", "true").lower() in ("true", "1", "yes")

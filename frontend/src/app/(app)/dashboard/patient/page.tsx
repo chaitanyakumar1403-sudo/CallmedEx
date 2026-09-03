@@ -762,20 +762,22 @@ export default function PatientDashboard() {
             <Shield size={16} />
             DrugShield AI (80% Generic Savings)
           </button>
-          <button
-            type="button"
-            className="cm-action-chip"
-            style={{
-              borderColor: showLiveTracker ? "var(--cm-active)" : "var(--cm-line-strong)",
-              background: showLiveTracker ? "var(--cm-active-surface)" : "var(--cm-surface)",
-              color: showLiveTracker ? "var(--cm-active)" : "var(--cm-ink)",
-              fontWeight: 700
-            }}
-            onClick={() => setShowLiveTracker(!showLiveTracker)}
-          >
-            <Bike size={16} />
-            {showLiveTracker ? "Hide Phlebo Tracker" : "Rapido Live Phlebo Dispatch"}
-          </button>
+          {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
+            <button
+              type="button"
+              className="cm-action-chip"
+              style={{
+                borderColor: showLiveTracker ? "var(--cm-active)" : "var(--cm-line-strong)",
+                background: showLiveTracker ? "var(--cm-active-surface)" : "var(--cm-surface)",
+                color: showLiveTracker ? "var(--cm-active)" : "var(--cm-ink)",
+                fontWeight: 700
+              }}
+              onClick={() => setShowLiveTracker(!showLiveTracker)}
+            >
+              <Bike size={16} />
+              {showLiveTracker ? "Hide Demo Tracker" : "Phlebo Dispatch (Demo)"}
+            </button>
+          )}
           {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
             <button
               type="button"
@@ -795,7 +797,11 @@ export default function PatientDashboard() {
         )}
 
         {/* ─── RAPIDO-STYLE LIVE PHLEBOTOMIST DISPATCH & ORDER TRACKER ─── */}
-        {((activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status)) || showLiveTracker) && (() => {
+        {/* Real dispatch always renders. The simulated run renders only in a
+            demo build — otherwise a patient with no collection booked could
+            open a tracker showing a phlebotomist who does not exist. */}
+        {((activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status))
+          || (FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && showLiveTracker)) && (() => {
           const isReal = !!(activeDispatchId && trackingData);
           const currentStatus = isReal ? trackingData.status : simStage;
           const isSearching = currentStatus === "searching" || currentStatus === "provider_notified";
@@ -810,6 +816,7 @@ export default function PatientDashboard() {
             vehicle: "Hero Splendor Plus · Temperature Carrier Box",
             rating: "4.9",
             collections: "1,240+",
+            nabl_verified: true,
           };
 
           const otp = isReal ? patientOtp : "4829";
@@ -828,6 +835,11 @@ export default function PatientDashboard() {
                       <Bike size={20} style={{ color: "var(--cm-active)" }} />
                       CallMedex Rapido Phlebo Dispatch
                     </h3>
+                    {!isReal && (
+                      <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", background: "var(--cm-warn-surface, #FBF0DC)", color: "var(--cm-warn, #8A5606)", border: "1px solid var(--cm-warn-line, #E4C88C)", padding: "3px 8px", borderRadius: 4 }}>
+                        Sample data
+                      </span>
+                    )}
                   </div>
                   <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>
                     {isSearching
@@ -981,17 +993,31 @@ export default function PatientDashboard() {
                       <div>
                         <div className="cm-rapido-captain__name">
                           {provider.name}
-                          <span className="cm-rapido-captain__rating">
-                            <Star size={12} fill="currentColor" /> {provider.rating || "4.9"}
-                          </span>
-                          <span style={{ fontSize: "0.72rem", background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)", padding: "2px 8px", borderRadius: 9999, fontWeight: 700 }}>
-                            <ShieldCheck size={11} style={{ display: "inline", marginRight: 3 }} /> NABL Verified
-                          </span>
+                          {/* Rating, vehicle, collection count and the NABL
+                              badge render only when the tracking payload
+                              actually carries them. The live endpoint returns
+                              none of these today, so the old `|| "4.9"` /
+                              `|| "1,200+"` fallbacks were showing every patient
+                              invented credentials for a real phlebotomist. */}
+                          {provider.rating && (
+                            <span className="cm-rapido-captain__rating">
+                              <Star size={12} fill="currentColor" /> {provider.rating}
+                            </span>
+                          )}
+                          {provider.nabl_verified && (
+                            <span style={{ fontSize: "0.72rem", background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)", padding: "2px 8px", borderRadius: 9999, fontWeight: 700 }}>
+                              <ShieldCheck size={11} style={{ display: "inline", marginRight: 3 }} /> NABL Verified
+                            </span>
+                          )}
                         </div>
-                        <div className="cm-rapido-captain__vehicle">
-                          <Bike size={14} style={{ color: "var(--cm-active)" }} />
-                          {provider.vehicle || "Hero Splendor · Cold Chain Carrier"} · {provider.collections || "1,200+"} collections
-                        </div>
+                        {(provider.vehicle || provider.collections) && (
+                          <div className="cm-rapido-captain__vehicle">
+                            <Bike size={14} style={{ color: "var(--cm-active)" }} />
+                            {provider.vehicle}
+                            {provider.vehicle && provider.collections ? " · " : ""}
+                            {provider.collections ? `${provider.collections} collections` : ""}
+                          </div>
+                        )}
                       </div>
                     </div>
 

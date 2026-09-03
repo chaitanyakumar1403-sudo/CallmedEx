@@ -182,6 +182,37 @@ async def submit_report_job_to_mediassist(
                 new_count = curr_count + 1
                 now_str = datetime.now(timezone.utc).isoformat()
                 if new_count >= max_retries:
+                    # Retries are spent — MediAssist is not coming back for
+                    # this job. Analyse in-process before giving up, so the
+                    # patient gets their report instead of nothing. Only here,
+                    # never on a single blip: the retry sweep handles those,
+                    # and re-analysing on every transient failure would burn
+                    # tokens duplicating work MediAssist is about to do.
+                    fallback = None
+                    try:
+                        import asyncio as _asyncio
+
+                        fallback = await _asyncio.to_thread(
+                            _run_fallback_analysis,
+                            report_job_id=report_job_id,
+                            patient_id=patient_id,
+                            source_document_url=source_document_url,
+                            db=db,
+                        )
+                    except Exception as fb_err:
+                        logger.error(
+                            f"Fallback analysis for report job {report_job_id} raised: {fb_err}"
+                        )
+
+                    if fallback:
+                        # _run_fallback_analysis has already set the job to
+                        # delivered and persisted the analysis.
+                        logger.warning(
+                            f"MediAssist exhausted for report job {report_job_id}; "
+                            f"delivered via in-process fallback analysis instead."
+                        )
+                        return fallback
+
                     db.table("report_jobs").update({
                         "status": "dead_letter",
                         "dead_letter": True,

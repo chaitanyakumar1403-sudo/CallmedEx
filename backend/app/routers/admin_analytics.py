@@ -5,11 +5,14 @@ revenue data, provider performance, geospatial data, and AI insights.
 Powers the Operations Command Center dashboard.
 """
 import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
 from app.middleware.auth import get_current_user
 from app.database import supabase
 import json
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/analytics", tags=["Admin Analytics"])
 
@@ -246,6 +249,9 @@ async def provider_performance(current_user: dict = Depends(get_current_user)):
         return {"success": True, "providers": _mock_provider_data()}
 
     providers = []
+    # An admin comparing providers must know when the list in front of them is
+    # short because a query failed, not because those providers do not exist.
+    partial = False
 
     # Doctors
     try:
@@ -265,8 +271,9 @@ async def provider_performance(current_user: dict = Depends(get_current_user)):
                 "specialization": d.get("specialization", ""),
                 "verification_status": d.get("verification_status", "pending"),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Admin provider list: doctors query failed: {e}")
+        partial = True
 
     # Nurses
     try:
@@ -285,13 +292,16 @@ async def provider_performance(current_user: dict = Depends(get_current_user)):
                 "city": n.get("users", {}).get("city", ""),
                 "specialization": ", ".join(n.get("specializations", [])),
                 "verification_status": n.get("verification_status", "pending"),
-                "rating": n.get("rating", 5.0),
+                # No default. An unrated provider reads as null, not as a
+                # perfect score nobody awarded (see database/provider_ratings.sql).
+                "rating": n.get("rating"),
                 "total_completed": n.get("total_completed", 0),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Admin provider list: nurses query failed: {e}")
+        partial = True
 
-    return {"success": True, "providers": providers}
+    return {"success": True, "providers": providers, "partial": partial}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -326,8 +336,11 @@ async def geospatial_data(current_user: dict = Depends(get_current_user)):
                 "lng": p.get("current_lng"),
                 "speed_kmh": p.get("speed_kmh"),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        # An ops map that quietly drops providers shows a calm city that is
+        # not the real one.
+        logger.error(f"Live map: online provider query failed: {e}")
+        data["partial"] = True
 
     # Active dispatches — join with users for patient name
     try:
@@ -348,8 +361,9 @@ async def geospatial_data(current_user: dict = Depends(get_current_user)):
                 "patient_lat": d.get("patient_lat"),
                 "patient_lng": d.get("patient_lng"),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Live map: active dispatch query failed: {e}")
+        data["partial"] = True
 
     return {"success": True, "data": data}
 

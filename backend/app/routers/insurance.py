@@ -6,11 +6,39 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone
 from app.middleware.auth import get_current_user
+from app.config import settings
 from app.database import supabase
 from app.services.nhcx import NHCXService
 import uuid
 
-router = APIRouter(prefix="/api/insurance", tags=["Insurance Phase 4"])
+
+def require_nhcx_enabled() -> None:
+    """Refuse to answer while NHCX is still scaffolding.
+
+    NHCXService reports the same "Star Health (AB-PMJAY), Rs 5,00,000, Active"
+    for any ABHA of five characters or more, and claim submission writes a mock
+    insurer name and an invented transaction id into insurance_claims while
+    answering "Claim submitted to NHCX successfully."
+
+    A patient acting on that could arrive expecting cashless cover that does
+    not exist, so the whole router stays closed until ENABLE_NHCX_INSURANCE is
+    set against a real NHCX integration.
+    """
+    if not settings.ENABLE_NHCX_INSURANCE:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Insurance eligibility and claims are not available yet. "
+                "CallMedex is not connected to NHCX."
+            ),
+        )
+
+
+router = APIRouter(
+    prefix="/api/insurance",
+    tags=["Insurance Phase 4"],
+    dependencies=[Depends(require_nhcx_enabled)],
+)
 
 class EligibilityRequest(BaseModel):
     abha_number: str

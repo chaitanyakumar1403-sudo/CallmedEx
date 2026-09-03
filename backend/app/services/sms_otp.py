@@ -308,3 +308,68 @@ class SMSOTPService:
 
 # Singleton instance
 sms_otp_service = SMSOTPService()
+
+
+# ─── Transactional (non-OTP) SMS ──────────────────────────────────────────
+
+MSG91_FLOW_URL = "https://control.msg91.com/api/v5/flow/"
+
+
+async def send_transactional_sms(phone: str, body: str) -> dict:
+    """Send a notification SMS through MSG91's Flow API.
+
+    Separate from the OTP path above because MSG91's OTP endpoint only
+    accepts an OTP template and cannot carry notification text.
+
+    India's DLT regime forbids free-form transactional SMS: the content must
+    match a template registered with the operator. MSG91_FLOW_ID names that
+    registered template and the message text is passed as its VAR1, so the
+    approved template reads like "CallMedex: ##VAR1##". Register the template
+    first — sending against an unregistered one is rejected by the operator,
+    not by us.
+
+    Returns a result dict rather than raising; a failed notification must
+    never take down the booking or dispatch it was announcing.
+    """
+    auth_key = (settings.MSG91_AUTH_KEY or "").strip()
+    flow_id = (getattr(settings, "MSG91_FLOW_ID", "") or "").strip()
+
+    if not auth_key or not flow_id:
+        return {
+            "success": False,
+            "error": "MSG91 transactional SMS not configured (MSG91_AUTH_KEY / MSG91_FLOW_ID)",
+        }
+
+    try:
+        mobile = normalize_indian_phone(phone).lstrip("+")
+    except HTTPException as e:
+        return {"success": False, "error": f"Unusable phone number: {e.detail}"}
+
+    payload = {
+        "template_id": flow_id,
+        "short_url": "0",
+        "recipients": [{"mobiles": mobile, "VAR1": body}],
+    }
+    headers = {"authkey": auth_key, "Content-Type": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(MSG91_FLOW_URL, json=payload, headers=headers)
+    except Exception as e:
+        logger.warning(f"[SMS] MSG91 flow request failed: {e}")
+        return {"success": False, "error": f"MSG91 transport error: {e}"}
+
+    try:
+        data = resp.json()
+    except Exception:
+        data = {}
+
+    # MSG91 answers 200 with {"type": "error"} on a rejected send, so the
+    # status code alone is not proof of delivery.
+    if resp.status_code == 200 and data.get("type") != "error":
+        logger.info(f"[SMS] Delivered notification SMS to {mobile}")
+        return {"success": True}
+
+    err = data.get("message") or resp.text[:160]
+    logger.warning(f"[SMS] MSG91 rejected notification SMS ({resp.status_code}): {err}")
+    return {"success": False, "error": f"MSG91: {err}"}

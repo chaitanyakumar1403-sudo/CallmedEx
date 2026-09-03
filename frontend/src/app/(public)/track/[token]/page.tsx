@@ -9,12 +9,14 @@ interface TrackingData {
   status: string;
   provider?: {
     first_name: string;
-    rating: number;
-    completed_jobs: number;
+    // null when CallMedex has no real figure — there is no provider rating
+    // store yet, so these must not be faked into a trust badge.
+    rating: number | null;
+    completed_jobs: number | null;
     verified: boolean;
   };
-  eta_minutes: number;
-  distance_km: number;
+  eta_minutes: number | null;
+  distance_km: number | null;
   coarse_lat?: number | null;
   coarse_lng?: number | null;
   is_completed: boolean;
@@ -140,13 +142,21 @@ export default function GuardianLiveTrackingPage({
                   <div className="flex flex-col">
                     <span className="text-xs text-slate-400">Estimated Arrival</span>
                     <span className="text-2xl sm:text-3xl font-bold text-cyan-400 mt-0.5">
-                      {data.eta_minutes > 0 ? `${data.eta_minutes} mins` : "Arrived"}
+                      {data.eta_minutes == null
+                        ? "—"
+                        : data.eta_minutes > 0
+                          ? `${data.eta_minutes} mins`
+                          : "Arrived"}
                     </span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs text-slate-400">Distance</span>
                     <span className="text-2xl sm:text-3xl font-bold text-white mt-0.5">
-                      {data.distance_km > 0 ? `${data.distance_km} km` : "At Doorstep"}
+                      {data.distance_km == null
+                        ? "—"
+                        : data.distance_km > 0
+                          ? `${data.distance_km} km`
+                          : "At Doorstep"}
                     </span>
                   </div>
                 </div>
@@ -161,16 +171,28 @@ export default function GuardianLiveTrackingPage({
                     </div>
                     <div>
                       <h4 className="text-sm font-semibold text-white">
-                        {data.provider.first_name} (Verified Specialist)
+                        {data.provider.first_name}
+                        {data.provider.verified ? " (Verified Specialist)" : ""}
                       </h4>
-                      <p className="text-[11px] text-slate-400">
-                        ⭐ {data.provider.rating} &bull; {data.provider.completed_jobs}+ home visits completed
-                      </p>
+                      {/* Rating and visit count render only when the backend
+                          actually has them. A family member deciding whether to
+                          open the door must not be shown an invented score. */}
+                      {(data.provider.rating != null || data.provider.completed_jobs != null) && (
+                        <p className="text-[11px] text-slate-400">
+                          {data.provider.rating != null && <>⭐ {data.provider.rating}</>}
+                          {data.provider.rating != null && data.provider.completed_jobs != null && " • "}
+                          {data.provider.completed_jobs != null && (
+                            <>{data.provider.completed_jobs}+ home visits completed</>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[11px] text-slate-300 font-medium">
-                    CallMedex Verified
-                  </span>
+                  {data.provider.verified && (
+                    <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-[11px] text-slate-300 font-medium">
+                      CallMedex Verified
+                    </span>
+                  )}
                 </div>
               )}
             </div>
