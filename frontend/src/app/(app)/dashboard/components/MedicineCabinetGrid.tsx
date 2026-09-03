@@ -4,8 +4,15 @@ import React, { useState } from 'react';
 import { useFamilyHubStore, familyHubStore } from '@/store/useFamilyHubStore';
 import { Pill, AlertTriangle, Plus, RotateCcw, X, Check } from 'lucide-react';
 
-export const MedicineCabinetGrid: React.FC = () => {
+import { PATIENT_TRANSLATIONS, PatientLang } from '../patient/patientTranslations';
+
+interface MedicineCabinetGridProps {
+  lang?: PatientLang;
+}
+
+export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang = 'en' }) => {
   const { medications } = useFamilyHubStore();
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [medicineName, setMedicineName] = useState<string>('');
   const [dosage, setDosage] = useState<string>('');
@@ -84,10 +91,10 @@ export const MedicineCabinetGrid: React.FC = () => {
         <div>
           <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Pill style={{ width: 18, height: 18, color: '#7c3aed' }} />
-            Smart Medicine Cabinet & Refill Radar
+            {t.smartMedicineCabinet}
           </h3>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
-            Track active prescription pills, daily dosages, and refill dates.
+            {t.medicineCabinetSubtitle}
           </p>
         </div>
 
@@ -107,7 +114,7 @@ export const MedicineCabinetGrid: React.FC = () => {
             gap: 6,
           }}
         >
-          <Plus style={{ width: 14, height: 14 }} /> Add Medication
+          <Plus style={{ width: 14, height: 14 }} /> {t.addMedication}
         </button>
       </div>
 
@@ -231,9 +238,9 @@ export const MedicineCabinetGrid: React.FC = () => {
       {medications.length === 0 ? (
         <div style={{ padding: '24px', background: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
           <Pill style={{ width: 32, height: 32, color: '#94a3b8', margin: '0 auto 8px' }} />
-          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#334155', marginBottom: 4 }}>No Active Medications Recorded</div>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#334155', marginBottom: 4 }}>{t.noMedicationsTitle}</div>
           <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-            Click Add Medication above to track your active daily prescriptions and refill reminders.
+            {t.noMedicationsBody}
           </div>
         </div>
       ) : (
@@ -261,7 +268,7 @@ export const MedicineCabinetGrid: React.FC = () => {
                     <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>{med.medicineName}</div>
                     {isLow && (
                       <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <AlertTriangle style={{ width: 12, height: 12 }} /> Refill Soon
+                        <AlertTriangle style={{ width: 12, height: 12 }} /> {t.refillNeeded}
                       </span>
                     )}
                   </div>
@@ -284,7 +291,7 @@ export const MedicineCabinetGrid: React.FC = () => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
-                      <strong style={{ color: '#0f172a' }}>{med.remainingPills}</strong>/{med.totalPills} pills ({daysLeft} days left)
+                      <strong style={{ color: '#0f172a' }}>{med.remainingPills}</strong>/{med.totalPills} ({daysLeft} {t.daysSupplyRemaining})
                     </span>
 
                     <button
@@ -302,7 +309,7 @@ export const MedicineCabinetGrid: React.FC = () => {
                         gap: 4,
                       }}
                     >
-                      <RotateCcw style={{ width: 12, height: 12 }} /> Refill
+                      <RotateCcw style={{ width: 12, height: 12 }} /> {t.refillNeeded}
                     </button>
                   </div>
                 </div>

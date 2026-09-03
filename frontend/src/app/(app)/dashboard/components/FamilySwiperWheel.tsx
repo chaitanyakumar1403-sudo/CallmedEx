@@ -4,8 +4,15 @@ import React from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
 import { Users, User, ShieldCheck, AlertCircle } from 'lucide-react';
 
-export const FamilySwiperWheel: React.FC = () => {
+import { PATIENT_TRANSLATIONS, PatientLang } from '../patient/patientTranslations';
+
+interface FamilySwiperWheelProps {
+  lang?: PatientLang;
+}
+
+export const FamilySwiperWheel: React.FC<FamilySwiperWheelProps> = ({ lang = 'en' }) => {
   const { members, activeMemberId, setActiveMemberId } = useFamilyHubStore();
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   return (
     <div
@@ -20,14 +27,14 @@ export const FamilySwiperWheel: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Users style={{ width: 16, height: 16, color: '#0284c7' }} />
-          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>Family Caregiver Switcher</span>
+          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0f172a' }}>{t.familyCaregiverSwitcher}</span>
         </div>
-        <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{members.length} Members</span>
+        <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{members.length} {t.members}</span>
       </div>
 
       {members.length === 0 ? (
         <div style={{ padding: '12px 16px', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1', fontSize: '0.82rem', color: '#64748b', textAlign: 'center' }}>
-          No family members added yet. Add family members in the Family Members section below to switch profiles.
+          {t.noFamilyMembers}
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
@@ -71,7 +78,9 @@ export const FamilySwiperWheel: React.FC = () => {
                   <div style={{ fontWeight: isActive ? 800 : 600, fontSize: '0.85rem', color: isActive ? '#0369a1' : '#1e293b' }}>
                     {member.fullName.split(' ')[0]}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{member.relationship}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    {member.relationship?.toLowerCase() === 'self' ? t.self : member.relationship}
+                  </div>
                 </div>
 
                 {member.hasActiveAlert && (

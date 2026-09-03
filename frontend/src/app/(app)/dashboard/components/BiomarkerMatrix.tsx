@@ -4,9 +4,16 @@ import React, { useState } from 'react';
 import { useHealthMatrixStore } from '@/store/useHealthMatrixStore';
 import { Activity, TrendingUp, TrendingDown, Minus, FileText } from 'lucide-react';
 
-export const BiomarkerMatrix: React.FC = () => {
+import { PATIENT_TRANSLATIONS, PatientLang } from '../patient/patientTranslations';
+
+interface BiomarkerMatrixProps {
+  lang?: PatientLang;
+}
+
+export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' }) => {
   const { biomarkers, selectedCode, setSelectedCode, riskScore } = useHealthMatrixStore();
   const [viewMode, setViewMode] = useState<'compass' | 'chart'>('compass');
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   const availableCodes = Array.from(new Set(biomarkers.map((b) => b.observationCode)));
   const filteredData = biomarkers.filter((b) => b.observationCode === selectedCode);
@@ -19,10 +26,10 @@ export const BiomarkerMatrix: React.FC = () => {
         <div>
           <h3 className="cm-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
             <Activity className="cm-icon" size={18} style={{ color: 'var(--cm-done)' }} />
-            Preventive Biomarker Matrix
+            {t.preventiveBiomarkerMatrix}
           </h3>
           <p className="cm-panel__note" style={{ marginBottom: 0 }}>
-            Lab observations on file. Clinical risk interpretation requires doctor review.
+            {t.biomarkerSubtitle}
           </p>
         </div>
 
@@ -32,14 +39,14 @@ export const BiomarkerMatrix: React.FC = () => {
             className={`cm-btn cm-btn--sm ${viewMode === 'compass' ? 'cm-btn--primary' : 'cm-btn--ghost'}`}
             onClick={() => setViewMode('compass')}
           >
-            Risk Compass
+            {t.riskCompass}
           </button>
           <button
             type="button"
             className={`cm-btn cm-btn--sm ${viewMode === 'chart' ? 'cm-btn--primary' : 'cm-btn--ghost'}`}
             onClick={() => setViewMode('chart')}
           >
-            Time-Series Trend
+            {t.timeSeriesTrend}
           </button>
         </div>
       </div>
@@ -49,18 +56,18 @@ export const BiomarkerMatrix: React.FC = () => {
           <span className="cm-empty__icon">
             <Activity size={22} />
           </span>
-          <p className="cm-empty__title">No Lab Biomarkers Recorded Yet</p>
+          <p className="cm-empty__title">{t.noBiomarkersTitle}</p>
           <p className="cm-empty__body">
-            Book a diagnostic lab test to start building your biomarker history and trend view.
+            {t.noBiomarkersBody}
           </p>
         </div>
       ) : viewMode === 'compass' ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--cm-5)', alignItems: 'start' }}>
           <div className="cm-stat cm-stat--done" style={{ alignItems: 'center', textAlign: 'center' }}>
-            <span className="cm-stat__label">Readings On File</span>
+            <span className="cm-stat__label">{t.readingsOnFile}</span>
             <span className="cm-stat__value">{riskScore.totalReadings}</span>
             <span className="cm-pill cm-pill--done" style={{ marginTop: 'var(--cm-2)' }}>
-              <FileText size={12} /> {riskScore.distinctBiomarkers} biomarker(s)
+              <FileText size={12} /> {t.biomarkersCount(riskScore.distinctBiomarkers)}
             </span>
           </div>
 

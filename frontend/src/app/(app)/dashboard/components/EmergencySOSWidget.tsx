@@ -4,8 +4,15 @@ import React, { useEffect } from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
 import { AlertTriangle, ShieldAlert, X, MapPin } from 'lucide-react';
 
-export const EmergencySOSWidget: React.FC = () => {
+import { PATIENT_TRANSLATIONS, PatientLang } from '../patient/patientTranslations';
+
+interface EmergencySOSWidgetProps {
+  lang?: PatientLang;
+}
+
+export const EmergencySOSWidget: React.FC<EmergencySOSWidgetProps> = ({ lang = 'en' }) => {
   const { sosActive, sosCountdownSeconds, triggerSOS, cancelSOS, decrementSOSCountdown, emergencyContacts } = useFamilyHubStore();
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -52,13 +59,13 @@ export const EmergencySOSWidget: React.FC = () => {
         </div>
         <div>
           <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
-            Emergency SOS Triage
+            {t.emergencySOSTriage}
             <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '1px 8px', borderRadius: 10, fontSize: '0.7rem', fontWeight: 700 }}>
-              24/7 Active
+              {t.twentyFourSevenActive}
             </span>
           </div>
           <div style={{ fontSize: '0.8rem', color: '#7f1d1d', marginTop: 2 }}>
-            Instant dispatch alert to {emergencyContacts.length} emergency contacts & CallMedex unit with GPS.
+            {t.sosAlertDesc(emergencyContacts.length)}
           </div>
         </div>
       </div>
@@ -85,18 +92,18 @@ export const EmergencySOSWidget: React.FC = () => {
           }}
         >
           <ShieldAlert style={{ width: 16, height: 16 }} />
-          Trigger Emergency SOS
+          {t.triggerEmergencySOS}
         </button>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#fff', padding: '6px 14px', borderRadius: 10, border: '1px solid #fca5a5' }}>
           <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#dc2626' }}>
-            Dispatched! ({sosCountdownSeconds}s)
+            {t.dispatched} ({sosCountdownSeconds}s)
           </span>
           <button
             onClick={cancelSOS}
             style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
           >
-            Cancel
+            {t.cancel}
           </button>
         </div>
       )}

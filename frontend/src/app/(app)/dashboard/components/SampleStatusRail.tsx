@@ -19,6 +19,7 @@ import {
   Clock, TestTube, Truck, ShieldCheck, FlaskConical, XCircle,
 } from "@/components/ui/icons";
 import { patientSamplesAPI } from "@/lib/api";
+import { PATIENT_TRANSLATIONS, PatientLang } from "../patient/patientTranslations";
 
 const TUBE_COLOURS: Record<string, string> = {
   lavender: "#9b59b6", gold: "#f39c12", blue: "#3498db",
@@ -29,13 +30,16 @@ function capToHex(cap: string): string {
   return TUBE_COLOURS[(cap || "").toLowerCase().trim()] || "#94a3b8";
 }
 
-const STEPS = [
-  { label: "Pending Collection", icon: Clock },
-  { label: "Collected", icon: TestTube },
-  { label: "In Transit / Received", icon: Truck },
-  { label: "Verified", icon: ShieldCheck },
-  { label: "Sent to Lab", icon: FlaskConical },
-];
+function getSteps(lang: PatientLang = 'en') {
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
+  return [
+    { label: t.sampleSteps.pending, icon: Clock },
+    { label: t.sampleSteps.collected, icon: TestTube },
+    { label: t.sampleSteps.inTransit, icon: Truck },
+    { label: t.sampleSteps.verified, icon: ShieldCheck },
+    { label: t.sampleSteps.sentToLab, icon: FlaskConical },
+  ];
+}
 
 function StepDot({
   step, currentStep, label, icon: StepIcon,
@@ -95,9 +99,10 @@ function ConnectorLine({ done }: { done: boolean }) {
   );
 }
 
-function SampleRail({ sample }: { sample: any }) {
+function SampleRail({ sample, lang = 'en' }: { sample: any; lang?: PatientLang }) {
   const isRejected = sample.stage === "rejected";
   const currentStep = isRejected ? -1 : (sample.step ?? 0);
+  const steps = getSteps(lang);
 
   return (
     <div
@@ -171,10 +176,10 @@ function SampleRail({ sample }: { sample: any }) {
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "flex-start" }}>
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <div key={i} style={{ display: "contents" }}>
               <StepDot step={i} currentStep={currentStep} label={s.label} icon={s.icon} />
-              {i < STEPS.length - 1 && <ConnectorLine done={currentStep > i} />}
+              {i < steps.length - 1 && <ConnectorLine done={currentStep > i} />}
             </div>
           ))}
         </div>
@@ -194,9 +199,10 @@ function SampleRail({ sample }: { sample: any }) {
   );
 }
 
-export default function SampleStatusRail() {
+export default function SampleStatusRail({ lang = 'en' }: { lang?: PatientLang }) {
   const [samples, setSamples] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   const load = useCallback(async () => {
     try {
@@ -234,11 +240,11 @@ export default function SampleStatusRail() {
         margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a",
         display: "flex", alignItems: "center", gap: 8,
       }}>
-        <Icon as={TestTube} size={16} /> Sample Tracking
+        <Icon as={TestTube} size={16} /> {t.sampleStatusTitle}
       </h3>
 
       {samples.map((s) => (
-        <SampleRail key={s.id} sample={s} />
+        <SampleRail key={s.id} sample={s} lang={lang} />
       ))}
     </div>
   );

@@ -17,6 +17,7 @@ import { FamilySwiperWheel } from "../components/FamilySwiperWheel";
 import { EmergencySOSWidget } from "../components/EmergencySOSWidget";
 import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
+import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
 import {
   Mic,
   Shield,
@@ -55,7 +56,23 @@ interface UserData {
 
 export default function PatientDashboard() {
   const [user, setUser] = useState<UserData | null>(null);
-  const [lang, setLang] = useState<'en' | 'te' | 'hi'>('en');
+  const [lang, setLangState] = useState<PatientLang>('en');
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("callmedex_patient_lang");
+      if (saved === "te" || saved === "hi" || saved === "en") {
+        setLangState(saved);
+      }
+    }
+  }, []);
+
+  const setLang = (newLang: PatientLang) => {
+    setLangState(newLang);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("callmedex_patient_lang", newLang);
+    }
+  };
   const [bookings, setBookings] = useState<any[]>([]);
 
   // Single source of truth for reloading the booking list.
@@ -127,51 +144,7 @@ export default function PatientDashboard() {
     pharmacy_delivery: ["Prescription Medicines", "OTC Medicines", "First Aid Supplies", "Other"]
   };
 
-  const dict = {
-    en: {
-      welcome: "Welcome",
-      greeting: "Here's your health overview for today",
-      bookTest: "Book a Service",
-      upcoming: "Upcoming Appointments",
-      completed: "Completed Services",
-      prescriptions: "Active Prescriptions",
-      records: "Health Records",
-      quick: "Quick Actions",
-      bookLab: "Book Lab Test",
-      video: "Video Consultation",
-      medicine: "Order Medicine",
-      pmjay: "AB-PMJAY Cashless"
-    },
-    te: {
-      welcome: "స్వాగతం",
-      greeting: "ఈ రోజు మీ ఆరోగ్య స్థూలదృష్టి ఇక్కడ ఉంది",
-      bookTest: "సేవను బుక్ చేయండి",
-      upcoming: "రాబోయే నియామకాలు",
-      completed: "పూర్తయిన సేవలు",
-      prescriptions: "క్రియాశీల ప్రిస్క్రిప్షన్లు",
-      records: "ఆరోగ్య రికార్డులు",
-      quick: "త్వరిత చర్యలు",
-      bookLab: "ల్యాబ్ టెస్ట్ బుక్ చేయండి",
-      video: "వీడియో కన్సల్టేషన్",
-      medicine: "మందులను ఆర్డర్ చేయండి",
-      pmjay: "ఆయుష్మాన్ భారత్ ఉచిత బుకింగ్"
-    },
-    hi: {
-      welcome: "स्वागत है",
-      greeting: "यहाँ आज के लिए आपका स्वास्थ्य अवलोकन है",
-      bookTest: "सेवा बुक करें",
-      upcoming: "आगामी अपॉइंटमेंट",
-      completed: "पूर्ण की गई सेवाएँ",
-      prescriptions: "सक्रिय नुस्खे",
-      records: "स्वास्थ्य रिकॉर्ड",
-      quick: "त्वरित कार्य",
-      bookLab: "लैब टेस्ट बुक करें",
-      video: "वीडियो परामर्श",
-      medicine: "दवा ऑर्डर करें",
-      pmjay: "आयुष्मान भारत मुफ्त बुकिंग"
-    }
-  };
-  const t = dict[lang];
+  const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   useEffect(() => {
     const stored = localStorage.getItem("user");
@@ -731,10 +704,10 @@ export default function PatientDashboard() {
 
         {/* ── Patient Dashboard Upgrade Subsystems ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
-          {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && <FamilySwiperWheel />}
-          {FEATURE_FLAGS.ENABLE_EMERGENCY_SOS && <EmergencySOSWidget />}
-          {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && <BiomarkerMatrix />}
-          {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && <MedicineCabinetGrid />}
+          {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && <FamilySwiperWheel lang={lang} />}
+          {FEATURE_FLAGS.ENABLE_EMERGENCY_SOS && <EmergencySOSWidget lang={lang} />}
+          {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && <BiomarkerMatrix lang={lang} />}
+          {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && <MedicineCabinetGrid lang={lang} />}
           {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && (
             <PhlebotomistRadar otpPin={patientOtp || "4829"} />
           )}
@@ -742,7 +715,7 @@ export default function PatientDashboard() {
 
         {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
         <div style={{ marginBottom: 24 }}>
-          <SampleStatusRail />
+          <SampleStatusRail lang={lang} />
         </div>
 
         {/* Industry-First Features Quick-Action Bar */}
@@ -754,7 +727,7 @@ export default function PatientDashboard() {
             onClick={() => setShowVoiceModal(true)}
           >
             <Mic size={16} />
-            AI Voice Scribe & Triage
+            {t.actionChips.aiVoice}
           </button>
           <button
             type="button"
@@ -763,7 +736,7 @@ export default function PatientDashboard() {
             onClick={() => setShowDrugShieldModal(true)}
           >
             <Shield size={16} />
-            DrugShield AI (80% Generic Savings)
+            {t.actionChips.drugShield}
           </button>
           {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
             <button
@@ -778,7 +751,7 @@ export default function PatientDashboard() {
               onClick={() => setShowLiveTracker(!showLiveTracker)}
             >
               <Bike size={16} />
-              {showLiveTracker ? "Hide Demo Tracker" : "Phlebo Dispatch (Demo)"}
+              {showLiveTracker ? t.actionChips.phleboHide : t.actionChips.phleboDemo}
             </button>
           )}
           {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
@@ -789,7 +762,7 @@ export default function PatientDashboard() {
               onClick={() => setShowBriefingModal(true)}
             >
               <FileText size={16} />
-              AI Doctor Briefing (PDF / QR)
+              {t.actionChips.doctorBriefing}
             </button>
           )}
         </div>
@@ -836,20 +809,20 @@ export default function PatientDashboard() {
                     </span>
                     <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
                       <Bike size={20} style={{ color: "var(--cm-active)" }} />
-                      CallMedex Rapido Phlebo Dispatch
+                      {t.rapido.title}
                     </h3>
                     {!isReal && (
                       <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", background: "var(--cm-warn-surface, #FBF0DC)", color: "var(--cm-warn, #8A5606)", border: "1px solid var(--cm-warn-line, #E4C88C)", padding: "3px 8px", borderRadius: 4 }}>
-                        Sample data
+                        {t.rapido.sampleData}
                       </span>
                     )}
                   </div>
                   <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>
                     {isSearching
-                      ? "Connecting with verified phlebotomists in your immediate delivery radius..."
+                      ? t.rapido.searchingSubtitle
                       : isArrived
-                      ? "Phlebotomist is at your doorstep. Please share the sterile OTP to begin."
-                      : "Phlebotomist is en route with temperature-controlled cold chain sample kit."}
+                      ? t.rapido.arrivedSubtitle
+                      : t.rapido.enRouteSubtitle}
                   </p>
                 </div>
 
@@ -858,7 +831,7 @@ export default function PatientDashboard() {
                   <span className={`cm-rapido-badge ${
                     isSearching ? "cm-rapido-badge--searching" : isArrived ? "cm-rapido-badge--arrived" : "cm-rapido-badge--enroute"
                   }`}>
-                    {isSearching ? "Broadcasting Request" : isArrived ? "Arrived at Doorstep" : "Phlebo En Route"}
+                    {isSearching ? t.rapido.broadcastingBadge : isArrived ? t.rapido.arrivedBadge : t.rapido.enRouteBadge}
                   </span>
 
                   {/* Demo Stage Switcher */}
@@ -935,23 +908,23 @@ export default function PatientDashboard() {
               <div className="cm-rapido-stepper">
                 <div className="cm-rapido-step cm-rapido-step--completed">
                   <div className="cm-rapido-step__bar" />
-                  <div className="cm-rapido-step__label">Confirmed</div>
+                  <div className="cm-rapido-step__label">{t.rapido.steps.confirmed}</div>
                 </div>
                 <div className={`cm-rapido-step ${isSearching ? "cm-rapido-step--current" : "cm-rapido-step--completed"}`}>
                   <div className="cm-rapido-step__bar" />
-                  <div className="cm-rapido-step__label">Phlebo Search</div>
+                  <div className="cm-rapido-step__label">{t.rapido.steps.search}</div>
                 </div>
                 <div className={`cm-rapido-step ${isEnRoute ? "cm-rapido-step--current" : isArrived ? "cm-rapido-step--completed" : ""}`}>
                   <div className="cm-rapido-step__bar" />
-                  <div className="cm-rapido-step__label">En Route</div>
+                  <div className="cm-rapido-step__label">{t.rapido.steps.enRoute}</div>
                 </div>
                 <div className={`cm-rapido-step ${isArrived ? "cm-rapido-step--current" : ""}`}>
                   <div className="cm-rapido-step__bar" />
-                  <div className="cm-rapido-step__label">Doorstep Arrival</div>
+                  <div className="cm-rapido-step__label">{t.rapido.steps.arrived}</div>
                 </div>
                 <div className="cm-rapido-step">
                   <div className="cm-rapido-step__bar" />
-                  <div className="cm-rapido-step__label">Sample in Lab</div>
+                  <div className="cm-rapido-step__label">{t.rapido.steps.inLab}</div>
                 </div>
               </div>
 
@@ -971,13 +944,13 @@ export default function PatientDashboard() {
                   </p>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                     <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> 100% Vaccinated
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.vaccinated}
                     </span>
                     <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> Sterile Single-Use Vacutainer Kits
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.sterileKits}
                     </span>
                     <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> 2°C–8°C Temperature Monitored Box
+                      <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.tempBox}
                     </span>
                   </div>
                 </div>
@@ -1028,10 +1001,10 @@ export default function PatientDashboard() {
                     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: "1.2rem", fontWeight: 900, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
-                          {isArrived ? "At Your Doorstep" : `~${provider.eta_minutes || 12} mins`}
+                          {isArrived ? t.rapido.atDoorstep : t.rapido.minsAway(provider.eta_minutes || 12)}
                         </div>
                         <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
-                          {isArrived ? "Ring Bell / Meet Provider" : `${provider.distance_km || 1.8} km away`}
+                          {isArrived ? "Ring Bell / Meet Provider" : t.rapido.kmAway(provider.distance_km || 1.8)}
                         </div>
                       </div>
 
@@ -1041,7 +1014,7 @@ export default function PatientDashboard() {
                           className="cm-btn cm-btn--primary cm-btn--sm"
                           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
                         >
-                          <Phone size={14} /> Call Phlebo
+                          <Phone size={14} /> {t.rapido.callPhlebo}
                         </a>
                         <a
                           href={`https://wa.me/${(provider.mobile || "919849023145").replace(/[^0-9]/g, "")}`}
@@ -1050,7 +1023,7 @@ export default function PatientDashboard() {
                           className="cm-btn cm-btn--secondary cm-btn--sm"
                           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
                         >
-                          <MessageCircle size={14} /> WhatsApp
+                          <MessageCircle size={14} /> {t.rapido.whatsapp}
                         </a>
                       </div>
                     </div>
@@ -1064,10 +1037,10 @@ export default function PatientDashboard() {
                           Doorstep Sample Verification
                         </div>
                         <h4 style={{ margin: "2px 0 6px 0", fontSize: "1.2rem", color: "#fff", fontWeight: 800 }}>
-                          Share this OTP with Phlebotomist
+                          {t.rapido.otpTitle}
                         </h4>
                         <p style={{ margin: 0, fontSize: "0.85rem", color: "rgba(255,255,255,0.85)", maxWidth: 460 }}>
-                          Share this secure code only when the phlebotomist arrives at your doorstep with sterile, tamper-evident vacutainer tubes.
+                          {t.rapido.otpDesc}
                         </p>
                       </div>
 
@@ -1076,7 +1049,7 @@ export default function PatientDashboard() {
                           {otp}
                         </div>
                         <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 4, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <CheckCircle2 size={12} style={{ color: "#38bdf8" }} /> Sterile Vacuum Seal Assured
+                          <CheckCircle2 size={12} style={{ color: "#38bdf8" }} /> {t.rapido.sterileSeal}
                         </div>
                       </div>
                     </div>
@@ -1095,9 +1068,9 @@ export default function PatientDashboard() {
           <div className="cm-kpi-card">
             <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
             <div>
-              <div className="cm-kpi-card__label">{t.upcoming}</div>
+              <div className="cm-kpi-card__label">{t.kpi.upcoming}</div>
               <div className="cm-kpi-card__value">{upcomingCount}</div>
-              <div className="cm-kpi-card__subtitle">Scheduled bookings</div>
+              <div className="cm-kpi-card__subtitle">{t.kpi.upcomingSub}</div>
             </div>
             <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
               <Calendar size={22} />
@@ -1107,9 +1080,9 @@ export default function PatientDashboard() {
           <div className="cm-kpi-card">
             <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
             <div>
-              <div className="cm-kpi-card__label">{t.completed}</div>
+              <div className="cm-kpi-card__label">{t.kpi.completed}</div>
               <div className="cm-kpi-card__value">{completedCount}</div>
-              <div className="cm-kpi-card__subtitle">Past appointments</div>
+              <div className="cm-kpi-card__subtitle">{t.kpi.completedSub}</div>
             </div>
             <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
               <CheckCircle2 size={22} />
@@ -1119,9 +1092,9 @@ export default function PatientDashboard() {
           <div className="cm-kpi-card">
             <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
             <div>
-              <div className="cm-kpi-card__label">{t.prescriptions}</div>
+              <div className="cm-kpi-card__label">{t.kpi.prescriptions}</div>
               <div className="cm-kpi-card__value">0</div>
-              <div className="cm-kpi-card__subtitle">Active prescriptions</div>
+              <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
             </div>
             <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
               <Pill size={22} />
@@ -1131,9 +1104,9 @@ export default function PatientDashboard() {
           <div className="cm-kpi-card">
             <div className="cm-kpi-card__accent" />
             <div>
-              <div className="cm-kpi-card__label">{t.records}</div>
+              <div className="cm-kpi-card__label">{t.kpi.records}</div>
               <div className="cm-kpi-card__value">0</div>
-              <div className="cm-kpi-card__subtitle">Health documents</div>
+              <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
             </div>
             <div className="cm-kpi-card__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
               <BarChart3 size={22} />
@@ -1146,9 +1119,9 @@ export default function PatientDashboard() {
           <div style={{ marginBottom: 20 }}>
             <h3 style={{ marginBottom: 12, fontFamily: "var(--font-body)", fontSize: "1.05rem", display: "flex", alignItems: "center", gap: 8, color: "var(--cm-ink)" }}>
               <Bell size={18} style={{ color: "var(--cm-waiting)" }} />
-              Slot Allotment Notifications
+              {t.allottedSlots.title}
               <span style={{ backgroundColor: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "1px solid var(--cm-waiting-line)", borderRadius: 20, padding: "2px 10px", fontSize: "0.72rem", fontWeight: 700 }}>
-                {allottedBookings.length} pending
+                {t.allottedSlots.pendingCount(allottedBookings.length)}
               </span>
             </h3>
             {allottedBookings.map((b: any) => {
@@ -1162,7 +1135,7 @@ export default function PatientDashboard() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                     <div>
                       <div style={{ fontWeight: 800, color: "var(--cm-waiting)", fontSize: "0.95rem", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                        <Clock size={16} /> Time Slot Allotted
+                        <Clock size={16} /> {t.allottedSlots.timeAllotted}
                       </div>
                       <div style={{ fontSize: "0.88rem", color: "var(--cm-ink)", marginBottom: 4 }}>
                         <strong>{slotStart.toLocaleDateString()}</strong> • {slotStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1180,7 +1153,7 @@ export default function PatientDashboard() {
                           fontSize: "0.85rem", cursor: "pointer",
                         }}
                       >
-                        <CheckCircle2 size={16} /> Accept
+                        <CheckCircle2 size={16} /> {t.allottedSlots.accept}
                       </button>
                       <button
                         type="button"
@@ -1195,7 +1168,7 @@ export default function PatientDashboard() {
                           fontSize: "0.85rem", cursor: "pointer",
                         }}
                       >
-                        <XCircle size={16} /> Decline
+                        <XCircle size={16} /> {t.allottedSlots.decline}
                       </button>
                     </div>
                   </div>
@@ -1208,10 +1181,10 @@ export default function PatientDashboard() {
         {/* Quick Actions */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.2rem", color: "var(--cm-ink)", fontWeight: 800 }}>
-            {t.quick}
+            {t.quickActions.title}
           </h3>
           <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
-            Instant Doorstep Healthcare & Telemedicine
+            {t.quickActions.subtitle}
           </span>
         </div>
 
@@ -1229,14 +1202,14 @@ export default function PatientDashboard() {
                 <Droplet size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "phlebotomist" ? "Requesting..." : "Urgent Home Collection"}
+                {requestingDispatch === "phlebotomist" ? t.quickActions.requesting : t.quickActions.urgentHomeCollection}
               </h4>
               <p className="cm-quick-card__subtitle">
-                Certified Phlebotomist at your doorstep in 15–30 mins.
+                {t.quickActions.urgentHomeCollectionSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
-              Free Home Visit · NABL Lab
+              {t.quickActions.urgentHomeCollectionTag}
             </span>
           </button>
 
@@ -1253,14 +1226,14 @@ export default function PatientDashboard() {
                 <Stethoscope size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "doctor" ? "Requesting..." : "Urgent Home Doctor"}
+                {requestingDispatch === "doctor" ? t.quickActions.requesting : t.quickActions.urgentHomeDoctor}
               </h4>
               <p className="cm-quick-card__subtitle">
-                MBBS / MD Physician physical examination & prescription.
+                {t.quickActions.urgentHomeDoctorSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#2563eb", border: "1px solid rgba(59, 130, 246, 0.25)" }}>
-              Verified Physician
+              {t.quickActions.urgentHomeDoctorTag}
             </span>
           </button>
 
@@ -1277,14 +1250,14 @@ export default function PatientDashboard() {
                 <HeartHandshake size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "nurse" ? "Requesting..." : "Urgent Home Nurse"}
+                {requestingDispatch === "nurse" ? t.quickActions.requesting : t.quickActions.urgentHomeNurse}
               </h4>
               <p className="cm-quick-card__subtitle">
-                IV drip, wound dressing, vitals check & post-op nursing.
+                {t.quickActions.urgentHomeNurseSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(244, 63, 94, 0.1)", color: "#e11d48", border: "1px solid rgba(244, 63, 94, 0.25)" }}>
-              B.Sc Nursing Certified
+              {t.quickActions.urgentHomeNurseTag}
             </span>
           </button>
 
@@ -1301,14 +1274,14 @@ export default function PatientDashboard() {
                 <Truck size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "pharmacy_delivery" ? "Requesting..." : "Urgent Medicine Delivery"}
+                {requestingDispatch === "pharmacy_delivery" ? t.quickActions.requesting : t.quickActions.urgentPharmacy}
               </h4>
               <p className="cm-quick-card__subtitle">
-                Hyperlocal pharmacy delivery with 80% generic savings.
+                {t.quickActions.urgentPharmacySub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#d97706", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-              Under 45 Mins
+              {t.quickActions.urgentPharmacyTag}
             </span>
           </button>
 
@@ -1325,14 +1298,14 @@ export default function PatientDashboard() {
                 <Apple size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "dietitian" ? "Requesting..." : "Home Dietitian & Nutrition"}
+                {requestingDispatch === "dietitian" ? t.quickActions.requesting : t.quickActions.homeDietitian}
               </h4>
               <p className="cm-quick-card__subtitle">
-                Bedside nutritional audit, diabetes MNT &amp; tailored diet chart.
+                {t.quickActions.homeDietitianSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
-              IDA Certified · ₹800 Visit
+              {t.quickActions.homeDietitianTag}
             </span>
           </button>
 
@@ -1349,14 +1322,14 @@ export default function PatientDashboard() {
                 <Activity size={24} />
               </div>
               <h4 className="cm-quick-card__title">
-                {requestingDispatch === "physiotherapist" ? "Requesting..." : "Home Physiotherapist"}
+                {requestingDispatch === "physiotherapist" ? t.quickActions.requesting : t.quickActions.homePhysio}
               </h4>
               <p className="cm-quick-card__subtitle">
-                Bedside joint mobilization, spine rehab &amp; stroke recovery.
+                {t.quickActions.homePhysioSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
-              MIAP Certified · ₹800 Visit
+              {t.quickActions.homePhysioTag}
             </span>
           </button>
 
@@ -1367,13 +1340,13 @@ export default function PatientDashboard() {
               <div className="cm-quick-card__icon-disc" style={{ background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6" }}>
                 <Video size={24} />
               </div>
-              <h4 className="cm-quick-card__title">{t.video}</h4>
+              <h4 className="cm-quick-card__title">{t.quickActions.videoConsult}</h4>
               <p className="cm-quick-card__subtitle">
-                Connect with specialist doctor in 60 seconds with AI summary.
+                {t.quickActions.videoConsultSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(139, 92, 246, 0.1)", color: "#7c3aed", border: "1px solid rgba(139, 92, 246, 0.25)" }}>
-              Instant HD Connect
+              {t.quickActions.videoConsultTag}
             </span>
           </a>
 
@@ -1384,13 +1357,13 @@ export default function PatientDashboard() {
               <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
                 <Building2 size={24} />
               </div>
-              <h4 className="cm-quick-card__title">{t.pmjay}</h4>
+              <h4 className="cm-quick-card__title">{t.quickActions.pmjay}</h4>
               <p className="cm-quick-card__subtitle">
-                Government Ayushman Bharat ₹5 Lakh Cashless Coverage.
+                {t.quickActions.pmjaySub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
-              Zero Out-of-Pocket
+              {t.quickActions.pmjayTag}
             </span>
           </a>
 
@@ -1401,13 +1374,13 @@ export default function PatientDashboard() {
               <div className="cm-quick-card__icon-disc" style={{ background: "rgba(6, 182, 212, 0.12)", color: "#06b6d4" }}>
                 <Sparkles size={24} />
               </div>
-              <h4 className="cm-quick-card__title">AI Reports & Insights</h4>
+              <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
               <p className="cm-quick-card__subtitle">
-                Instant plain-language translation of complex lab reports.
+                {t.quickActions.aiReportsSub}
               </p>
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(6, 182, 212, 0.1)", color: "#0284c7", border: "1px solid rgba(6, 182, 212, 0.25)" }}>
-              NextGen Liquid AI
+              {t.quickActions.aiReportsTag}
             </span>
           </a>
         </div>
@@ -1416,10 +1389,10 @@ export default function PatientDashboard() {
         <FamilyMembersPanel />
 
         {/* Recent Bookings */}
-        <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>Recent Bookings</h3>
+        <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.bookings.title}</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {loading ? (
-            <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)" }}>Loading...</div>
+            <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)" }}>{t.bookings.loading}</div>
           ) : bookings?.length > 0 ? (
             bookings.map((booking: any) => (
               <div key={booking.id} className="card" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)" }}>
@@ -1474,7 +1447,7 @@ export default function PatientDashboard() {
                         fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', padding: 0
                       }}
                     >
-                      Cancel
+                      {t.bookings.cancel}
                     </button>
                   )}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -1492,7 +1465,7 @@ export default function PatientDashboard() {
                           transition: "all 0.15s ease"
                         }}
                       >
-                        <Bike size={13} /> Track Phlebo
+                        <Bike size={13} /> {t.bookings.trackPhlebo}
                       </button>
                     )}
                     <button
@@ -1505,7 +1478,7 @@ export default function PatientDashboard() {
                         transition: "all 0.15s ease"
                       }}
                     >
-                      <RefreshCw size={13} /> Quick Re-Order
+                      <RefreshCw size={13} /> {t.bookings.quickReorder}
                     </button>
                   </div>
                 </div>
@@ -1514,13 +1487,13 @@ export default function PatientDashboard() {
             ))
           ) : (
             <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>
-              <p>No recent bookings found.</p>
-              <a href="/booking" className="btn btn-primary" style={{ marginTop: 12, display: "inline-block" }}>Book Your First Service</a>
+              <p>{t.bookings.noBookings}</p>
+              <a href="/booking" className="btn btn-primary" style={{ marginTop: 12, display: "inline-block" }}>{t.bookings.bookFirst}</a>
             </div>
           )}
           {bookings?.length > 0 && (
             <a href="/dashboard/patient/bookings" className="btn btn-outline" style={{ marginTop: 8, display: 'block', textAlign: 'center' }}>
-              View All Bookings History
+              {t.bookings.viewAllHistory}
             </a>
           )}
         </div>
@@ -1530,22 +1503,22 @@ export default function PatientDashboard() {
           <div style={{ display: "inline-flex", padding: 12, borderRadius: "50%", background: "var(--cm-surface-3)", color: "var(--cm-navy)", marginBottom: 8 }}>
             <ShieldCheck size={30} />
           </div>
-          <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8, color: "var(--cm-ink)" }}>ABHA Health Records</h3>
+          <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 8, color: "var(--cm-ink)" }}>{t.abha.title}</h3>
           {abhaLinkedNumber ? (
             <div>
               <p style={{ color: "var(--cm-done)", fontSize: "1rem", fontWeight: "bold", margin: "16px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <CheckCircle2 size={16} /> ABHA Linked: <span style={{ letterSpacing: 1.5 }}>{abhaLinkedNumber}</span>
+                <CheckCircle2 size={16} /> {t.abha.linked} <span style={{ letterSpacing: 1.5 }}>{abhaLinkedNumber}</span>
               </p>
               <p style={{ color: "var(--cm-ink-3)", fontSize: "0.9rem", maxWidth: 400, margin: "0 auto 16px" }}>
-                Your health records are synced with ABDM.
+                {t.abha.synced}
               </p>
             </div>
           ) : (
             <div>
               <p style={{ color: "var(--color-gray-500)", fontSize: "0.9rem", maxWidth: 400, margin: "0 auto 16px" }}>
-                Link your ABHA (Ayushman Bharat Health Account) to access your complete health history from any ABDM-registered facility.
+                {t.abha.notLinkedDesc}
               </p>
-              <button className="btn btn-teal" onClick={() => setShowAbhaModal(true)}>Manage ABHA Account</button>
+              <button className="btn btn-teal" onClick={() => setShowAbhaModal(true)}>{t.abha.manageBtn}</button>
             </div>
           )}
         </div>
@@ -1655,7 +1628,7 @@ export default function PatientDashboard() {
       <button
         className="sos-floating-btn"
         onClick={async () => {
-          if (!await customConfirm("EMERGENCY SOS ALERT: This will broadcast a high-priority beacon to nearby emergency doctors and ambulance services. Your current location will be shared. Continue?")) return;
+          if (!await customConfirm(t.emergencyConfirm)) return;
 
           try {
             // Get actual GPS coordinates from the browser
@@ -1714,7 +1687,7 @@ export default function PatientDashboard() {
           }
         }}
       >
-        <AlertTriangle size={18} style={{ marginRight: 6 }} /> EMERGENCY SOS
+        <AlertTriangle size={18} style={{ marginRight: 6 }} /> {t.emergencySOSBtn}
       </button>
 
       {/* Industry-First Feature Modals */}
@@ -1747,10 +1720,10 @@ export default function PatientDashboard() {
             width: "100%", maxWidth: 480, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
           }}>
             <h3 style={{ margin: "0 0 12px", color: "var(--cm-ink)", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
-              <RefreshCw size={20} style={{ color: "var(--cm-active)" }} /> Quick Re-Order Confirmation
+              <RefreshCw size={20} style={{ color: "var(--cm-active)" }} /> {t.reorderModal.title}
             </h3>
             <p style={{ fontSize: "0.85rem", color: "var(--cm-ink-3)", marginBottom: 16 }}>
-              Re-book your past test package or prescription order with 1 click:
+              {t.reorderModal.subtitle}
             </p>
 
             <div style={{ backgroundColor: "var(--cm-surface-2)", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid var(--cm-line)" }}>
@@ -1761,7 +1734,7 @@ export default function PatientDashboard() {
                 {reorderBooking.notes || `Previous Booking ID: ${reorderBooking.id?.slice(0, 8)}`}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "var(--cm-active)", borderTop: "1px dashed var(--cm-line)", paddingTop: 8 }}>
-                <span>Estimated Price:</span>
+                <span>{t.reorderModal.estimatedPrice}</span>
                 <span>₹{reorderBooking.total_price || 350}</span>
               </div>
             </div>
@@ -1771,14 +1744,14 @@ export default function PatientDashboard() {
                 onClick={() => setShowReorderModal(false)}
                 style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid var(--cm-line)", background: "var(--cm-surface)", cursor: "pointer", fontWeight: 600, color: "var(--cm-ink)" }}
               >
-                Cancel
+                {t.reorderModal.cancel}
               </button>
               <button
                 onClick={confirmQuickReorder}
                 disabled={reorderLoading}
                 style={{ flex: 1, padding: "12px", borderRadius: 8, border: "none", background: "var(--cm-active)", color: "white", fontWeight: 700, cursor: reorderLoading ? "wait" : "pointer" }}
               >
-                {reorderLoading ? "Processing..." : "Confirm & Re-Order"}
+                {reorderLoading ? t.reorderModal.processing : t.reorderModal.confirm}
               </button>
             </div>
           </div>
