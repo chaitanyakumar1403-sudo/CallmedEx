@@ -17,6 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -89,7 +90,43 @@ export default function LoginPage() {
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="login-password">Password</label>
-            <input id="login-password" ref={passwordRef} name="password" type="password" className="form-input" placeholder="Enter your password" required />
+            <div style={{ position: "relative" }}>
+              <input
+                id="login-password"
+                ref={passwordRef}
+                name="password"
+                type={showPassword ? "text" : "password"}
+                className="form-input"
+                placeholder="Enter your password"
+                style={{ paddingRight: "44px", width: "100%" }}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#64748b",
+                  fontSize: "1.15rem",
+                  lineHeight: 1,
+                  userSelect: "none",
+                }}
+              >
+                {showPassword ? "👁️‍🗨️" : "👁️"}
+              </button>
+            </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, fontSize: "0.85rem" }}>
             <label className="form-checkbox">

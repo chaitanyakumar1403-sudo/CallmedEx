@@ -278,12 +278,14 @@ export default function PackagesPage() {
       </div>
 
       {/* ── 30% Add-On Test Customizer Modal ────────────────────── */}
-      <PackageAddonModal
-        packageItem={selectedPkgForAddon}
-        isOpen={isAddonModalOpen}
-        onClose={() => setIsAddonModalOpen(false)}
-        onConfirmBooking={handleConfirmBookingWithAddons}
-      />
+      {isAddonModalOpen && selectedPkgForAddon && (
+        <PackageAddonModal
+          packageItem={selectedPkgForAddon}
+          isOpen={isAddonModalOpen}
+          onClose={() => setIsAddonModalOpen(false)}
+          onConfirmBooking={handleConfirmBookingWithAddons}
+        />
+      )}
     </div>
   );
 }

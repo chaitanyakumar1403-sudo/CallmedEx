@@ -64,19 +64,6 @@ export default function PackageAddonModal({
     }
   }, [isOpen, packageItem?.id]);
 
-  if (!isOpen || !packageItem) return null;
-
-  const currentPkgPrice =
-    planType === "couple" && packageItem.couple_price
-      ? packageItem.couple_price
-      : packageItem.single_price || packageItem.price;
-
-  // Base package tests list
-  const baseTests = packageItem.tests
-    .split(/[,/]/)
-    .map((t) => t.trim())
-    .filter(Boolean);
-
   // All master catalog tests combined with featured imaging
   const allAvailableTests = useMemo(() => {
     const combined = [
@@ -151,6 +138,19 @@ export default function PackageAddonModal({
 
     return list.slice(0, 40);
   }, [searchQuery, activeCategory, allAvailableTests]);
+
+  if (!isOpen || !packageItem) return null;
+
+  const currentPkgPrice =
+    planType === "couple" && packageItem.couple_price
+      ? packageItem.couple_price
+      : packageItem.single_price || packageItem.price;
+
+  // Base package tests list
+  const baseTests = packageItem.tests
+    .split(/[,/]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
 
   // Toggle add-on selection
   const toggleAddon = (test: { name: string; price: number; mrp: number }) => {
