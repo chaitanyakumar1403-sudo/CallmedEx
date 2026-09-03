@@ -4,9 +4,11 @@
 numbers are real versus placeholder, and what must change once the complete
 payment structure is supplied.
 
-**Last updated:** 2026-07-25
-**Status:** payment model partially confirmed. Do not treat any figure marked
-🟡 or 🔴 below as agreed commercial terms.
+**Last updated:** 2026-09-03
+**Status:** the commercial split is confirmed and enforced — 20% platform / 80%
+provider, computed on the amount the patient pays, for every provider category
+except phlebotomists (per verified collection or salaried). Do not treat any
+figure still marked 🟡 or 🔴 below as agreed commercial terms.
 
 ---
 
@@ -16,10 +18,12 @@ Sourced from the signed MOUs in `mous/` (gitignored) and owner instruction.
 
 | Term | Value | Source |
 |---|---|---|
-| Platform fee | **20%** of service value | Dental MOU §3.1 & §7; identical 20%/80% table in doctor, physiotherapy and nursing MOUs |
-| Partner share | **80%**, collected directly by the partner | Dental MOU §3.4 |
-| Patient discount funding | **Entirely from CallMedex's 20%** — partner bears none | Dental MOU §3.3: *"shall not be required to bear any additional discount"* |
-| Max possible discount | **20%** (cannot exceed the fee that funds it) | Derived from the above |
+| Platform fee | **20% of the amount the patient pays** | Owner, 2026-09-03; DOCTOR ("gross consultation fee paid by the patient"), Nursing, Dietetic, Dental, Physiotherapy, ECG/X-ray MOUs |
+| Partner share | **80% of the amount the patient pays** | Same |
+| Applies to | Doctors, dental, dietitians, nursing, physiotherapy, diagnostic centres, ECG/X-ray | Every MOU in `mous/` |
+| Does **not** apply to | Phlebotomists — ₹150 per verified collection (part time) or salaried (full time) | PART TIME / FULL TIME PHLEBO MOUs |
+| Patient discount funding | **Shared in proportion** — an advertised discount lowers both shares | Owner, 2026-09-03 (supersedes the earlier dental §3.3 reading) |
+| Max possible discount | **20%** — a policy ceiling, no longer a solvency limit | `provider_settings` DB CHECK |
 | Phlebotomist — part time | **₹150** per *verified* collection, wallet, monthly settlement | PART TIME PHLEBO MOU §9–10 |
 | Phlebotomist — full time | Salaried; **no** per-collection accrual | FULL TIME PHLEBO MOU §8 |
 | Offer acceptance window | **10 minutes** | Both phlebotomist MOUs |
@@ -60,9 +64,25 @@ CBC   MRP ₹400 → offer ₹320 (20% off)
       CallMedex retains  = ₹0
 ```
 
-That is coherent as a deliberate acquisition play, but it cannot be the steady
-state. Either the lab offer prices, the lab commission, or the lab partner split
-differs from the dental terms. **Needs an explicit answer.**
+**ANSWERED (2026-09-03, owner).** The fee is 20% of the sum the patient actually
+pays, for every provider category — "₹100 from one patient is ₹80 for the doctor
+and ₹20 for CallMedex". The MOUs word it the same way: "20% on the **gross
+consultation fee paid by the patient**" (DOCTOR), "on the **gross billing amount
+paid by the client**" (Nursing), "Platform Fee (20%) / Provider Share (80%)"
+(Dietetic tariff sheet).
+
+So the base of the split is the price paid, never MRP:
+
+```
+CBC   MRP ₹400 → offer ₹320 (20% off)
+      provider takes 80% of ₹320 = ₹256
+      CallMedex retains 20%       = ₹64
+```
+
+`PricingService.quote()` was changed to match. The earlier reading of dental MOU
+§3.3 — partner paid 80% of MRP so the discount came wholly from CallMedex's
+share — is superseded; a discount now lowers both shares in proportion. That is
+the one clause this trades against, and it is a deliberate, owner-made choice.
 
 ### 3.2 Which payment method is actually in force
 
@@ -81,7 +101,9 @@ This matters well beyond bookkeeping: Method 1 means CallMedex holds patient
 money and owes partners a monthly payout — a float, a reconciliation duty and a
 settlement integration. Method 2 means it never touches the 80% at all.
 
-**Needs a decision per provider category**, not one global default.
+**Still open.** Needs a decision per provider category, not one global default.
+The 80/20 split above is settled and applies either way — this is only about who
+holds the money in between.
 
 ---
 
@@ -129,11 +151,15 @@ Everything below is **data, not code** — supplying real figures needs no deplo
 place a patient price is computed. It enforces the two MOU invariants:
 
 ```
-provider_payout   = MRP × (1 − platform_fee_pct/100)     ← never varies with discount
-discount          = min(requested, platform_fee_pct)     ← cannot eat the partner's share
+discount          = min(requested, platform_fee_pct)     ← policy ceiling on any offer
 patient_price     = MRP × (1 − discount/100)
-platform_retained = patient_price − provider_payout
+provider_payout   = patient_price × (1 − platform_fee_pct/100)   ← 80% of what is PAID
+platform_retained = patient_price − provider_payout              ← always 20% of it
 ```
+
+₹100 collected is ₹80 to the provider and ₹20 to CallMedex, at any price and any
+discount. `PaymentService.create_order` computes the same split from the same
+base, so the payout a partner is *shown* is the payout they are *paid*.
 
 Covered by `backend/tests/test_marketplace.py`. If the model in §3 changes,
 **this function and those tests are what change** — not the rest of the app.

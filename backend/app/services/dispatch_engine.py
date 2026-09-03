@@ -993,7 +993,217 @@ class UniversalDispatchEngine:
                 "responded_at": now,
             }).eq("id", offer_id).execute()
 
+            await UniversalDispatchEngine._handle_decline(dispatch_id, offer)
+
             return {"success": True, "message": "Offer rejected."}
+
+    @staticmethod
+    async def _handle_decline(dispatch_id: str, declined_offer: dict) -> None:
+        """Keep a declined request moving instead of letting it quietly time out.
+
+        Re-fan-out only ever ran off the periodic sweep, which hunts for
+        *pending* offers past their expiry. An offer a provider actually
+        declined is no longer pending, so the sweep never saw it: once every
+        offered provider had said no, the request sat untouched for the full
+        offer window and then died as "No provider available in your area" —
+        while providers who were never asked stayed idle the whole time.
+
+        Never raises. The decline itself is already recorded, and the provider
+        must not be told it failed because the follow-up did.
+        """
+        try:
+            still_pending = (
+                supabase.table("dispatch_offers")
+                .select("id")
+                .eq("dispatch_request_id", dispatch_id)
+                .eq("status", "pending")
+                .limit(1)
+                .execute()
+            ).data or []
+            if still_pending:
+                # Someone else can still take it — leave it alone.
+                return
+
+            # A direct dispatch is the one provider the patient chose by name and
+            # is paying that person's rate for. create_direct_dispatch is the only
+            # path that offers with no distance, which is what identifies one here.
+            # Re-offering that booking to a stranger would silently change the
+            # deal, so tell the patient instead and let them choose again.
+            if declined_offer.get("distance_km") is None:
+                await UniversalDispatchEngine._cancel_declined_direct(dispatch_id)
+                return
+
+            from app.workers.tasks.dispatch import _try_re_fan_out
+
+            # _try_re_fan_out is synchronous and drives an event loop of its
+            # own, so it has to run off a thread rather than on this one.
+            asyncio.create_task(asyncio.to_thread(_try_re_fan_out, dispatch_id))
+        except Exception as e:
+            logger.error(
+                f"Post-decline handling failed for dispatch {dispatch_id}: {e}"
+            )
+
+    @staticmethod
+    async def release_and_refill(dispatch_id: str, released_provider_id: str) -> None:
+        """A provider who had accepted has handed the job back — find another.
+
+        Reverting the row to `searching` used to be the whole of it, and nothing
+        looks at a bare `searching` row: the sweep only re-offers where a
+        *pending* offer expired, and this job's offers were all settled the
+        moment it was accepted. So an abandoned visit sat untouched for the full
+        offer window and then died as "No provider available in your area",
+        with the rest of the roster idle throughout.
+
+        Never raises. The release is already committed, and the provider must
+        not be told it failed because the follow-up did.
+        """
+        try:
+            # Retire their accepted offer first. Re-fan-out excludes providers
+            # whose offer is rejected or expired, and an offer still marked
+            # accepted would hand the job straight back to the person who just
+            # dropped it.
+            supabase.table("dispatch_offers").update({
+                "status": "rejected",
+                "responded_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("dispatch_request_id", dispatch_id)               .eq("provider_id", released_provider_id).execute()
+
+            from app.workers.tasks.dispatch import _try_re_fan_out
+
+            # Synchronous, and it drives an event loop of its own.
+            asyncio.create_task(asyncio.to_thread(_try_re_fan_out, dispatch_id))
+        except Exception as e:
+            logger.error(
+                f"Could not re-offer released dispatch {dispatch_id}: {e}"
+            )
+
+    @staticmethod
+    async def _cancel_declined_direct(dispatch_id: str) -> None:
+        """The named provider turned the visit down — close it and say so.
+
+        Leaving the request open would strand the patient on a tracking screen
+        waiting for someone who has already refused.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        cancelled = (
+            supabase.table("dispatch_requests")
+            .update({
+                "status": "cancelled",
+                "cancel_reason": "The provider you chose is unavailable for this slot.",
+                "updated_at": now,
+            })
+            .eq("id", dispatch_id)
+            .in_("status", ["searching", "provider_notified"])
+            .execute()
+        ).data or []
+        if not cancelled:
+            return
+        row = cancelled[0]
+
+        booking_id = row.get("booking_id")
+        if booking_id:
+            try:
+                supabase.table("bookings").update({
+                    "status": "cancelled",
+                    "updated_at": now,
+                }).eq("id", booking_id).execute()
+            except Exception as e:
+                logger.warning(
+                    f"Could not cancel booking {booking_id} after a declined "
+                    f"direct dispatch: {e}"
+                )
+
+        patient_id = row.get("patient_id")
+        if not patient_id:
+            return
+
+        role_label, _ = UniversalDispatchEngine._provider_labels(row.get("provider_type"))
+        from app.services.notification_engine import NotificationEngine
+        from app.services.push import CHANNEL_DISPATCH
+
+        await NotificationEngine.send_multi(
+            user_id=patient_id,
+            channels=["in_app", "push"],
+            title=f"{role_label} unavailable",
+            body=(
+                f"The {role_label.lower()} you chose could not take this "
+                "appointment. Please pick another provider or another slot."
+            ),
+            data={
+                "dispatch_id": dispatch_id,
+                "status": "cancelled",
+                "channel_id": CHANNEL_DISPATCH,
+            },
+        )
+
+    # ──────────────────────────────────────────────────────────────────
+    # Arrival Verification
+    # ──────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _dispatch_status(dispatch_id: str) -> Optional[str]:
+        """Current status of a dispatch, or None when it cannot be read."""
+        if supabase:
+            try:
+                res = (
+                    supabase.table("dispatch_requests")
+                    .select("status").eq("id", dispatch_id).limit(1).execute()
+                )
+                if res.data:
+                    return res.data[0].get("status")
+            except Exception as e:
+                logger.warning(f"Could not read status for dispatch {dispatch_id}: {e}")
+        for d in _local_dispatches:
+            if d.get("id") == dispatch_id:
+                return d.get("status")
+        return None
+
+    @staticmethod
+    async def verify_otp_and_start(
+        dispatch_id: str, provider_id: str, otp: str
+    ) -> dict:
+        """Check the patient's arrival code, then move the visit to in_progress.
+
+        The two steps only make sense together. verify_otp marks the code spent
+        permanently, and `in_progress` is reachable by no other route, so a
+        failure between them stranded the visit outright: the code was used, the
+        row was still `arrived`, and `completed` was refused for want of its
+        prerequisite. The provider could not finish the visit at all, and both
+        call sites — the logged-in /verify-otp and the emailed /magic-status —
+        swallowed that failure and reported success.
+
+        A code already verified on a dispatch still sitting at `arrived` is
+        therefore treated as a retry of that half-finished transition, not as a
+        replay: it re-drives the status change instead of refusing it. Anywhere
+        else, an already-verified code is still rejected.
+        """
+        result = OTPService.verify_otp(dispatch_id, otp)
+        if not result.get("success"):
+            if result.get("error") != "OTP already verified":
+                return {
+                    "success": False,
+                    "error": result.get("error", "OTP verification failed"),
+                }
+            if UniversalDispatchEngine._dispatch_status(dispatch_id) != "arrived":
+                return {"success": False, "error": "OTP already verified"}
+            logger.info(
+                f"Dispatch {dispatch_id}: OTP already verified but status is still "
+                "'arrived' — re-driving the interrupted transition to in_progress."
+            )
+
+        status_result = await UniversalDispatchEngine.update_status(
+            dispatch_id=dispatch_id,
+            new_status="in_progress",
+            provider_id=provider_id,
+        )
+        if not status_result.get("success"):
+            return {
+                "success": False,
+                "error": (
+                    "Code accepted, but the visit could not be started. "
+                    "Please try again — your code is still valid."
+                ),
+            }
+        return {"success": True, "status": "in_progress"}
 
     # ──────────────────────────────────────────────────────────────────
     # Update Dispatch Status
@@ -1053,7 +1263,19 @@ class UniversalDispatchEngine:
                     break
 
         if dispatch_row is None:
-            return {"success": True, "message": f"Status updated to {new_status}"}
+            # Nothing was written anywhere. Reporting success here told every
+            # caller — /status, /verify-otp, /magic-status — that the visit had
+            # moved on while the row sat untouched, and the next transition was
+            # then refused for want of its prerequisite. The provider could
+            # neither start nor complete the visit, with no error to explain it.
+            logger.error(
+                f"update_status({dispatch_id} -> {new_status}) matched no row; "
+                "nothing was updated."
+            )
+            return {
+                "success": False,
+                "message": "Dispatch not found or could not be updated.",
+            }
 
         if new_status == "arrived":
             OTPService.generate_otp(dispatch_id)

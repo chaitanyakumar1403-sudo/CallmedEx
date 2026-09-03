@@ -804,16 +804,29 @@ async def reject_task(
 
     now = datetime.now(timezone.utc).isoformat()
     try:
-        supabase.table("dispatch_requests").update({
-            "status": "searching",
-            "updated_at": now,
-        }).eq("id", dispatch_id).eq("assigned_provider_id", current_user["sub"]).execute()
+        # assigned_provider_id is cleared alongside the status: a request left
+        # pointing at the provider who just walked away from it is neither
+        # theirs nor anyone's, and it still surfaced in their own task list.
+        released = (
+            supabase.table("dispatch_requests").update({
+                "status": "searching",
+                "assigned_provider_id": None,
+                "updated_at": now,
+            }).eq("id", dispatch_id)
+            .eq("assigned_provider_id", current_user["sub"]).execute()
+        ).data or []
     except Exception as e:
         # Reporting "declined" on a failed write leaves the request still
         # assigned to this provider while they believe they are free of it,
         # so the job silently stalls until it expires.
         logger.error(f"Failed to record decline of dispatch {dispatch_id}: {e}")
         raise HTTPException(503, "Could not record the decline. Please retry.")
+
+    # Put it straight back in front of other providers. Left alone, a released
+    # job is invisible to the sweep and simply expires. A repeated tap matches
+    # no row and is a no-op, which is the right answer for a double submit.
+    if released:
+        await UniversalDispatchEngine.release_and_refill(dispatch_id, current_user["sub"])
 
     return {"success": True, "message": "Task declined. You will receive the next available request."}
 
@@ -975,21 +988,16 @@ async def verify_dispatch_otp(
     if current_user.get("role") not in FIELD_PROVIDER_ROLES:
         raise HTTPException(403, "Only field providers can verify OTP")
 
-    result = OTPService.verify_otp(dispatch_id, body.otp)
+    # Verification and the in_progress transition are one operation — see
+    # UniversalDispatchEngine.verify_otp_and_start. Reporting success on a
+    # half-completed one left the visit unfinishable.
+    result = await UniversalDispatchEngine.verify_otp_and_start(
+        dispatch_id=dispatch_id,
+        provider_id=current_user["sub"],
+        otp=body.otp,
+    )
     if not result["success"]:
         raise HTTPException(400, result.get("error", "OTP verification failed"))
-
-    # Auto-transition to in_progress on successful OTP verification
-    try:
-        status_result = await UniversalDispatchEngine.update_status(
-            dispatch_id=dispatch_id,
-            new_status="in_progress",
-            provider_id=current_user["sub"],
-        )
-    except Exception as e:
-        # OTP was verified but status update failed — still return success
-        pass
-
 
     return {
         "success": True,
@@ -1114,17 +1122,25 @@ async def magic_status(dispatch_id: str, req: MagicStatusRequest):
         # They are submitting the OTP!
         if not req.otp:
             raise HTTPException(status_code=400, detail="OTP is required to start service.")
-        otp_res = OTPService.verify_otp(dispatch_id, req.otp)
+        otp_res = await UniversalDispatchEngine.verify_otp_and_start(
+            dispatch_id=dispatch_id, provider_id=provider_id, otp=req.otp,
+        )
         if not otp_res["success"]:
             raise HTTPException(status_code=400, detail=otp_res.get("error", "Invalid OTP"))
+        return {"success": True, "status": "in_progress"}
 
-    # Update the status securely
+    # Update the status securely. A failed write must not come back as success —
+    # the provider would move on believing the visit had progressed.
     result = await UniversalDispatchEngine.update_status(
         dispatch_id=dispatch_id,
         new_status=req.status,
         provider_id=provider_id
     )
-    
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=400, detail=result.get("message", "Status update failed")
+        )
+
     return {"success": True, "status": req.status}
 
 

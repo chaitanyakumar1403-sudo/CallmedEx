@@ -14,8 +14,23 @@ from app.database import supabase
 
 logger = logging.getLogger(__name__)
 
-# Platform commission rate (20% platform fee, 80% provider remuneration as per CallMedex MOU)
+# Every partner MOU fixes the same split — 20% platform fee, 80% to the
+# provider (doctor, dental, dietitian, nursing, physiotherapy, diagnostic,
+# ECG/X-ray). Phlebotomists are the one exception: they are engaged salaried
+# or per verified collection, not on a percentage.
+#
+# The live figure comes from PricingService.platform_fee_pct() so operations
+# can move it from platform_settings without a deploy. This constant is the
+# fallback that function itself falls back to, kept only so the module reads
+# without a lookup; never compute a split from it directly.
 PLATFORM_COMMISSION_RATE = 0.20
+
+
+def _platform_fee_rate() -> float:
+    """The platform's share as a fraction, from the one place that defines it."""
+    from app.services.marketplace import PricingService
+
+    return PricingService.platform_fee_pct() / 100.0
 
 
 def _get_razorpay_client():
@@ -51,6 +66,62 @@ class PaymentService:
             return False
 
     @staticmethod
+    def resolve_booking_amount(booking_id: str, patient_id: str) -> float:
+        """The rupee amount this patient actually owes for this booking, read
+        from the server's own records.
+
+        create_order used to bill whatever figure the caller put in the request
+        body, so a 4,000 rupee collection could be settled with 1 rupee and
+        verify_payment would still confirm it — the signature and amount checks
+        there both compare against that same client-supplied number, so nothing
+        downstream could catch it.
+
+        Preference order matters. booking_tests.price_charged is written by the
+        server from the catalog at booking time, so it is the one figure no
+        client has ever touched. bookings.total_price / final_amount is the
+        client's own number and is used only where there are no priced test rows
+        (consultations, home visits), because it is still the best record we hold.
+
+        Raises PermissionError when the booking is not this patient's, and
+        LookupError when it does not exist — a payment must never be attachable
+        to somebody else's booking.
+        """
+        if not supabase:
+            raise LookupError("Booking records are unavailable.")
+
+        rows = (
+            supabase.table("bookings")
+            .select("id, patient_id, total_price, final_amount")
+            .eq("id", booking_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows:
+            raise LookupError("Booking not found.")
+
+        booking = rows[0]
+        if str(booking.get("patient_id")) != str(patient_id):
+            raise PermissionError("This booking belongs to another patient.")
+
+        priced = (
+            supabase.table("booking_tests")
+            .select("price_charged")
+            .eq("booking_id", booking_id)
+            .execute()
+        ).data or []
+        tests_total = sum(float(r.get("price_charged") or 0) for r in priced)
+        if tests_total > 0:
+            return round(tests_total, 2)
+
+        fallback = booking.get("final_amount")
+        if fallback is None:
+            fallback = booking.get("total_price")
+        try:
+            return round(float(fallback or 0), 2)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
     def create_order(
         amount: float,
         booking_id: str,
@@ -66,7 +137,7 @@ class PaymentService:
         payment_id = str(uuid.uuid4())
         amount_paise = int(amount * 100)  # Razorpay uses paise
 
-        platform_fee = round(amount * PLATFORM_COMMISSION_RATE, 2)
+        platform_fee = round(amount * _platform_fee_rate(), 2)
         provider_payout = round(amount - platform_fee, 2)
 
         receipt = f"rcpt_{payment_id[:8]}"

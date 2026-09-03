@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface UserData {
   full_name: string;
@@ -19,36 +20,53 @@ interface NotificationItem {
   read: boolean;
 }
 
+/** A row as the notifications table stores it. */
+interface RawNotification {
+  id: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown> | null;
+  status?: string;
+  created_at?: string;
+}
+
+function relativeTime(iso?: string): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function toNotificationItem(row: RawNotification): NotificationItem {
+  const data = row.data || {};
+  // The icon follows what the notification is about. Every dispatch alert
+  // carries its dispatch_id; payment receipts carry an amount.
+  const type: NotificationItem["type"] = data.dispatch_id
+    ? "dispatch"
+    : data.amount != null
+    ? "payout"
+    : "booking";
+
+  return {
+    id: row.id,
+    title: row.title,
+    message: row.body,
+    time: relativeTime(row.created_at),
+    type,
+    read: row.status === "read",
+  };
+}
+
 export default function SmartNavbar() {
   const [user, setUser] = useState<UserData | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: "n1",
-      title: "New Teleconsultation Booked",
-      message: "Priya Sharma (UHID-89412) booked a video consult for 10:30 AM.",
-      time: "5m ago",
-      type: "booking",
-      read: false,
-    },
-    {
-      id: "n2",
-      title: "Doorstep Dispatch Update",
-      message: "Phlebotomist assigned for home sample collection in MVP Colony.",
-      time: "25m ago",
-      type: "dispatch",
-      read: false,
-    },
-    {
-      id: "n3",
-      title: "80% Net Payout Settled",
-      message: "Bank settlement of ₹3,840 processed for today's completed consults.",
-      time: "1h ago",
-      type: "payout",
-      read: true,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
@@ -68,6 +86,41 @@ export default function SmartNavbar() {
     setMobileMenuOpen(false);
     setShowNotifications(false);
   }, [pathname]);
+
+  // The bell shows what the backend actually recorded for THIS user. It used
+  // to render three invented notifications — a booking by a patient who does
+  // not exist, and a settlement that was never paid — while every real alert
+  // the platform writes (provider assigned, phlebotomist arrived, no provider
+  // available) was displayed nowhere at all.
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await api.get<{ notifications: RawNotification[] }>(
+          "/communications/notifications?limit=20"
+        );
+        if (!cancelled) {
+          setNotifications((res.notifications || []).map(toNotificationItem));
+        }
+      } catch {
+        // An unreachable notifications endpoint must never break the navbar,
+        // which every authenticated page renders. An empty bell is honest.
+      }
+    }
+
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [user, pathname]);
 
   // Click outside to close notification dropdown
   useEffect(() => {
@@ -113,8 +166,15 @@ export default function SmartNavbar() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    const unread = notifications.filter((n) => !n.read);
     setNotifications(notifications.map((n) => ({ ...n, read: true })));
+    // Each one is marked server-side too, or the badge comes straight back on
+    // the next poll. A failure here is not worth interrupting the user for —
+    // the next fetch simply shows it unread again.
+    await Promise.allSettled(
+      unread.map((n) => api.post(`/communications/notifications/${n.id}/read`))
+    );
   };
 
   return (
@@ -245,6 +305,18 @@ export default function SmartNavbar() {
                     </div>
 
                     <div style={{ maxHeight: "300px", overflowY: "auto" }}>
+                      {notifications.length === 0 && (
+                        <div
+                          style={{
+                            padding: "24px 16px",
+                            textAlign: "center",
+                            fontSize: "var(--cm-text-xs)",
+                            color: "var(--cm-ink-3)",
+                          }}
+                        >
+                          No notifications yet.
+                        </div>
+                      )}
                       {notifications.map((n) => (
                         <div
                           key={n.id}

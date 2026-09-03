@@ -125,6 +125,62 @@ def _resolve_home_service(entry: str, by_id: dict, by_code: dict, by_name: dict)
     return None
 
 
+# The provider roles that publish their own rates (app/routers/provider_scope.py).
+# Organisations are absent on purpose: they price through the slot-allotment
+# workflow, not a profile field.
+PROVIDER_FEE_TABLE = {
+    "doctor": "doctors",
+    "dietitian": "dietitians",
+    "physiotherapist": "physiotherapists",
+    "nurse": "nurses",
+}
+
+
+def _resolve_provider_fee(
+    provider_user_id: Optional[str],
+    provider_type: Optional[str],
+    consultation_mode: Optional[str],
+) -> Optional[float]:
+    """The fee this provider published for this kind of visit.
+
+    bookings.total_price arrived from the browser, so what a patient owed was
+    whatever their client said it was — and /payments/create-order now bills
+    against that stored figure, which makes the booking record the last place a
+    price could still be dictated from outside. The provider's own published
+    rate is a number no patient ever touches, so where one exists it wins.
+
+    Mirrors the frontend's own mapping (booking/therapy/page.tsx): a home visit
+    is charged at home_visit_fee, every other mode at consultation_fee.
+
+    Returns None when this provider type publishes no rate, leaving the
+    caller's existing behaviour exactly as it was.
+    """
+    table = PROVIDER_FEE_TABLE.get((provider_type or "").lower())
+    if not table or not supabase or not provider_user_id:
+        return None
+    try:
+        rows = _rows(
+            supabase.table(table)
+            .select("consultation_fee, home_visit_fee")
+            .eq("user_id", provider_user_id).limit(1).execute()
+        )
+    except Exception as e:
+        logger.warning(
+            f"Could not read the published fee from {table} for "
+            f"{provider_user_id}: {e}"
+        )
+        return None
+    if not rows:
+        return None
+
+    column = "home_visit_fee" if consultation_mode == "home_visit" else "consultation_fee"
+    try:
+        fee = float(rows[0].get(column) or 0)
+    except (TypeError, ValueError):
+        return None
+    return fee if fee > 0 else None
+
+
 def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
     """True when a picked slot is already close enough that waiting for the
     next trigger_dispatch_for_upcoming_bookings poll tick (every 10 min)
@@ -446,6 +502,29 @@ async def create_booking(
             except Exception as e:
                 logger.warning(f"organization lookup for allocation failed: {e}")
 
+    # The price is the provider's published rate, never the browser's claim.
+    # Where no rate is published (organisations, which price through the
+    # slot-allotment workflow) the caller's figure stands, exactly as before.
+    resolved_price = _resolve_provider_fee(
+        resolved_provider_id, resolved_provider_type, booking.consultation_mode
+    )
+    if resolved_price is None:
+        resolved_price = booking.total_price or 0
+    elif booking.total_price is not None and float(booking.total_price) + 0.01 < resolved_price:
+        # The client was quoting less than the provider charges. Confirming it
+        # would commit the patient to a price the provider never agreed to, so
+        # send them back to a fresh quote rather than silently charging either
+        # party the wrong number. A client figure ABOVE the published rate is
+        # simply a stale listing — the lower published rate is used and the
+        # patient is never charged more than they were shown.
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This provider's fee is now Rs {resolved_price:.2f}. "
+                "Please refresh and book again."
+            ),
+        )
+
     # Home-collection signal: the patient asked for home collection AND at
     # least one verified partner in this city can actually do it at home.
     # `walk_in_required` is the walk-in path's own marker — a booking routed
@@ -478,7 +557,7 @@ async def create_booking(
             "status": booking_status,
             "notes": booking.notes or "",
             "selected_tests": booking.selected_tests or [],
-            "total_price": booking.total_price or 0,
+            "total_price": resolved_price,
             "created_at": now,
         }
     else:
@@ -495,7 +574,7 @@ async def create_booking(
             "status": BookingStatus.CONFIRMED.value,
             "notes": booking.notes or "",
             "selected_tests": booking.selected_tests or [],
-            "total_price": booking.total_price or 0,
+            "total_price": resolved_price,
             "created_at": now,
         }
 
@@ -798,12 +877,12 @@ async def create_booking(
                 except Exception as p_mail_err:
                     logger.warning(f"Patient booking confirmation email failed for {booking_id}: {p_mail_err}")
 
-            # 3. Email Alert to Assigned Healthcare Provider (Doctor/Nurse/Dietitian/Physio)
+            # 3. Alert the Assigned Healthcare Provider (Doctor/Nurse/Dietitian/Physio)
             target_prov_id = resolved_provider_id or booking.provider_id
             if target_prov_id:
                 try:
                     prov_row = _rows(
-                        supabase.table("users").select("full_name, email, role")
+                        supabase.table("users").select("id, full_name, email, role")
                         .eq("id", target_prov_id).limit(1).execute()
                     )
                     if not prov_row:
@@ -818,7 +897,7 @@ async def create_booking(
                         )
                         if org_user and org_user[0].get("user_id"):
                             prov_row = _rows(
-                                supabase.table("users").select("full_name, email, role")
+                                supabase.table("users").select("id, full_name, email, role")
                                 .eq("id", org_user[0]["user_id"]).limit(1).execute()
                             )
                     if prov_row and prov_row[0].get("email"):
@@ -835,8 +914,34 @@ async def create_booking(
                                 "amount": booking_data.get("total_price") or booking_data.get("final_amount") or 0,
                             }
                         )
+
+                    # Email was the ONLY way a provider learned a booking had
+                    # landed, so an unconfigured mail key or a spam folder meant
+                    # nobody was told at all. The in-app row is what their
+                    # notification bell reads, and the push is the phone buzz.
+                    prov_user_id = prov_row[0].get("id") if prov_row else None
+                    if prov_user_id:
+                        from app.services.notification_engine import NotificationEngine
+                        from app.services.push import CHANNEL_APPOINTMENTS
+
+                        slot_when = booking_data.get("slot_start", "")
+                        await NotificationEngine.send_multi(
+                            user_id=prov_user_id,
+                            channels=["in_app", "push"],
+                            title="New booking assigned to you",
+                            body=(
+                                f"{p_name} booked "
+                                f"{(booking_data.get('service_type') or 'an appointment').replace('_', ' ')}"
+                                + (f" for {slot_when[:16].replace('T', ' ')}." if slot_when else ".")
+                            ),
+                            data={
+                                "booking_id": booking_id,
+                                "service_type": booking_data.get("service_type", ""),
+                                "channel_id": CHANNEL_APPOINTMENTS,
+                            },
+                        )
                 except Exception as prov_err:
-                    logger.warning(f"Provider booking alert email failed for {booking_id}: {prov_err}")
+                    logger.warning(f"Provider booking alert failed for {booking_id}: {prov_err}")
 
         except Exception as notify_err:
             logger.warning(

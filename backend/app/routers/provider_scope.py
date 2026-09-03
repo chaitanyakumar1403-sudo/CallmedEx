@@ -28,6 +28,22 @@ ROLE_TABLE_MAP = {
 }
 
 
+def _commercial_split() -> dict:
+    """The MOU split, quoted from the one place that defines the fee.
+
+    Every partner agreement fixes 20% platform / 80% provider. Restating the
+    numbers here meant a provider could be shown a share that no longer matched
+    what payment.py actually credited them.
+    """
+    from app.services.marketplace import PricingService
+
+    fee_pct = PricingService.platform_fee_pct()
+    return {
+        "provider_share_pct": round(100.0 - fee_pct, 2),
+        "platform_fee_pct": round(fee_pct, 2),
+    }
+
+
 @router.get("/catalog/{role}", response_model=APIResponse)
 async def get_role_catalog(role: str):
     """Return the master reference service catalog and 80/20 fee benchmarks for a role."""
@@ -38,10 +54,7 @@ async def get_role_catalog(role: str):
         data={
             "role": role,
             "catalog": catalog,
-            "commercial_split": {
-                "provider_share_pct": 80.0,
-                "platform_fee_pct": 20.0,
-            },
+            "commercial_split": _commercial_split(),
         },
     )
 
@@ -85,7 +98,7 @@ async def get_my_scope(current_user: dict = Depends(get_current_user)):
             "home_visit_fee": profile.get("home_visit_fee", 800.0) if profile else 800.0,
             "available_for_online": profile.get("available_for_online", True) if profile else True,
             "available_for_home_visit": profile.get("available_for_home_visit", True) if profile else True,
-            "commercial_split": {"provider_share_pct": 80.0, "platform_fee_pct": 20.0},
+            "commercial_split": _commercial_split(),
         },
     )
 

@@ -10,7 +10,7 @@ Enforces the authentic 80/20 commercial split:
 - 80% Net Provider Remuneration
 - 20% CallMedex Technology & Administrative Fee
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # ─── 1. Doctor Master Scope ──────────────────────────────────────────────────
 DOCTOR_MASTER_CATALOG: List[Dict[str, Any]] = [
@@ -469,12 +469,24 @@ def get_master_catalog_for_role(role: str) -> List[Dict[str, Any]]:
     return enriched
 
 
-def compute_commercial_split(price: float, platform_fee_pct: float = 20.0) -> Dict[str, float]:
+def compute_commercial_split(
+    price: float, platform_fee_pct: Optional[float] = None
+) -> Dict[str, float]:
     """
     Calculate the 80/20 commercial split for any service price.
     Platform Fee: 20%
     Provider Take-Home: 80%
+
+    The percentage is read from PricingService, the single place that defines
+    it, rather than restated here. Three separate literal 20s used to sit in
+    this file, payment.py and provider_scope.py, so changing the fee meant
+    finding all of them and any one missed would quietly pay a partner the
+    wrong share.
     """
+    if platform_fee_pct is None:
+        from app.services.marketplace import PricingService
+
+        platform_fee_pct = PricingService.platform_fee_pct()
     p = max(0.0, float(price))
     platform_fee = round((p * platform_fee_pct) / 100.0, 2)
     provider_share = round(p - platform_fee, 2)

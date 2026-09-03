@@ -83,9 +83,9 @@ def test_discount_produces_a_real_saving(fake_db):
     assert q["price"] == 850.0
     assert q["savings"] == 150.0
     assert q["payable"] == 850.0
-    # The partner is unaffected: they still take 80%.
-    assert q["provider_payout"] == 800.0
-    assert q["platform_retained"] == 50.0
+    # 850 collected splits 80/20, the same as any other sum the patient pays.
+    assert q["provider_payout"] == 680.0
+    assert q["platform_retained"] == 170.0
 
 
 def test_zero_discount_shows_no_saving(fake_db):
@@ -139,32 +139,69 @@ def test_urgent_is_unpriced_by_default(fake_db):
 
 # ── MOU commercial split ─────────────────────────────────────────────────────
 
-def test_partner_payout_is_always_80_percent(fake_db):
+def test_the_split_is_80_20_of_what_the_patient_pays(fake_db):
     """
-    Dental MOU §3.4 and §7: the partner collects 80% regardless of what the
-    patient was charged, because the discount comes out of CallMedex's 20%.
+    Every MOU fixes the fee against the sum the patient actually hands over:
+    100 rupees paid is 80 to the provider and 20 to CallMedex.
+    """
+    q = PricingService.quote(mrp=100, discount_pct=0)
+    assert q["price"] == 100.0
+    assert q["provider_payout"] == 80.0
+    assert q["platform_retained"] == 20.0
+
+
+def test_a_discount_lowers_both_shares_in_proportion(fake_db):
+    """
+    The base of the split is the price paid, not MRP. Paying the partner 80% of
+    MRP left CallMedex with nothing at a full discount, and disagreed with what
+    payment.py actually credited them.
     """
     full = PricingService.quote(mrp=1000, discount_pct=0)
     discounted = PricingService.quote(mrp=1000, discount_pct=20)
 
     assert full["provider_payout"] == 800.0
-    assert discounted["provider_payout"] == 800.0      # unchanged by the discount
-    assert discounted["price"] == 800.0
     assert full["platform_retained"] == 200.0
-    assert discounted["platform_retained"] == 0.0      # the fee funded the discount
+
+    assert discounted["price"] == 800.0
+    assert discounted["provider_payout"] == 640.0
+    assert discounted["platform_retained"] == 160.0
 
 
-def test_discount_cannot_exceed_the_platform_fee(fake_db):
+def test_the_platform_never_ends_up_with_nothing(fake_db):
+    """The share CallMedex keeps is 20% of every rupee collected, always."""
+    for discount in (0, 5, 12.5, 20, 40):
+        q = PricingService.quote(mrp=1000, discount_pct=discount)
+        assert q["provider_payout"] + q["platform_retained"] == q["price"]
+        assert q["platform_retained"] == round(q["price"] * 0.20, 2)
+
+
+def test_discount_is_capped_at_the_fee_percentage(fake_db):
     """
-    A 40% discount would come out of the partner's share — "shall not be
-    required to bear any additional discount". It is capped at the fee.
+    A policy ceiling on how deep an advertised discount may go, so a mis-keyed
+    percentage cannot halve a partner's rate platform-wide.
     """
     q = PricingService.quote(mrp=1000, discount_pct=40)
     assert q["requested_discount_pct"] == 40.0
     assert q["discount_pct"] == 20.0
     assert q["price"] == 800.0
-    assert q["provider_payout"] == 800.0
-    assert q["platform_retained"] == 0.0
+
+
+def test_quoted_payout_equals_what_payment_actually_credits(fake_db):
+    """
+    The number a partner is SHOWN and the number they are PAID must be the
+    same. These are computed in two different modules; they used to disagree
+    the moment any discount ran.
+    """
+    import app.services.payment as payment_svc
+
+    q = PricingService.quote(mrp=1000, discount_pct=10)
+
+    # payment.py: platform_fee = amount * rate, payout = amount - fee.
+    rate = payment_svc._platform_fee_rate()
+    paid = q["price"]
+    expected_payout = round(paid - round(paid * rate, 2), 2)
+
+    assert q["provider_payout"] == expected_payout
 
 
 # ── Catalogue search ─────────────────────────────────────────────────────────

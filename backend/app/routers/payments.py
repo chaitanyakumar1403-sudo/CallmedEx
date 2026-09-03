@@ -16,7 +16,10 @@ router = APIRouter(prefix="/api/payments", tags=["Payments"])
 
 class CreateOrderRequest(BaseModel):
     booking_id: str
-    amount: float = Field(..., gt=0, description="Amount in INR")
+    # The caller may still send what it believes the price to be, but it is
+    # only ever cross-checked against the server's own figure — never charged.
+    # Existing mobile clients send it; new ones can omit it entirely.
+    amount: Optional[float] = Field(default=None, gt=0, description="Amount in INR (cross-check only)")
     provider_id: Optional[str] = None
     description: Optional[str] = "CallMedex Booking Payment"
 
@@ -36,9 +39,37 @@ async def create_order(
     Patient creates a payment order for a booking.
     Returns Razorpay order_id and key_id for the frontend checkout widget.
     """
+    # The amount is resolved from the booking, never taken from the request.
+    # Billing the client's own figure meant a patient could open an order for
+    # any rupee value they liked — and verify_payment, which compares the
+    # captured amount against that stored order, would then confirm it.
+    try:
+        amount = PaymentService.resolve_booking_amount(
+            booking_id=body.booking_id, patient_id=current_user["sub"]
+        )
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="This booking is not yours.")
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if amount <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail="This booking has no payable amount on record. Please contact support.",
+        )
+
+    # A client figure that disagrees with ours means the two are out of sync
+    # (stale cart, changed catalog price). Refuse rather than silently charging
+    # a different number than the patient was shown.
+    if body.amount is not None and abs(float(body.amount) - amount) >= 0.01:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Amount mismatch. The amount payable for this booking is Rs {amount:.2f}.",
+        )
+
     try:
         result = PaymentService.create_order(
-            amount=body.amount,
+            amount=amount,
             booking_id=body.booking_id,
             patient_id=current_user["sub"],
             provider_id=body.provider_id,

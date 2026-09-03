@@ -135,20 +135,29 @@ class PricingService:
         """
         Price one service.
 
-        The partner MOUs fix the commercial split precisely (dental MOU §3, and
-        the same 20%/80% table in the doctor, physio and nursing agreements):
+        Every partner MOU fixes the same commercial split, and fixes it against
+        the sum the patient actually hands over:
 
-            CallMedex collects a 20% platform fee from the patient.
-            The partner collects the remaining 80% directly.
-            Any patient discount is funded ENTIRELY from CallMedex's 20% —
-            "The Dental Clinic/Hospital shall not be required to bear any
-            additional discount beyond the agreed commercial arrangement."
+            100 rupees paid  ->  80 to the provider, 20 to CallMedex.
 
-        Two consequences are enforced here. The partner's payout is always 80%
-        of MRP no matter what discount the patient sees, and the discount cannot
-        exceed the platform fee, because there is nothing else to fund it from.
-        A larger discount would silently come out of the partner's share — the
-        exact thing the MOU forbids.
+        The wording is explicit in the agreements — "a platform service fee of
+        20% on the gross consultation fee paid by the patient" (DOCTOR), "20% on
+        the gross billing amount paid by the client" (Nursing), "Platform Fee
+        (20%) / Provider Share (80%)" (Dietetic tariff sheet) — and holds for
+        doctors, dental, dietitians, nursing, physiotherapy, diagnostic centres
+        and ECG/X-ray alike. Phlebotomists are the one exception: they are
+        engaged per verified collection or salaried, never on a percentage.
+
+        So the base of the split is `price`, what the patient pays, not MRP. An
+        advertised discount lowers both shares in proportion; it is not funded
+        out of the platform fee alone. This is a deliberate departure from the
+        earlier reading of dental MOU §3.3 ("shall not be required to bear any
+        additional discount"), which paid the partner 80% of MRP and left
+        CallMedex with nothing whenever a full discount ran.
+
+        The urgent surcharge is CallMedex's charge for priority dispatch rather
+        than part of the service rendered, so it is excluded from the split and
+        added to `payable` on its own.
         """
         mrp = round(max(_num(mrp), 0.0), 2)
         fee_pct = _num(platform_fee_pct, PricingService.platform_fee_pct())
@@ -156,14 +165,31 @@ class PricingService:
         pct = _num(discount_pct)
         if pct < 0 or pct >= 100:
             pct = 0.0
-        # Capped at the platform fee: the discount is funded from it.
+        # A ceiling on how deep any advertised discount may go. It is no longer
+        # a solvency limit — the split below stays whole at any discount — but
+        # a policy guardrail so a mis-keyed percentage cannot halve a partner's
+        # rate platform-wide.
         capped = min(pct, fee_pct)
 
         price = round(mrp * (1 - capped / 100.0), 2)
         savings = round(mrp - price, 2)
-        provider_payout = round(mrp * (1 - fee_pct / 100.0), 2)
+
+        # The fee is 20% of what the patient actually pays: 100 rupees in means
+        # 80 to the provider and 20 to CallMedex. Every MOU words it that way —
+        # "20% on the gross consultation fee paid by the patient" (doctors),
+        # "on the gross billing amount paid by the client" (nursing).
+        #
+        # This used to pay 80% of MRP instead, so the whole of any discount came
+        # out of CallMedex's share: at a 20% discount the platform retained
+        # nothing at all, and the payout quoted to a partner here disagreed with
+        # what payment.py actually credited them, which is 20% of the sum
+        # captured. Both now compute the same number from the same base.
+        provider_payout = round(price * (1 - fee_pct / 100.0), 2)
         platform_retained = round(price - provider_payout, 2)
 
+        # The priority surcharge is CallMedex's own charge for jumping the
+        # dispatch queue, not part of the service the provider renders, so it
+        # sits outside the split and is added to `payable` alone.
         surcharge = PricingService.urgent_surcharge_for(price) if urgent else 0.0
 
         return {

@@ -117,10 +117,16 @@ class NotificationEngine:
         if not supabase:
             return []
 
+        # One send_multi writes a row per channel, so an event delivered as
+        # in_app + push lands twice. The notification centre IS the in-app
+        # channel — the push row is the same event's phone buzz, not a second
+        # notification — so read only that one and the list stops showing
+        # every alert twice.
         query = (
             supabase.table("notifications")
             .select("*")
             .eq("user_id", user_id)
+            .eq("channel", "in_app")
             .order("created_at", desc=True)
             .limit(limit)
         )
