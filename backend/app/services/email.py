@@ -547,3 +547,96 @@ If you didn't request this, please ignore this email.
             print(f"  Reset Link: {reset_link}")
             print("=" * 70 + "\n")
 
+    @staticmethod
+    def send_booking_alert_email(
+        to_email: str,
+        recipient_role: str,
+        recipient_name: str,
+        booking_details: dict,
+    ):
+        """
+        Sends rich booking alert emails:
+        - To the patient: Booking confirmed with slot details.
+        - To the provider (Doctor, Nurse, Dietitian, Physio): New appointment alert with 80% remuneration breakdown.
+        """
+        service_type = booking_details.get("service_type", "Healthcare Consultation").replace("_", " ").title()
+        slot_time = booking_details.get("slot_time", "Scheduled Time")
+        booking_id = booking_details.get("booking_id", "")
+        amount = booking_details.get("amount", 0)
+
+        if recipient_role == "provider":
+            subject = f"CallMedex Alert: New {service_type} Booking ({slot_time})"
+            provider_net = round(amount * 0.8) if amount else 0
+            dashboard_url = f"{settings.FRONTEND_URL}/dashboard"
+            patient_name = booking_details.get("patient_name", "Patient")
+            patient_notes = booking_details.get("notes", "General consultation")
+
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 32px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <div style="border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+                        <h2 style="color: #0f172a; margin: 0;">CallMedex Provider Command Center</h2>
+                        <span style="color: #0284c7; font-weight: bold; font-size: 14px;">New Patient Booking Alert</span>
+                    </div>
+                    <p style="color: #334155; font-size: 15px;">Dear <strong>{recipient_name}</strong>,</p>
+                    <p style="color: #334155; font-size: 15px;">A new patient consultation has been scheduled on your CallMedex roster.</p>
+                    
+                    <div style="background: #f1f5f9; border-radius: 8px; padding: 18px; margin: 20px 0;">
+                        <p style="margin: 6px 0; color: #1e293b;"><strong>Patient:</strong> {patient_name}</p>
+                        <p style="margin: 6px 0; color: #1e293b;"><strong>Service:</strong> {service_type}</p>
+                        <p style="margin: 6px 0; color: #1e293b;"><strong>Scheduled Slot:</strong> {slot_time}</p>
+                        <p style="margin: 6px 0; color: #1e293b;"><strong>Chief Complaint:</strong> {patient_notes}</p>
+                        <p style="margin: 6px 0; color: #16a34a; font-weight: bold;">
+                            <strong>Your 80% Net Take-Home:</strong> ₹{provider_net} (20% platform charge deducted)
+                        </p>
+                    </div>
+                    
+                    <div style="margin: 24px 0;">
+                        <a href="{dashboard_url}" style="background-color: #0284c7; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                            Open Provider Console
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 12px;">NMC & ABDM/ABHA Compliant Healthcare Platform.</p>
+                </div>
+            </body>
+            </html>
+            """
+            text_content = f"New booking alert: {service_type} for {patient_name} at {slot_time}. 80% net remuneration: Rs.{provider_net}. Open console: {dashboard_url}"
+        else:
+            subject = f"CallMedex Booking Confirmed: {service_type}"
+            portal_url = f"{settings.FRONTEND_URL}/dashboard/patient"
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background: white; padding: 32px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <div style="border-bottom: 2px solid #10b981; padding-bottom: 12px; margin-bottom: 20px;">
+                        <h2 style="color: #0f172a; margin: 0;">CallMedex Healthcare</h2>
+                        <span style="color: #10b981; font-weight: bold; font-size: 14px;">Booking Confirmation</span>
+                    </div>
+                    <p style="color: #334155; font-size: 15px;">Dear <strong>{recipient_name}</strong>,</p>
+                    <p style="color: #334155; font-size: 15px;">Your appointment has been successfully confirmed on CallMedex.</p>
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+                        <p style="margin: 6px 0; color: #14532d;"><strong>Booking Reference:</strong> #{booking_id[:8] if booking_id else 'CM-BK'}</p>
+                        <p style="margin: 6px 0; color: #14532d;"><strong>Service:</strong> {service_type}</p>
+                        <p style="margin: 6px 0; color: #14532d;"><strong>Scheduled Slot:</strong> {slot_time}</p>
+                        <p style="margin: 6px 0; color: #14532d;"><strong>Total Paid:</strong> ₹{amount}</p>
+                    </div>
+                    
+                    <div style="margin: 24px 0;">
+                        <a href="{portal_url}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                            View in Patient Dashboard
+                        </a>
+                    </div>
+                    <p style="color: #64748b; font-size: 12px;">Thank you for choosing CallMedex. For queries, contact support@callmedex.in</p>
+                </div>
+            </body>
+            </html>
+            """
+            text_content = f"Your CallMedex booking for {service_type} at {slot_time} is confirmed. Total: Rs.{amount}. View at {portal_url}"
+
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+            logger.info(f"[BOOKING ALERT EMAIL DISPATCHED] To: {to_email} | Subject: {subject}")
+
+

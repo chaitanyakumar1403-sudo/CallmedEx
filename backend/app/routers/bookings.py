@@ -19,6 +19,7 @@ from app.services.marketplace import MarketplaceService
 from app.services.processing_center import assign_booking
 from app.services.dispatch_engine import UniversalDispatchEngine
 from app.routers.family_members import ensure_self_member
+from app.services.email import EmailService
 from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
@@ -658,18 +659,68 @@ async def create_booking(
     if supabase and booking_data.get("status") == BookingStatus.CONFIRMED.value:
         try:
             patient_row = _rows(
-                supabase.table("users").select("full_name, mobile")
+                supabase.table("users").select("full_name, mobile, email")
                 .eq("id", current_user["sub"]).limit(1).execute()
             )
+            p_name = (patient_row[0].get("full_name") if patient_row else None) or current_user.get("name") or "Patient"
+            p_email = (patient_row[0].get("email") if patient_row else None) or current_user.get("email")
+
+            # 1. SMS Notification to Patient
             if patient_row and patient_row[0].get("mobile"):
-                from app.workers.tasks.notifications import send_booking_confirmation
-                send_booking_confirmation.delay(
-                    booking_id=booking_id,
-                    patient_mobile=patient_row[0]["mobile"],
-                    patient_name=patient_row[0].get("full_name") or current_user.get("name") or "Patient",
-                    slot_time=booking_data.get("slot_start", ""),
-                    service_type=booking_data.get("service_type", ""),
-                )
+                try:
+                    from app.workers.tasks.notifications import send_booking_confirmation
+                    send_booking_confirmation.delay(
+                        booking_id=booking_id,
+                        patient_mobile=patient_row[0]["mobile"],
+                        patient_name=p_name,
+                        slot_time=booking_data.get("slot_start", ""),
+                        service_type=booking_data.get("service_type", ""),
+                    )
+                except Exception as sms_err:
+                    logger.warning(f"SMS enqueue failed for {booking_id}: {sms_err}")
+
+            # 2. Email Confirmation to Patient
+            if p_email:
+                try:
+                    EmailService.send_booking_alert_email(
+                        to_email=p_email,
+                        recipient_role="patient",
+                        recipient_name=p_name,
+                        booking_details={
+                            "booking_id": booking_id,
+                            "service_type": booking_data.get("service_type", ""),
+                            "slot_time": booking_data.get("slot_start", ""),
+                            "amount": booking_data.get("total_price") or booking_data.get("final_amount") or 0,
+                        }
+                    )
+                except Exception as p_mail_err:
+                    logger.warning(f"Patient booking confirmation email failed for {booking_id}: {p_mail_err}")
+
+            # 3. Email Alert to Assigned Healthcare Provider (Doctor/Nurse/Dietitian/Physio)
+            target_prov_id = resolved_provider_id or booking.provider_id
+            if target_prov_id:
+                try:
+                    prov_row = _rows(
+                        supabase.table("users").select("full_name, email, role")
+                        .eq("id", target_prov_id).limit(1).execute()
+                    )
+                    if prov_row and prov_row[0].get("email"):
+                        EmailService.send_booking_alert_email(
+                            to_email=prov_row[0]["email"],
+                            recipient_role="provider",
+                            recipient_name=prov_row[0].get("full_name") or "Doctor / Healthcare Partner",
+                            booking_details={
+                                "booking_id": booking_id,
+                                "patient_name": p_name,
+                                "service_type": booking_data.get("service_type", ""),
+                                "slot_time": booking_data.get("slot_start", ""),
+                                "notes": booking_data.get("notes") or "Appointment booked via CallMedex",
+                                "amount": booking_data.get("total_price") or booking_data.get("final_amount") or 0,
+                            }
+                        )
+                except Exception as prov_err:
+                    logger.warning(f"Provider booking alert email failed for {booking_id}: {prov_err}")
+
         except Exception as notify_err:
             logger.warning(
                 f"Booking confirmation notification enqueue failed for "

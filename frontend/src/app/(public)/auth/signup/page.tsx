@@ -726,9 +726,13 @@ export default function SignupPage() {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                   {verificationStatus['doc_license'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                      <span style={{ color: '#2f855a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle2 size={16} /> AI Verified
+                      </span>
                   ) : verificationStatus['doc_license'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                      <span style={{ color: '#d69e2e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Clock size={16} /> Verifying...
+                      </span>
                   ) : (
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_license')}>
                           Verify via AI
@@ -785,17 +789,58 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Fee info banner */}
-              <div style={{ 
-                backgroundColor: '#eff6ff', 
-                border: '1px solid #bfdbfe', 
-                borderRadius: 8, 
-                padding: '12px 16px', 
-                marginTop: 16,
-                fontSize: '0.85rem',
-                color: '#1e40af'
+              {/* CallMedex Standard Benchmark Tariffs & 80/20 Split */}
+              <div style={{
+                marginTop: 20,
+                padding: '18px 20px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)',
+                border: '1px solid #bbf7d0',
               }}>
-                💡 <strong>Note:</strong> Consultation fees are managed centrally by CallMedex and will be communicated during onboarding. This ensures fair pricing and transparent settlement.
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ padding: 6, borderRadius: 6, background: '#16a34a', color: '#fff', display: 'flex' }}>
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#14532d' }}>
+                      CallMedex Reference Tariffs (Official Benchmark)
+                    </span>
+                  </div>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
+                    80% Provider Remuneration
+                  </span>
+                </div>
+
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.84rem', color: '#166534', lineHeight: 1.5 }}>
+                  Based on CallMedex Specialty Fee Benchmarks (from official agreement guidelines). When registered, your services are pre-loaded with these standard prices. You can accept them or customize them anytime in your Command Center:
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>General Teleconsult (15m)</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Clinic Walk-In (30m)</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Doorstep Home Visit (45m)</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Specialist Teleconsult (MD)</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹700</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹560 take-home (80%)</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
+                  * CallMedex platform fee is 20%. All fees are editable post-registration in your Doctor Command Center.
+                </div>
               </div>
             </div>
           )}
@@ -820,9 +865,13 @@ export default function SignupPage() {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
                   {verificationStatus['nurse_license'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                      <span style={{ color: '#2f855a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <CheckCircle2 size={16} /> AI Verified
+                      </span>
                   ) : verificationStatus['nurse_license'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                      <span style={{ color: '#d69e2e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <Clock size={16} /> Verifying...
+                      </span>
                   ) : (
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('nurse_license')}>
                           Verify via AI
@@ -852,22 +901,57 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Fee info banner */}
-              <div style={{ 
-                backgroundColor: '#eff6ff', 
-                border: '1px solid #bfdbfe', 
-                borderRadius: 8, 
-                padding: '12px 16px', 
-                marginTop: 16,
-                fontSize: '0.85rem',
-                color: '#1e40af',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
+              {/* CallMedex Standard Nursing Tariffs & 80/20 Split */}
+              <div style={{
+                marginTop: 20,
+                padding: '18px 20px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)',
+                border: '1px solid #bbf7d0',
               }}>
-                <Info size={16} color="#2563eb" style={{ flexShrink: 0 }} />
-                <div>
-                  <strong>Note:</strong> Service fees are managed centrally by CallMedex. Patients are charged based on the service type and duration. Settlement is done as per the agreed 80/20 commercial structure.
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ padding: 6, borderRadius: 6, background: '#16a34a', color: '#fff', display: 'flex' }}>
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#14532d' }}>
+                      CallMedex Nursing Tariffs (Official Benchmark)
+                    </span>
+                  </div>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
+                    80% Nurse Remuneration
+                  </span>
+                </div>
+
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.84rem', color: '#166534', lineHeight: 1.5 }}>
+                  Based on CallMedex Home Care Guidelines. Your standard procedure fees are pre-loaded with these reference rates. You can accept or edit them anytime in your Nurse Station:
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>IM/IV Injection &amp; Vitals</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹300</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹240 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Sterile Wound Dressing</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹350</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹280 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>IV Infusion &amp; Cannulation</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>12h Bedside Attendant</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹1500</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹1200 take-home (80%)</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
+                  * 80% direct net payout to nurse bank account, 20% CallMedex platform charge. All fees customizable post-registration.
                 </div>
               </div>
             </div>
@@ -914,21 +998,52 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div style={{ 
-                backgroundColor: '#f0fdf4', 
-                border: '1px solid #bbf7d0', 
-                borderRadius: 8, 
-                padding: '14px 16px', 
-                marginTop: 16,
-                fontSize: '0.85rem',
-                color: '#166534',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
+              {/* CallMedex Standard Dietitian Tariffs & 80/20 Split */}
+              <div style={{
+                marginTop: 20,
+                padding: '18px 20px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)',
+                border: '1px solid #bbf7d0',
               }}>
-                <Info size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <strong>80/20 Remuneration &amp; Pricing Autonomy:</strong> CallMedex provides standard reference rates (₹400 for tele-dietetics, ₹800 for home visits) with an <strong>80% provider payout</strong>. On the next step (MOU acceptance), you can review your complete Scope of Services and customize tariffs for every consultation modality.
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ padding: 6, borderRadius: 6, background: '#16a34a', color: '#fff', display: 'flex' }}>
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#14532d' }}>
+                      CallMedex Dietetics Tariffs (Official Benchmark)
+                    </span>
+                  </div>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
+                    80% Dietitian Remuneration
+                  </span>
+                </div>
+
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.84rem', color: '#166534', lineHeight: 1.5 }}>
+                  Standard clinical nutrition and MNT benchmarks. Pre-loaded with these reference rates, with full autonomy to edit anytime:
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Tele-Dietetics Consult</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Clinic Nutrition Assessment</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Home Visit &amp; Pantry Audit</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
+                  * 80% direct net payout to dietitian bank account, 20% CallMedex platform fee. Rates customizable in your Studio.
                 </div>
               </div>
             </div>
@@ -975,21 +1090,52 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div style={{ 
-                backgroundColor: '#f0fdf4', 
-                border: '1px solid #bbf7d0', 
-                borderRadius: 8, 
-                padding: '14px 16px', 
-                marginTop: 16,
-                fontSize: '0.85rem',
-                color: '#166534',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 10,
+              {/* CallMedex Standard Physiotherapy Tariffs & 80/20 Split */}
+              <div style={{
+                marginTop: 20,
+                padding: '18px 20px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)',
+                border: '1px solid #bbf7d0',
               }}>
-                <Info size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: 2 }} />
-                <div>
-                  <strong>80/20 Commercial Split &amp; Procedure Tariffs:</strong> CallMedex provides standard reference rates (₹400 for assessment, ₹800 for home therapy) with an <strong>80% provider payout</strong>. On the next step (MOU acceptance), you can review all 100+ physiotherapy procedures and customize your tariffs anytime.
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ padding: 6, borderRadius: 6, background: '#16a34a', color: '#fff', display: 'flex' }}>
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#14532d' }}>
+                      CallMedex Physiotherapy Tariffs (Official Benchmark)
+                    </span>
+                  </div>
+                  <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
+                    80% Physio Remuneration
+                  </span>
+                </div>
+
+                <p style={{ margin: '0 0 14px 0', fontSize: '0.84rem', color: '#166534', lineHeight: 1.5 }}>
+                  Based on official CallMedex physical rehabilitation guidelines. Your default consultation and session rates:
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Tele-Rehab Assessment</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Center PT Treatment</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
+                  </div>
+                  <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Doorstep Bedside Rehab (45m)</div>
+                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
+                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
+                  * 80% direct net payout to physio bank account, 20% CallMedex platform fee. Rates customizable in your Studio.
                 </div>
               </div>
             </div>

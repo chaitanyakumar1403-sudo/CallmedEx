@@ -1642,4 +1642,318 @@ input[type="radio"] {
   filter: drop-shadow(0 0 8px currentColor);
 }
 
+/* --- Nurse Station Overhaul Classes --- */
+.cm-nurse-container {
+  max-width: 820px;
+}
+.cm-nurse-header-box {
+  margin-bottom: var(--cm-5);
+}
+.cm-nurse-title {
+  margin: 0;
+  font-size: var(--cm-text-xl);
+  font-weight: 800;
+  color: var(--cm-ink);
+}
+.cm-nurse-subtitle {
+  margin: var(--cm-1) 0 0 0;
+  font-size: var(--cm-text-sm);
+  color: var(--cm-ink-3);
+}
+.cm-nurse-procedure-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-3);
+}
+.cm-nurse-procedure-card {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius-md);
+  border: 1px solid var(--cm-line);
+  padding: var(--cm-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cm-nurse-procedure-info {
+  flex: 1;
+}
+.cm-nurse-badge-code {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-active);
+  background: var(--cm-active-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cm-nurse-procedure-name {
+  margin: var(--cm-1) 0;
+  font-size: var(--cm-text-base);
+  font-weight: 700;
+  color: var(--cm-ink);
+}
+.cm-nurse-procedure-meta {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-3);
+  display: flex;
+  gap: var(--cm-4);
+}
+.cm-nurse-procedure-commercials {
+  text-align: right;
+  margin-right: var(--cm-4);
+}
+.cm-nurse-procedure-price {
+  font-size: var(--cm-text-lg);
+  font-weight: 800;
+  color: var(--cm-ink);
+}
+.cm-nurse-procedure-takehome {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-done);
+}
+.cm-nurse-btn-toggle {
+  padding: var(--cm-2) var(--cm-4);
+  border-radius: var(--cm-radius-sm);
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--cm-line);
+}
+.cm-nurse-btn-active {
+  background: var(--cm-done-surface);
+  color: var(--cm-done);
+  border-color: var(--cm-done-line);
+}
+.cm-nurse-btn-inactive {
+  background: var(--cm-surface-2);
+  color: var(--cm-ink-3);
+}
+
+.cm-nurse-vitals-form {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius-md);
+  border: 1px solid var(--cm-line);
+  padding: var(--cm-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-4);
+}
+.cm-nurse-vitals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--cm-3);
+}
+.cm-nurse-vital-card {
+  background: var(--cm-surface-2);
+  padding: var(--cm-3);
+  border-radius: var(--cm-radius-sm);
+  border: 1px solid var(--cm-line);
+}
+.cm-nurse-vital-label {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-1);
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-ink-2);
+  margin-bottom: var(--cm-1);
+}
+.cm-nurse-vital-input {
+  width: 100%;
+  padding: var(--cm-2);
+  border-radius: var(--cm-radius-sm);
+  border: 1px solid var(--cm-line-strong);
+  font-size: var(--cm-text-sm);
+  box-sizing: border-box;
+}
+.cm-nurse-notes-label {
+  display: block;
+  font-size: var(--cm-text-sm);
+  font-weight: 700;
+  color: var(--cm-ink-2);
+  margin-bottom: var(--cm-1);
+}
+.cm-nurse-textarea {
+  width: 100%;
+  padding: var(--cm-2);
+  border-radius: var(--cm-radius-sm);
+  border: 1px solid var(--cm-line-strong);
+  font-size: var(--cm-text-sm);
+  box-sizing: border-box;
+  resize: vertical;
+}
+.cm-nurse-sync-box {
+  padding: var(--cm-2) var(--cm-3);
+  border-radius: var(--cm-radius-sm);
+  background: var(--cm-done-surface);
+  color: var(--cm-done);
+  font-size: var(--cm-text-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-2);
+  border: 1px solid var(--cm-done-line);
+}
+.cm-nurse-submit-btn {
+  background: var(--cm-active);
+  color: var(--cm-surface);
+  border: none;
+  padding: var(--cm-3);
+  border-radius: var(--cm-radius-sm);
+  font-weight: 700;
+  font-size: var(--cm-text-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cm-2);
+}
+.cm-nurse-visit-badge-scheduled {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-active);
+  background: var(--cm-active-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cm-nurse-visit-badge-dressing {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-waiting);
+  background: var(--cm-waiting-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cm-nurse-map-btn {
+  background: var(--cm-done);
+  color: var(--cm-surface);
+  border: none;
+  padding: var(--cm-2) var(--cm-3);
+  border-radius: var(--cm-radius-sm);
+  font-weight: 700;
+  font-size: var(--cm-text-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-1);
+}
+
+.cm-nurse-tools-btn {
+  padding: var(--cm-2) var(--cm-4);
+  border-radius: var(--cm-radius-full);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--cm-surface);
+  font-weight: 700;
+  font-size: var(--cm-text-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-2);
+}
+.cm-nurse-kpi-grid {
+  margin-bottom: var(--cm-6);
+}
+.cm-nurse-kpi-clickable {
+  cursor: pointer;
+}
+.cm-nurse-kpi-icon-urgent {
+  background: var(--cm-urgent-surface);
+  color: var(--cm-urgent);
+}
+.cm-nurse-kpi-icon-active {
+  background: var(--cm-active-surface);
+  color: var(--cm-active);
+}
+.cm-nurse-kpi-icon-done {
+  background: var(--cm-done-surface);
+  color: var(--cm-done);
+}
+.cm-nurse-kpi-icon-waiting {
+  background: var(--cm-waiting-surface);
+  color: var(--cm-waiting);
+}
+.cm-nurse-patient-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--cm-5);
+}
+.cm-nurse-patient-label {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  color: var(--cm-ink-3);
+  text-transform: uppercase;
+}
+.cm-nurse-patient-input {
+  display: block;
+  font-size: var(--cm-text-lg);
+  font-weight: 800;
+  color: var(--cm-ink);
+  border: 1px solid var(--cm-line-strong);
+  border-radius: var(--cm-radius-sm);
+  padding: var(--cm-1) var(--cm-2);
+  margin-top: var(--cm-1);
+  width: 320px;
+}
+.cm-nurse-status-pill {
+  padding: var(--cm-1) var(--cm-3);
+  border-radius: var(--cm-radius-full);
+  background: var(--cm-active-surface);
+  color: var(--cm-active);
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+}
+.cm-nurse-vitals-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--cm-3);
+  margin-bottom: var(--cm-5);
+}
+.cm-nurse-bp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-1);
+  margin-top: var(--cm-1);
+}
+.cm-nurse-bp-input {
+  width: 65px;
+  padding: var(--cm-1);
+  border-radius: var(--cm-radius-sm);
+  border: 1px solid var(--cm-line-strong);
+  font-weight: 800;
+}
+.cm-nurse-input-unit {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-3);
+}
+.cm-nurse-notes-container {
+  margin-bottom: var(--cm-5);
+}
+.cm-nurse-visits-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-3);
+}
+.cm-nurse-visit-card {
+  background: var(--cm-surface);
+  border-radius: var(--cm-radius-md);
+  border: 1px solid var(--cm-line);
+  padding: var(--cm-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cm-nurse-visit-name {
+  margin: var(--cm-1) 0;
+  font-size: var(--cm-text-base);
+  font-weight: 800;
+  color: var(--cm-ink);
+}
+.cm-nurse-visit-meta {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-3);
+}
+
+
+
 
