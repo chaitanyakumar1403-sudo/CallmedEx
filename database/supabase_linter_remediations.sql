@@ -16,7 +16,7 @@ BEGIN;
 CREATE OR REPLACE FUNCTION public.sync_booking_date_time()
 RETURNS TRIGGER 
 LANGUAGE plpgsql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
@@ -27,6 +27,9 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- Revoke public execution over PostgREST RPC (it is only called via triggers)
+REVOKE EXECUTE ON FUNCTION public.sync_booking_date_time() FROM PUBLIC, anon, authenticated;
 
 -- ─── 2. Add RLS Policies for Dietitians (Lint 0008) ─────────────────────────
 ALTER TABLE public.dietitians ENABLE ROW LEVEL SECURITY;

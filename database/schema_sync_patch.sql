@@ -71,7 +71,11 @@ ALTER TABLE bookings ALTER COLUMN provider_id DROP NOT NULL;
 -- provider slot-conflict check would silently match zero rows forever.
 -- (A GENERATED column can't be used: timestamptz→date is STABLE, not IMMUTABLE.)
 CREATE OR REPLACE FUNCTION sync_booking_date_time()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
 BEGIN
     IF NEW.slot_start IS NOT NULL THEN
         NEW.booking_date := (NEW.slot_start AT TIME ZONE 'Asia/Kolkata')::date;
@@ -79,7 +83,9 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
+REVOKE EXECUTE ON FUNCTION sync_booking_date_time() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS trg_sync_booking_date_time ON bookings;
 CREATE TRIGGER trg_sync_booking_date_time
