@@ -17,7 +17,7 @@ export type { DashTab };
 export type DashRole =
   | "patient" | "doctor" | "phlebotomist" | "nurse"
   | "organization" | "pharmacy" | "admin" | "staff"
-  | "processing_center";
+  | "processing_center" | "dietitian" | "physiotherapist";
 
 export default function DashboardShell({
   role, title, subtitle, aside, tabs, activeTab, onTabChange, children,

@@ -26,6 +26,7 @@ import {
   HeartHandshake,
   Truck,
   Video,
+  Apple,
   Building2,
   Sparkles,
   Navigation,
@@ -97,6 +98,8 @@ export default function PatientDashboard() {
     phlebotomist: ["Blood Sample Collection", "Urine Sample Collection", "ECG", "Routine Health Checkup", "Other"],
     nurse: ["Injection", "Wound Dressing", "IV Fluid Administration", "Catheterization", "Other"],
     doctor: ["General Checkup", "High Fever", "Minor Injury", "Post-Op Consultation", "Other"],
+    dietitian: ["Doorstep Nutritional Assessment", "Pantry Audit & Meal Plan", "Geriatric Bedside MNT", "BCA Body Composition", "Other"],
+    physiotherapist: ["Bedside Joint Mobilization", "Post-Op Knee/Hip Rehab", "Stroke Neuro-Rehab", "Spine & Sciatica Therapy", "Chest Physiotherapy", "Other"],
     pharmacy_delivery: ["Prescription Medicines", "OTC Medicines", "First Aid Supplies", "Other"]
   };
 
@@ -1306,6 +1309,54 @@ export default function PatientDashboard() {
             </div>
             <span className="cm-quick-card__tag" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#d97706", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
               Under 45 Mins
+            </span>
+          </button>
+
+          {/* Urgent Home Dietitian */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("dietitian", "nutritional_assessment", "Home Dietitian")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #059669)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+                <Apple size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "dietitian" ? "Requesting..." : "Home Dietitian & Nutrition"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                Bedside nutritional audit, diabetes MNT &amp; tailored diet chart.
+              </p>
+            </div>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+              IDA Certified · ₹800 Visit
+            </span>
+          </button>
+
+          {/* Urgent Home Physiotherapist */}
+          <button
+            type="button"
+            onClick={() => openDispatchModal("physiotherapist", "physiotherapy", "Home Physiotherapist")}
+            disabled={requestingDispatch !== null}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #0284c7, #4f46e5)" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(2, 132, 199, 0.12)", color: "#0284c7" }}>
+                <Activity size={24} />
+              </div>
+              <h4 className="cm-quick-card__title">
+                {requestingDispatch === "physiotherapist" ? "Requesting..." : "Home Physiotherapist"}
+              </h4>
+              <p className="cm-quick-card__subtitle">
+                Bedside joint mobilization, spine rehab &amp; stroke recovery.
+              </p>
+            </div>
+            <span className="cm-quick-card__tag" style={{ background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+              MIAP Certified · ₹800 Visit
             </span>
           </button>
 

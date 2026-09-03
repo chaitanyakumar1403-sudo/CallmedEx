@@ -18,6 +18,8 @@ class UserRole(str, Enum):
     STAFF = "staff"
     PHARMACY = "pharmacy"
     NURSE = "nurse"
+    DIETITIAN = "dietitian"
+    PHYSIOTHERAPIST = "physiotherapist"
     AMBULANCE = "ambulance"
     ADMIN = "admin"
 
@@ -249,12 +251,45 @@ class UserSignup(UserBase):
     nursing_license_number: Optional[str] = None
     nursing_specializations: Optional[List[str]] = None
 
+    # Dietitian-specific
+    dietitian_license_number: Optional[str] = None
+    dietitian_specializations: Optional[List[str]] = None
+
+    # Physiotherapist-specific
+    physio_license_number: Optional[str] = None
+    physio_specializations: Optional[List[str]] = None
+
+    # Selected Scope of Services & Custom Tariffs
+    scope_of_services: Optional[List[dict]] = None
+
     # MOU acceptance (kept for backward compat, but now handled via email workflow)
     mou_accepted: Optional[bool] = None
 
     # Registrant info (non-patient roles) — who is filling out this form
     registrant_role: Optional[str] = None  # front_desk_manager, general_manager, admin_staff, owner, other
     owner_email: Optional[str] = None  # Owner's email for MOU delivery (if different from registrant)
+
+
+class ScopeOfServiceItem(BaseModel):
+    id: str
+    category: str
+    service_name: str
+    modality: str  # online | clinic | home | hybrid
+    benchmark_price: float
+    custom_price: float
+    platform_fee_pct: float = 20.0
+    platform_fee_amount: float
+    provider_share_amount: float
+    is_active: bool = True
+
+
+class ProviderScopeUpdateRequest(BaseModel):
+    scope_of_services: List[dict]
+    consultation_fee: Optional[float] = None
+    home_visit_fee: Optional[float] = None
+    available_for_online: Optional[bool] = None
+    available_for_home_visit: Optional[bool] = None
+
 
 
 class UserLogin(BaseModel):

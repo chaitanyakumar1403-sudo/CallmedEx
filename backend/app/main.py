@@ -340,6 +340,8 @@ from app.routers import care_circle
 app.include_router(care_circle.router)
 from app.routers import nurse_visits
 app.include_router(nurse_visits.router)
+from app.routers import provider_scope
+app.include_router(provider_scope.router)
 
 # Direct Public Guardian Tracking Alias (§8.2)
 @app.get("/api/track/{token}")

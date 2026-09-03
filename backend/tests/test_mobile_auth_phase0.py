@@ -28,8 +28,10 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clean_test_caches():
+def clean_test_caches(monkeypatch):
     """Reset in-memory stores before and after each test."""
+    monkeypatch.setattr("app.services.sms_otp.settings.OTP_PROVIDER", "mock")
+    monkeypatch.setattr("app.services.sms_otp.settings.APP_ENV", "development")
     _otp_cache.clear()
     _send_rate_cache.clear()
     _lockout_cache.clear()

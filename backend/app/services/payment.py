@@ -14,8 +14,8 @@ from app.database import supabase
 
 logger = logging.getLogger(__name__)
 
-# Platform commission rate (15% as per MOU)
-PLATFORM_COMMISSION_RATE = 0.15
+# Platform commission rate (20% platform fee, 80% provider remuneration as per CallMedex MOU)
+PLATFORM_COMMISSION_RATE = 0.20
 
 
 def _get_razorpay_client():

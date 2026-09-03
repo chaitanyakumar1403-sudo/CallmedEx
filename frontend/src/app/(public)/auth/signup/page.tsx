@@ -1,6 +1,23 @@
 "use client";
 import { useState, FormEvent } from "react";
 import DateOfBirthPicker from "@/components/DateOfBirthPicker";
+import {
+  User,
+  Stethoscope,
+  HeartHandshake,
+  Apple,
+  Activity,
+  Syringe,
+  Building2,
+  Users,
+  Pill,
+  CheckCircle2,
+  Mail,
+  FileText,
+  Clock,
+  Info,
+  AlertCircle,
+} from "lucide-react";
 
 // ─── Validation helpers ─────────────────────────────────────────────────────
 
@@ -42,13 +59,15 @@ function getPasswordStrength(password: string): { score: number; label: string; 
 }
 
 const ROLES = [
-  { value: "patient", label: "Patient", icon: "🧑‍🦱" },
-  { value: "doctor", label: "Doctor", icon: "👨‍⚕️" },
-  { value: "nurse", label: "Nurse", icon: "👩‍⚕️" },
-  { value: "phlebotomist", label: "Phlebotomist", icon: "💉" },
-  { value: "organization", label: "Organization", icon: "🏥" },
-  { value: "staff", label: "Staff", icon: "👤" },
-  { value: "pharmacy", label: "Pharmacy", icon: "💊" },
+  { value: "patient", label: "Patient", Icon: User },
+  { value: "doctor", label: "Doctor", Icon: Stethoscope },
+  { value: "dietitian", label: "Dietitian", Icon: Apple },
+  { value: "physiotherapist", label: "Physiotherapist", Icon: Activity },
+  { value: "nurse", label: "Nurse", Icon: HeartHandshake },
+  { value: "phlebotomist", label: "Phlebotomist", Icon: Syringe },
+  { value: "organization", label: "Organization", Icon: Building2 },
+  { value: "staff", label: "Staff", Icon: Users },
+  { value: "pharmacy", label: "Pharmacy", Icon: Pill },
 ];
 
 const MEDICAL_CONDITIONS = ["BP", "Sugar", "Thyroid", "Anemia", "Asthma", "Heart Disease", "None", "Other"];
@@ -63,7 +82,32 @@ const NURSING_SERVICES = [
   { value: "elderly_care", label: "Elderly Care" },
   { value: "pediatric", label: "Pediatric Nursing" },
   { value: "icu", label: "ICU / Critical Care" },
-  { value: "general", label: "General Nursing" },
+];
+
+const DIETITIAN_SPECIALIZATIONS = [
+  "Clinical & Therapeutic Nutrition",
+  "Diabetes MNT & Insulin Resistance",
+  "Weight Management & Bariatric Diet",
+  "Cardiovascular & Lipid Control",
+  "Renal Dietetics (CKD/Dialysis)",
+  "Pediatric & Child Nutrition",
+  "Sports & Athletic Nutrition",
+  "PCOD, PCOS & Hormonal Balance",
+  "Gastrointestinal & Gut Health (IBS/GERD)",
+  "Oncology & Post-Op Nutrition",
+];
+
+const PHYSIO_SPECIALIZATIONS = [
+  "Orthopedic & Musculoskeletal Rehab",
+  "Neuro-Rehabilitation (Stroke / Parkinson's)",
+  "Sports Injury & Return-to-Play",
+  "Spine, Sciatica & Posture Correction",
+  "Geriatric Mobility & Fall Prevention",
+  "Post-Surgical Joint Replacement Rehab",
+  "Pediatric Physiotherapy (CP / Milestones)",
+  "Cardiopulmonary Chest Physiotherapy",
+  "Women's Health & Pelvic Floor Rehab",
+  "Ergonomic Pain Management",
 ];
 
 export default function SignupPage() {
@@ -74,6 +118,14 @@ export default function SignupPage() {
   const isOrgLike = role === "organization" || role === "pharmacy";
   const [medicalHistory, setMedicalHistory] = useState<string[]>([]);
   const [nursingSpecs, setNursingSpecs] = useState<string[]>([]);
+  const [dietitianSpecs, setDietitianSpecs] = useState<string[]>([
+    "Clinical & Therapeutic Nutrition",
+    "Diabetes MNT & Insulin Resistance",
+  ]);
+  const [physioSpecs, setPhysioSpecs] = useState<string[]>([
+    "Orthopedic & Musculoskeletal Rehab",
+    "Spine, Sciatica & Posture Correction",
+  ]);
   const [orgType, setOrgType] = useState("hospital");
   const [isIndependent, setIsIndependent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,6 +150,18 @@ export default function SignupPage() {
 
   const toggleNursingSpec = (spec: string) => {
     setNursingSpecs((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
+  };
+
+  const toggleDietitianSpec = (spec: string) => {
+    setDietitianSpecs((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
+  };
+
+  const togglePhysioSpec = (spec: string) => {
+    setPhysioSpecs((prev) =>
       prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
     );
   };
@@ -138,12 +202,13 @@ export default function SignupPage() {
         ...(isOrgLike || role === "staff" ? (registrantRole ? { registrant_role: registrantRole } : {}) : {}),
         ...(isOrgLike || role === "staff" ? (ownerEmail ? { owner_email: ownerEmail } : {}) : {}),
         address_info: {
-          address: formData.get("address") || "",
-          city: formData.get("city") || "",
-          district: formData.get("district") || "",
-          state: formData.get("state") || "",
-          pincode: formData.get("pincode") || "",
-          country: "India",
+          address_line1: formData.get("address_line1"),
+          address_line2: formData.get("address_line2"),
+          city: formData.get("city"),
+          state: formData.get("state"),
+          district: formData.get("district"),
+          pincode: formData.get("pincode"),
+          country: formData.get("country") || "India",
         },
       };
 
@@ -156,16 +221,22 @@ export default function SignupPage() {
         body.preferred_language = formData.get("preferred_language") || "en";
       }
       if (role === "doctor") {
-        body.medical_license_number = formData.get("medical_license_number");
-        body.specialization = formData.get("specialization");
+        body.license_number = formData.get("license_number");
         body.qualification = formData.get("qualification");
+        body.specialization = formData.get("specialization");
         body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
         body.hospital_clinic_name = formData.get("hospital_clinic_name");
-        body.consultation_mode = formData.get("consultation_mode") || "both";
+        body.practice_type = workSetting;
         body.available_for_online = formData.get("available_for_online") === "on";
-        body.work_setting = workSetting;
-        body.is_independent = workSetting === "solo_clinic" ? true : isIndependent;
-        if (workSetting === "solo_clinic" || isIndependent) {
+        if (workSetting === "solo_clinic") {
+            body.clinic_address = formData.get("clinic_address");
+            body.clinic_contact = formData.get("clinic_contact");
+        } else if (workSetting === "polyclinic") {
+            body.polyclinic_name = formData.get("polyclinic_name");
+            body.consultation_hours = formData.get("consultation_hours");
+        } else if (workSetting === "hospital") {
+            body.affiliated_hospital_name = formData.get("affiliated_hospital_name");
+            body.department = formData.get("department");
             body.service_area = formData.get("service_area");
         }
       }
@@ -174,6 +245,20 @@ export default function SignupPage() {
         body.qualification = formData.get("qualification");
         body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
         body.nursing_specializations = nursingSpecs;
+      }
+      if (role === "dietitian") {
+        body.dietitian_license_number = formData.get("dietitian_license_number");
+        body.qualification = formData.get("qualification");
+        body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
+        body.hospital_clinic_name = formData.get("hospital_clinic_name");
+        body.dietitian_specializations = dietitianSpecs;
+      }
+      if (role === "physiotherapist") {
+        body.physio_license_number = formData.get("physio_license_number");
+        body.qualification = formData.get("qualification");
+        body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
+        body.hospital_clinic_name = formData.get("hospital_clinic_name");
+        body.physio_specializations = physioSpecs;
       }
       if (role === "phlebotomist") {
         body.phleb_type = formData.get("phleb_type");
@@ -262,7 +347,17 @@ export default function SignupPage() {
     return (
       <div className="auth-page">
         <div className="card auth-card" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "4rem", marginBottom: 16 }}>{isMOURole ? "📧" : "✅"}</div>
+          <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+            {isMOURole ? (
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #bfdbfe" }}>
+                <Mail size={36} color="#2563eb" />
+              </div>
+            ) : (
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#f0fdf4", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #bbf7d0" }}>
+                <CheckCircle2 size={36} color="#16a34a" />
+              </div>
+            )}
+          </div>
           <h2>{isMOURole ? "Check Your Email!" : "Account Created!"}</h2>
           {isMOURole ? (
             <>
@@ -277,16 +372,18 @@ export default function SignupPage() {
                 marginBottom: 24,
                 textAlign: 'left'
               }}>
-                <p style={{ fontWeight: 600, marginBottom: 8, color: '#166534' }}>📋 Next Steps:</p>
+                <p style={{ fontWeight: 600, marginBottom: 8, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FileText size={18} color="#166534" /> Next Steps:
+                </p>
                 <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, color: '#15803d' }}>
                   <li>Open the email from <strong>CallMedex</strong></li>
-                  <li>Click the secure link to review the MOU</li>
-                  <li>Read the terms carefully</li>
+                  <li>Click the secure link to review the MOU &amp; Scope of Services</li>
+                  <li>Review CallMedex 80/20 platform sharing &amp; tariffs</li>
                   <li>Click <strong>&quot;I Agree &amp; Activate My Account&quot;</strong></li>
                 </ol>
               </div>
-              <p style={{ fontSize: '0.85rem', color: 'var(--color-gray-500)' }}>
-                ⏰ The link expires in 24 hours. Didn&apos;t receive it? Check your spam folder.
+              <p style={{ fontSize: '0.85rem', color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Clock size={16} /> The link expires in 24 hours. Didn&apos;t receive it? Check your spam folder.
               </p>
             </>
           ) : (
@@ -310,7 +407,9 @@ export default function SignupPage() {
         <div className="role-selector">
           {ROLES.map((r) => (
             <div key={r.value} className={`role-option ${role === r.value ? "selected" : ""}`} onClick={() => setRole(r.value)}>
-              <div className="role-option__icon">{r.icon}</div>
+              <div className="role-option__icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28 }}>
+                <r.Icon size={22} />
+              </div>
               <div className="role-option__label">{r.label}</div>
             </div>
           ))}
@@ -330,7 +429,7 @@ export default function SignupPage() {
             gap: 12,
             alignItems: 'flex-start',
           }}>
-            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>⚠️</span>
+            <AlertCircle size={24} color="#ea580c" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
               <p style={{ fontWeight: 700, color: '#c2410c', marginBottom: 6, fontSize: '0.95rem' }}>
                 Important: Strict Verification Policy
@@ -573,9 +672,9 @@ export default function SignupPage() {
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                   {[
-                    { id: "solo_clinic", icon: "🩺", label: "Solo Clinic", desc: "Independent Practice" },
-                    { id: "polyclinic", icon: "🏢", label: "Polyclinic", desc: "Multi-Specialty Facility" },
-                    { id: "hospital", icon: "🏥", label: "Hospital", desc: "Hospital Affiliated OPD" },
+                    { id: "solo_clinic", Icon: Stethoscope, label: "Solo Clinic", desc: "Independent Practice" },
+                    { id: "polyclinic", Icon: Building2, label: "Polyclinic", desc: "Multi-Specialty Facility" },
+                    { id: "hospital", Icon: HeartHandshake, label: "Hospital", desc: "Hospital Affiliated OPD" },
                   ].map((setting) => (
                     <div
                       key={setting.id}
@@ -590,7 +689,9 @@ export default function SignupPage() {
                       }}
                       onClick={() => setWorkSetting(setting.id)}
                     >
-                      <div style={{ fontSize: "1.5rem", marginBottom: 4 }}>{setting.icon}</div>
+                      <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+                        <setting.Icon size={24} color={workSetting === setting.id ? "#0284c7" : "#64748b"} />
+                      </div>
                       <div style={{ fontWeight: 700, fontSize: "0.9rem", color: workSetting === setting.id ? "#0369a1" : "#334155" }}>
                         {setting.label}
                       </div>
@@ -759,9 +860,137 @@ export default function SignupPage() {
                 padding: '12px 16px', 
                 marginTop: 16,
                 fontSize: '0.85rem',
-                color: '#1e40af'
+                color: '#1e40af',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
               }}>
-                💡 <strong>Note:</strong> Service fees are managed centrally by CallMedex. Patients are charged based on the service type and duration. Settlement is done as per the agreed structure.
+                <Info size={16} color="#2563eb" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong>Note:</strong> Service fees are managed centrally by CallMedex. Patients are charged based on the service type and duration. Settlement is done as per the agreed 80/20 commercial structure.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Dietitian & Clinical Nutritionist Fields ─── */}
+          {role === "dietitian" && (
+            <div className="card-section">
+              <h4>Dietetic &amp; Clinical Nutrition Credentials</h4>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">IDA / Registered Dietitian (RD) Number *</label>
+                  <input name="dietitian_license_number" className="form-input" placeholder="e.g. IDA-2024-8842 / RD-901" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Highest Qualification *</label>
+                  <input name="qualification" className="form-input" placeholder="e.g. M.Sc Clinical Nutrition / RD / PGD Dietetics" required />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Years of Clinical Experience</label>
+                  <input name="years_of_experience" type="number" className="form-input" placeholder="e.g. 5" defaultValue="1" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Clinic / Wellness Center Name (Optional)</label>
+                  <input name="hospital_clinic_name" className="form-input" placeholder="e.g. NutriCare Metabolic Clinic" />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Dietetic Specializations (Select all that apply)</label>
+                <div className="chip-group">
+                  {DIETITIAN_SPECIALIZATIONS.map((s) => (
+                    <span
+                      key={s}
+                      className={`chip ${dietitianSpecs.includes(s) ? "active" : ""}`}
+                      onClick={() => toggleDietitianSpec(s)}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ 
+                backgroundColor: '#f0fdf4', 
+                border: '1px solid #bbf7d0', 
+                borderRadius: 8, 
+                padding: '14px 16px', 
+                marginTop: 16,
+                fontSize: '0.85rem',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+              }}>
+                <Info size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong>80/20 Remuneration &amp; Pricing Autonomy:</strong> CallMedex provides standard reference rates (₹400 for tele-dietetics, ₹800 for home visits) with an <strong>80% provider payout</strong>. On the next step (MOU acceptance), you can review your complete Scope of Services and customize tariffs for every consultation modality.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Physiotherapist Fields ─── */}
+          {role === "physiotherapist" && (
+            <div className="card-section">
+              <h4>Physiotherapy &amp; Rehabilitation Credentials</h4>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">State Council / IAP Registration Number *</label>
+                  <input name="physio_license_number" className="form-input" placeholder="e.g. KSPC-PT-2024-1928" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Degree / Qualification *</label>
+                  <input name="qualification" className="form-input" placeholder="e.g. BPT, MPT (Orthopedics / Neuro)" required />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Years of Clinical Experience</label>
+                  <input name="years_of_experience" type="number" className="form-input" placeholder="e.g. 6" defaultValue="1" min="0" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Physiotherapy Center Name (Optional)</label>
+                  <input name="hospital_clinic_name" className="form-input" placeholder="e.g. Apex Physio &amp; Spine Rehab" />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Clinical Focus Areas (Select all that apply)</label>
+                <div className="chip-group">
+                  {PHYSIO_SPECIALIZATIONS.map((s) => (
+                    <span
+                      key={s}
+                      className={`chip ${physioSpecs.includes(s) ? "active" : ""}`}
+                      onClick={() => togglePhysioSpec(s)}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ 
+                backgroundColor: '#f0fdf4', 
+                border: '1px solid #bbf7d0', 
+                borderRadius: 8, 
+                padding: '14px 16px', 
+                marginTop: 16,
+                fontSize: '0.85rem',
+                color: '#166534',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+              }}>
+                <Info size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <strong>80/20 Commercial Split &amp; Procedure Tariffs:</strong> CallMedex provides standard reference rates (₹400 for assessment, ₹800 for home therapy) with an <strong>80% provider payout</strong>. On the next step (MOU acceptance), you can review all 100+ physiotherapy procedures and customize your tariffs anytime.
+                </div>
               </div>
             </div>
           )}

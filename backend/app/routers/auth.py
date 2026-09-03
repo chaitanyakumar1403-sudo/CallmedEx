@@ -8,6 +8,7 @@ import secrets
 import re
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from app.models.schemas import (
@@ -93,6 +94,8 @@ ROLE_TABLE_MAP = {
     UserRole.STAFF: "staff",
     UserRole.PHARMACY: "pharmacies",
     UserRole.NURSE: "nurses",
+    UserRole.DIETITIAN: "dietitians",
+    UserRole.PHYSIOTHERAPIST: "physiotherapists",
 }
 
 
@@ -275,6 +278,44 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "verification_status": "pending",
         }
 
+    elif user.role == UserRole.DIETITIAN:
+        return {
+            **base,
+            "dietitian_license_number": getattr(user, "dietitian_license_number", None) or "",
+            "qualification": user.qualification or "",
+            "specializations": getattr(user, "dietitian_specializations", None) or [],
+            "years_of_experience": user.years_of_experience or 0,
+            "clinic_center_name": getattr(user, "hospital_clinic_name", None) or "",
+            "consultation_fee": getattr(user, "consultation_fee", 400.0) or 400.0,
+            "home_visit_fee": 800.0,
+            "consultation_mode": "both",
+            "available_for_online": True,
+            "available_for_home_visit": True,
+            "scope_of_services": getattr(user, "scope_of_services", None) or [],
+            "verification_status": "pending",
+        }
+
+    elif user.role == UserRole.PHYSIOTHERAPIST:
+        return {
+            **base,
+            "physio_license_number": getattr(user, "physio_license_number", None) or "",
+            "qualification": user.qualification or "",
+            "specializations": getattr(user, "physio_specializations", None) or [],
+            "years_of_experience": user.years_of_experience or 0,
+            "clinic_center_name": getattr(user, "hospital_clinic_name", None) or "",
+            "consultation_fee": getattr(user, "consultation_fee", 400.0) or 400.0,
+            "home_visit_fee": 800.0,
+            "consultation_mode": "both",
+            "available_for_online": True,
+            "available_for_home_visit": True,
+            "is_online": False,
+            "current_lat": None,
+            "current_lng": None,
+            "service_radius_km": 15.0,
+            "scope_of_services": getattr(user, "scope_of_services", None) or [],
+            "verification_status": "pending",
+        }
+
     return base
 
 
@@ -435,6 +476,9 @@ async def preview_mou(token: str):
 
         # Get the legal document for this role
         legal_doc = LegalService.get_active_document(role)
+        from app.services.scope_catalogs import get_master_catalog_for_role, sanitize_selected_scope
+
+        scope_catalog = get_master_catalog_for_role(role)
 
         return {
             "success": True,
@@ -450,6 +494,11 @@ async def preview_mou(token: str):
                 "email": user_data.get("email"),
                 "full_name": user_data.get("full_name"),
                 "role": role,
+            },
+            "scope_catalog": scope_catalog,
+            "commercial_split": {
+                "provider_share_pct": 80.0,
+                "platform_fee_pct": 20.0,
             },
         }
 
@@ -468,6 +517,7 @@ class AcceptMOURequest(BaseModel):
     token: str
     ip_address: str = "unknown"
     user_agent: str = "unknown"
+    selected_scope: Optional[List[dict]] = None
 
 
 @router.post("/accept-mou", response_model=APIResponse)
@@ -511,9 +561,21 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
         user_data["registration_status"] = "active"
         _create_user(user_data)
 
-        # 2. Create the role-specific profile
+        # 2. Create the role-specific profile with selected scope
         table = ROLE_TABLE_MAP.get(UserRole(role))
         if table and profile_data:
+            from app.services.scope_catalogs import sanitize_selected_scope
+            if req.selected_scope:
+                sanitized = sanitize_selected_scope(role, req.selected_scope)
+                profile_data["scope_of_services"] = sanitized
+                for s in sanitized:
+                    if s.get("modality") == "online" and "consultation_fee" in profile_data:
+                        profile_data["consultation_fee"] = s.get("custom_price", profile_data["consultation_fee"])
+                    elif s.get("modality") == "home" and "home_visit_fee" in profile_data:
+                        profile_data["home_visit_fee"] = s.get("custom_price", profile_data.get("home_visit_fee", 800.0))
+            elif "scope_of_services" in profile_data and not profile_data["scope_of_services"]:
+                profile_data["scope_of_services"] = sanitize_selected_scope(role, [])
+
             _create_role_profile(table, profile_data)
 
         # 3. Record the legal acceptance with full audit trail
