@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 
 /** Decode JWT payload to check expiry without verifying signature */
 function isTokenExpired(token: string): boolean {
@@ -119,12 +120,9 @@ export default function LoginPage() {
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#64748b",
-                  fontSize: "1.15rem",
-                  lineHeight: 1,
-                  userSelect: "none",
                 }}
               >
-                {showPassword ? "👁️‍🗨️" : "👁️"}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
