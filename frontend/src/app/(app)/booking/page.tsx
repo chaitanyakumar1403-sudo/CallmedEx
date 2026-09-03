@@ -1,23 +1,48 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import LocationPicker from "../../../components/LocationPicker";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import labTestCatalog from "@/data/lab-test-prices.json";
 import healthPackagesCatalog from "@/data/health-packages.json";
+import {
+  Stethoscope,
+  FlaskConical,
+  Home,
+  Droplet,
+  Video,
+  HeartPulse,
+  Activity,
+  Apple,
+  Truck,
+  Package,
+  Pill,
+  CheckCircle2,
+  AlertTriangle,
+  MapPin,
+  Clock,
+  Calendar,
+  Building2,
+  ArrowRight,
+  ShieldCheck,
+  Search,
+  Star,
+  Info,
+  Loader2,
+} from "lucide-react";
 
 // Nursing care types a nurse can be dispatched for. Mirrors nurses.specializations
 // and the dedicated /booking/nurse flow.
 const NURSING_SERVICES = [
-  { id: "wound_dressing", name: "Wound Dressing", icon: "🩹", desc: "Post-surgical or injury wound care", duration: "30-60 min" },
-  { id: "injection", name: "Injection", icon: "💉", desc: "IM, IV or subcutaneous injections", duration: "15-30 min" },
-  { id: "iv_infusion", name: "IV Infusion", icon: "💧", desc: "IV drip setup and monitoring", duration: "1-3 hours" },
-  { id: "post_operative", name: "Post-Op Care", icon: "🏥", desc: "Post-surgery recovery assistance", duration: "2-4 hours" },
-  { id: "catheter_care", name: "Catheter Care", icon: "🧴", desc: "Urinary catheter management", duration: "30-60 min" },
-  { id: "elderly_care", name: "Elderly Care", icon: "👵", desc: "Companion care, medication management", duration: "4-8 hours" },
-  { id: "pediatric", name: "Pediatric Care", icon: "👶", desc: "Infant and child healthcare", duration: "1-4 hours" },
-  { id: "general", name: "General Nursing", icon: "👩‍⚕️", desc: "Vitals, basic care, assessments", duration: "1-2 hours" },
+  { id: "wound_dressing", name: "Wound Dressing", desc: "Post-surgical or injury wound care", duration: "30-60 min" },
+  { id: "injection", name: "Injection", desc: "IM, IV or subcutaneous injections", duration: "15-30 min" },
+  { id: "iv_infusion", name: "IV Infusion", desc: "IV drip setup and monitoring", duration: "1-3 hours" },
+  { id: "post_operative", name: "Post-Op Care", desc: "Post-surgery recovery assistance", duration: "2-4 hours" },
+  { id: "catheter_care", name: "Catheter Care", desc: "Urinary catheter management", duration: "30-60 min" },
+  { id: "elderly_care", name: "Elderly Care", desc: "Companion care, medication management", duration: "4-8 hours" },
+  { id: "pediatric", name: "Pediatric Care", desc: "Infant and child healthcare", duration: "1-4 hours" },
+  { id: "general", name: "General Nursing", desc: "Vitals, basic care, assessments", duration: "1-2 hours" },
 ];
 
 // Standard fallback diagnostic tests if an organization hasn't listed custom items yet
@@ -53,7 +78,7 @@ interface SlotPricing {
 
 function getSlotPricing(slot: string): SlotPricing {
   if (PREMIUM_SLOTS.has(slot)) {
-    return { tier: "premium", label: "Premium", badge: "⭐ ₹99 Extra", surcharge: 99 };
+    return { tier: "premium", label: "Premium", badge: "+₹99 Extra", surcharge: 99 };
   }
   return { tier: "standard", label: "Standard", badge: "", surcharge: 0 };
 }
@@ -81,6 +106,7 @@ const formatSlotLabel = (t: string) => {
 };
 
 function BookingPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
   const orgParam = searchParams.get("org");
@@ -731,49 +757,198 @@ function BookingPageContent() {
 
         {/* Error Banner */}
         {error && (
-          <div style={{ padding: "12px 20px", backgroundColor: "#fed7d7", color: "#9b2c2c", borderRadius: 10, marginBottom: 20, fontSize: "0.9rem", fontWeight: 600 }}>
-            ⚠️ {error}
+          <div style={{ padding: "12px 20px", backgroundColor: "#fed7d7", color: "#9b2c2c", borderRadius: 10, marginBottom: 20, fontSize: "0.9rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+            <AlertTriangle size={18} /> {error}
           </div>
         )}
 
         {/* ─── STEP 1: Choose What To Book ─── */}
         {step === 1 && (
           <div className="card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: "1.05rem", marginBottom: 20, color: "#1a2b4a" }}>What service would you like to book?</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: "1.2rem", margin: "0 0 6px", color: "#1a2b4a", fontWeight: 800 }}>What service would you like to book?</h3>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>
+                Select a healthcare service to book verified doctors, therapists, diagnostic tests, or emergency care.
+              </p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
               {[
-                { key: "doctor", icon: "🩺", label: "Doctor Appointment", desc: "Clinic, Polyclinic or Hospital OPD Visit" },
-                { key: "lab", icon: "🧪", label: "Lab Test / Diagnostics", desc: "Book with CallMedex — we allocate the nearest partner centre for tests that need a visit" },
-                { key: "home_doctor", icon: "🏠", label: "Doctor Home Visit", desc: "Verified doctor arrives at your doorstep" },
-                { key: "home_collection", icon: "🩸", label: "Home Sample Collection", desc: "Phlebotomist collects blood samples at home" },
-                { key: "video_consult", icon: "📹", label: "Instant Video Consult", desc: "Consult top doctor online via live video room" },
-                { key: "nurse_visit", icon: "👩‍⚕️", label: "Nurse Home Visit", desc: "Injection, IV drip, wound care & nursing at home" },
-              ].map((opt) => (
-                <div
-                  key={opt.key}
-                  style={{
-                    padding: 20,
-                    borderRadius: 12,
-                    border: "2px solid #e2e8f0",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    backgroundColor: "white",
-                  }}
-                  onClick={() => {
-                    setBookingType(opt.key);
-                    setSelectedOrg(null);
-                    setSelectedDoctor(null);
-                    setSelectedTest(null);
-                    setSelectedTests([]);
-                    setError("");
-                    setStep(2);
-                  }}
-                >
-                  <div style={{ fontSize: "2rem", marginBottom: 8 }}>{opt.icon}</div>
-                  <div style={{ fontWeight: 700, color: "#1a2b4a", marginBottom: 4 }}>{opt.label}</div>
-                  <div style={{ fontSize: "0.78rem", color: "#718096", lineHeight: 1.4 }}>{opt.desc}</div>
-                </div>
-              ))}
+                {
+                  key: "doctor",
+                  Icon: Stethoscope,
+                  iconColor: "#0284c7",
+                  bgColor: "#f0f9ff",
+                  borderColor: "#bae6fd",
+                  label: "Doctor Appointment",
+                  desc: "Clinic, Polyclinic or Hospital OPD Visit with verified specialists",
+                  action: "inline",
+                },
+                {
+                  key: "video_consult",
+                  Icon: Video,
+                  iconColor: "#7c3aed",
+                  bgColor: "#f5f3ff",
+                  borderColor: "#ddd6fe",
+                  label: "Instant Video Consult",
+                  desc: "Consult top doctors & clinical specialists online via live video room",
+                  action: "inline",
+                },
+                {
+                  key: "physiotherapy",
+                  Icon: Activity,
+                  iconColor: "#059669",
+                  bgColor: "#ecfdf5",
+                  borderColor: "#a7f3d0",
+                  label: "Physiotherapy & Rehab",
+                  desc: "In-Clinic, Tele-Rehab or Home Care by certified physiotherapists",
+                  route: "/booking/therapy?role=physiotherapist",
+                },
+                {
+                  key: "dietitian",
+                  Icon: Apple,
+                  iconColor: "#16a34a",
+                  bgColor: "#f0fdf4",
+                  borderColor: "#bbf7d0",
+                  label: "Diet & Nutritionist",
+                  desc: "Personalized diet charts, weight care & medical nutrition therapy",
+                  route: "/booking/therapy?role=dietitian",
+                },
+                {
+                  key: "nurse_visit",
+                  Icon: HeartPulse,
+                  iconColor: "#dc2626",
+                  bgColor: "#fef2f2",
+                  borderColor: "#fecaca",
+                  label: "Nurse Home Visit",
+                  desc: "Injections, IV drip, wound care, post-op & elderly nursing at home",
+                  route: "/booking/nurse",
+                },
+                {
+                  key: "home_doctor",
+                  Icon: Home,
+                  iconColor: "#d97706",
+                  bgColor: "#fffbeb",
+                  borderColor: "#fde68a",
+                  label: "Doctor Home Visit",
+                  desc: "Verified doctor arrives at your doorstep for clinical evaluation",
+                  action: "inline",
+                },
+                {
+                  key: "lab",
+                  Icon: FlaskConical,
+                  iconColor: "#0891b2",
+                  bgColor: "#ecfeff",
+                  borderColor: "#a5f3fc",
+                  label: "Lab Test / Diagnostics",
+                  desc: "Pathology tests & scans allocated to nearest certified partner lab",
+                  action: "inline",
+                },
+                {
+                  key: "home_collection",
+                  Icon: Droplet,
+                  iconColor: "#e11d48",
+                  bgColor: "#fff1f2",
+                  borderColor: "#fecdd3",
+                  label: "Home Sample Collection",
+                  desc: "Phlebotomist collects blood samples at home with cold-chain kit",
+                  action: "inline",
+                },
+                {
+                  key: "packages",
+                  Icon: Package,
+                  iconColor: "#4f46e5",
+                  bgColor: "#eef2ff",
+                  borderColor: "#c7d2fe",
+                  label: "Health Packages",
+                  desc: "Full body checkups & specialized wellness panels with 30% add-on savings",
+                  route: "/packages",
+                },
+                {
+                  key: "pharmacy",
+                  Icon: Pill,
+                  iconColor: "#0d9488",
+                  bgColor: "#f0fdfa",
+                  borderColor: "#99f6e4",
+                  label: "Order Medicines",
+                  desc: "Genuine prescription & OTC medicines delivered to your doorstep",
+                  route: "/pharmacy",
+                },
+                {
+                  key: "ambulance",
+                  Icon: Truck,
+                  iconColor: "#b91c1c",
+                  bgColor: "#fef2f2",
+                  borderColor: "#fecaca",
+                  label: "Emergency Ambulance",
+                  desc: "24/7 Rapid Ambulance Dispatch (BLS/ALS with oxygen & paramedics)",
+                  route: "/ambulance",
+                },
+              ].map((opt) => {
+                const IconComp = opt.Icon;
+                return (
+                  <div
+                    key={opt.key}
+                    style={{
+                      padding: 20,
+                      borderRadius: 14,
+                      border: "2px solid #e2e8f0",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      backgroundColor: "white",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = opt.iconColor;
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "#e2e8f0";
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    onClick={() => {
+                      if (opt.route) {
+                        router.push(opt.route);
+                        return;
+                      }
+                      setBookingType(opt.key);
+                      setSelectedOrg(null);
+                      setSelectedDoctor(null);
+                      setSelectedTest(null);
+                      setSelectedTests([]);
+                      setError("");
+                      setStep(2);
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: opt.bgColor,
+                          border: `1px solid ${opt.borderColor}`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: opt.iconColor,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <IconComp size={24} />
+                      </div>
+                      <div style={{ fontWeight: 700, color: "#1a2b4a", marginBottom: 6, fontSize: "1rem" }}>{opt.label}</div>
+                      <div style={{ fontSize: "0.78rem", color: "#64748b", lineHeight: 1.45 }}>{opt.desc}</div>
+                    </div>
+                    <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: opt.iconColor }}>
+                      Book now <ArrowRight size={14} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -798,7 +973,9 @@ function BookingPageContent() {
             />
 
             {fetchingOrgs ? (
-              <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}>⌛ Loading registered providers...</div>
+              <div style={{ textAlign: "center", padding: 30, color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Loader2 size={18} className="animate-spin" /> Loading registered providers...
+              </div>
             ) : filteredRealOrgs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {filteredRealOrgs.map((org) => {
@@ -829,12 +1006,12 @@ function BookingPageContent() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
                             <h4 style={{ margin: 0, fontSize: "1.05rem", color: "#0f172a", fontWeight: 700 }}>{orgName}</h4>
                             {getOrgTypeBadge(orgTypeVal)}
-                            <span style={{ fontSize: "0.72rem", backgroundColor: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: 12, fontWeight: 700 }}>
-                              ✅ Registered Facility
+                            <span style={{ fontSize: "0.72rem", backgroundColor: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <CheckCircle2 size={12} /> Registered Facility
                             </span>
                           </div>
-                          <p style={{ margin: "4px 0 6px 0", fontSize: "0.85rem", color: "#64748b" }}>
-                            📍 {fullAddress || "Visakhapatnam"}
+                          <p style={{ margin: "4px 0 6px 0", fontSize: "0.85rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
+                            <MapPin size={13} /> {fullAddress || "Visakhapatnam"}
                           </p>
                           <div style={{ fontSize: "0.78rem", color: "#0284c7", fontWeight: 600 }}>
                             {docsCount} Doctor{docsCount === 1 ? "" : "s"} · {svcsCount} Active Test{svcsCount === 1 ? "" : "s"} / Services
@@ -873,8 +1050,8 @@ function BookingPageContent() {
               <h3 style={{ fontSize: "1.05rem", margin: 0, color: "#1a2b4a" }}>
                 Select Doctor at {selectedOrg.organization_name || selectedOrg.name || "Facility"}
               </h3>
-              <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "4px 0 0 0" }}>
-                📍 {[selectedOrg.address, selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
+              <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "4px 0 0 0", display: "flex", alignItems: "center", gap: 4 }}>
+                <MapPin size={13} /> {[selectedOrg.address, selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
               </p>
             </div>
 
@@ -896,7 +1073,9 @@ function BookingPageContent() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "#0f172a" }}>🏥 General OPD Consultation</div>
+                  <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Building2 size={16} /> General OPD Consultation
+                  </div>
                   <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Assigned to available specialist at reception during walk-in / OPD hours</div>
                 </div>
                 <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0284c7" }}>
@@ -905,8 +1084,8 @@ function BookingPageContent() {
               </div>
             </div>
 
-            <h4 style={{ fontSize: "0.9rem", color: "#475569", marginBottom: 12, marginTop: 20 }}>
-              👨‍⚕️ Available Doctors at this Facility ({(selectedOrg.doctors || []).length})
+            <h4 style={{ fontSize: "0.9rem", color: "#475569", marginBottom: 12, marginTop: 20, display: "flex", alignItems: "center", gap: 6 }}>
+              <Stethoscope size={16} /> Available Doctors at this Facility ({(selectedOrg.doctors || []).length})
             </h4>
 
             {(selectedOrg.doctors || []).length > 0 ? (
@@ -943,7 +1122,7 @@ function BookingPageContent() {
                             {doc.specialization || "General Medicine"}
                           </div>
                           <div style={{ fontSize: "0.75rem", color: "#059669", marginTop: 2 }}>
-                            {doc.consultation_mode === "online" ? "💻 Online Only" : doc.consultation_mode === "in_person" ? "🏥 In-Person Only" : "🏥 In-Person & Online"}
+                            {doc.consultation_mode === "online" ? "Online Only" : doc.consultation_mode === "in_person" ? "In-Person Only" : "In-Person & Online"}
                           </div>
                         </div>
                         {doc.consultation_fee > 0 && (
@@ -979,7 +1158,9 @@ function BookingPageContent() {
             </h3>
 
             {fetchingOrgs ? (
-              <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}>⌛ Loading registered doctors...</div>
+              <div style={{ textAlign: "center", padding: 30, color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <Loader2 size={18} className="animate-spin" /> Loading registered doctors...
+              </div>
             ) : realDoctors.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {realDoctors.map((doc) => (
@@ -1001,7 +1182,9 @@ function BookingPageContent() {
                       <div>
                         <div style={{ fontWeight: 700, fontSize: "1rem", color: "#0f172a" }}>{doc.name}</div>
                         <div style={{ fontSize: "0.82rem", color: "#64748b" }}>{doc.specialization} · {doc.qualification || "MBBS"}</div>
-                        <div style={{ fontSize: "0.78rem", color: "#0284c7", marginTop: 4 }}>📍 {doc.city || "Visakhapatnam"}</div>
+                        <div style={{ fontSize: "0.78rem", color: "#0284c7", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                          <MapPin size={12} /> {doc.city || "Visakhapatnam"}
+                        </div>
                       </div>
                       <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.1rem" }}>
                         ₹{doc.fees?.video || doc.fees?.in_person || doc.fee || 499}
@@ -1048,10 +1231,12 @@ function BookingPageContent() {
                           background: on ? "#eff6ff" : "#fff",
                         }}
                       >
-                        <div style={{ fontSize: "1.4rem" }}>{svc.icon}</div>
+                        <div style={{ color: "#dc2626", marginBottom: 4 }}><HeartPulse size={20} /></div>
                         <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#1a2b4a", marginTop: 4 }}>{svc.name}</div>
                         <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>{svc.desc}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4 }}>⏱ {svc.duration}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4, display: "flex", alignItems: "center", gap: 3 }}>
+                          <Clock size={11} /> {svc.duration}
+                        </div>
                       </button>
                     );
                   })}
@@ -1097,7 +1282,7 @@ function BookingPageContent() {
 
             <div style={{ marginBottom: 20 }}>
               <LocationPicker
-                label="🏡 Complete Home Address"
+                label="Complete Home Address"
                 required
                 initialAddress={dispatchAddress}
                 onLocationSelect={(loc) => {
@@ -1160,8 +1345,8 @@ function BookingPageContent() {
                 }}
               >
                 <div>
-                  <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>
-                    📦 Booking Package: {packageParam} {planTypeParam === "couple" ? "(Couple Plan)" : ""}
+                  <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Package size={16} /> Booking Package: {packageParam} {planTypeParam === "couple" ? "(Couple Plan)" : ""}
                   </span>
                   <span style={{ display: "block", fontSize: "0.82rem", color: "#0284c7", marginTop: 2 }}>
                     Fixed CallMedex rate — free home sample collection included

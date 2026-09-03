@@ -452,6 +452,11 @@ class BookingCreate(BaseModel):
     collection_lat: Optional[float] = None
     collection_lng: Optional[float] = None
     collection_address: Optional[str] = None
+    # How this appointment is delivered. Providers who work more than one way
+    # (a physiotherapist takes teleconsults, home visits AND walk-ins at their
+    # centre) need the patient's choice carried through: a home_visit booking
+    # has to raise a dispatch to that provider, an in_person one must not.
+    consultation_mode: Optional[str] = None  # in_person | online | home_visit
 
 
 class SlotAllotment(BaseModel):

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
+import ProviderSchedulePanel from "../components/ProviderSchedulePanel";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
 import {
@@ -40,6 +41,40 @@ interface ScopeItem {
   is_active: boolean;
 }
 
+
+// Map a real booking row into the queue item this panel renders.
+// This queue used to be a hardcoded array of invented patients ("Rahul Verma",
+// "Meera Krishnan", ...) with meet links pointing at /telemed/room/<id>, a
+// route that does not exist. A provider must only ever see their own real
+// appointments.
+function bookingToQueueItem(b: any) {
+  const slot = b.slot_start ? new Date(b.slot_start) : null;
+  const dob = b.patient_date_of_birth ? new Date(b.patient_date_of_birth) : null;
+  let age: number | null = null;
+  if (dob && !Number.isNaN(dob.getTime())) {
+    const now = new Date();
+    age = now.getFullYear() - dob.getFullYear();
+    const m = now.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
+  }
+  const serviceType = String(b.service_type || "");
+  const isHome = serviceType.includes("home") || String(b.booking_kind || "").includes("home");
+  return {
+    id: b.id,
+    patient_name: b.patient_name || "Patient",
+    age,
+    gender: b.patient_gender || null,
+    condition: b.notes || serviceType.replace(/_/g, " ") || "Consultation",
+    modality: isHome ? "home" : "online",
+    time: slot
+      ? slot.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "Time to be confirmed",
+    status: b.status,
+    meet_link: `/dashboard/doctor/consult/${b.id}`,
+    address: b.collection_address || b.address || "",
+  };
+}
+
 export default function DietitianDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("consultations");
@@ -61,41 +96,7 @@ export default function DietitianDashboard() {
   const [generatedPlan, setGeneratedPlan] = useState<any>(null);
 
   // Active Consultations Queue
-  const [consultations, setConsultations] = useState([
-    {
-      id: "cn-101",
-      patient_name: "Rahul Verma",
-      age: 42,
-      gender: "Male",
-      condition: "Type 2 Diabetes & Dyslipidemia",
-      modality: "online",
-      time: "10:30 AM",
-      status: "scheduled",
-      meet_link: "/telemed/room/call-dt-101",
-    },
-    {
-      id: "cn-102",
-      patient_name: "Meera Krishnan",
-      age: 29,
-      gender: "Female",
-      condition: "PCOD & Weight Management",
-      modality: "online",
-      time: "02:00 PM",
-      status: "confirmed",
-      meet_link: "/telemed/room/call-dt-102",
-    },
-    {
-      id: "cn-103",
-      patient_name: "Gopal Sundaram",
-      age: 68,
-      gender: "Male",
-      condition: "Post-Stroke Dysphagia & Enteral Feeding",
-      modality: "home",
-      time: "04:30 PM",
-      status: "dispatch_ready",
-      address: "Indiranagar, 12th Main, Bengaluru",
-    },
-  ]);
+  const [consultations, setConsultations] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDietitianData = async () => {
@@ -127,6 +128,17 @@ export default function DietitianDashboard() {
           setScopeList(scopeData.data.scope_of_services || []);
           setConsultFee(scopeData.data.consultation_fee || 400);
           setHomeVisitFee(scopeData.data.home_visit_fee || 800);
+        }
+
+        // Today's real appointments for this provider.
+        const apptRes = await fetch(`${apiBase}/api/bookings/provider/today`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (apptRes.ok) {
+          const apptData = await apptRes.json();
+          if (apptData.success) {
+            setConsultations((apptData.data?.bookings || []).map(bookingToQueueItem));
+          }
         }
       } catch (err) {
         console.error("Error fetching dietitian dashboard data:", err);
@@ -218,6 +230,7 @@ export default function DietitianDashboard() {
 
   const TABS = [
     { id: "consultations", label: "Patient Queue", icon: Calendar },
+    { id: "schedule", label: "Slots & Availability", icon: Calendar },
     { id: "dispatch", label: "Doorstep Visits", icon: MapPin },
     { id: "meal_planner", label: "Diet Chart Studio", icon: Apple },
     { id: "scope_tariffs", label: "Services & Tariffs (80/20)", icon: Sliders },
@@ -272,6 +285,11 @@ export default function DietitianDashboard() {
             Today&apos;s Dietetic Consultations Queue
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {consultations.length === 0 && (
+              <div style={{ padding: "28px 20px", textAlign: "center", color: "#64748b", fontSize: "0.9rem" }}>
+                No dietetic consultations booked for today.
+              </div>
+            )}
             {consultations.map((item) => (
               <div
                 key={item.id}
@@ -666,6 +684,10 @@ export default function DietitianDashboard() {
       </div>
 
       {/* ─── TAB 5: PROFILE ─── */}
+      <div className={activeTab === "schedule" ? "" : "tab-panel-hidden"}>
+        <ProviderSchedulePanel roleLabel="dietetic practice" />
+      </div>
+
       <div className={activeTab === "profile" ? "" : "tab-panel-hidden"}>
         <DashboardProfile profile={profile} role="dietitian" />
       </div>

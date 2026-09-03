@@ -57,6 +57,30 @@ export default function PatientDashboard() {
   const [user, setUser] = useState<UserData | null>(null);
   const [lang, setLang] = useState<'en' | 'te' | 'hi'>('en');
   const [bookings, setBookings] = useState<any[]>([]);
+
+  // Single source of truth for reloading the booking list.
+  //
+  // This was open-coded at four call sites and three of them were wrong: two
+  // read `bData.bookings` when the endpoint returns
+  // `{success, data:{bookings}}` (so the list silently emptied after cancelling
+  // a booking or a dispatch), and one hit `/api/bookings/my-bookings`, which is
+  // not a route — the list never refreshed after responding to an allotted
+  // slot. Keeping the fetch in one place is what stops that drifting again.
+  const refreshBookings = async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) return;
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) setBookings(data.data?.bookings || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [showAbhaModal, setShowAbhaModal] = useState(false);
   const [abhaTab, setAbhaTab] = useState<'link' | 'create'>('link');
@@ -554,14 +578,7 @@ export default function PatientDashboard() {
 
       if (res.success || res.message?.includes("cancelled")) {
         toast(res.message || "Request cancelled successfully.");
-        // Refresh bookings
-        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
-          headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
-        });
-        if (bRes.ok) {
-          const bData = await bRes.json();
-          setBookings(bData.bookings || []);
-        }
+        await refreshBookings();
       } else {
         toast(res.message || "Failed to cancel");
       }
@@ -584,14 +601,7 @@ export default function PatientDashboard() {
       const res = await bookingsAPI.cancelBooking(bookingId);
       if (res.success) {
         toast(res.message);
-        // Refresh bookings
-        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my`, {
-          headers: { 'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}` }
-        });
-        if (bRes.ok) {
-          const bData = await bRes.json();
-          setBookings(bData.bookings || []);
-        }
+        await refreshBookings();
       } else {
         toast(res.message || "Failed to cancel booking");
       }
@@ -631,12 +641,7 @@ export default function PatientDashboard() {
       if (res.ok && data.success) {
         toast("Quick Re-Order placed successfully! Check active dispatches & bookings.");
         setShowReorderModal(false);
-        // Refresh bookings
-        const bRes = await fetch(`${apiBase}/api/bookings/my`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        const bData = await bRes.json();
-        if (bData.success) setBookings(bData.data.bookings || []);
+        await refreshBookings();
       } else {
         toast(data.detail || data.message || "Failed to re-order");
       }
@@ -666,12 +671,7 @@ export default function PatientDashboard() {
       const data = await res.json();
       if (data.success) {
         toast(data.message);
-        // Refresh bookings
-        const bRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings/my-bookings`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const bData = await bRes.json();
-        if (bData.success) setBookings(bData.data.bookings || []);
+        await refreshBookings();
       } else {
         toast(data.detail || "Failed to respond");
       }

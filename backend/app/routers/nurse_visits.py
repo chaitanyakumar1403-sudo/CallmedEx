@@ -28,6 +28,36 @@ class NurseVitalsLogRequest(BaseModel):
     attachment_url: Optional[str] = None
 
 
+def _require_visit_party(booking: dict, user_id: str, role: str, action: str) -> None:
+    """Assert the caller is actually attached to this visit.
+
+    Holding the role "nurse" is not authorisation for a *particular* patient's
+    visit — every nurse on the platform holds it. Clinical vitals, wound notes
+    and IV logs are PHI, so membership is checked per booking: the assigned
+    provider, the patient themselves, or an admin. Anyone else is refused
+    regardless of role.
+    """
+    if role == "admin":
+        return
+    assigned = (booking.get("assigned_nurse_id"), booking.get("assigned_provider_id"))
+    if user_id in assigned or user_id == booking.get("patient_id"):
+        return
+    raise HTTPException(403, f"Not authorized to {action} this visit.")
+
+
+def _load_visit_booking(booking_id: str) -> dict:
+    rows = _rows(
+        supabase.table("bookings")
+        .select("id, patient_id, assigned_nurse_id, assigned_provider_id, status")
+        .eq("id", booking_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Nursing booking not found.")
+    return rows[0]
+
+
 @router.post("/{booking_id}/vitals")
 async def record_nurse_visit_vitals(
     booking_id: str,
@@ -42,27 +72,12 @@ async def record_nurse_visit_vitals(
         raise HTTPException(500, "Database unavailable.")
 
     nurse_id = current_user["sub"]
-    role = current_user.get("role")
+    role = current_user.get("role") or ""
 
-    # Verify booking exists
-    b_rows = _rows(
-        supabase.table("bookings")
-        .select("id, patient_id, assigned_nurse_id, assigned_provider_id, status")
-        .eq("id", booking_id)
-        .limit(1)
-        .execute()
-    )
-    if not b_rows:
-        raise HTTPException(404, "Nursing booking not found.")
-
-    booking = b_rows[0]
+    booking = _load_visit_booking(booking_id)
     patient_id = booking.get("patient_id")
 
-    # Authorization: nurse, provider, or admin
-    if role not in ("nurse", "provider", "admin"):
-        # Check if user matches booking assignment
-        if nurse_id not in (booking.get("assigned_nurse_id"), booking.get("assigned_provider_id")):
-            raise HTTPException(403, "Not authorized to log vitals for this visit.")
+    _require_visit_party(booking, nurse_id, role, "log vitals for")
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -125,6 +140,15 @@ async def get_nurse_visit_logs(
     """
     if not supabase:
         return {"success": True, "logs": []}
+
+    # Vitals, wound notes and IV logs are PHI. This read was previously open to
+    # any authenticated account holding a booking id.
+    _require_visit_party(
+        _load_visit_booking(booking_id),
+        current_user["sub"],
+        current_user.get("role") or "",
+        "view clinical logs for",
+    )
 
     try:
         logs = _rows(

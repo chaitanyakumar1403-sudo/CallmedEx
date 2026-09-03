@@ -137,6 +137,96 @@ def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
     return slot_dt - datetime.now(timezone.utc) <= timedelta(minutes=LOOKAHEAD_MINUTES)
 
 
+async def _dispatch_home_visit(
+    *, booking, booking_id: str, patient_id: str, provider_user_id: str,
+) -> dict:
+    """Raise a direct dispatch to the provider the patient chose for a home visit.
+
+    Never raises: the booking row is already committed, and losing it over a
+    dispatch failure would be worse than a booking an operator can chase. The
+    returned dict is echoed to the patient so the UI can be honest about
+    whether a provider was actually pinged.
+    """
+    lat, lng = booking.collection_lat, booking.collection_lng
+    address = booking.collection_address or ""
+    city = booking.city or ""
+
+    # Family-member bookings visit THEIR address, not the account holder's.
+    if booking.family_member_id and supabase:
+        try:
+            fm = _rows(
+                supabase.table("family_members")
+                .select("address, city, district, lat, lng")
+                .eq("id", booking.family_member_id).limit(1).execute()
+            )
+            if fm:
+                row = fm[0]
+                lat = row.get("lat") if row.get("lat") is not None else lat
+                lng = row.get("lng") if row.get("lng") is not None else lng
+                address = row.get("address") or address
+                city = row.get("city") or city
+        except Exception as e:
+            logger.warning(f"Home visit {booking_id}: family member lookup failed: {e}")
+
+    # Fall back to the patient's own registered address.
+    if (not address or lat is None or lng is None) and supabase:
+        try:
+            u = _rows(
+                supabase.table("users").select("address, city")
+                .eq("id", patient_id).limit(1).execute()
+            )
+            if u:
+                address = address or (u[0].get("address") or "")
+                city = city or (u[0].get("city") or "")
+        except Exception as e:
+            logger.warning(f"Home visit {booking_id}: patient address lookup failed: {e}")
+
+    if lat is None or lng is None:
+        # Never guess a location — a provider sent to the wrong house is worse
+        # than an honest "we need your address".
+        try:
+            from app.services.geocoding import geocode_address, GeocodingError
+            try:
+                lat, lng = geocode_address(address=address or city, city=city)
+            except GeocodingError as e:
+                logger.warning(
+                    f"Home visit {booking_id}: could not geocode "
+                    f"{address!r} (city={city!r}): {e}"
+                )
+        except Exception as e:
+            logger.warning(f"Home visit {booking_id}: geocoding unavailable: {e}")
+
+    if lat is None or lng is None:
+        return {
+            "success": False,
+            "message": (
+                "Your appointment is booked, but we could not pin your address "
+                "for the home visit. Please add it to your profile — our team "
+                "will call to confirm."
+            ),
+        }
+
+    try:
+        return await UniversalDispatchEngine.create_direct_dispatch(
+            patient_id=patient_id,
+            provider_id=provider_user_id,
+            provider_type=booking.provider_type or "physiotherapist",
+            patient_lat=float(lat),
+            patient_lng=float(lng),
+            patient_address=address or city,
+            booking_id=booking_id,
+            service_subtype=booking.service_type.value,
+            notes=booking.notes or "",
+            scheduled_for=(booking.preferred_date or None),
+        )
+    except Exception as e:
+        logger.error(f"Home visit dispatch failed for booking {booking_id}: {e}")
+        return {
+            "success": False,
+            "message": "Appointment booked. We are still contacting your provider.",
+        }
+
+
 def _provision_home_collection(
     booking_id: str, patient_id: str, full_name: str, selected_tests: list,
     family_member_id: Optional[str] = None,
@@ -639,6 +729,18 @@ async def create_booking(
     else:
         raise HTTPException(status_code=503, detail="Database connection unavailable")
 
+    # Home visit booked against a provider the patient chose by name
+    # (physiotherapist, dietitian, doctor, nurse). Only the home-COLLECTION
+    # path above ever raised a dispatch, so these bookings were written as
+    # CONFIRMED and then sat there: no offer, no notification, nobody coming.
+    if booking.consultation_mode == "home_visit" and resolved_provider_id:
+        booking_data["dispatch"] = await _dispatch_home_visit(
+            booking=booking,
+            booking_id=booking_id,
+            patient_id=current_user["sub"],
+            provider_user_id=resolved_provider_id,
+        )
+
     # Walk-in lab booking: the patient must now learn where to go. Reveal the
     # allocated centre's name/address only here, on the CONFIRMED booking —
     # never during test/centre selection. Home-collection bookings need no
@@ -704,6 +806,21 @@ async def create_booking(
                         supabase.table("users").select("full_name, email, role")
                         .eq("id", target_prov_id).limit(1).execute()
                     )
+                    if not prov_row:
+                        # For diagnostics the allocation above rewrote
+                        # provider_id to organizations.id, which is NOT a
+                        # users.id — so this lookup found nothing and the
+                        # centre was never told a booking had landed. Resolve
+                        # back through the organization to its login user.
+                        org_user = _rows(
+                            supabase.table("organizations").select("user_id")
+                            .eq("id", target_prov_id).limit(1).execute()
+                        )
+                        if org_user and org_user[0].get("user_id"):
+                            prov_row = _rows(
+                                supabase.table("users").select("full_name, email, role")
+                                .eq("id", org_user[0]["user_id"]).limit(1).execute()
+                            )
                     if prov_row and prov_row[0].get("email"):
                         EmailService.send_booking_alert_email(
                             to_email=prov_row[0]["email"],
@@ -1216,7 +1333,13 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
     current_user["sub"] directly.
     """
     role = current_user.get("role")
-    if role not in ("doctor", "nurse", "phlebotomist", "organization", "admin"):
+    if role not in (
+        "doctor", "nurse", "phlebotomist", "organization", "admin",
+        # Dietitians and physiotherapists take bookings like any other
+        # consulting provider; omitting them here 403'd their own appointment
+        # list, which is why both dashboards were showing a hardcoded one.
+        "dietitian", "physiotherapist",
+    ):
         raise HTTPException(status_code=403, detail="Not a provider account")
 
     if not supabase:
@@ -1241,6 +1364,31 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
     except Exception as e:
         logger.error(f"Failed to load today's bookings for {current_user['sub']}: {e}")
         raise HTTPException(status_code=503, detail="Could not load today's bookings")
+
+    # Attach who each booking is actually for. Rows carry only patient_id, so
+    # every provider dashboard was left with no name to show — which is why
+    # some of them fell back to hardcoded patient lists. One batched lookup,
+    # not one per booking.
+    patient_ids = [b["patient_id"] for b in bookings if b.get("patient_id")]
+    if patient_ids:
+        try:
+            people = _rows(
+                supabase.table("users")
+                .select("id, full_name, gender, date_of_birth, mobile")
+                .in_("id", list(set(patient_ids)))
+                .execute()
+            )
+            by_id = {p["id"]: p for p in people}
+            for b in bookings:
+                person = by_id.get(b.get("patient_id")) or {}
+                b["patient_name"] = person.get("full_name") or "Patient"
+                b["patient_gender"] = person.get("gender")
+                b["patient_date_of_birth"] = person.get("date_of_birth")
+        except Exception as e:
+            # A missing name must not cost the provider their whole schedule.
+            logger.warning(f"Could not attach patient names to today's bookings: {e}")
+            for b in bookings:
+                b.setdefault("patient_name", "Patient")
 
     return APIResponse(
         success=True,

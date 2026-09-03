@@ -348,6 +348,39 @@ function ConsultationContent() {
           <p>{meta.subtitle}</p>
         </div>
 
+        {/* Individual physiotherapists and dietitians are booked by name, with
+            their own published slots per mode — this page lists doctors and
+            centres, so route those two roles to their own flow rather than
+            leaving them undiscoverable. */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
+          justifyContent: 'center', marginBottom: 22, padding: '14px 18px',
+          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12,
+        }}>
+          <span style={{ fontSize: '0.9rem', color: '#1e3a8a', fontWeight: 600 }}>
+            Looking for a physiotherapist or dietitian?
+          </span>
+          <a
+            href="/booking/therapy?role=physiotherapist"
+            style={{
+              padding: '8px 16px', borderRadius: 8, background: '#0f4c81',
+              color: 'white', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none',
+            }}
+          >
+            Book a physiotherapist
+          </a>
+          <a
+            href="/booking/therapy?role=dietitian"
+            style={{
+              padding: '8px 16px', borderRadius: 8, background: 'white',
+              color: '#0f4c81', border: '1px solid #0f4c81', fontWeight: 700,
+              fontSize: '0.85rem', textDecoration: 'none',
+            }}
+          >
+            Book a dietitian
+          </a>
+        </div>
+
         {/* ── Mode Toggle ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex', gap: 0, justifyContent: 'center', marginBottom: 28,

@@ -39,13 +39,15 @@ def fake_db(monkeypatch):
     return fake
 
 
-def _seed_provider(fake, lat, lng, ptype="nurse", name="Nurse"):
+def _seed_provider(fake, lat, lng, ptype="nurse", name="Nurse",
+                   verification_status="verified"):
     uid = str(uuid.uuid4())
     fake.db.setdefault("provider_locations", []).append({
         "user_id": uid, "provider_type": ptype, "is_online": True,
         "current_lat": lat, "current_lng": lng,
         "users": {"id": uid, "full_name": name, "mobile": "9000000000",
-                  "email": f"{uid[:8]}@test.local"},
+                  "email": f"{uid[:8]}@test.local",
+                  "verification_status": verification_status},
     })
     return uid
 
@@ -319,6 +321,30 @@ async def test_urgent_still_never_crosses_a_centre_boundary(fake_db):
 async def test_the_centre_filter_is_opt_in_so_other_provider_types_are_unaffected(fake_db):
     """Nurses, doctors and ambulances keep today's behaviour exactly."""
     uid = _seed_provider(fake_db, 17.3850, 78.4870, ptype="nurse", name="Nurse")
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "nurse")
+    assert [c["user_id"] for c in found] == [uid]
+
+
+# ── Verification gate ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["pending", "flagged", "rejected", "", None])
+async def test_an_unverified_provider_is_never_dispatched(fake_db, status):
+    """provider_locations had no verification filter at all, so anyone who had
+    a location row and flipped themselves online could be sent to a patient's
+    home. Only 'verified' is dispatchable."""
+    _seed_provider(fake_db, 17.3850, 78.4870, ptype="nurse",
+                   verification_status=status)
+    found = await UniversalDispatchEngine.find_nearby_providers(
+        17.3851, 78.4871, "nurse")
+    assert found == []
+
+
+@pytest.mark.asyncio
+async def test_a_verified_provider_is_still_dispatched(fake_db):
+    uid = _seed_provider(fake_db, 17.3850, 78.4870, ptype="nurse",
+                         verification_status="verified")
     found = await UniversalDispatchEngine.find_nearby_providers(
         17.3851, 78.4871, "nurse")
     assert [c["user_id"] for c in found] == [uid]

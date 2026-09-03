@@ -130,29 +130,83 @@ def test_get_role_catalog_api_endpoint():
     assert len(data_pt["data"]["catalog"]) >= 10
 
 
-def test_search_providers_endpoint():
-    """Verify patient search endpoint returns active dietitians and physiotherapists."""
-    res_diet = client.get("/api/providers/search?role=dietitian")
-    assert res_diet.status_code == 200
-    data_diet = res_diet.json()
-    assert data_diet["success"] is True
-    assert len(data_diet["data"]["providers"]) > 0
-    dietitian = data_diet["data"]["providers"][0]
-    assert dietitian["role"] == "dietitian"
-    assert "consultation_fee" in dietitian
-    assert "home_visit_fee" in dietitian
-    assert len(dietitian["scope_of_services"]) > 0
+def test_search_returns_nothing_when_no_real_provider_is_registered():
+    """This endpoint used to fall back to a hardcoded roster of invented
+    specialists ("Dr. Rajesh Varma, MPT", "Dt. Ananya Sharma, RD") whenever the
+    table was empty, so a patient could book a consultation with — and pay for —
+    a person who does not exist. Empty must mean empty."""
+    for role in ("dietitian", "physiotherapist"):
+        res = client.get(f"/api/providers/search?role={role}")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["success"] is True
+        names = [p["full_name"] for p in body["data"]["providers"]]
+        for invented in ("Rajesh Varma", "Ananya Sharma", "Sneha Hegde", "Priya Nair"):
+            assert not any(invented in n for n in names), f"fabricated provider {invented!r} returned"
 
-    res_pt = client.get("/api/providers/search?role=physiotherapist")
-    assert res_pt.status_code == 200
-    data_pt = res_pt.json()
-    assert data_pt["success"] is True
-    assert len(data_pt["data"]["providers"]) > 0
-    physio = data_pt["data"]["providers"][0]
-    assert physio["role"] == "physiotherapist"
-    assert "consultation_fee" in physio
-    assert "home_visit_fee" in physio
-    assert len(physio["scope_of_services"]) > 0
+
+def test_search_returns_real_verified_providers(monkeypatch):
+    """A genuinely registered, verified provider is returned with their own
+    fees and no invented rating."""
+    import app.routers.provider_scope as ps
+
+    row = {
+        "id": "pt-row-1",
+        "user_id": "usr-pt-1",
+        "specializations": ["Orthopedic Rehab"],
+        "qualification": "MPT",
+        "years_of_experience": 5,
+        "consultation_fee": 550.0,
+        "home_visit_fee": 900.0,
+        "rating": None,
+        "total_reviews": 0,
+        "available_for_online": True,
+        "available_for_home_visit": True,
+        "clinic_center_name": "Test Physio Centre",
+        "scope_of_services": [{"service": "Gait training"}],
+        "users": {
+            "full_name": "Test Physio",
+            "city": "Visakhapatnam",
+            "state": "Andhra Pradesh",
+            "district": "Visakhapatnam",
+            "mobile": "9000000000",
+        },
+    }
+
+    class _Res:
+        data = [row]
+
+    class _Q:
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def execute(self):
+            return _Res()
+
+    class _DB:
+        def table(self, _name):
+            return _Q()
+
+    monkeypatch.setattr(ps, "supabase", _DB())
+
+    body = client.get("/api/providers/search?role=physiotherapist").json()
+    providers = body["data"]["providers"]
+    assert len(providers) == 1
+    p = providers[0]
+    assert p["full_name"] == "Test Physio"
+    assert p["consultation_fee"] == 550.0
+    # Unrated stays unrated — no manufactured 4.9.
+    assert p["rating"] is None
+    assert p["district"] == "Visakhapatnam"
+
+    # District filter is actually applied (it used to be accepted and ignored).
+    filtered = client.get(
+        "/api/providers/search?role=physiotherapist&district=Krishna"
+    ).json()
+    assert filtered["data"]["providers"] == []
 
 
 def test_payment_service_order_split_calculation():

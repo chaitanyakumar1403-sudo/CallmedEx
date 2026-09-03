@@ -11,7 +11,7 @@ from datetime import datetime, timezone, date, timedelta, time
 from typing import Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
 from app.utils.db_helpers import _rows
 
@@ -22,6 +22,14 @@ router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
 # ─── Request Models ───────────────────────────────────────────────────────
 
 DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
+# Roles that publish a bookable schedule of their own (as opposed to
+# organizations, which publish opening hours). Physiotherapists, dietitians and
+# nurses were excluded from every one of these gates, so although the platform
+# sells their online / home-visit / walk-in services they could not publish a
+# single slot or set a single fee.
+SCHEDULING_PROVIDER_ROLES = ("doctor", "physiotherapist", "dietitian", "nurse", "admin")
 
 
 class AvailabilityCreate(BaseModel):
@@ -126,8 +134,8 @@ async def create_availability(
     current_user: dict = Depends(get_current_user),
 ):
     """Doctor creates a recurring availability block (e.g., every Monday 9:00-13:00)."""
-    if current_user.get("role") not in ("doctor", "admin"):
-        raise HTTPException(403, "Only doctors can set availability")
+    if current_user.get("role") not in SCHEDULING_PROVIDER_ROLES:
+        raise HTTPException(403, "This account type cannot publish an availability schedule")
 
     if not supabase:
         raise HTTPException(500, "Database not configured")
@@ -463,8 +471,8 @@ async def set_fee(
     current_user: dict = Depends(get_current_user),
 ):
     """Doctor sets a consultation fee for a given mode."""
-    if current_user.get("role") not in ("doctor", "admin"):
-        raise HTTPException(403, "Only doctors can set fees")
+    if current_user.get("role") not in SCHEDULING_PROVIDER_ROLES:
+        raise HTTPException(403, "This account type cannot set consultation fees")
 
     if not supabase:
         raise HTTPException(500, "Database not configured")
@@ -521,14 +529,22 @@ async def set_fee(
 
 @router.get("/slots")
 async def get_available_slots(
-    provider_id: str = Query(..., description="Doctor user ID"),
+    provider_id: str = Query(..., description="Provider user ID"),
     target_date: str = Query(..., description="YYYY-MM-DD"),
-    current_user: dict = Depends(get_current_user),
+    mode: Optional[str] = Query(
+        None,
+        description="Filter to one consultation mode: in_person, online or home_visit",
+    ),
+    current_user: Optional[dict] = Depends(get_optional_current_user),
 ):
     """
-    Generate bookable slots for a specific doctor on a specific date.
-    Reads the doctor's weekly availability, checks for blocked dates,
-    and removes already-booked slots.
+    Generate bookable slots for a provider (doctor, physiotherapist, dietitian
+    or nurse) on a specific date. Reads their weekly availability, checks for
+    blocked dates, and removes already-booked slots.
+
+    `mode` matters for providers who work more than one way: a physiotherapist
+    publishes walk-in centre hours AND online consultation hours, and a patient
+    booking a walk-in appointment must not be shown the teleconsult slots.
     """
     if not supabase:
         raise HTTPException(500, "Database not configured")
@@ -538,8 +554,13 @@ async def get_available_slots(
     except ValueError:
         raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
 
+    # Everything here is IST wall-clock: slot times are stored that way and the
+    # patient is in India. The server runs UTC in production.
+    ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    ist_today = ist_now.date()
+
     # Don't allow booking in the past
-    if target < date.today():
+    if target < ist_today:
         return {"success": True, "slots": [], "message": "Cannot book past dates"}
 
     # Check if date is blocked
@@ -562,14 +583,16 @@ async def get_available_slots(
     db_day = (day_of_week + 1) % 7
 
     try:
-        avail_result = (
+        avail_query = (
             supabase.table("doctor_availability")
             .select("*")
             .eq("doctor_id", provider_id)
             .eq("day_of_week", db_day)
             .eq("is_active", True)
-            .execute()
         )
+        if mode:
+            avail_query = avail_query.eq("consultation_mode", mode)
+        avail_result = avail_query.execute()
     except Exception as e:
         logger.error(f"Error fetching availability: {e}")
         raise HTTPException(500, "Failed to fetch availability")
@@ -602,7 +625,7 @@ async def get_available_slots(
         duration = avail.get("slot_duration_minutes", 30)
         mode = avail.get("consultation_mode", "in_person")
         max_patients = avail.get("max_patients_per_slot", 1)
-        location = avail.get("location_name", "")
+        location = avail.get("location_name", "") or ""
 
         # Parse times (handle both HH:MM and HH:MM:SS formats)
         start_parts = start_str.split(":")
@@ -620,21 +643,26 @@ async def get_available_slots(
 
             is_booked = slot_time_str in booked_slots
 
-            # For today, skip past slots
-            if target == date.today():
-                now = datetime.now().time()
-                if current.time() <= now:
-                    current += timedelta(minutes=duration)
-                    continue
+            # For today, skip slots that have already passed.
+            #
+            # Slot times are IST wall-clock. datetime.now() is the SERVER's
+            # local time, which is UTC in production — so this compared 18:00
+            # IST against 12:30 UTC and happily offered appointments five hours
+            # in the past. Compare in IST on both sides.
+            if target == ist_today and current.time() <= ist_now.time():
+                current += timedelta(minutes=duration)
+                continue
 
             all_slots.append({
                 "time": slot_time_str,
                 "end_time": slot_end_str,
-                "display": current.strftime("%-I:%M %p") if hasattr(current, 'strftime') else slot_time_str,
+                # %-I is a glibc extension that raises ValueError on Windows.
+                "display": f"{(current.hour % 12) or 12}:{current.minute:02d} {'AM' if current.hour < 12 else 'PM'}",
                 "consultation_mode": mode,
                 "max_patients": max_patients,
                 "is_available": not is_booked,
                 "location": location,
+                "location_address": avail.get("location_address", ""),
                 "availability_id": avail["id"],
             })
             current += timedelta(minutes=duration)

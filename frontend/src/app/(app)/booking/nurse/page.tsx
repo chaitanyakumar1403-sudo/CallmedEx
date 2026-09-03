@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LocationPicker from '../../../../components/LocationPicker';
+import { HeartPulse, Bell, Search, Calendar, ArrowRight, ShieldCheck } from 'lucide-react';
 
 const NURSING_SERVICES = [
   { id: 'wound_dressing', name: 'Wound Dressing', icon: '🩹', desc: 'Post-surgical or injury wound care', duration: '30-60 min' },
@@ -53,6 +54,16 @@ export default function NurseBookingPage() {
       });
       const data = await res.json();
       if (data.success || data.dispatch_id) {
+        // Hand the dispatch to the dashboard's live tracker. Without this the
+        // patient was left on a dead "Searching for Nurses…" screen with no
+        // way back to the request — the dashboard only picks up tracking from
+        // this localStorage key.
+        if (data.dispatch_id && typeof window !== 'undefined') {
+          localStorage.setItem('activeDispatchId', data.dispatch_id);
+        }
+        if (data.booking_id && typeof window !== 'undefined') {
+          localStorage.setItem('activeBookingId', data.booking_id);
+        }
         setResult(data);
         setStep(4);
       } else {
@@ -78,7 +89,10 @@ export default function NurseBookingPage() {
           color: 'white',
           marginBottom: 24,
         }}>
-          <h1 style={{ margin: 0, fontSize: '1.5rem' }}>👩‍⚕️ Book a Home Nurse</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <HeartPulse size={28} />
+            <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>Book a Home Nurse</h1>
+          </div>
           <p style={{ margin: '8px 0 0 0', opacity: 0.85, fontSize: '0.9rem' }}>
             Professional nurses at your doorstep within minutes
           </p>
@@ -208,33 +222,88 @@ export default function NurseBookingPage() {
                   background: loading ? '#d1d5db' : 'linear-gradient(135deg, #ec4899, #9333ea)',
                   color: 'white', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '1rem',
                 }}
-              >{loading ? '🔍 Finding nearest nurse...' : '🚀 Book Now'}</button>
+              >{loading ? 'Finding nearest nurse...' : 'Confirm Nurse Visit'}</button>
             </div>
           </div>
         )}
 
         {/* Step 4: Result */}
         {step === 4 && result && (
-          <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-            {result.assigned_provider ? (
+          <div style={{ backgroundColor: 'white', borderRadius: 16, padding: 32, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+            {result.all_candidates > 0 ? (
               <>
-                <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎉</div>
-                <h2 style={{ color: '#059669', marginBottom: 8 }}>Nurse Assigned!</h2>
-                <div style={{ backgroundColor: '#f0fdf4', borderRadius: 10, padding: 20, marginBottom: 20, textAlign: 'left' }}>
-                  <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 8 }}>👩‍⚕️ {result.assigned_provider.name}</div>
-                  <div style={{ fontSize: '0.9rem', color: '#4b5563', marginBottom: 4 }}>📏 {result.assigned_provider.distance_km} km away</div>
-                  <div style={{ fontSize: '0.9rem', color: '#4b5563' }}>⏱ ETA: ~{result.assigned_provider.eta_minutes} minutes</div>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                  <Bell size={32} />
                 </div>
-                <p style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: 20 }}>Your nurse is on the way! Use the secure call button below to contact them.</p>
-                <button style={{ padding: '12px 24px', borderRadius: 10, border: 'none', backgroundColor: '#059669', color: 'white', cursor: 'pointer', fontWeight: 700, marginRight: 12 }}>🔒 Secure Call</button>
-                <button style={{ padding: '12px 24px', borderRadius: 10, border: 'none', backgroundColor: '#2563eb', color: 'white', cursor: 'pointer', fontWeight: 700 }}>💬 Chat</button>
+                <h2 style={{ color: '#0f172a', fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>Request Sent to Nearby Nurses</h2>
+                <div style={{ backgroundColor: '#f0fdf4', borderRadius: 12, padding: 20, marginBottom: 20, border: '1px solid #bbf7d0' }}>
+                  <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#166534', marginBottom: 6 }}>
+                    {result.all_candidates} verified {result.all_candidates === 1 ? 'nurse' : 'nurses'} near you {result.all_candidates === 1 ? 'has' : 'have'} been notified
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#15803d' }}>
+                    The first available nurse to accept is assigned to your visit. Live confirmation usually takes 1-3 minutes.
+                  </div>
+                </div>
+
+                {result.booking_id && (
+                  <div style={{ marginBottom: 20, padding: '10px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <ShieldCheck size={16} color="#0284c7" />
+                    <span style={{ fontSize: '0.82rem', color: '#475569' }}>
+                      Booking Reference: <strong style={{ color: '#0f172a' }}>{result.booking_id}</strong>
+                    </span>
+                  </div>
+                )}
+
+                <p style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: 24, maxWidth: 500, margin: '0 auto 24px auto' }}>
+                  You&apos;ll be notified the moment a nurse accepts. You can track their en-route progress live, verify credentials, and review this appointment anytime in My Bookings.
+                </p>
+
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => router.push('/dashboard/patient')}
+                    style={{ padding: '12px 24px', borderRadius: 10, border: 'none', backgroundColor: '#059669', color: 'white', cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    Track My Request Live <ArrowRight size={16} />
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard/patient?tab=bookings')}
+                    style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', cursor: 'pointer', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Calendar size={16} /> View in My Bookings
+                  </button>
+                </div>
               </>
             ) : (
               <>
-                <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔍</div>
-                <h2 style={{ color: '#d97706', marginBottom: 8 }}>Searching for Nurses...</h2>
-                <p style={{ color: '#6b7280' }}>{result.message}</p>
-                <p style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: 20 }}>We&apos;ll notify you as soon as a nurse accepts your request.</p>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                  <Search size={32} />
+                </div>
+                <h2 style={{ color: '#d97706', marginBottom: 8, fontSize: '1.4rem', fontWeight: 800 }}>No Nurse Available Right Now</h2>
+                <p style={{ color: '#6b7280', marginBottom: 12 }}>{result.message}</p>
+                {result.booking_id && (
+                  <div style={{ marginBottom: 16, padding: '8px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'inline-block' }}>
+                    <span style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                      Booking Queued Reference: <strong style={{ color: '#0f172a' }}>{result.booking_id}</strong>
+                    </span>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: 12, maxWidth: 500, margin: '12px auto 20px auto' }}>
+                  We&apos;re widening the search perimeter. If no immediate provider accepts, our dispatch desk will follow up directly.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button
+                    onClick={() => router.push('/dashboard/patient')}
+                    style={{ padding: '12px 24px', borderRadius: 10, border: 'none', backgroundColor: '#2563eb', color: 'white', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    Go to Dashboard
+                  </button>
+                  <button
+                    onClick={() => router.push('/dashboard/patient?tab=bookings')}
+                    style={{ padding: '12px 24px', borderRadius: 10, border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    My Bookings
+                  </button>
+                </div>
               </>
             )}
           </div>

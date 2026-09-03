@@ -43,8 +43,14 @@ ALLOWED_SAMPLE_TRANSITIONS = {
     "collected": {"in_transit", "handover_requested", "received", "cancelled"},
     "in_transit": {"handover_requested", "received", "cancelled"},
     "handover_requested": {"received", "rejected", "in_transit"},
-    "received": {"verified", "rejected", "processing"},
-    "verified": {"processing", "rejected"},
+    "received": {"verified", "rejected", "processing", "batched"},
+    "verified": {"processing", "rejected", "batched"},
+    # Batch handling (pc_operations: add-sample -> seal -> send) writes these
+    # two statuses. They were absent from the FSM entirely, so any validated
+    # transition out of a batched tube — a lab rejecting it after dispatch,
+    # for instance — was refused as "Terminal".
+    "batched": {"sent_to_lab", "processing", "rejected"},
+    "sent_to_lab": {"received", "processing", "report_ready", "rejected"},
     "processing": {"report_ready", "delivered", "completed", "failed"},
     "report_ready": {"delivered", "completed"},
     "delivered": {"completed", "delivered"},  # delivered -> delivered allowed for corrected report versions
@@ -893,12 +899,20 @@ class SampleService:
                 pass  # fall through to the already-resolved centre_name
         try:
             from app.services.notification_engine import NotificationEngine
-            await NotificationEngine.send(
+            from app.services.push import CHANNEL_APPOINTMENTS
+            # The report is the whole point of the journey — an in-app row the
+            # patient only sees if they happen to reopen the dashboard is not
+            # delivery. Push and email it too.
+            await NotificationEngine.send_multi(
                 user_id=sample["patient_id"],
-                channel="in_app",
+                channels=["in_app", "push", "email"],
                 title="Your report is ready",
                 body=f"{centre_name} has published your report for sample {sample.get('barcode', '')}.",
-                data={"sample_id": sample_id, "report_url": report_url},
+                data={
+                    "sample_id": sample_id,
+                    "report_url": report_url,
+                    "channel_id": CHANNEL_APPOINTMENTS,
+                },
             )
         except Exception as e:
             logger.error(f"report notify failed for {sample_id}: {e}")

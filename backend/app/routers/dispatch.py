@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/dispatch", tags=["Dispatch"])
 
 # Roles allowed to use field dispatch features
-FIELD_PROVIDER_ROLES = {"phlebotomist", "nurse", "doctor", "ambulance", "pharmacy_delivery", "admin"}
+FIELD_PROVIDER_ROLES = {
+    "phlebotomist", "nurse", "doctor", "ambulance", "pharmacy_delivery", "admin",
+    # Both offer home visits, so both need the field-provider surfaces
+    # (my-tasks, pending offers, duty toggle) like any other visiting provider.
+    "dietitian", "physiotherapist",
+}
 
 # Local in-memory store for fallback dispatch tracking
 _local_dispatches = []
@@ -67,6 +72,31 @@ def _require_own_dispatch(dispatch_id: str, current_user: dict) -> str:
     ):
         raise HTTPException(403, "This dispatch is not assigned to you.")
     return rows[0].get("notes") or ""
+
+
+def _require_dispatch_party(dispatch_id: str, current_user: dict) -> None:
+    """Assert the caller is the patient on this dispatch, the provider assigned
+    to it, or an admin.
+
+    Live tracking returns the patient's address plus the provider's name,
+    mobile and current GPS fix. Without this check any authenticated account
+    could walk dispatch ids and follow a stranger — or a lone field collector —
+    around the city in real time.
+    """
+    rows = _rows(
+        supabase.table("dispatch_requests")
+        .select("patient_id, assigned_provider_id")
+        .eq("id", dispatch_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Dispatch not found.")
+    if current_user.get("role") == "admin":
+        return
+    row = rows[0]
+    if current_user["sub"] not in (row.get("patient_id"), row.get("assigned_provider_id")):
+        raise HTTPException(403, "Access denied.")
 
 
 def _attach_slot_times(tasks):
@@ -170,6 +200,55 @@ async def request_dispatch(
     if current_user.get("role") != "patient":
         raise HTTPException(status_code=403, detail="Only patients can request dispatch")
 
+    now = datetime.now(timezone.utc).isoformat()
+    booking_id = req.booking_id
+
+    # If no booking_id supplied (e.g. on-demand nurse/home visit booking), create a booking record
+    if not booking_id:
+        booking_id = str(uuid.uuid4())
+        service_type_map = {
+            "nurse": "nurse_visit",
+            "phlebotomist": "lab_collection",
+            "doctor": "home_visit",
+            "physiotherapist": "therapy_visit",
+            "dietitian": "diet_consult",
+            "ambulance": "ambulance_dispatch",
+            "pharmacy_delivery": "pharmacy_delivery",
+        }
+        service_type = service_type_map.get(req.provider_type, f"{req.provider_type}_dispatch")
+
+        booking_data = {
+            "id": booking_id,
+            "patient_id": current_user["sub"],
+            "provider_type": req.provider_type,
+            "service_type": service_type,
+            "status": "confirmed",
+            "notes": req.notes or f"On-demand {req.provider_type} request",
+            "created_at": now,
+            "updated_at": now,
+        }
+        if req.patient_lat is not None:
+            booking_data["collection_lat"] = req.patient_lat
+        if req.patient_lng is not None:
+            booking_data["collection_lng"] = req.patient_lng
+        if req.patient_address:
+            booking_data["collection_address"] = req.patient_address
+            booking_data["collection_city"] = (req.patient_address_details or {}).get("city", "")
+
+        if supabase:
+            try:
+                supabase.table("bookings").insert(booking_data).execute()
+            except Exception as e:
+                # If provider_id NOT NULL constraint is enforced by legacy table schema, fallback with patient sub
+                if "provider_id" in str(e).lower():
+                    try:
+                        booking_data["provider_id"] = current_user["sub"]
+                        supabase.table("bookings").insert(booking_data).execute()
+                    except Exception as inner_e:
+                        logger.warning(f"Could not auto-create booking record fallback: {inner_e}")
+                else:
+                    logger.warning(f"Could not auto-create booking record: {e}")
+
     result = await UniversalDispatchEngine.create_dispatch(
         patient_id=current_user["sub"],
         patient_lat=req.patient_lat,
@@ -178,12 +257,12 @@ async def request_dispatch(
         provider_type=req.provider_type,
         service_subtype=req.service_subtype,
         notes=req.notes,
-        booking_id=req.booking_id,
+        booking_id=booking_id,
         address_details=req.patient_address_details,
         search_radius_km=req.search_radius_km,
         priority="urgent" if req.priority == "urgent" else "normal",
     )
-    return {"success": True, **result}
+    return {"success": True, "booking_id": booking_id, **result}
 
 
 @router.get("/track/{dispatch_id}")
@@ -192,6 +271,8 @@ async def track_dispatch(
     current_user: dict = Depends(get_current_user),
 ):
     """Get live tracking data for any dispatch — patient sees provider location + ETA."""
+    if supabase:
+        _require_dispatch_party(dispatch_id, current_user)
     tracking = await UniversalDispatchEngine.get_live_tracking(dispatch_id)
     return {"success": True, **tracking}
 
@@ -691,6 +772,17 @@ async def accept_task(
             .execute()
         )
         if result.data:
+            d_row = result.data[0]
+            booking_id = d_row.get("booking_id")
+            if booking_id:
+                try:
+                    supabase.table("bookings").update({
+                        "status": "in_progress",
+                        "provider_id": current_user["sub"],
+                        "updated_at": now,
+                    }).eq("id", booking_id).execute()
+                except Exception as b_err:
+                    logger.warning(f"Failed to sync booking on accept_task: {b_err}")
             return {"success": True, "message": "Task accepted. Head to the patient's location."}
         raise HTTPException(409, "Task already taken or not available")
     except HTTPException:
@@ -805,6 +897,17 @@ async def update_task_status_lifecycle(
             # step can never succeed.
             if body.status == "arrived":
                 OTPService.generate_otp(dispatch_id)
+            if body.status == "completed":
+                d_row = result.data[0]
+                booking_id = d_row.get("booking_id")
+                if booking_id:
+                    try:
+                        supabase.table("bookings").update({
+                            "status": "completed",
+                            "updated_at": now,
+                        }).eq("id", booking_id).execute()
+                    except Exception as b_err:
+                        logger.warning(f"Failed to sync booking on completed: {b_err}")
             return {"success": True, "status": body.status, "message": f"Status updated to {body.status}"}
         raise HTTPException(404, "Dispatch not found or not assigned to you")
     except HTTPException:

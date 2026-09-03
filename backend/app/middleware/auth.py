@@ -8,6 +8,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.utils.security import decode_access_token, validate_token_version
 
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -29,6 +30,17 @@ async def get_current_user(
                 detail="Session has been revoked. Please log in again.",
             )
 
+    return payload
+
+
+async def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
+) -> dict | None:
+    """Extract and decode JWT token if provided; returns None if unauthenticated."""
+    if not credentials:
+        return None
+    token = credentials.credentials
+    payload = decode_access_token(token)
     return payload
 
 

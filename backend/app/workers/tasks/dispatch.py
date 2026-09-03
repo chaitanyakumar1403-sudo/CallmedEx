@@ -26,22 +26,30 @@ def expire_stale_dispatches(self):
     try:
         from app.services.dispatch_engine import DEFAULT_OFFER_WINDOW_MINUTES
 
-        # P1.4: Use the dispatch engine's authoritative offer window (10 min),
-        # not the old hardcoded 5 minutes that disagreed with the email/MOU.
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=DEFAULT_OFFER_WINDOW_MINUTES)).isoformat()
+        now = datetime.now(timezone.utc)
 
-        # P1.5: First, expire individual offers and trigger re-fan-out
-        _expire_individual_offers(cutoff)
+        # An offer already carries its own deadline in expires_at (offered_at +
+        # the 10-minute window). Sweeping on `now - window` waited a SECOND
+        # window before expiring it, so offers only died at ~20 minutes — long
+        # after the dispatch itself had been cancelled below, which is why
+        # re-fan-out never actually ran. Compare against now.
+        _expire_individual_offers(now.isoformat())
 
-        # Then expire dispatches where ALL offers have expired/been rejected
-        # and no re-fan-out produced new candidates
+        # Then expire dispatches with nothing left in flight. Keyed on
+        # updated_at, not created_at: _try_re_fan_out stamps updated_at when it
+        # issues a fresh round of offers, and keying on created_at cancelled
+        # those brand-new offers in the very same sweep that created them.
+        cutoff = (now - timedelta(minutes=DEFAULT_OFFER_WINDOW_MINUTES)).isoformat()
         result = (
             supabase.table("dispatch_requests")
             .update({"status": "cancelled", "cancel_reason": "No provider available in your area. Please try again."})
             .in_("status", ["searching", "provider_notified"])
-            .lte("created_at", cutoff)
+            .lte("updated_at", cutoff)
             .execute()
         )
+
+        for row in (result.data or []):
+            _alert_no_provider(row)
 
         expired_count = len(result.data or [])
         if expired_count > 0:
@@ -51,6 +59,55 @@ def expire_stale_dispatches(self):
     except Exception as e:
         logger.error(f"expire_stale_dispatches failed: {e}")
         return {"expired": 0, "error": str(e)}
+
+
+def _alert_no_provider(dispatch: dict) -> None:
+    """A dispatch just died without ever reaching a provider.
+
+    Cancelling the row silently left the patient watching a tracking screen for
+    someone who was never coming, and left ops with nothing to action. Tell
+    both. Best-effort — a notification failure must not abort the sweep.
+    """
+    dispatch_id = dispatch.get("id")
+    patient_id = dispatch.get("patient_id")
+
+    try:
+        from app.services.ops_alerts import OpsAlertService
+        OpsAlertService.create_alert(
+            alert_type="dispatch_no_provider",
+            entity_type="dispatch_request",
+            entity_id=dispatch_id,
+            severity="critical",
+            details={
+                "patient_id": patient_id,
+                "booking_id": dispatch.get("booking_id"),
+                "provider_type": dispatch.get("provider_type"),
+                "reason": "expired without any provider accepting",
+            },
+        )
+    except Exception as e:
+        logger.error(f"Ops alert for expired dispatch {dispatch_id} failed: {e}")
+
+    if not patient_id:
+        return
+    try:
+        import asyncio
+        from app.services.notification_engine import NotificationEngine
+
+        asyncio.run(
+            NotificationEngine.send_multi(
+                user_id=patient_id,
+                channels=["in_app", "push"],
+                title="We could not assign a provider",
+                body=(
+                    "No provider was available for your request. Our team has been "
+                    "alerted and will call you — or you can rebook a different slot."
+                ),
+                data={"dispatch_id": dispatch_id, "status": "cancelled"},
+            )
+        )
+    except Exception as e:
+        logger.error(f"Patient notification for expired dispatch {dispatch_id} failed: {e}")
 
 
 @celery_app.task(name="app.workers.tasks.dispatch.trigger_dispatch")

@@ -15,6 +15,25 @@
 
 BEGIN;
 
+-- ─── 0. Allow all provider roles on users ──────────────────────────────────
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN (
+    'patient','doctor','phlebotomist','organization','staff','pharmacy',
+    'nurse','ambulance','admin','supervisor','processing_center',
+    'dietitian','physiotherapist'
+  ));
+
+-- ─── 0b. Allow all service types accepted across CallMedex ─────────────────
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_service_type_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_service_type_check
+  CHECK (service_type IN (
+    'lab_test','imaging','health_package','video_consult','home_collection',
+    'doctor_appointment','nurse_visit','ambulance','pharmacy_delivery',
+    'physiotherapy','consultation','home_visit','nursing_care',
+    'medicine_delivery','procedure'
+  ));
+
 -- ─── 1. bookings.status — restore the slot-allotment workflow values ──────
 -- WHY: models/schemas.py::BookingStatus and routers/bookings.py (lines 764,
 -- 776, 811, 853, 881) read and write 'slot_allotted', 'slot_accepted' and
@@ -44,6 +63,8 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent    BOOLEAN DEFAULT f
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date     DATE;
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS slot_time        TEXT;
+-- Allow on-demand and instant dispatch bookings before a provider is accepted
+ALTER TABLE bookings ALTER COLUMN provider_id DROP NOT NULL;
 
 -- Keep booking_date / slot_time derived from slot_start automatically.
 -- Without this the two new columns stay NULL and the reminder worker + the
@@ -85,7 +106,7 @@ ALTER TABLE consultations ADD COLUMN IF NOT EXISTS ended_by UUID REFERENCES user
 
 ALTER TABLE consultations DROP CONSTRAINT IF EXISTS consultations_status_check;
 ALTER TABLE consultations ADD CONSTRAINT consultations_status_check
-  CHECK (status IN ('scheduled', 'in_progress', 'ended', 'completed', 'cancelled'));
+  CHECK (status IN ('scheduled', 'waiting', 'in_progress', 'ended', 'completed', 'cancelled'));
 
 -- ─── 4. dispatch_requests — cancel_reason ─────────────────────────────────
 -- workers/tasks/dispatch.py:28 (expire_stale_dispatches) writes cancel_reason
@@ -100,12 +121,18 @@ ALTER TABLE dispatch_requests ADD COLUMN IF NOT EXISTS cancel_reason TEXT DEFAUL
 -- silently renders an EMPTY doctor list.
 -- organization_doctors.doctor_user_id → users(id) exists; doctors.user_id →
 -- users(id) exists; but PostgREST cannot hop through users. Giving doctors.user_id
--- a UNIQUE constraint (verified: 0 duplicates, 0 nulls) lets us point the FK
--- straight at it, which PostgREST then resolves as a many-to-one embed.
-ALTER TABLE doctors DROP CONSTRAINT IF EXISTS doctors_user_id_key;
-ALTER TABLE doctors ADD CONSTRAINT doctors_user_id_key UNIQUE (user_id);
-
+-- Drop the dependent foreign key FIRST so modifying doctors_user_id_key never causes 2BP01
 ALTER TABLE organization_doctors DROP CONSTRAINT IF EXISTS organization_doctors_doctor_profile_fkey;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'doctors_user_id_key'
+    ) THEN
+        ALTER TABLE doctors ADD CONSTRAINT doctors_user_id_key UNIQUE (user_id);
+    END IF;
+END $$;
+
 ALTER TABLE organization_doctors ADD CONSTRAINT organization_doctors_doctor_profile_fkey
     FOREIGN KEY (doctor_user_id) REFERENCES doctors(user_id) ON DELETE CASCADE;
 

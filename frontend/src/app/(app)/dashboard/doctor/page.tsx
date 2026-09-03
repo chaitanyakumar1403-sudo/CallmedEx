@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
+import ProviderSchedulePanel from "../components/ProviderSchedulePanel";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../components/DashboardShell";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
@@ -88,62 +89,19 @@ const EXCEL_BENCHMARK_TARIFFS = [
   },
 ];
 
-interface Availability {
-  id: string;
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  slot_duration_minutes: number;
-  consultation_mode: string;
-  max_patients_per_slot: number;
-  is_active: boolean;
-  location_name: string;
-  location_address: string;
-  template_group_id?: string | null;
-}
-
-interface Fee {
-  id: string;
-  fee_type: string;
-  amount: number;
-}
-
 export default function DoctorDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("radar");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  // Availability state
-  const [availability, setAvailability] = useState<Availability[]>([]);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({
-    day_of_week: 1,
-    start_time: "09:00",
-    end_time: "13:00",
-    slot_duration_minutes: 30,
-    consultation_mode: "in_person",
-    max_patients_per_slot: 1,
-    location_name: "",
-    location_address: "",
-    apply_to_all_days: false,
-    replace_existing: false,
-  });
-
-  // Fees state
-  const [fees, setFees] = useState<Fee[]>([]);
-  const [feeForm, setFeeForm] = useState({ fee_type: "in_person", amount: "500" });
-
-  // Blocked dates
-  const [blockedDates, setBlockedDates] = useState<any[]>([]);
-  const [blockDate, setBlockDate] = useState("");
-  const [blockReason, setBlockReason] = useState("");
-
-  // Bookings
-  const [todayBookings, setTodayBookings] = useState<any[]>([]);
-
-  // Status message state
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Active Live Telemedicine Waiting Room Queue (/api/telemed/active)
+  const [activeConsultations, setActiveConsultations] = useState<any[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+
+  // Bookings (Today's roster)
+  const [todayBookings, setTodayBookings] = useState<any[]>([]);
 
   // Standalone Digital e-Prescription Studio state
   const [rxPatientName, setRxPatientName] = useState("Priya Sharma");
@@ -178,37 +136,23 @@ export default function DoctorDashboard() {
     }
   }, [router]);
 
-  const fetchAvailability = useCallback(async () => {
+  const fetchActiveTelemedQueue = useCallback(async () => {
     try {
+      setQueueLoading(true);
       const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/my-availability`, {
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/telemed/active`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) setAvailability(data.availability || []);
-    } catch (e) { console.error(e); }
-  }, []);
-
-  const fetchFees = useCallback(async () => {
-    try {
-      const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/my-fees`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setFees(data.fees || []);
-    } catch (e) { console.error(e); }
-  }, []);
-
-  const fetchBlockedDates = useCallback(async () => {
-    try {
-      const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/my-blocked-dates`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setBlockedDates(data.blocked_dates || []);
-    } catch (e) { console.error(e); }
+      if (data.success && Array.isArray(data.consultations)) {
+        setActiveConsultations(data.consultations);
+      }
+    } catch (e) {
+      console.error("Failed to fetch active telemed queue:", e);
+    } finally {
+      setQueueLoading(false);
+    }
   }, []);
 
   const fetchTodayBookings = useCallback(async () => {
@@ -221,7 +165,7 @@ export default function DoctorDashboard() {
       if (data.success && data.data?.bookings) {
         setTodayBookings(data.data.bookings);
       } else {
-        // Mock fallback if offline/no bookings so the doctor radar always demonstrates interactive power
+        // Fallback display if offline/empty
         setTodayBookings([
           {
             id: "book-cm-901",
@@ -256,77 +200,11 @@ export default function DoctorDashboard() {
 
   useEffect(() => {
     fetchProfile();
-    fetchAvailability();
-    fetchFees();
-    fetchBlockedDates();
     fetchTodayBookings();
-  }, [fetchProfile, fetchAvailability, fetchFees, fetchBlockedDates, fetchTodayBookings]);
-
-  // Handlers
-  const handleAddAvailability = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/availability`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatusMsg({ text: data.message || "Weekly availability saved successfully", type: "success" });
-        setShowAddForm(false);
-        fetchAvailability();
-      } else {
-        setStatusMsg({ text: data.detail || "Failed to add availability", type: "error" });
-      }
-    } catch {
-      setStatusMsg({ text: "Network error occurred", type: "error" });
-    }
-  };
-
-  const handleSetFee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/fees`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ fee_type: feeForm.fee_type, amount: parseFloat(feeForm.amount) }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStatusMsg({ text: `Custom tariff updated to ₹${feeForm.amount} (80% net take-home: ₹${(parseFloat(feeForm.amount) * 0.8).toFixed(0)})`, type: "success" });
-        fetchFees();
-      } else {
-        setStatusMsg({ text: data.detail || "Failed to update tariff", type: "error" });
-      }
-    } catch {
-      setStatusMsg({ text: "Network error updating fee", type: "error" });
-    }
-  };
-
-  const handleBlockDate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!blockDate) return;
-    try {
-      const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/blocked-dates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ blocked_date: blockDate, reason: blockReason }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchBlockedDates();
-        setBlockDate("");
-        setBlockReason("");
-        setStatusMsg({ text: "Date successfully marked as blocked", type: "success" });
-      }
-    } catch {
-      setStatusMsg({ text: "Error blocking date", type: "error" });
-    }
-  };
+    fetchActiveTelemedQueue();
+    const interval = setInterval(fetchActiveTelemedQueue, 15000);
+    return () => clearInterval(interval);
+  }, [fetchProfile, fetchTodayBookings, fetchActiveTelemedQueue]);
 
   const handleAddRxItem = () => {
     if (!rxNewName.trim()) return;
@@ -354,13 +232,12 @@ export default function DoctorDashboard() {
 
   const tabs = [
     { id: "radar", label: "Waiting Room Radar", icon: Activity },
-    { id: "schedule", label: "OPD Schedule", icon: Calendar },
+    { id: "schedule", label: "Slots & Availability", icon: Calendar },
     { id: "appointments", label: "Appointments", icon: Clock },
     { id: "home_visits", label: "Home Visits", icon: Home },
     { id: "erx_studio", label: "e-Prescription Pad", icon: FileText },
     { id: "tariffs", label: "Benchmark Tariffs & 80/20", icon: CreditCard },
     { id: "revenue", label: "Revenue & Payouts", icon: DollarSign },
-    { id: "leave", label: "Leave & Blocks", icon: CalendarOff },
     { id: "profile", label: "Doctor Profile", icon: User },
   ];
 
@@ -481,141 +358,309 @@ export default function DoctorDashboard() {
                 Real-time queue tracking for registered patients waiting for video consultation
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/doctor/consult/instant")}
-              style={{
-                background: "#0284c7",
-                color: "#ffffff",
-                border: "none",
-                padding: "10px 18px",
-                borderRadius: "8px",
-                fontWeight: 700,
-                fontSize: "0.85rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <Video size={16} /> Launch Instant Exam Room
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {todayBookings.map((patient, idx) => (
-              <div
-                key={patient.id || idx}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={fetchActiveTelemedQueue}
                 style={{
-                  background: "#ffffff",
-                  borderRadius: "14px",
-                  border: patient.triage_level === "Urgent" ? "2px solid #f87171" : "1px solid #e2e8f0",
-                  padding: "20px 24px",
-                  boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: 20,
+                  background: "#f1f5f9",
+                  color: "#334155",
+                  border: "1px solid #cbd5e1",
+                  padding: "10px 16px",
+                  borderRadius: "8px",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
                   alignItems: "center",
+                  gap: 6,
                 }}
               >
-                {/* Avatar & Queue Status */}
-                <div style={{ position: "relative" }}>
+                <Activity size={16} /> {queueLoading ? "Polling..." : "Refresh Queue"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard/doctor/consult/instant")}
+                style={{
+                  background: "#0284c7",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "10px 18px",
+                  borderRadius: "8px",
+                  fontWeight: 700,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Video size={16} /> Launch Instant Exam Room
+              </button>
+            </div>
+          </div>
+
+          {/* ─── LIVE VIDEO CONSULTATION WAITING QUEUE (/api/telemed/active) ─── */}
+          {activeConsultations.length > 0 ? (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 0 4px rgba(239, 68, 68, 0.2)" }} />
+                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
+                  Patients In Waiting Room Now ({activeConsultations.length})
+                </h3>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {activeConsultations.map((c) => (
                   <div
+                    key={c.id}
                     style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: "50%",
-                      background: "#e0f2fe",
-                      color: "#0369a1",
-                      display: "flex",
+                      background: "#ffffff",
+                      borderRadius: "14px",
+                      border: "2px solid #38bdf8",
+                      padding: "20px 24px",
+                      boxShadow: "0 4px 20px rgba(2, 132, 199, 0.12)",
+                      display: "grid",
+                      gridTemplateColumns: "auto 1fr auto",
+                      gap: 20,
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 800,
-                      fontSize: "1.1rem",
                     }}
                   >
-                    {patient.patient_name?.[0] || "P"}
-                  </div>
-                  <span
-                    style={{
-                      position: "absolute",
-                      bottom: -2,
-                      right: -2,
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      background: "#10b981",
-                      border: "2px solid #ffffff",
-                    }}
-                  />
-                </div>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: "50%",
+                          background: "#e0f2fe",
+                          color: "#0369a1",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          fontSize: "1.1rem",
+                        }}
+                      >
+                        {c.patient_name?.[0] || "P"}
+                      </div>
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: -2,
+                          right: -2,
+                          width: 14,
+                          height: 14,
+                          borderRadius: "50%",
+                          background: "#10b981",
+                          border: "2px solid #ffffff",
+                        }}
+                      />
+                    </div>
 
-                {/* Patient Information & Clinical Triage */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-                    <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
-                      {patient.patient_name}
-                    </h3>
-                    <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                      ({patient.age} Yrs • {patient.gender || "Female"})
-                    </span>
-                    <span
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+                        <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
+                          {c.patient_name}
+                        </h4>
+                        {c.patient_age && (
+                          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                            ({c.patient_age} Yrs • {c.patient_gender || "Patient"})
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "999px",
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            background: "#fee2e2",
+                            color: "#b91c1c",
+                          }}
+                        >
+                          Waiting {c.elapsed_minutes ?? 0}m
+                        </span>
+                        {c.patient_mobile && (
+                          <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                            • {c.patient_mobile}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ margin: "0 0 6px 0", fontSize: "0.85rem", color: "#475569" }}>
+                        <strong>Chief Complaint:</strong> {c.notes || "Live Video Consultation"}
+                      </p>
+                      <div style={{ fontSize: "0.76rem", color: "#0284c7", fontWeight: 600 }}>
+                        Consultation Ref: {c.video_room_name || c.id}
+                      </div>
+                    </div>
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/dashboard/doctor/consult/${c.id}`)}
+                        style={{
+                          background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "12px 22px",
+                          borderRadius: "8px",
+                          fontWeight: 700,
+                          fontSize: "0.88rem",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                        }}
+                      >
+                        <Video size={18} /> Admit to Exam Room
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px dashed #cbd5e1",
+                borderRadius: "12px",
+                padding: "16px 20px",
+                marginBottom: 24,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                color: "#64748b",
+                fontSize: "0.88rem",
+              }}
+            >
+              <Activity size={20} color="#0284c7" />
+              <span>
+                <strong>Virtual Lobby Clear:</strong> No patients are waiting in the room right now. Active consults appear automatically as soon as a patient checks in.
+              </span>
+            </div>
+          )}
+
+          {/* ─── TODAY'S SCHEDULED APPOINTMENTS ─── */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <Clock size={18} color="#0284c7" />
+              <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
+                Today&apos;s Scheduled Appointments ({todayBookings.length})
+              </h3>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {todayBookings.map((patient, idx) => (
+                <div
+                  key={patient.id || idx}
+                  style={{
+                    background: "#ffffff",
+                    borderRadius: "14px",
+                    border: patient.triage_level === "Urgent" ? "2px solid #f87171" : "1px solid #e2e8f0",
+                    padding: "20px 24px",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.04)",
+                    display: "grid",
+                    gridTemplateColumns: "auto 1fr auto",
+                    gap: 20,
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ position: "relative" }}>
+                    <div
                       style={{
-                        padding: "2px 8px",
-                        borderRadius: "999px",
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        background: patient.triage_level === "Urgent" ? "#fee2e2" : "#f1f5f9",
-                        color: patient.triage_level === "Urgent" ? "#b91c1c" : "#475569",
+                        width: 52,
+                        height: 52,
+                        borderRadius: "50%",
+                        background: "#e0f2fe",
+                        color: "#0369a1",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 800,
+                        fontSize: "1.1rem",
                       }}
                     >
-                      {patient.triage_level || "Standard"} Priority
-                    </span>
-                    <span style={{ fontSize: "0.78rem", color: "#0284c7", fontWeight: 600 }}>
-                      Slot: {patient.slot_time}
-                    </span>
+                      {patient.patient_name?.[0] || "P"}
+                    </div>
+                    <span
+                      style={{
+                        position: "absolute",
+                        bottom: -2,
+                        right: -2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: "50%",
+                        background: "#10b981",
+                        border: "2px solid #ffffff",
+                      }}
+                    />
                   </div>
 
-                  <p style={{ margin: "0 0 8px 0", fontSize: "0.85rem", color: "#475569" }}>
-                    <strong>Chief Complaint:</strong> {patient.notes || "Clinical consultation"}
-                  </p>
-
-                  {/* Vitals Summary Pill */}
-                  {patient.vitals && (
-                    <div style={{ display: "flex", gap: 14, fontSize: "0.76rem", color: "#64748b" }}>
-                      <span>BP: <strong style={{ color: "#0f172a" }}>{patient.vitals.bp}</strong></span>
-                      <span>Pulse: <strong style={{ color: "#0f172a" }}>{patient.vitals.pulse} bpm</strong></span>
-                      <span>Temp: <strong style={{ color: "#0f172a" }}>{patient.vitals.temp}</strong></span>
-                      <span>SpO2: <strong style={{ color: "#0f172a" }}>{patient.vitals.spo2}</strong></span>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+                      <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
+                        {patient.patient_name}
+                      </h4>
+                      <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                        ({patient.age} Yrs • {patient.gender || "Female"})
+                      </span>
+                      <span
+                        style={{
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          background: patient.triage_level === "Urgent" ? "#fee2e2" : "#f1f5f9",
+                          color: patient.triage_level === "Urgent" ? "#b91c1c" : "#475569",
+                        }}
+                      >
+                        {patient.triage_level || "Standard"} Priority
+                      </span>
+                      <span style={{ fontSize: "0.78rem", color: "#0284c7", fontWeight: 600 }}>
+                        Slot: {patient.slot_time}
+                      </span>
                     </div>
-                  )}
-                </div>
 
-                {/* Connect Action Button */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/dashboard/doctor/consult/${patient.id || "instant"}`)}
-                    style={{
-                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                      color: "#ffffff",
-                      border: "none",
-                      padding: "10px 18px",
-                      borderRadius: "8px",
-                      fontWeight: 700,
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-                    }}
-                  >
-                    <Video size={16} /> Admit Patient
-                  </button>
+                    <p style={{ margin: "0 0 8px 0", fontSize: "0.85rem", color: "#475569" }}>
+                      <strong>Chief Complaint:</strong> {patient.notes || "Clinical consultation"}
+                    </p>
+
+                    {patient.vitals && (
+                      <div style={{ display: "flex", gap: 14, fontSize: "0.76rem", color: "#64748b" }}>
+                        <span>BP: <strong style={{ color: "#0f172a" }}>{patient.vitals.bp}</strong></span>
+                        <span>Pulse: <strong style={{ color: "#0f172a" }}>{patient.vitals.pulse} bpm</strong></span>
+                        <span>Temp: <strong style={{ color: "#0f172a" }}>{patient.vitals.temp}</strong></span>
+                        <span>SpO2: <strong style={{ color: "#0f172a" }}>{patient.vitals.spo2}</strong></span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/dashboard/doctor/consult/${patient.id || "instant"}`)}
+                      style={{
+                        background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                        color: "#ffffff",
+                        border: "none",
+                        padding: "10px 18px",
+                        borderRadius: "8px",
+                        fontWeight: 700,
+                        fontSize: "0.85rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                      }}
+                    >
+                      <Video size={16} /> Open Exam Room
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -695,7 +740,7 @@ export default function DoctorDashboard() {
             ))}
           </div>
 
-          {/* Custom Tariff Setting Studio */}
+          {/* Custom Tariff Setting Notice */}
           <div
             style={{
               background: "#ffffff",
@@ -706,76 +751,30 @@ export default function DoctorDashboard() {
             }}
           >
             <h3 style={{ margin: "0 0 8px 0", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
-              Customize Your Consultation Fee
+              Custom Consultation Fee &amp; Slots Management
             </h3>
-            <p style={{ margin: "0 0 16px 0", fontSize: "0.84rem", color: "#64748b" }}>
-              Update your live booking charge. The system guarantees your 80% net take-home calculation.
+            <p style={{ margin: "0 0 16px 0", fontSize: "0.84rem", color: "#64748b", lineHeight: 1.5 }}>
+              Your live fees, clinic location, teleconsultation windows, and doorstep home visit rates are managed in the <strong>Slots &amp; Availability</strong> panel with guaranteed 80% net take-home calculation.
             </p>
-
-            <form onSubmit={handleSetFee}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                  Consultation Modality
-                </label>
-                <select
-                  value={feeForm.fee_type}
-                  onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
-                >
-                  <option value="in_person">In-Person Clinic Consultation</option>
-                  <option value="online">Online Video Teleconsultation</option>
-                  <option value="home_visit">Doorstep Home Clinical Visit</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                  Consultation Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  min={100}
-                  step={50}
-                  value={feeForm.amount}
-                  onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
-                  required
-                />
-              </div>
-
-              {/* Real-time 80/20 calculation preview */}
-              {feeForm.amount && parseFloat(feeForm.amount) > 0 && (
-                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", padding: "12px 14px", marginBottom: 18 }}>
-                  <div style={{ fontSize: "0.82rem", color: "#166534", fontWeight: 700, marginBottom: 4 }}>
-                    Live Commercial Breakdown:
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", color: "#166534" }}>
-                    <span>Your Direct Net Payout (80%):</span>
-                    <strong>₹{(parseFloat(feeForm.amount) * 0.8).toFixed(0)}</strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.76rem", color: "#15803d", marginTop: 2 }}>
-                    <span>CallMedex Infrastructure &amp; Support (20%):</span>
-                    <span>₹{(parseFloat(feeForm.amount) * 0.2).toFixed(0)}</span>
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                style={{
-                  background: "#0284c7",
-                  color: "#ffffff",
-                  border: "none",
-                  padding: "11px 22px",
-                  borderRadius: "8px",
-                  fontWeight: 700,
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                }}
-              >
-                Save Live Tariff
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => setActiveTab("schedule")}
+              style={{
+                background: "#0284c7",
+                color: "#ffffff",
+                border: "none",
+                padding: "11px 22px",
+                borderRadius: "8px",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Calendar size={16} /> Open Slots &amp; Availability
+            </button>
           </div>
         </div>
       )}
@@ -997,100 +996,10 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 5: SCHEDULE TAB
+          TAB 5: SLOTS & AVAILABILITY (3-SCHEDULE MODEL + 80/20 COMMERCE)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "schedule" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <h2 style={{ margin: 0, color: "#1e293b", fontSize: "1.2rem", fontWeight: 800 }}>Weekly Availability Schedule</h2>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              style={{
-                backgroundColor: "#0284c7",
-                color: "white",
-                border: "none",
-                padding: "10px 20px",
-                borderRadius: 8,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontSize: "0.85rem",
-              }}
-            >
-              {showAddForm ? "Cancel" : "+ Add Availability Block"}
-            </button>
-          </div>
-
-          {showAddForm && (
-            <div style={{ backgroundColor: "white", borderRadius: 12, padding: 24, marginBottom: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", border: "1px solid #cbd5e1" }}>
-              <h3 style={{ margin: "0 0 16px 0", color: "#0f4c81" }}>Add Availability Block</h3>
-              <form onSubmit={handleAddAvailability}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  <div>
-                    <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>Day</label>
-                    <select
-                      value={formData.day_of_week}
-                      onChange={e => setFormData({ ...formData, day_of_week: parseInt(e.target.value) })}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
-                    >
-                      {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>Start Time</label>
-                    <input
-                      type="time"
-                      value={formData.start_time}
-                      onChange={e => setFormData({ ...formData, start_time: e.target.value })}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>End Time</label>
-                    <input
-                      type="time"
-                      value={formData.end_time}
-                      onChange={e => setFormData({ ...formData, end_time: e.target.value })}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  style={{
-                    marginTop: 18,
-                    backgroundColor: "#0284c7",
-                    color: "white",
-                    border: "none",
-                    padding: "10px 24px",
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Save Schedule Block
-                </button>
-              </form>
-            </div>
-          )}
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {availability.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>No availability blocks set. Click Add Availability Block above to set weekly slots.</p>
-            ) : (
-              availability.map((a) => (
-                <div key={a.id} style={{ background: "#fff", padding: "14px 18px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <span style={{ fontWeight: 800, color: "#0f172a", marginRight: 12 }}>{DAYS[a.day_of_week]}</span>
-                    <span style={{ color: "#64748b", fontSize: "0.88rem" }}>{a.start_time} - {a.end_time} ({a.slot_duration_minutes} min slots)</span>
-                  </div>
-                  <span style={{ padding: "4px 10px", borderRadius: "6px", background: "#f0fdf4", color: "#16a34a", fontSize: "0.78rem", fontWeight: 700 }}>
-                    Active
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        <ProviderSchedulePanel roleLabel="doctor" />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -1139,45 +1048,6 @@ export default function DoctorDashboard() {
       {activeTab === "home_visits" && (
         <div style={{ margin: "-24px -40px" }}>
           <ProviderDispatchTracker title="Doctor Home Visits Dispatch" providerType="doctor" earningsRate={640} />
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB 8: LEAVE & BLOCKS TAB
-      ══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "leave" && (
-        <div>
-          <h2 style={{ margin: "0 0 20px 0", color: "#1e293b", fontSize: "1.2rem", fontWeight: 800 }}>Block Dates (Holidays &amp; Leave)</h2>
-          <div style={{ background: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid #e2e8f0", maxWidth: "480px" }}>
-            <form onSubmit={handleBlockDate}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>Date to Block</label>
-                <input
-                  type="date"
-                  value={blockDate}
-                  onChange={e => setBlockDate(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
-                  required
-                />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>Reason</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Medical Conference / Leave"
-                  value={blockReason}
-                  onChange={e => setBlockReason(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
-                />
-              </div>
-              <button
-                type="submit"
-                style={{ background: "#ef4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}
-              >
-                Block Date
-              </button>
-            </form>
-          </div>
         </div>
       )}
 

@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 VALID_PROVIDER_TYPES = {
     "nurse", "phlebotomist", "doctor", "ambulance", "pharmacy_delivery",
+    # Dietitians and physiotherapists are sold with a home_visit_fee and
+    # available_for_home_visit (see database/mou_dietitian_physio_foundation.sql).
+    # Without them here find_nearby_providers rejected the type outright, so a
+    # home visit the patient had paid for could never be dispatched to anyone.
+    "dietitian", "physiotherapist",
 }
 
 # The phlebotomist MOUs give a collector 10 minutes to accept or reject
@@ -50,6 +55,19 @@ NORMAL_MAX_OFFERS = 5
 
 _local_dispatches: List[dict] = []
 _LOCAL_DISPATCH_MAX_AGE_HOURS = 24  # Clean up dispatches older than 24 hours
+
+
+def _is_verified_provider(row: dict) -> bool:
+    """True when this candidate row shows a verified provider.
+
+    The two candidate sources spell it differently: the legacy role tables
+    (phlebotomists/nurses) carry `verification_status` on the row itself, while
+    provider_locations carries it on the embedded `users` record.
+    """
+    if (row.get("verification_status") or "") == "verified":
+        return True
+    user = row.get("users") or {}
+    return (user.get("verification_status") or "") == "verified"
 
 
 def _cleanup_local_dispatches():
@@ -179,9 +197,15 @@ class UniversalDispatchEngine:
 
         # Path A: universal provider_locations table
         try:
+            # verification_status is pulled through so the candidate loop below
+            # can drop unverified providers. Path B (legacy tables) already
+            # filters it in SQL; path A had no such filter at all, so an
+            # unverified — or outright rejected — provider who merely had a
+            # provider_locations row and flipped themselves online was being
+            # dispatched into a patient's home.
             result_a = (
                 supabase.table("provider_locations")
-                .select("*, users!inner(id, full_name, mobile, email)")
+                .select("*, users!inner(id, full_name, mobile, email, verification_status)")
                 .eq("provider_type", provider_type)
                 .eq("is_online", True)
                 .not_.is_("current_lat", "null")
@@ -255,6 +279,16 @@ class UniversalDispatchEngine:
                 continue
 
             if centre_members is not None and user_id not in centre_members:
+                continue
+
+            # Single verification rule for BOTH candidate paths. Path B carries
+            # it on the role row (phlebotomists/nurses), path A on the embedded
+            # user. Someone the platform has not verified never gets sent to a
+            # patient's address, whichever table they surfaced from.
+            if not _is_verified_provider(p):
+                logger.warning(
+                    f"Skipping unverified {provider_type} {user_id} for dispatch."
+                )
                 continue
 
             p_lat = p.get("current_lat")
@@ -344,6 +378,152 @@ class UniversalDispatchEngine:
         except Exception as e:
             logger.warning(f"Fallback find failed for {provider_type}: {e}")
             return []
+
+    # ──────────────────────────────────────────────────────────────────
+    # Direct Dispatch (patient chose this specific provider)
+    # ──────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def create_direct_dispatch(
+        *,
+        patient_id: str,
+        provider_id: str,
+        provider_type: str,
+        patient_lat: float,
+        patient_lng: float,
+        patient_address: str,
+        booking_id: Optional[str] = None,
+        service_subtype: Optional[str] = None,
+        notes: str = "",
+        scheduled_for: Optional[str] = None,
+    ) -> dict:
+        """Offer a home visit to the ONE provider the patient picked.
+
+        create_dispatch fans a job out to whoever is nearest, which is right for
+        "send me any phlebotomist" but wrong when the patient has chosen a named
+        physiotherapist and is paying that person's rate. This creates the same
+        dispatch_requests + dispatch_offers pair so everything downstream — the
+        provider's task list, offer acceptance, live tracking, arrival OTP,
+        clinical notes, ratings — works identically, but with exactly one
+        candidate.
+
+        Returns a dict with `dispatch_id`, or `{"success": False}` when the
+        dispatch could not be created (the caller decides what to tell the
+        patient; it must never claim a visit is booked when it is not).
+        """
+        if not supabase:
+            return {"success": False, "message": "Dispatch is unavailable right now."}
+
+        dispatch_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        expires_at = (now + timedelta(minutes=offer_window_minutes())).isoformat()
+
+        def _valid_uuid(value):
+            try:
+                uuid.UUID(str(value))
+                return str(value)
+            except (ValueError, TypeError):
+                return None
+
+        dispatch_row = {
+            "id": dispatch_id,
+            "patient_id": _valid_uuid(patient_id),
+            "booking_id": _valid_uuid(booking_id),
+            "provider_type": provider_type,
+            "service_subtype": service_subtype,
+            # Not yet accepted: the provider still has to take the job. Marking
+            # it accepted here would tell the patient someone is coming before
+            # anyone had agreed to.
+            "status": "provider_notified",
+            "assigned_provider_id": None,
+            "patient_lat": patient_lat,
+            "patient_lng": patient_lng,
+            "patient_address": patient_address,
+            "priority": "normal",
+            "notes": notes,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
+        if scheduled_for:
+            dispatch_row["scheduled_for"] = scheduled_for
+
+        try:
+            await asyncio.to_thread(
+                lambda: supabase.table("dispatch_requests").insert(dispatch_row).execute()
+            )
+        except Exception as e:
+            logger.error(f"Direct dispatch insert failed for booking {booking_id}: {e}")
+            return {"success": False, "message": "Could not create the visit request."}
+
+        offer_id = str(uuid.uuid4())
+        try:
+            await asyncio.to_thread(
+                lambda: supabase.table("dispatch_offers").insert({
+                    "id": offer_id,
+                    "dispatch_request_id": dispatch_id,
+                    "provider_id": provider_id,
+                    "status": "pending",
+                    "distance_km": None,
+                    "offered_at": now_iso,
+                    "responded_at": None,
+                    "expires_at": expires_at,
+                }).execute()
+            )
+        except Exception as e:
+            # Without an offer row the provider has nothing to accept, so the
+            # dispatch would sit until the sweep killed it. Fail loudly.
+            logger.error(f"Direct dispatch offer insert failed for {dispatch_id}: {e}")
+            return {"success": False, "message": "Could not notify the provider."}
+
+        # Tell the chosen provider, by every channel we have.
+        try:
+            prov = await asyncio.to_thread(
+                lambda: supabase.table("users").select("full_name, email")
+                .eq("id", provider_id).limit(1).execute()
+            )
+            prov_row = (prov.data or [{}])[0]
+            if prov_row.get("email"):
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        EmailService.send_magic_dispatch_email_safe,
+                        to_email=prov_row["email"],
+                        provider_name=prov_row.get("full_name"),
+                        task_details={
+                            "service_subtype": service_subtype,
+                            "patient_address": patient_address,
+                            "distance_km": None,
+                            "notes": notes,
+                            "priority": "normal",
+                            "window_minutes": offer_window_minutes(),
+                        },
+                        offer_id=offer_id,
+                        provider_id=provider_id,
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Direct dispatch email lookup failed for {provider_id}: {e}")
+
+        asyncio.create_task(
+            UniversalDispatchEngine._push_offer_to_candidate(
+                provider_id=provider_id,
+                service_subtype=service_subtype,
+                distance_km=None,
+                patient_address=patient_address,
+                priority="normal",
+                dispatch_id=dispatch_id,
+                offer_id=offer_id,
+            )
+        )
+
+        return {
+            "success": True,
+            "dispatch_id": dispatch_id,
+            "offer_id": offer_id,
+            "provider_id": provider_id,
+            "status": "provider_notified",
+            "message": "Request sent to your chosen provider.",
+        }
 
     # ──────────────────────────────────────────────────────────────────
     # Create Dispatch Request
@@ -574,6 +754,7 @@ class UniversalDispatchEngine:
 
         return {
             "dispatch_id": dispatch_id,
+            "booking_id": valid_booking_id,
             "status": status,
             "priority": priority,
             "provider_type": provider_type,
@@ -616,13 +797,16 @@ class UniversalDispatchEngine:
         from app.services import push as push_service
 
         urgent = priority == "urgent"
-        service_label = (service_subtype or "home collection").replace("_", " ")
+        service_label = (service_subtype or "home visit").replace("_", " ")
 
-        title = "Urgent collection nearby" if urgent else "New collection request"
-        body = (
-            f"{service_label.title()} · {distance_km} km away · "
-            f"respond within {offer_window_minutes()} min"
-        )
+        title = "Urgent request nearby" if urgent else "New visit request"
+        # A direct offer to a named provider has no distance (they were chosen,
+        # not matched by proximity) — rendering it produced "None km away".
+        parts = [service_label.title()]
+        if distance_km is not None:
+            parts.append(f"{distance_km} km away")
+        parts.append(f"respond within {offer_window_minutes()} min")
+        body = " · ".join(parts)
 
         try:
             await push_service.send_to_user(
@@ -770,10 +954,13 @@ class UniversalDispatchEngine:
                         )
                     from app.services.notification_engine import NotificationEngine
                     from app.services.push import CHANNEL_DISPATCH
+                    role_label, _ = UniversalDispatchEngine._provider_labels(
+                        d_req.get("provider_type")
+                    )
                     await NotificationEngine.send_multi(
                         user_id=d_req["patient_id"],
                         channels=["in_app", "push"],
-                        title="Phlebotomist assigned",
+                        title=f"{role_label} assigned",
                         body=f"{provider_name} has been assigned to your booking and is preparing to head your way.",
                         data={
                             "dispatch_id": dispatch_id,
@@ -784,6 +971,19 @@ class UniversalDispatchEngine:
                     )
             except Exception as e:
                 logger.error(f"Failed to send tracking email/notification: {e}")
+
+            # Sync linked booking to in_progress and assign provider_id
+            accepted_dispatch = accept_result.data[0] if accept_result.data else {}
+            linked_booking_id = accepted_dispatch.get("booking_id")
+            if linked_booking_id:
+                try:
+                    supabase.table("bookings").update({
+                        "status": "in_progress",
+                        "provider_id": provider_id,
+                        "updated_at": now,
+                    }).eq("id", linked_booking_id).execute()
+                except Exception as b_err:
+                    logger.warning(f"Failed to sync booking status on respond_to_offer: {b_err}")
 
             return {"success": True, "message": "Offer accepted. Navigate to patient.", "dispatch_id": dispatch_id}
         else:
@@ -858,17 +1058,58 @@ class UniversalDispatchEngine:
         if new_status == "arrived":
             OTPService.generate_otp(dispatch_id)
 
+        # Sync linked booking status across transitions
+        booking_id = dispatch_row.get("booking_id") if isinstance(dispatch_row, dict) else None
+        if booking_id and supabase:
+            try:
+                status_sync_map = {
+                    "provider_accepted": "provider_accepted",
+                    "en_route": "in_progress",
+                    "arrived": "in_progress",
+                    "in_progress": "in_progress",
+                    "completed": "completed",
+                    "cancelled": "cancelled",
+                }
+                if new_status in status_sync_map:
+                    b_update = {"status": status_sync_map[new_status], "updated_at": now}
+                    if provider_id:
+                        b_update["provider_id"] = provider_id
+                    supabase.table("bookings").update(b_update).eq("id", booking_id).execute()
+            except Exception as b_err:
+                logger.warning(f"Failed to sync booking status in update_status: {b_err}")
+
         if new_status in ("en_route", "arrived", "in_progress", "completed"):
             await UniversalDispatchEngine._notify_patient_of_status(dispatch_row, new_status)
 
         return {"success": True, "dispatch": dispatch_row}
 
-    _STATUS_COPY = {
-        "en_route": ("Phlebotomist on the way", "{provider} is on the way to your location."),
-        "arrived": ("Phlebotomist has arrived", "{provider} has arrived. Have your OTP ready to verify them."),
-        "in_progress": ("Sample collection started", "{provider} has started your sample collection."),
-        "completed": ("Sample collection completed", "Your sample collection is complete. Reports will appear on your dashboard once ready."),
+    # Patient-facing labels per provider type. These strings used to be
+    # hardcoded to "Phlebotomist" / "Sample collection", so a patient who had
+    # booked a home nurse for wound dressing was told a phlebotomist had
+    # started their sample collection.
+    _PROVIDER_LABEL = {
+        "phlebotomist": ("Phlebotomist", "Sample collection"),
+        "nurse": ("Nurse", "Your home nursing visit"),
+        "doctor": ("Doctor", "Your home visit"),
+        "dietitian": ("Dietitian", "Your consultation"),
+        "physiotherapist": ("Physiotherapist", "Your physiotherapy session"),
+        "ambulance": ("Ambulance", "Your ambulance service"),
+        "pharmacy_delivery": ("Delivery partner", "Your delivery"),
     }
+    _DEFAULT_PROVIDER_LABEL = ("Provider", "Your visit")
+
+    _STATUS_COPY = {
+        "en_route": ("{role} on the way", "{provider} is on the way to your location."),
+        "arrived": ("{role} has arrived", "{provider} has arrived. Have your OTP ready to verify them."),
+        "in_progress": ("{visit} started", "{provider} has started {visit_lower}."),
+        "completed": ("{visit} completed", "{visit} is complete. Updates will appear on your dashboard."),
+    }
+
+    @staticmethod
+    def _provider_labels(provider_type: Optional[str]) -> tuple:
+        return UniversalDispatchEngine._PROVIDER_LABEL.get(
+            provider_type or "", UniversalDispatchEngine._DEFAULT_PROVIDER_LABEL
+        )
 
     @staticmethod
     async def _notify_patient_of_status(dispatch_row: dict, new_status: str) -> None:
@@ -894,9 +1135,20 @@ class UniversalDispatchEngine:
                 if prov_res.data and prov_res.data[0].get("full_name"):
                     provider_name = prov_res.data[0]["full_name"]
 
-            title, body_template = UniversalDispatchEngine._STATUS_COPY.get(
+            role_label, visit_label = UniversalDispatchEngine._provider_labels(
+                dispatch_row.get("provider_type")
+            )
+            title_template, body_template = UniversalDispatchEngine._STATUS_COPY.get(
                 new_status, ("Booking update", "Your booking status changed to {status}.")
             )
+            fields = {
+                "provider": provider_name,
+                "status": new_status,
+                "role": role_label,
+                "visit": visit_label,
+                "visit_lower": visit_label[0].lower() + visit_label[1:],
+            }
+            title = title_template.format(**fields)
 
             from app.services.notification_engine import NotificationEngine
             from app.services.push import CHANNEL_DISPATCH
@@ -906,7 +1158,7 @@ class UniversalDispatchEngine:
                 user_id=patient_id,
                 channels=["in_app", "push"],
                 title=title,
-                body=body_template.format(provider=provider_name, status=new_status),
+                body=body_template.format(**fields),
                 data={
                     "dispatch_id": dispatch_row.get("id"),
                     "status": new_status,

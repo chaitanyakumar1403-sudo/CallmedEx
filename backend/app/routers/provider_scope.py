@@ -57,7 +57,7 @@ async def get_my_scope(current_user: dict = Depends(get_current_user)):
     profile: Optional[dict] = None
     if supabase:
         try:
-            res = supabase.table(table).select("*").eq("user_id", current_user["id"]).execute()
+            res = supabase.table(table).select("*").eq("user_id", current_user["sub"]).execute()
             if res.data:
                 profile = res.data[0]
         except Exception as e:
@@ -66,7 +66,7 @@ async def get_my_scope(current_user: dict = Depends(get_current_user)):
     if not profile:
         # Check local fallback
         for p in _local_profiles.get(table, []):
-            if p.get("user_id") == current_user["id"]:
+            if p.get("user_id") == current_user["sub"]:
                 profile = p
                 break
 
@@ -115,13 +115,13 @@ async def update_my_scope(
 
     if supabase:
         try:
-            supabase.table(table).update(update_data).eq("user_id", current_user["id"]).execute()
+            supabase.table(table).update(update_data).eq("user_id", current_user["sub"]).execute()
         except Exception as e:
             pass
 
     # Update local fallback
     for p in _local_profiles.get(table, []):
-        if p.get("user_id") == current_user["id"]:
+        if p.get("user_id") == current_user["sub"]:
             p.update(update_data)
             break
 
@@ -139,128 +139,133 @@ async def search_providers(
     district: Optional[str] = Query(None, description="Filter by district"),
     q: Optional[str] = Query(None, description="Search query by name or specialty"),
 ):
-    """Search verified healthcare providers for patient booking."""
+    """Search verified healthcare providers for patient booking.
+
+    Only genuinely verified, real providers are returned. This endpoint used to
+    fall back to a hardcoded roster of invented specialists ("Dr. Rajesh Varma,
+    MPT", "Dt. Ananya Sharma, RD") whenever the table was empty, so a patient
+    could book — and pay for — a consultation with a person who does not exist.
+    An empty list is honest; a plausible fake is not recoverable once someone
+    has booked against it. Same reasoning as the telemedicine doctor list.
+    """
     table = ROLE_TABLE_MAP.get(role.lower())
     if not table:
         raise HTTPException(status_code=400, detail=f"Invalid provider role: {role}")
 
+    if not supabase:
+        return APIResponse(
+            success=True,
+            message="Provider directory unavailable",
+            data={"providers": [], "count": 0},
+        )
+
     providers = []
-    if supabase:
-        try:
-            query = supabase.table(table).select("*, users(full_name, city, state, district, phone)")
-            if modality == "online":
-                query = query.eq("available_for_online", True)
-            elif modality == "home":
-                query = query.eq("available_for_home_visit", True)
+    try:
+        query = (
+            supabase.table(table)
+            .select("*, users(full_name, city, state, district, mobile)")
+            # A patient must never be offered someone the platform has not
+            # verified — this filter was missing entirely.
+            .eq("verification_status", "verified")
+        )
+        if modality == "online":
+            query = query.eq("available_for_online", True)
+        elif modality == "home":
+            query = query.eq("available_for_home_visit", True)
+        # "clinic" (walk-in) is not a column on the role tables — it is
+        # expressed as an in_person availability block, so it is resolved
+        # below against doctor_availability rather than silently ignored.
 
-            res = query.execute()
-            if res.data:
-                for row in res.data:
-                    u = row.get("users", {}) or {}
-                    providers.append({
-                        "id": row.get("id"),
-                        "user_id": row.get("user_id"),
-                        "full_name": u.get("full_name") or "Healthcare Specialist",
-                        "role": role,
-                        "specialization": (
-                            row.get("specialization")
-                            or ", ".join(row.get("specializations") or [])
-                            or "General Practice"
-                        ),
-                        "qualification": row.get("qualification", ""),
-                        "years_of_experience": row.get("years_of_experience", 0),
-                        "consultation_fee": row.get("consultation_fee", 400.0),
-                        "home_visit_fee": row.get("home_visit_fee", 800.0),
-                        "rating": row.get("rating") or 4.9,
-                        "total_reviews": row.get("total_reviews", 0),
-                        "city": u.get("city", "Bengaluru"),
-                        "district": u.get("district", ""),
-                        "state": u.get("state", "Karnataka"),
-                        "scope_of_services": row.get("scope_of_services", []),
-                    })
-        except Exception:
-            pass
+        res = query.execute()
+        clinic_only_ids = None
+        if modality == "clinic":
+            clinic_only_ids = _providers_with_walkin_availability(
+                [r.get("user_id") for r in (res.data or []) if r.get("user_id")]
+            )
 
-    # If no DB rows found, provide rich default specialist options for instant demo and UI readiness
-    if not providers:
-        defaults = {
-            "dietitian": [
-                {
-                    "id": "mock_diet_1",
-                    "user_id": "usr_diet_1",
-                    "full_name": "Dt. Ananya Sharma, RD",
-                    "role": "dietitian",
-                    "specialization": "Clinical Nutrition, Diabetic MNT & Metabolic Health",
-                    "qualification": "M.Sc Food & Nutrition, RD (IDA Certified)",
-                    "years_of_experience": 8,
-                    "consultation_fee": 400.0,
-                    "home_visit_fee": 800.0,
-                    "rating": 4.95,
-                    "total_reviews": 42,
-                    "city": "Bengaluru",
-                    "district": "Bengaluru Urban",
-                    "state": "Karnataka",
-                    "scope_of_services": get_master_catalog_for_role("dietitian")[:4],
-                },
-                {
-                    "id": "mock_diet_2",
-                    "user_id": "usr_diet_2",
-                    "full_name": "Dt. Priya Nair",
-                    "role": "dietitian",
-                    "specialization": "PCOD, Weight Management & Maternal Nutrition",
-                    "qualification": "B.Sc Clinical Nutrition, PGD Dietetics",
-                    "years_of_experience": 6,
-                    "consultation_fee": 450.0,
-                    "home_visit_fee": 850.0,
-                    "rating": 4.9,
-                    "total_reviews": 31,
-                    "city": "Bengaluru",
-                    "district": "Bengaluru Urban",
-                    "state": "Karnataka",
-                    "scope_of_services": get_master_catalog_for_role("dietitian")[:4],
-                },
-            ],
-            "physiotherapist": [
-                {
-                    "id": "mock_pt_1",
-                    "user_id": "usr_pt_1",
-                    "full_name": "Dr. Rajesh Varma, MPT",
-                    "role": "physiotherapist",
-                    "specialization": "Orthopedic Rehab, Joint Mobilization & Spine Care",
-                    "qualification": "MPT (Musculoskeletal), MIAP Certified",
-                    "years_of_experience": 9,
-                    "consultation_fee": 400.0,
-                    "home_visit_fee": 800.0,
-                    "rating": 4.92,
-                    "total_reviews": 56,
-                    "city": "Bengaluru",
-                    "district": "Bengaluru Urban",
-                    "state": "Karnataka",
-                    "scope_of_services": get_master_catalog_for_role("physiotherapist")[:5],
-                },
-                {
-                    "id": "mock_pt_2",
-                    "user_id": "usr_pt_2",
-                    "full_name": "Dr. Sneha Hegde, BPT",
-                    "role": "physiotherapist",
-                    "specialization": "Neuro-Rehab (Stroke/Parkinson's) & Geriatric Care",
-                    "qualification": "BPT, Certified Neuro-Developmental Therapist",
-                    "years_of_experience": 7,
-                    "consultation_fee": 450.0,
-                    "home_visit_fee": 850.0,
-                    "rating": 4.88,
-                    "total_reviews": 29,
-                    "city": "Bengaluru",
-                    "district": "Bengaluru Urban",
-                    "state": "Karnataka",
-                    "scope_of_services": get_master_catalog_for_role("physiotherapist")[:5],
-                },
-            ],
-        }
-        providers = defaults.get(role.lower(), [])
+        for row in (res.data or []):
+            u = row.get("users") or {}
+            user_id = row.get("user_id")
+
+            if clinic_only_ids is not None and user_id not in clinic_only_ids:
+                continue
+
+            # The district filter was accepted and then never applied, so
+            # "physiotherapists in Visakhapatnam" quietly returned the whole
+            # country.
+            if district and district.strip().lower() not in (
+                (u.get("district") or "").strip().lower()
+            ):
+                continue
+
+            specialization = (
+                row.get("specialization")
+                or ", ".join(row.get("specializations") or [])
+                or ""
+            )
+            full_name = u.get("full_name") or ""
+
+            if q:
+                haystack = f"{full_name} {specialization}".lower()
+                if q.strip().lower() not in haystack:
+                    continue
+
+            providers.append({
+                "id": row.get("id"),
+                "user_id": user_id,
+                "full_name": full_name or "Healthcare Specialist",
+                "role": role,
+                "specialization": specialization or "General Practice",
+                "qualification": row.get("qualification", ""),
+                "years_of_experience": row.get("years_of_experience", 0),
+                "consultation_fee": row.get("consultation_fee"),
+                "home_visit_fee": row.get("home_visit_fee"),
+                # No invented 4.9. An unrated provider is unrated, and the UI
+                # omits the badge rather than manufacturing trust.
+                "rating": row.get("rating"),
+                "total_reviews": row.get("total_reviews", 0),
+                "city": u.get("city") or "",
+                "district": u.get("district") or "",
+                "state": u.get("state") or "",
+                "available_for_online": row.get("available_for_online", False),
+                "available_for_home_visit": row.get("available_for_home_visit", False),
+                "clinic_center_name": row.get("clinic_center_name") or "",
+                "scope_of_services": row.get("scope_of_services", []),
+            })
+    except Exception as e:
+        logger.error(f"search_providers({role}) failed: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load the provider directory. Please retry.",
+        )
 
     return APIResponse(
         success=True,
-        message=f"Found {len(providers)} verified {role} providers",
+        message=f"Found {len(providers)} verified {role} provider(s)",
         data={"providers": providers, "count": len(providers)},
     )
+
+
+def _providers_with_walkin_availability(user_ids: List[str]) -> set:
+    """User ids among *user_ids* that publish at least one active in-person
+    (walk-in centre) availability block.
+
+    Walk-in is not a flag on the role table — it exists only as an availability
+    block the provider set up, which is exactly what the patient will be
+    shown slots from.
+    """
+    if not user_ids or not supabase:
+        return set()
+    try:
+        rows = (
+            supabase.table("doctor_availability")
+            .select("doctor_id")
+            .in_("doctor_id", list({u for u in user_ids if u}))
+            .eq("consultation_mode", "in_person")
+            .eq("is_active", True)
+            .execute()
+        ).data or []
+        return {r["doctor_id"] for r in rows if r.get("doctor_id")}
+    except Exception as e:
+        logger.warning(f"walk-in availability lookup failed: {e}")
+        return set()

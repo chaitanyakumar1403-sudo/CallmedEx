@@ -12,6 +12,32 @@
 
 BEGIN;
 
+-- ─── 0. Allow the two new roles on users ───────────────────────────────────
+-- users_role_check never listed 'dietitian' or 'physiotherapist', so every
+-- signup for the two roles this migration exists to support was rejected by
+-- Postgres before it ever reached the tables below.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN (
+    'patient','doctor','phlebotomist','organization','staff','pharmacy',
+    'nurse','ambulance','admin','supervisor','processing_center',
+    'dietitian','physiotherapist'
+  ));
+
+-- ─── 0b. Allow the service types these providers actually sell ─────────────
+-- bookings_service_type_check stopped at 'physiotherapy'. A dietitian
+-- appointment is a 'consultation' and a therapist travelling to the patient is
+-- a 'home_visit'; both are in the ServiceType enum the API already accepts, so
+-- without these the booking passed validation and was then rejected by Postgres.
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_service_type_check;
+ALTER TABLE bookings ADD CONSTRAINT bookings_service_type_check
+  CHECK (service_type IN (
+    'lab_test','imaging','health_package','video_consult','home_collection',
+    'doctor_appointment','nurse_visit','ambulance','pharmacy_delivery',
+    'physiotherapy','consultation','home_visit','nursing_care',
+    'medicine_delivery','procedure'
+  ));
+
 -- ─── 1. Dietitians Table ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS dietitians (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

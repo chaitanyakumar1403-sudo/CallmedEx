@@ -207,12 +207,59 @@ class TelemedicineService:
                 logger.error(f"Failed to create consultation: {e}")
                 raise RuntimeError("Could not create the consultation record") from e
 
+        # Tell the provider someone is waiting in the room. Without this the
+        # consultation sat at status "waiting" with nothing anywhere telling
+        # the provider it existed, and the patient stared at an empty room.
+        await TelemedicineService._notify_provider_waiting(
+            doctor_id=doctor_id, patient_id=patient_id, consultation_id=consultation_id
+        )
+
         return {
             "consultation_id": consultation_id,
             "video_url": room_info["room_url"],
             "room_name": room_info["room_name"],
             "status": "waiting",
         }
+
+    @staticmethod
+    async def _notify_provider_waiting(
+        doctor_id: str, patient_id: str, consultation_id: str
+    ) -> None:
+        """Tell the provider a patient is waiting in their consultation room.
+
+        Best-effort: a notification failure must never sink a room that has
+        already been created and handed to the patient.
+        """
+        if not supabase or not doctor_id:
+            return
+        try:
+            patient_name = "A patient"
+            rows = (
+                supabase.table("users").select("full_name")
+                .eq("id", patient_id).limit(1).execute()
+            )
+            if rows.data and rows.data[0].get("full_name"):
+                patient_name = rows.data[0]["full_name"]
+
+            from app.services.notification_engine import NotificationEngine
+            from app.services.push import CHANNEL_APPOINTMENTS
+
+            await NotificationEngine.send_multi(
+                user_id=doctor_id,
+                channels=["in_app", "push", "email"],
+                title="Patient waiting in consultation room",
+                body=f"{patient_name} has joined your CallMedex consultation room and is waiting for you.",
+                data={
+                    "consultation_id": consultation_id,
+                    "patient_id": patient_id,
+                    "channel_id": CHANNEL_APPOINTMENTS,
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                f"Could not notify provider {doctor_id} of waiting consultation "
+                f"{consultation_id}: {e}"
+            )
 
     @staticmethod
     async def get_consultation(consultation_id: str) -> Optional[dict]:
@@ -328,7 +375,7 @@ class TelemedicineService:
 
     @staticmethod
     async def get_active_consultations(doctor_id: str) -> List[dict]:
-        """Get active/waiting consultations for a doctor."""
+        """Get active/waiting consultations for a consulting provider enriched with patient info."""
         if not supabase:
             return []
 
@@ -341,7 +388,81 @@ class TelemedicineService:
                 .order("created_at", desc=True)
                 .execute()
             )
-            return result.data or []
+            consultations = result.data or []
+            if not consultations:
+                return []
+
+            # Enrich with patient demographics
+            patient_ids = list({c["patient_id"] for c in consultations if c.get("patient_id")})
+            patient_map = {}
+            if patient_ids:
+                try:
+                    user_res = (
+                        supabase.table("users")
+                        .select("id, full_name, mobile, email, gender, date_of_birth, city")
+                        .in_("id", patient_ids)
+                        .execute()
+                    )
+                    patient_map = {u["id"]: u for u in (user_res.data or [])}
+                except Exception as pe:
+                    logger.warning(f"Failed to load patient profiles for active consults: {pe}")
+
+            # Enrich with booking details if present
+            booking_ids = list({c["booking_id"] for c in consultations if c.get("booking_id")})
+            booking_map = {}
+            if booking_ids:
+                try:
+                    bk_res = (
+                        supabase.table("bookings")
+                        .select("id, service_type, slot_start, notes")
+                        .in_("id", booking_ids)
+                        .execute()
+                    )
+                    booking_map = {b["id"]: b for b in (bk_res.data or [])}
+                except Exception as be:
+                    logger.warning(f"Failed to load bookings for active consults: {be}")
+
+            now_utc = datetime.now(timezone.utc)
+            for c in consultations:
+                pid = c.get("patient_id")
+                u = patient_map.get(pid) or {}
+                c["patient_name"] = u.get("full_name") or "Patient"
+                c["patient_mobile"] = u.get("mobile") or ""
+                c["patient_email"] = u.get("email") or ""
+                c["patient_gender"] = (u.get("gender") or "Unknown").capitalize()
+                c["patient_city"] = u.get("city") or ""
+
+                # Age calculation
+                dob_str = u.get("date_of_birth")
+                if dob_str:
+                    try:
+                        birth_year = int(str(dob_str)[:4])
+                        c["patient_age"] = now_utc.year - birth_year
+                    except Exception:
+                        c["patient_age"] = None
+                else:
+                    c["patient_age"] = None
+
+                # Booking & Notes
+                b = booking_map.get(c.get("booking_id")) or {}
+                c["service_type"] = b.get("service_type") or "Video Consultation"
+                c["notes"] = c.get("chief_complaint") or c.get("notes") or b.get("notes") or "Clinical Teleconsultation"
+                c["triage_level"] = c.get("priority") or "Standard"
+
+                # Wait time calculation
+                created_at_str = c.get("created_at")
+                if created_at_str:
+                    try:
+                        ca = datetime.fromisoformat(str(created_at_str).replace("Z", "+00:00"))
+                        if ca.tzinfo is None:
+                            ca = ca.replace(tzinfo=timezone.utc)
+                        c["elapsed_minutes"] = max(0, int((now_utc - ca).total_seconds() / 60))
+                    except Exception:
+                        c["elapsed_minutes"] = 0
+                else:
+                    c["elapsed_minutes"] = 0
+
+            return consultations
         except Exception as e:
             logger.error(f"Failed to get active consultations: {e}")
             return []
@@ -564,9 +685,6 @@ class TelemedicineService:
         """
         consultation = await TelemedicineService.get_consultation(consultation_id) or {}
 
-        now = datetime.now(timezone.utc).isoformat()
-        dispatch_id = str(uuid.uuid4())
-
         if action_type == "pharmacy":
             medicines = consultation.get("ai_medicines", [])
             med_text = ", ".join([m.get("generic_name", "") for m in medicines if isinstance(m, dict)])
@@ -578,26 +696,85 @@ class TelemedicineService:
             notes = f"Telemedicine Prescribed Lab Test ({consultation_id[:8]}): {inv_text or 'Diagnostic blood tests'}"
             provider_type = "phlebotomist"
 
-        dispatch_data = {
-            "id": dispatch_id,
-            "patient_id": patient_id,
-            "provider_type": provider_type,
-            "patient_address": address,
-            "status": "searching",
-            "notes": notes,
-            "created_at": now,
-            "updated_at": now,
-        }
+        # This used to write a bare dispatch_requests row with status
+        # "searching" and no coordinates: no candidate search, no offers, no
+        # email, no push. Nobody was ever told, and the periodic sweep
+        # cancelled it minutes later — while the patient had been told
+        # "Successfully created". Go through the engine so the order actually
+        # reaches a provider.
+        lat, lng, resolved_address = TelemedicineService._resolve_patient_location(
+            patient_id, address
+        )
+        if lat is None or lng is None:
+            return {
+                "success": False,
+                "action_type": action_type,
+                "message": (
+                    "We could not pin your delivery address. Please set your "
+                    "address on your profile, then reorder."
+                ),
+            }
 
-        if supabase:
-            try:
-                supabase.table("dispatch_requests").insert(dispatch_data).execute()
-            except Exception as e:
-                logger.warning(f"Failed to insert dispatch request in DB: {e}")
+        from app.services.dispatch_engine import UniversalDispatchEngine
+
+        result = await UniversalDispatchEngine.create_dispatch(
+            patient_id=patient_id,
+            patient_lat=float(lat),
+            patient_lng=float(lng),
+            patient_address=resolved_address,
+            provider_type=provider_type,
+            service_subtype="teleconsult_followup",
+            booking_id=consultation.get("booking_id"),
+            notes=notes,
+            priority="normal",
+        )
 
         return {
             "success": True,
             "action_type": action_type,
-            "dispatch_id": dispatch_id,
-            "message": f"Successfully created 1-click {action_type} request."
+            "dispatch_id": result["dispatch_id"],
+            "providers_notified": result.get("all_candidates", 0),
+            "message": result.get("message")
+            or f"Successfully created 1-click {action_type} request.",
         }
+
+    @staticmethod
+    def _resolve_patient_location(patient_id: str, address: str):
+        """Best coordinates we can get for a post-consultation order.
+
+        `users` carries no lat/lng, so the address is geocoded. Returns
+        (None, None, address) when it cannot be resolved — the caller then
+        refuses rather than dispatching a provider to a guessed location.
+        """
+        stored_address, city = "", ""
+        if supabase and patient_id:
+            try:
+                rows = (
+                    supabase.table("users").select("address, city")
+                    .eq("id", patient_id).limit(1).execute()
+                )
+                if rows.data:
+                    stored_address = rows.data[0].get("address") or ""
+                    city = rows.data[0].get("city") or ""
+            except Exception as e:
+                logger.warning(f"Could not read address for patient {patient_id}: {e}")
+
+        # The router's default placeholder is not an address anyone can drive to.
+        candidate = address if address and address != "Patient Default Address" else stored_address
+        if not candidate and not city:
+            return None, None, address
+
+        try:
+            from app.services.geocoding import geocode_address, GeocodingError
+            try:
+                lat, lng = geocode_address(address=candidate or city, city=city)
+                return lat, lng, candidate or city
+            except GeocodingError as e:
+                logger.warning(
+                    f"Post-consultation order for {patient_id}: geocoding "
+                    f"{candidate!r} (city={city!r}) failed: {e}"
+                )
+        except Exception as e:
+            logger.warning(f"Geocoding unavailable for patient {patient_id}: {e}")
+
+        return None, None, candidate or address

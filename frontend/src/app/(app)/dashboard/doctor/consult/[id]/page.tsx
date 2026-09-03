@@ -58,24 +58,14 @@ export default function DoctorConsultationRoom({
   const recognitionRef = useRef<any>(null);
 
   // e-Prescription Form State
-  const [diagnosis, setDiagnosis] = useState("Acute Upper Respiratory Infection (J06.9)");
-  const [clinicalNotes, setClinicalNotes] = useState("Patient presents with 3-day history of low-grade fever, rhinorrhea, and mild sore throat. Throat mildly congested. Chest clear.");
-  const [medicines, setMedicines] = useState<PrescribedMedicine[]>([
-    {
-      generic_name: "Paracetamol 650mg",
-      dosage: "1 tablet",
-      frequency: "TID (3 times daily)",
-      duration: "3 days",
-      instructions: "After food, if fever > 100°F",
-    },
-    {
-      generic_name: "Cetirizine 10mg",
-      dosage: "1 tablet",
-      frequency: "OD (Once daily at bedtime)",
-      duration: "5 days",
-      instructions: "May cause mild drowsiness",
-    },
-  ]);
+  // These must start EMPTY. They previously opened every consultation
+  // pre-filled with a diagnosis (J06.9), a written examination finding, two
+  // live drugs and an ordered CBC — none of which came from the patient in
+  // front of the doctor. One click of Finalize issued that as a real
+  // e-prescription on a real patient's record.
+  const [diagnosis, setDiagnosis] = useState("");
+  const [clinicalNotes, setClinicalNotes] = useState("");
+  const [medicines, setMedicines] = useState<PrescribedMedicine[]>([]);
   const [newMed, setNewMed] = useState<PrescribedMedicine>({
     generic_name: "",
     dosage: "1 tablet",
@@ -83,7 +73,7 @@ export default function DoctorConsultationRoom({
     duration: "5 days",
     instructions: "After meals",
   });
-  const [orderedLabTests, setOrderedLabTests] = useState<string[]>(["Complete Blood Count (CBC)"]);
+  const [orderedLabTests, setOrderedLabTests] = useState<string[]>([]);
 
   // Read authenticated Doctor details on mount
   useEffect(() => {
@@ -155,47 +145,46 @@ export default function DoctorConsultationRoom({
         },
         body: JSON.stringify({
           doctor_id: doctorId,
+          // The route param is a booking id when opened from the appointment
+          // list and a patient id when opened from the patient list — this
+          // page cannot tell which, so send both and let the backend resolve
+          // it. Previously neither was sent as the patient, so the backend
+          // filed the consultation with the DOCTOR as their own patient and
+          // the real patient was never attached to it.
           booking_id: resolvedParams.id !== "instant" ? resolvedParams.id : undefined,
+          patient_id: resolvedParams.id !== "instant" ? resolvedParams.id : undefined,
           consent_given: true,
         }),
       });
 
       const data = await res.json();
-      if (res.ok) {
-        setStarted(true);
-        setVideoUrl(data.video_url || `https://meet.jit.si/CallMedex-Consult-${resolvedParams.id}`);
-        setConsultId(data.consultation_id || resolvedParams.id);
-        setStatus("Consultation in progress • Encrypted audio/video channel active");
+      if (!res.ok || !data.consultation_id) {
+        // No silent demo fallback. Dropping into a public meet.jit.si room
+        // with a made-up consultation id produced a consultation nothing was
+        // ever recorded against — the prescription at the end of it then had
+        // no patient to attach to.
+        setStatus(
+          data?.detail ||
+            "Could not start the consultation. Select a patient or booking and try again."
+        );
+        return;
+      }
 
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.start();
-            setIsRecording(true);
-          } catch (e) {
-            console.warn("Speech recognition mic capture started or already active", e);
-          }
-        }
-      } else {
-        // Fallback for demo or dev environment
-        setStarted(true);
-        setVideoUrl(`https://meet.jit.si/CallMedex-Consult-${resolvedParams.id}`);
-        setConsultId(resolvedParams.id);
-        setStatus("Consultation in progress • Live Session Active");
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.start();
-            setIsRecording(true);
-          } catch {
-            // ignore
-          }
+      setStarted(true);
+      setVideoUrl(data.video_url);
+      setConsultId(data.consultation_id);
+      setStatus("Consultation in progress • Encrypted audio/video channel active");
+
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsRecording(true);
+        } catch (e) {
+          console.warn("Speech recognition mic capture started or already active", e);
         }
       }
     } catch {
-      // Offline / dev fallback
-      setStarted(true);
-      setVideoUrl(`https://meet.jit.si/CallMedex-Consult-${resolvedParams.id}`);
-      setConsultId(resolvedParams.id);
-      setStatus("Consultation in progress (Secure Direct WebRTC Channel)");
+      setStatus("Network error — could not reach CallMedex. The consultation was not started.");
     }
   };
 
@@ -209,11 +198,20 @@ export default function DoctorConsultationRoom({
       setIsRecording(false);
     }
 
-    setStatus("Finalizing consultation... Generating CallMedex Digital E-Prescription.");
+    // A transcript is what the AI writes the e-prescription from. This used to
+    // fall back to a hardcoded "3-day history of low-grade fever, sore throat
+    // and mild nasal congestion" whenever the scribe had captured nothing —
+    // inventing a clinical history for a real patient and issuing a real
+    // prescription against it. Refuse instead.
+    const finalTranscript = transcript.trim() || clinicalNotes.trim();
+    if (!finalTranscript) {
+      setStatus(
+        "Nothing was captured for this consultation. Dictate or type your clinical notes before finalizing."
+      );
+      return;
+    }
 
-    const finalTranscript =
-      transcript.trim() ||
-      "Patient consulted for 3-day history of low-grade fever, sore throat, and mild nasal congestion. Advised symptomatic management with Paracetamol and Cetirizine, adequate hydration, and warm saline gargles.";
+    setStatus("Finalizing consultation... Generating CallMedex Digital E-Prescription.");
 
     try {
       const token = localStorage.getItem("token");
@@ -234,7 +232,10 @@ export default function DoctorConsultationRoom({
       if (res.ok && data.ai_analysis) {
         setAiAnalysis(data.ai_analysis);
       } else {
-        // Build structured clinical e-prescription object
+        // The server did not persist an analysis. Show the doctor's own typed
+        // record so nothing they entered is lost, but do NOT claim the
+        // consultation was signed — and never attach a fabricated
+        // "ai_confidence: 99.4%" to a clinical document.
         setAiAnalysis({
           summary: clinicalNotes,
           diagnosis: diagnosis,
@@ -242,9 +243,14 @@ export default function DoctorConsultationRoom({
           lab_tests: orderedLabTests,
           requires_followup: true,
           followup_days: "5 days",
-          ai_confidence: "99.4%",
           generated_at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          unsaved: true,
         });
+        setStatus(
+          data?.detail ||
+            "Could not save this consultation to CallMedex. Your notes are shown below but are NOT yet on the patient's record — retry before closing."
+        );
+        return;
       }
       setStatus("Consultation successfully concluded and signed.");
     } catch {
@@ -255,10 +261,12 @@ export default function DoctorConsultationRoom({
         lab_tests: orderedLabTests,
         requires_followup: true,
         followup_days: "5 days",
-        ai_confidence: "99.4%",
         generated_at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        unsaved: true,
       });
-      setStatus("Consultation concluded and digitally signed.");
+      setStatus(
+        "Network error — this consultation was NOT saved to the patient's record. Retry before closing."
+      );
     }
   };
 
