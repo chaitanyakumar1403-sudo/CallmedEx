@@ -5,6 +5,26 @@ import DashboardProfile from "../components/DashboardProfile";
 import SampleIntakeQueue from "../components/SampleIntakeQueue";
 import LabTeamPanel from "../components/LabTeamPanel";
 import DashboardShell from "../components/DashboardShell";
+import {
+  BarChart3,
+  Inbox,
+  Users2,
+  Bell,
+  Stethoscope,
+  TestTubes,
+  Package,
+  Clock,
+  ClipboardList,
+  User,
+  DollarSign,
+  Sparkles,
+  UploadCloud,
+  CheckCircle2,
+  XCircle,
+  Activity,
+  Plus,
+  Building2
+} from "lucide-react";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -377,10 +397,12 @@ export default function OrganizationDashboard() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--cm-surface-2)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>🏥</div>
-          <h2 style={{ color: '#1a2b4a' }}>Loading Organization Dashboard...</h2>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--cm-surface-3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--cm-navy)" }}>
+            <Building2 size={32} />
+          </div>
+          <h2 style={{ color: 'var(--cm-navy)', fontWeight: 800, fontSize: "1.25rem" }}>Loading Organization Dashboard...</h2>
         </div>
       </div>
     );
@@ -407,16 +429,16 @@ export default function OrganizationDashboard() {
   const servicesLabel = isDiagnosticCentre ? "Tests & Pricing" : "Services & Fees";
 
   const allTabs = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "intake", label: "Sample Intake", icon: "📥" },
-    { id: "collectors", label: "Phlebotomy Team", icon: "🧑‍🔬" },
-    { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: "🔔" },
-    { id: "doctors", label: `Doctors (${orgDoctors.length})`, icon: "👨‍⚕️" },
-    { id: "services", label: `${servicesLabel} (${orgServices.length})`, icon: "🧪" },
-    { id: "packages", label: `Packages (${orgPackages.length})`, icon: "📦" },
-    { id: "timings", label: "Timings", icon: "⏰" },
-    { id: "bookings", label: "Bookings", icon: "📋" },
-    { id: "profile", label: "Profile Details", icon: "👤" },
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "intake", label: "Sample Intake", icon: Inbox },
+    { id: "collectors", label: "Phlebotomy Team", icon: Users2 },
+    { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: Bell },
+    { id: "doctors", label: `Doctors (${orgDoctors.length})`, icon: Stethoscope },
+    { id: "services", label: `${servicesLabel} (${orgServices.length})`, icon: TestTubes },
+    { id: "packages", label: `Packages (${orgPackages.length})`, icon: Package },
+    { id: "timings", label: "Timings", icon: Clock },
+    { id: "bookings", label: "Bookings", icon: ClipboardList },
+    { id: "profile", label: "Profile Details", icon: User },
   ];
 
   const allowed = TAB_MATRIX[orgType] || TAB_MATRIX.hospital;
@@ -427,11 +449,11 @@ export default function OrganizationDashboard() {
   const currentTab = allowed.includes(activeTab) ? activeTab : "overview";
 
   const svcTypeLabel: Record<string, string> = {
-    lab_test: "🧪 Lab Test",
-    health_package: "📦 Health Package",
-    imaging: "📷 Imaging",
-    procedure: "🔬 Procedure",
-    consultation: "🩺 Consultation",
+    lab_test: "Lab Test",
+    health_package: "Health Package",
+    imaging: "Imaging",
+    procedure: "Procedure",
+    consultation: "Consultation",
   };
 
   const predefinedServices = [
@@ -541,21 +563,54 @@ export default function OrganizationDashboard() {
       )}
 
       {/* ─── Stats ─── */}
-      <div className="cm-stats-grid">
-        {[
-          { label: "Linked Doctors", value: orgStats?.total_doctors ?? orgDoctors.length, icon: "👨‍⚕️", color: "#2563eb" },
-          { label: "Active Services", value: orgStats?.total_services ?? orgServices.length, icon: "🧪", color: "#16a34a" },
-          { label: "Total Bookings", value: orgStats?.total_bookings ?? "—", icon: "📋", color: "#d97706" },
-          { label: "Total Revenue", value: orgStats?.total_revenue ? `₹${orgStats.total_revenue}` : "—", icon: "💰", color: "#7c3aed" },
-        ].map((stat, i) => (
-          <div key={i} className="cm-stat-card">
-            <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
-            <div>
-              <div className="cm-stat-card__value">{stat.value}</div>
-              <div className="cm-stat-card__label">{stat.label}</div>
-            </div>
+      <div className="cm-kpi-grid">
+        <div className="cm-kpi-card" onClick={() => setActiveTab("doctors")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
+          <div>
+            <div className="cm-kpi-card__label">Linked Doctors</div>
+            <div className="cm-kpi-card__value">{orgStats?.total_doctors ?? orgDoctors.length}</div>
+            <div className="cm-kpi-card__subtitle">Physicians on roster</div>
           </div>
-        ))}
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
+            <Stethoscope size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card" onClick={() => setActiveTab("services")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
+          <div>
+            <div className="cm-kpi-card__label">Active Services</div>
+            <div className="cm-kpi-card__value">{orgStats?.total_services ?? orgServices.length}</div>
+            <div className="cm-kpi-card__subtitle">Catalog offerings</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
+            <TestTubes size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card" onClick={() => setActiveTab("bookings")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
+          <div>
+            <div className="cm-kpi-card__label">Total Bookings</div>
+            <div className="cm-kpi-card__value">{orgStats?.total_bookings ?? "—"}</div>
+            <div className="cm-kpi-card__subtitle">Hospital intake</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
+            <ClipboardList size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card">
+          <div className="cm-kpi-card__accent" />
+          <div>
+            <div className="cm-kpi-card__label">Total Revenue</div>
+            <div className="cm-kpi-card__value">{orgStats?.total_revenue ? `₹${orgStats.total_revenue}` : "—"}</div>
+            <div className="cm-kpi-card__subtitle">Aggregate payouts</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
+            <DollarSign size={22} />
+          </div>
+        </div>
       </div>
 
       {/* ─── Content ─── */}

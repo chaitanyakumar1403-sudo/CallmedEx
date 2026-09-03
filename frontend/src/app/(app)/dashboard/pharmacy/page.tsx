@@ -5,6 +5,19 @@ import DashboardShell from '../components/DashboardShell';
 import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
 import DashboardProfile from '../components/DashboardProfile';
 import DrugShieldModal from '../../../components/DrugShieldModal';
+import {
+  BarChart3,
+  Package,
+  Pill,
+  Truck,
+  User,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
+  Plus,
+  FileUp,
+  Printer
+} from 'lucide-react';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => localStorage.getItem("token") || "";
@@ -181,20 +194,36 @@ export default function PharmacyDashboard() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'confirmed': return <span style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>New Order</span>;
-      case 'preparing': return <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>Packing</span>;
-      case 'out_for_delivery': return <span style={{ backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>Dispatched</span>;
-      case 'delivered': return <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600' }}>Delivered ✓</span>;
+      case 'confirmed': return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-active-surface)', color: 'var(--cm-active)', border: '1px solid var(--cm-active-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
+          <Clock size={12} /> New Order
+        </span>
+      );
+      case 'preparing': return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-waiting-surface)', color: 'var(--cm-waiting)', border: '1px solid var(--cm-waiting-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
+          <Package size={12} /> Packing
+        </span>
+      );
+      case 'out_for_delivery': return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-navy-soft)', color: '#fff', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
+          <Truck size={12} /> Dispatched
+        </span>
+      );
+      case 'delivered': return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-done-surface)', color: 'var(--cm-done)', border: '1px solid var(--cm-done-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
+          <CheckCircle2 size={12} /> Delivered
+        </span>
+      );
       default: return <span>{status}</span>;
     }
   };
 
   const TABS = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "orders", label: "Orders", icon: "📦" },
-    { id: "inventory", label: "Inventory", icon: "💊" },
-    { id: "delivery", label: "Delivery Dispatch", icon: "🚚" },
-    { id: "profile", label: "Profile", icon: "👤" },
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "orders", label: "Orders", icon: Package },
+    { id: "inventory", label: "Inventory", icon: Pill },
+    { id: "delivery", label: "Delivery Dispatch", icon: Truck },
+    { id: "profile", label: "Profile", icon: User },
   ];
 
   return (
@@ -209,26 +238,59 @@ export default function PharmacyDashboard() {
 
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '100px', color: '#64748b' }}>Loading Pharmacy Data...</div>
+          <div style={{ textAlign: 'center', padding: '100px', color: 'var(--cm-ink-3)' }}>Loading Pharmacy Data...</div>
         ) : (
           <>
             {/* OVERVIEW TAB */}
             {activeTab === 'overview' && (
-              <div className="cm-stats-grid">
-                {[
-                  { label: "Active Orders", value: orders.filter(o => o.status !== 'delivered').length, icon: "📦", color: "#0f172a", action: () => setActiveTab('orders') },
-                  { label: "To Pack", value: orders.filter(o => o.status === 'confirmed').length, icon: "📋", color: "#f59e0b", action: () => setActiveTab('orders') },
-                  { label: "Inventory Items", value: inventory.length, icon: "💊", color: "#8b5cf6", action: () => setActiveTab('inventory') },
-                  { label: "Out for Delivery", value: orders.filter(o => o.status === 'out_for_delivery').length, icon: "🚚", color: "#38bdf8", action: () => setActiveTab('orders') },
-                ].map((stat, i) => (
-                  <div key={i} onClick={stat.action} className="cm-stat-card">
-                    <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
-                    <div>
-                      <div className="cm-stat-card__value" style={{ color: stat.color }}>{stat.value}</div>
-                      <div className="cm-stat-card__label">{stat.label}</div>
-                    </div>
+              <div className="cm-kpi-grid">
+                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
+                  <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
+                  <div>
+                    <div className="cm-kpi-card__label">Active Orders</div>
+                    <div className="cm-kpi-card__value">{orders.filter(o => o.status !== 'delivered').length}</div>
+                    <div className="cm-kpi-card__subtitle">In fulfillment pipeline</div>
                   </div>
-                ))}
+                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
+                    <Package size={22} />
+                  </div>
+                </div>
+
+                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
+                  <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
+                  <div>
+                    <div className="cm-kpi-card__label">To Pack</div>
+                    <div className="cm-kpi-card__value">{orders.filter(o => o.status === 'confirmed').length}</div>
+                    <div className="cm-kpi-card__subtitle">Awaiting dispensary check</div>
+                  </div>
+                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
+                    <ClipboardList size={22} />
+                  </div>
+                </div>
+
+                <div className="cm-kpi-card" onClick={() => setActiveTab('inventory')} style={{ cursor: 'pointer' }}>
+                  <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
+                  <div>
+                    <div className="cm-kpi-card__label">Inventory Items</div>
+                    <div className="cm-kpi-card__value">{inventory.length}</div>
+                    <div className="cm-kpi-card__subtitle">Catalog SKUs</div>
+                  </div>
+                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
+                    <Pill size={22} />
+                  </div>
+                </div>
+
+                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
+                  <div className="cm-kpi-card__accent" />
+                  <div>
+                    <div className="cm-kpi-card__label">Out for Delivery</div>
+                    <div className="cm-kpi-card__value">{orders.filter(o => o.status === 'out_for_delivery').length}</div>
+                    <div className="cm-kpi-card__subtitle">With courier partner</div>
+                  </div>
+                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
+                    <Truck size={22} />
+                  </div>
+                </div>
               </div>
             )}
 

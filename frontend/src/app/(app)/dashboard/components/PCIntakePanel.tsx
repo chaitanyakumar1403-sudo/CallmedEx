@@ -12,19 +12,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Button } from "@/components/ui";
 import { Icon } from "@/components/ui";
-import { ScanLine, ShieldCheck, Camera, Ban, CheckCircle2, XCircle, RefreshCw } from "@/components/ui/icons";
+import {
+  ScanLine, ShieldCheck, Camera, Ban, CheckCircle2, XCircle, RefreshCw,
+  AlertTriangle, Droplets, TrendingDown, Tag, FileText
+} from "@/components/ui/icons";
 import { pcAPI } from "@/lib/api";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 
 const REJECTION_CODES = [
-  { code: "broken_tube", label: "Broken tube", emoji: "💔" },
-  { code: "hemolyzed", label: "Hemolyzed", emoji: "🩸" },
-  { code: "leaking_tube", label: "Leaking tube", emoji: "💧" },
-  { code: "insufficient_sample", label: "Insufficient sample", emoji: "📉" },
-  { code: "wrong_tube", label: "Wrong tube type", emoji: "🔄" },
-  { code: "barcode_missing", label: "Barcode missing", emoji: "❌" },
-  { code: "label_missing", label: "Label missing", emoji: "🏷️" },
-  { code: "other", label: "Other", emoji: "📝" },
+  { code: "broken_tube", label: "Broken tube", icon: AlertTriangle },
+  { code: "hemolyzed", label: "Hemolyzed", icon: Droplets },
+  { code: "leaking_tube", label: "Leaking tube", icon: Droplets },
+  { code: "insufficient_sample", label: "Insufficient sample", icon: TrendingDown },
+  { code: "wrong_tube", label: "Wrong tube type", icon: RefreshCw },
+  { code: "barcode_missing", label: "Barcode missing", icon: XCircle },
+  { code: "label_missing", label: "Label missing", icon: Tag },
+  { code: "other", label: "Other", icon: FileText },
 ];
 
 const TUBE_COLOURS: Record<string, string> = {
@@ -457,23 +460,30 @@ export default function PCIntakePanel() {
           Select a rejection reason:
         </p>
         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-          {REJECTION_CODES.map((r) => (
-            <button
-              key={r.code}
-              onClick={() => setRejectCode(r.code)}
-              style={{
-                padding: "10px 14px", borderRadius: 10,
-                border: `1.5px solid ${rejectCode === r.code ? "#dc2626" : "#e2e8f0"}`,
-                background: rejectCode === r.code ? "#fef2f2" : "#fff",
-                color: rejectCode === r.code ? "#991b1b" : "#475569",
-                fontWeight: 600, fontSize: "0.85rem",
-                cursor: "pointer", textAlign: "left",
-                transition: "all 0.15s",
-              }}
-            >
-              {r.emoji} {r.label}
-            </button>
-          ))}
+          {REJECTION_CODES.map((r) => {
+            const IconComp = r.icon;
+            return (
+              <button
+                key={r.code}
+                onClick={() => setRejectCode(r.code)}
+                style={{
+                  padding: "10px 14px", borderRadius: 10,
+                  border: `1.5px solid ${rejectCode === r.code ? "#dc2626" : "#e2e8f0"}`,
+                  background: rejectCode === r.code ? "#fef2f2" : "#fff",
+                  color: rejectCode === r.code ? "#991b1b" : "#475569",
+                  fontWeight: 600, fontSize: "0.85rem",
+                  cursor: "pointer", textAlign: "left",
+                  transition: "all 0.15s",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <IconComp size={16} />
+                <span>{r.label}</span>
+              </button>
+            );
+          })}
         </div>
         <textarea
           value={rejectNotes}

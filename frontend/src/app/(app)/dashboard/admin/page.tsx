@@ -6,6 +6,29 @@ import DashboardShell from '../components/DashboardShell';
 import LOCATIONS from '@/data/india-locations.json';
 import { toast } from 'sonner';
 import { customConfirm } from '@/lib/customConfirm';
+import {
+  BarChart3,
+  TrendingUp,
+  Zap,
+  Stethoscope,
+  Users,
+  Factory,
+  ShieldCheck,
+  User,
+  HeartHandshake,
+  Syringe,
+  Building2,
+  Pill,
+  ClipboardList,
+  Calendar,
+  Clock,
+  FileCheck,
+  FileText,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle
+} from 'lucide-react';
 
 const LOCATION_MAP = LOCATIONS as Record<string, string[]>;
 const INDIAN_STATES = Object.keys(LOCATION_MAP).sort();
@@ -39,28 +62,26 @@ interface LiveOps {
 // ─── KPI Card Component ─────────────────────────────────────────────────
 
 function KPICard({ icon, label, value, color, subtitle, onClick }: {
-  icon: string; label: string; value: number | string; color: string; subtitle?: string; onClick?: () => void;
+  icon: React.ReactNode; label: string; value: number | string; color: string; subtitle?: string; onClick?: () => void;
 }) {
   const clickable = !!onClick;
   return (
     <div
-      className="cm-stat-card"
+      className="cm-kpi-card"
       style={{
-        borderLeft: `4px solid ${color}`,
         cursor: clickable ? 'pointer' : 'default',
-        transition: 'transform 0.15s, box-shadow 0.15s',
       }}
       onClick={onClick}
-      onMouseEnter={e => { if (clickable) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; } }}
-      onMouseLeave={e => { if (clickable) { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; } }}
     >
-      <div style={{ flex: 1 }}>
-        <div className="cm-stat-card__label">{label}</div>
-        <div className="cm-stat-card__value">{typeof value === 'number' ? value.toLocaleString() : value}</div>
-        {subtitle && <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-faint)', marginTop: 2 }}>{subtitle}</div>}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: color }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="cm-kpi-card__label">{label}</div>
+        <div className="cm-kpi-card__value">{typeof value === 'number' ? value.toLocaleString() : value}</div>
+        {subtitle && <div className="cm-kpi-card__subtitle">{subtitle}</div>}
       </div>
-      <div style={{ fontSize: '2rem', opacity: 0.7 }}>{icon}</div>
-      {clickable && <div style={{ fontSize: '0.65rem', color: '#9ca3af', position: 'absolute', bottom: 6, right: 10 }}>Click to view →</div>}
+      <div className="cm-kpi-card__icon" style={{ background: `${color}15`, color }}>
+        {icon}
+      </div>
     </div>
   );
 }
@@ -513,13 +534,13 @@ export default function AdminDashboard() {
   const m = metrics || {} as Metrics;
 
   const tabs = [
-    { id: 'overview', label: 'Executive Overview', icon: '📊' },
-    { id: 'operations', label: 'Live Operations', icon: '🔴' },
-    { id: 'analytics', label: 'Analytics', icon: '📈' },
-    { id: 'providers', label: 'Providers', icon: '👥' },
-    { id: 'users', label: 'User Management', icon: '🗂️' },
-    { id: 'processing-centres', label: 'Processing Centres', icon: '🏭' },
-    { id: 'delegation', label: 'Delegation', icon: '🏛️' },
+    { id: 'overview', label: 'Executive Overview', icon: BarChart3 },
+    { id: 'operations', label: 'Live Operations', icon: Zap },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { id: 'providers', label: 'Providers', icon: Stethoscope },
+    { id: 'users', label: 'User Management', icon: Users },
+    { id: 'processing-centres', label: 'Processing Centres', icon: Factory },
+    { id: 'delegation', label: 'Delegation', icon: ShieldCheck },
   ];
 
   return (
@@ -532,15 +553,17 @@ export default function AdminDashboard() {
       onTabChange={setActiveTab}
       aside={
         <button
+          type="button"
           onClick={handleGenerateWeeklyReport}
           style={{
-            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            padding: "8px 18px", borderRadius: 999, cursor: "pointer",
             border: "1px solid rgba(255,255,255,0.35)",
             background: "rgba(255,255,255,0.12)", color: "#fff",
-            fontWeight: 700, fontSize: "0.85rem",
+            fontWeight: 700, fontSize: "0.85rem", display: "inline-flex",
+            alignItems: "center", gap: 8, transition: "background 0.15s ease"
           }}
         >
-          📄 Weekly report
+          <FileText size={16} /> Weekly report
         </button>
       }
     >
@@ -553,25 +576,27 @@ export default function AdminDashboard() {
         {activeTab === 'overview' && (
           <>
             {/* KPI Grid */}
-            <div className="cm-stats-grid">
-              <KPICard icon="👥" label="Total Users" value={m.total_users || 0} color="#2563eb" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
-              <KPICard icon="🧑‍🦱" label="Patients" value={m.total_patients || 0} color="#059669" onClick={() => { setActiveTab('users'); setUserRoleFilter('patient'); }} />
-              <KPICard icon="👨‍⚕️" label="Doctors" value={m.total_doctors || 0} color="#7c3aed" onClick={() => { setActiveTab('users'); setUserRoleFilter('doctor'); }} />
-              <KPICard icon="👩‍⚕️" label="Nurses" value={m.total_nurses || 0} color="#db2777" onClick={() => { setActiveTab('users'); setUserRoleFilter('nurse'); }} />
-              <KPICard icon="💉" label="Phlebotomists" value={m.total_phlebotomists || 0} color="#ea580c" onClick={() => { setActiveTab('users'); setUserRoleFilter('phlebotomist'); }} />
-              <KPICard icon="🏥" label="Organizations" value={m.total_organizations || 0} color="#0891b2" onClick={() => { setActiveTab('users'); setUserRoleFilter('organization'); }} />
-              <KPICard icon="💊" label="Pharmacies" value={m.total_pharmacys || 0} color="#65a30d" onClick={() => { setActiveTab('users'); setUserRoleFilter('pharmacy'); }} />
-              <KPICard icon="📋" label="Total Bookings" value={m.total_bookings || 0} color="#1d4ed8" onClick={() => { setActiveTab('analytics'); }} />
-              <KPICard icon="📅" label="Bookings Today" value={m.bookings_today || 0} color="#059669" subtitle="Last 24 hours" onClick={() => { setActiveTab('analytics'); }} />
-              <KPICard icon="🚀" label="Active Dispatches" value={m.active_dispatches || 0} color="#dc2626" subtitle="In progress" onClick={() => { setActiveTab('operations'); }} />
-              <KPICard icon="⏳" label="Pending KYC" value={m.pending_kyc || 0} color="#d97706" subtitle="Awaiting verification" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
-              <KPICard icon="📝" label="Pending MOU" value={m.pending_mou || 0} color="#9333ea" subtitle="Awaiting acceptance" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
+            <div className="cm-kpi-grid">
+              <KPICard icon={<Users size={22} />} label="Total Users" value={m.total_users || 0} color="#2563eb" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
+              <KPICard icon={<User size={22} />} label="Patients" value={m.total_patients || 0} color="#059669" onClick={() => { setActiveTab('users'); setUserRoleFilter('patient'); }} />
+              <KPICard icon={<Stethoscope size={22} />} label="Doctors" value={m.total_doctors || 0} color="#7c3aed" onClick={() => { setActiveTab('users'); setUserRoleFilter('doctor'); }} />
+              <KPICard icon={<HeartHandshake size={22} />} label="Nurses" value={m.total_nurses || 0} color="#db2777" onClick={() => { setActiveTab('users'); setUserRoleFilter('nurse'); }} />
+              <KPICard icon={<Syringe size={22} />} label="Phlebotomists" value={m.total_phlebotomists || 0} color="#ea580c" onClick={() => { setActiveTab('users'); setUserRoleFilter('phlebotomist'); }} />
+              <KPICard icon={<Building2 size={22} />} label="Organizations" value={m.total_organizations || 0} color="#0891b2" onClick={() => { setActiveTab('users'); setUserRoleFilter('organization'); }} />
+              <KPICard icon={<Pill size={22} />} label="Pharmacies" value={m.total_pharmacys || 0} color="#65a30d" onClick={() => { setActiveTab('users'); setUserRoleFilter('pharmacy'); }} />
+              <KPICard icon={<ClipboardList size={22} />} label="Total Bookings" value={m.total_bookings || 0} color="#1d4ed8" onClick={() => { setActiveTab('analytics'); }} />
+              <KPICard icon={<Calendar size={22} />} label="Bookings Today" value={m.bookings_today || 0} color="#059669" subtitle="Last 24 hours" onClick={() => { setActiveTab('analytics'); }} />
+              <KPICard icon={<Zap size={22} />} label="Active Dispatches" value={m.active_dispatches || 0} color="#dc2626" subtitle="In progress" onClick={() => { setActiveTab('operations'); }} />
+              <KPICard icon={<Clock size={22} />} label="Pending KYC" value={m.pending_kyc || 0} color="#d97706" subtitle="Awaiting verification" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
+              <KPICard icon={<FileCheck size={22} />} label="Pending MOU" value={m.pending_mou || 0} color="#9333ea" subtitle="Awaiting acceptance" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />
             </div>
 
             {/* Registration Trends (simple bar visualization) */}
             {registrationTrends.length > 0 && (
-              <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                <h3 style={{ margin: '0 0 16px 0', color: '#1a2b4a', fontSize: '1rem' }}>📈 Registration Trends (Last 14 Days)</h3>
+              <div style={{ backgroundColor: 'var(--cm-surface)', borderRadius: 'var(--cm-radius)', padding: 24, border: '1px solid var(--cm-line)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                <h3 style={{ margin: '0 0 16px 0', color: 'var(--cm-ink)', fontSize: '1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={18} style={{ color: 'var(--cm-active)' }} /> Registration Trends (Last 14 Days)
+                </h3>
                 <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 120 }}>
                   {registrationTrends.map((day, i) => {
                     const total = (day.patient || 0) + (day.doctor || 0) + (day.nurse || 0) + (day.organization || 0) + (day.pharmacy || 0);

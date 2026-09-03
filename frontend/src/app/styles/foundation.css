@@ -1057,3 +1057,187 @@ input[type="radio"] {
   color: var(--cm-ink); word-break: break-word; overflow-wrap: anywhere;
 }
 .cm-profile__value--cap { text-transform: capitalize; }
+
+/* ── Modern Dashboard KPI & Telemetry Widgets ────────────────────────── */
+.cm-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--cm-4);
+  margin-bottom: var(--cm-6);
+}
+
+.cm-kpi-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cm-4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.cm-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+  border-color: var(--cm-line-strong);
+}
+
+.cm-kpi-card__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--cm-navy);
+}
+
+.cm-kpi-card__accent--active { background: var(--cm-active); }
+.cm-kpi-card__accent--done { background: var(--cm-done); }
+.cm-kpi-card__accent--waiting { background: var(--cm-waiting); }
+.cm-kpi-card__accent--urgent { background: var(--cm-urgent); }
+
+.cm-kpi-card__label {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--cm-ink-3);
+  margin-bottom: var(--cm-1);
+}
+
+.cm-kpi-card__value {
+  font-size: var(--cm-text-2xl);
+  font-weight: 800;
+  color: var(--cm-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.cm-kpi-card__subtitle {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-faint);
+  margin-top: var(--cm-1);
+}
+
+.cm-kpi-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cm-navy);
+  flex-shrink: 0;
+}
+
+/* ── Live Service Telemetry Tracker ───────────────────────────────────── */
+.cm-telemetry-panel {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-active-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-6);
+  margin-bottom: var(--cm-6);
+  box-shadow: 0 4px 20px rgba(3, 105, 161, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.cm-telemetry-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--cm-4);
+  flex-wrap: wrap;
+  gap: var(--cm-3);
+}
+
+.cm-telemetry-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-2);
+  margin: 0;
+  font-size: var(--cm-text-lg);
+  font-weight: 800;
+  color: var(--cm-ink);
+}
+
+.cm-pulse-indicator {
+  display: inline-flex;
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+.cm-pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--cm-done);
+  opacity: 0.75;
+  animation: cm-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.cm-pulse-dot {
+  position: relative;
+  display: inline-flex;
+  border-radius: 9999px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--cm-done);
+}
+
+@keyframes cm-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(0.95); opacity: 0; }
+}
+
+/* ── Quick Action Pill Buttons ────────────────────────────────────────── */
+.cm-action-rail {
+  display: flex;
+  gap: var(--cm-3);
+  margin-bottom: var(--cm-6);
+  flex-wrap: wrap;
+}
+
+.cm-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-2);
+  padding: var(--cm-3) var(--cm-4);
+  border-radius: 9999px;
+  font-size: var(--cm-text-sm);
+  font-weight: 700;
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  color: var(--cm-ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  min-height: 44px;
+}
+
+.cm-action-chip:hover {
+  background: var(--cm-surface-3);
+  border-color: var(--cm-line-strong);
+  transform: translateY(-1px);
+}
+
+.cm-action-chip--primary {
+  background: var(--cm-navy);
+  border-color: var(--cm-navy);
+  color: #fff;
+}
+
+.cm-action-chip--primary:hover {
+  background: var(--cm-navy-soft);
+  border-color: var(--cm-navy-soft);
+}
+

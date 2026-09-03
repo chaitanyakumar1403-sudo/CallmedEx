@@ -5,6 +5,24 @@ import DashboardProfile from "../components/DashboardProfile";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../components/DashboardShell";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
+import {
+  Calendar,
+  Clock,
+  Home,
+  CreditCard,
+  CalendarOff,
+  User,
+  Video,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Building2,
+  Phone,
+  Stethoscope,
+  ChevronRight,
+  DollarSign
+} from "lucide-react";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -12,10 +30,10 @@ const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('tok
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MODES = [
-  { value: "in_person", label: "🏥 In-Person", color: "#2563eb" },
-  { value: "online", label: "💻 Online", color: "#7c3aed" },
-  { value: "home_visit", label: "🏠 Home Visit", color: "#059669" },
-  { value: "both", label: "📋 All Modes", color: "#d97706" },
+  { value: "in_person", label: "In-Person Clinic", color: "#2563eb" },
+  { value: "online", label: "Online Telehealth", color: "#7c3aed" },
+  { value: "home_visit", label: "Home Visit", color: "#059669" },
+  { value: "both", label: "All Modes", color: "#d97706" },
 ];
 
 interface Availability {
@@ -353,22 +371,24 @@ export default function DoctorDashboard() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--cm-surface-2)' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 16 }}>👨‍⚕️</div>
-          <h2 style={{ color: '#1a2b4a' }}>Loading Doctor Dashboard...</h2>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--cm-surface-3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--cm-navy)" }}>
+            <Stethoscope size={32} />
+          </div>
+          <h2 style={{ color: 'var(--cm-navy)', fontWeight: 800, fontSize: "1.25rem" }}>Loading Doctor Dashboard...</h2>
         </div>
       </div>
     );
   }
 
   const tabs = [
-    { id: "schedule", label: "My Schedule", icon: "📅" },
-    { id: "appointments", label: "Today's Appointments", icon: "🗓️" },
-    { id: "home_visits", label: "Home Visits", icon: "🏠" },
-    { id: "fees", label: "Consultation Fees", icon: "💰" },
-    { id: "leave", label: "Leave / Holidays", icon: "🏖️" },
-    { id: "profile", label: "Profile Details", icon: "👤" },
+    { id: "schedule", label: "My Schedule", icon: Calendar },
+    { id: "appointments", label: "Appointments", icon: Clock },
+    { id: "home_visits", label: "Home Visits", icon: Home },
+    { id: "fees", label: "Consultation Fees", icon: CreditCard },
+    { id: "leave", label: "Leave & Blocks", icon: CalendarOff },
+    { id: "profile", label: "Profile Details", icon: User },
   ];
 
   return (
@@ -381,35 +401,70 @@ export default function DoctorDashboard() {
       onTabChange={setActiveTab}
       aside={
         <button
+          type="button"
           onClick={() => router.push("/dashboard/doctor/consult/instant")}
           style={{
-            padding: "10px 18px", borderRadius: 999, cursor: "pointer",
+            padding: "8px 18px", borderRadius: 999, cursor: "pointer",
             border: "1px solid rgba(255,255,255,0.35)",
             background: "rgba(255,255,255,0.12)", color: "#fff",
-            fontWeight: 700, fontSize: "0.85rem",
+            fontWeight: 700, fontSize: "0.85rem", display: "inline-flex",
+            alignItems: "center", gap: 8, transition: "background 0.15s ease"
           }}
         >
-          🎥 Start instant consult
+          <Video size={16} /> Start instant consult
         </button>
       }
     >
 
       {/* ─── Stats Bar ─── */}
-      <div className="cm-stats-grid">
-        {[
-          { label: "Active Slots", value: availability.filter(a => a.is_active).length, icon: "📅", color: "#2563eb", action: () => setActiveTab("schedule") },
-          { label: "Today's Appointments", value: todayBookings.length, icon: "🗓️", color: "#16a34a", action: () => setActiveTab("appointments") },
-          { label: "Fee Types Set", value: fees.length, icon: "💰", color: "#d97706", action: () => setActiveTab("fees") },
-          { label: "Blocked Dates", value: blockedDates.length, icon: "🏖️", color: "#dc2626", action: () => setActiveTab("schedule") },
-        ].map((stat, i) => (
-          <div key={i} onClick={stat.action} className="cm-stat-card">
-            <div className="cm-stat-card__icon" style={{ backgroundColor: `${stat.color}15` }}>{stat.icon}</div>
-            <div>
-              <div className="cm-stat-card__value">{stat.value}</div>
-              <div className="cm-stat-card__label">{stat.label}</div>
-            </div>
+      <div className="cm-kpi-grid">
+        <div className="cm-kpi-card" onClick={() => setActiveTab("schedule")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
+          <div>
+            <div className="cm-kpi-card__label">Active Slots</div>
+            <div className="cm-kpi-card__value">{availability.filter(a => a.is_active).length}</div>
+            <div className="cm-kpi-card__subtitle">Weekly time blocks</div>
           </div>
-        ))}
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
+            <Calendar size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card" onClick={() => setActiveTab("appointments")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
+          <div>
+            <div className="cm-kpi-card__label">Today's Appointments</div>
+            <div className="cm-kpi-card__value">{todayBookings.length}</div>
+            <div className="cm-kpi-card__subtitle">Patients in roster</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
+            <Clock size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card" onClick={() => setActiveTab("fees")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
+          <div>
+            <div className="cm-kpi-card__label">Fee Types Set</div>
+            <div className="cm-kpi-card__value">{fees.length}</div>
+            <div className="cm-kpi-card__subtitle">Consultation pricing</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
+            <DollarSign size={22} />
+          </div>
+        </div>
+
+        <div className="cm-kpi-card" onClick={() => setActiveTab("leave")} style={{ cursor: "pointer" }}>
+          <div className="cm-kpi-card__accent cm-kpi-card__accent--urgent" />
+          <div>
+            <div className="cm-kpi-card__label">Blocked Dates</div>
+            <div className="cm-kpi-card__value">{blockedDates.length}</div>
+            <div className="cm-kpi-card__subtitle">Unavailable days</div>
+          </div>
+          <div className="cm-kpi-card__icon" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)" }}>
+            <CalendarOff size={22} />
+          </div>
+        </div>
       </div>
 
       {/* ─── Content ─── */}
@@ -417,12 +472,13 @@ export default function DoctorDashboard() {
         {statusMsg && (
           <div style={{
             padding: "12px 20px",
-            backgroundColor: statusMsg.includes("✅") ? "#f0fdf4" : "#fef2f2",
-            color: statusMsg.includes("✅") ? "#166534" : "#991b1b",
-            borderRadius: 8,
+            backgroundColor: statusMsg.includes("✅") ? "var(--cm-done-surface)" : "var(--cm-urgent-surface)",
+            color: statusMsg.includes("✅") ? "var(--cm-done)" : "var(--cm-urgent)",
+            border: `1px solid ${statusMsg.includes("✅") ? "var(--cm-done-line)" : "var(--cm-urgent-line)"}`,
+            borderRadius: "var(--cm-radius)",
             marginBottom: 20,
             fontSize: "0.9rem",
-            fontWeight: 500,
+            fontWeight: 600,
           }}>
             {statusMsg}
           </div>
@@ -431,33 +487,32 @@ export default function DoctorDashboard() {
         {/* ─── AUTOMATED NEXT PATIENT IN QUEUE NOTIFICATION BANNER ─── */}
         {todayBookings.length > 0 ? (
           <div style={{
-            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)",
-            borderRadius: 16,
+            background: "var(--cm-navy)",
+            borderRadius: "var(--cm-radius)",
             padding: 24,
             marginBottom: 24,
             color: "white",
-            boxShadow: "0 10px 25px -5px rgba(49, 46, 129, 0.4)",
-            border: "2px solid #6366f1",
+            boxShadow: "0 8px 24px rgba(15, 29, 51, 0.25)",
+            border: "1px solid var(--cm-navy-soft)",
             position: "relative",
             overflow: "hidden",
           }}>
-            <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(99, 102, 241, 0.2)" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: "#4338ca", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem", boxShadow: "0 0 15px rgba(99,102,241,0.5)" }}>
-                  👤
+                <div style={{ width: 52, height: 52, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                  <User size={26} />
                 </div>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ backgroundColor: "#ef4444", color: "white", fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      🔔 NEXT IN QUEUE
+                    <span style={{ backgroundColor: "var(--cm-urgent)", color: "white", fontSize: "0.7rem", fontWeight: 800, padding: "2px 8px", borderRadius: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      NEXT IN QUEUE
                     </span>
-                    <span style={{ fontSize: "0.8rem", color: "#a5b4fc" }}>Waiting: ~3 mins</span>
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.75)" }}>Waiting: ~3 mins</span>
                   </div>
-                  <h3 style={{ margin: "4px 0 2px", fontSize: "1.2rem", fontWeight: 700, color: "white" }}>
+                  <h3 style={{ margin: "4px 0 2px", fontSize: "1.2rem", fontWeight: 800, color: "white" }}>
                     {todayBookings[0].patient_name || "Patient Appointment"}
                   </h3>
-                  <div style={{ fontSize: "0.85rem", color: "#c7d2fe" }}>
+                  <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.85)" }}>
                     <strong>Chief Complaint:</strong> {todayBookings[0].notes || "Consultation Request"}
                   </div>
                 </div>
@@ -465,35 +520,36 @@ export default function DoctorDashboard() {
 
               <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <button
+                  type="button"
                   onClick={() => router.push(`/dashboard/doctor/consult/${todayBookings[0].id || 'instant'}`)}
                   style={{
                     padding: "12px 24px",
-                    background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                    background: "var(--cm-done)",
                     color: "white",
                     border: "none",
-                    borderRadius: 12,
+                    borderRadius: "var(--cm-radius)",
                     fontWeight: 800,
                     fontSize: "0.9rem",
                     cursor: "pointer",
-                    boxShadow: "0 4px 15px rgba(16, 185, 129, 0.4)",
+                    boxShadow: "0 4px 15px rgba(21, 128, 61, 0.35)",
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
                   }}
                 >
-                  📹 Admit & Start Video Call
+                  <Video size={16} /> Admit & Start Video Call
                 </button>
               </div>
             </div>
           </div>
         ) : (
           <div style={{
-            background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-            borderRadius: 16,
+            background: "var(--cm-surface)",
+            borderRadius: "var(--cm-radius)",
             padding: 24,
             marginBottom: 24,
-            color: "white",
-            border: "1px solid #334155",
+            color: "var(--cm-ink)",
+            border: "1px solid var(--cm-line)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -501,30 +557,34 @@ export default function DoctorDashboard() {
             gap: 16,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "#334155", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
-                ☕
+              <div style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "var(--cm-surface-3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--cm-navy)" }}>
+                <Clock size={22} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1.1rem", color: "white" }}>No Patients Currently in Queue</h3>
-                <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "#94a3b8" }}>
+                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "var(--cm-ink)" }}>No Patients Currently in Queue</h3>
+                <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "var(--cm-ink-3)" }}>
                   Your waiting room is clear. When patients book slots or check in today, they will appear here automatically.
                 </p>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setActiveTab("schedule")}
               style={{
                 padding: "8px 16px",
-                backgroundColor: "rgba(255,255,255,0.1)",
-                color: "white",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 8,
+                backgroundColor: "var(--cm-surface-2)",
+                color: "var(--cm-ink)",
+                border: "1px solid var(--cm-line)",
+                borderRadius: "var(--cm-radius)",
+                fontWeight: 700,
                 fontSize: "0.85rem",
-                fontWeight: 600,
                 cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
               }}
             >
-              📅 Manage Available Slots
+              <Calendar size={15} /> Manage Available Slots
             </button>
           </div>
         )}

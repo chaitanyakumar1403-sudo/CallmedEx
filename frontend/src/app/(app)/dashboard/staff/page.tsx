@@ -1,6 +1,24 @@
 "use client";
 import { useState, useEffect } from "react";
 import DashboardShell from "../components/DashboardShell";
+import {
+  Calendar,
+  Building2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  CreditCard,
+  Banknote,
+  RotateCcw,
+  Stethoscope,
+  Activity,
+  Video,
+  Droplet,
+  Home,
+  ClipboardList,
+  AlertTriangle,
+  DollarSign
+} from 'lucide-react';
 
 export default function StaffDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -127,16 +145,18 @@ export default function StaffDashboard() {
 
   const getPaymentBadge = (booking: any) => {
     const ps = getPaymentStatus(booking);
-    const map: Record<string, { label: string; bg: string; color: string }> = {
-      prepaid: { label: "💳 Prepaid", bg: "#dcfce7", color: "#166534" },
-      pay_on_service: { label: "🏪 Pay at Counter", bg: "#fef3c7", color: "#92400e" },
-      settled: { label: "✅ Settled", bg: "#f0fdf4", color: "#15803d" },
-      refunded: { label: "↩ Refunded", bg: "#fee2e2", color: "#991b1b" },
-      pending: { label: "⏳ Pending", bg: "#fef3c7", color: "#92400e" },
+    const map: Record<string, { label: string; icon: any; bg: string; color: string; border: string }> = {
+      prepaid: { label: "Prepaid", icon: CreditCard, bg: "var(--cm-done-surface)", color: "var(--cm-done)", border: "var(--cm-done-line)" },
+      pay_on_service: { label: "Pay at Counter", icon: Banknote, bg: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "var(--cm-waiting-line)" },
+      settled: { label: "Settled", icon: CheckCircle2, bg: "var(--cm-done-surface)", color: "var(--cm-done)", border: "var(--cm-done-line)" },
+      refunded: { label: "Refunded", icon: RotateCcw, bg: "var(--cm-urgent-surface)", color: "var(--cm-urgent)", border: "var(--cm-urgent-line)" },
+      pending: { label: "Pending", icon: Clock, bg: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "var(--cm-waiting-line)" },
     };
-    const s = map[ps] || { label: ps, bg: "#f3f4f6", color: "#374151" };
+    const s = map[ps] || { label: ps, icon: CreditCard, bg: "var(--cm-surface-3)", color: "var(--cm-ink)", border: "var(--cm-line)" };
+    const IconComp = s.icon;
     return (
-      <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: 12, fontWeight: 700, backgroundColor: s.bg, color: s.color }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.68rem', padding: '2px 8px', borderRadius: 12, fontWeight: 700, backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+        <IconComp size={11} />
         {s.label}
       </span>
     );
@@ -159,27 +179,32 @@ export default function StaffDashboard() {
   const settledCount = todayBookings.filter(b => getPaymentStatus(b) === "settled").length;
 
   const getStatusBadge = (status: string) => {
-    const map: Record<string, { label: string; bg: string; color: string }> = {
-      confirmed: { label: "✅ Confirmed", bg: "#dcfce7", color: "#166534" },
-      checked_in: { label: "🏥 Checked In", bg: "#dbeafe", color: "#1e40af" },
-      completed: { label: "✔ Completed", bg: "#f0fdf4", color: "#15803d" },
-      cancelled: { label: "✖ Cancelled", bg: "#fee2e2", color: "#991b1b" },
-      pending: { label: "⏳ Pending", bg: "#fef3c7", color: "#92400e" },
+    const map: Record<string, { label: string; icon: any; bg: string; color: string; border: string }> = {
+      confirmed: { label: "Confirmed", icon: CheckCircle2, bg: "var(--cm-done-surface)", color: "var(--cm-done)", border: "var(--cm-done-line)" },
+      checked_in: { label: "Checked In", icon: Building2, bg: "var(--cm-active-surface)", color: "var(--cm-active)", border: "var(--cm-active-line)" },
+      completed: { label: "Completed", icon: CheckCircle2, bg: "var(--cm-done-surface)", color: "var(--cm-done)", border: "var(--cm-done-line)" },
+      cancelled: { label: "Cancelled", icon: XCircle, bg: "var(--cm-urgent-surface)", color: "var(--cm-urgent)", border: "var(--cm-urgent-line)" },
+      pending: { label: "Pending", icon: Clock, bg: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "var(--cm-waiting-line)" },
     };
-    const s = map[status] || { label: status, bg: "#f3f4f6", color: "#374151" };
+    const s = map[status] || { label: status, icon: Clock, bg: "var(--cm-surface-3)", color: "var(--cm-ink)", border: "var(--cm-line)" };
+    const IconComp = s.icon;
     return (
-      <span style={{ fontSize: '0.72rem', padding: '3px 10px', borderRadius: 20, fontWeight: 700, backgroundColor: s.bg, color: s.color }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.72rem', padding: '3px 10px', borderRadius: 20, fontWeight: 700, backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+        <IconComp size={12} />
         {s.label}
       </span>
     );
   };
 
   const getServiceIcon = (type: string) => {
-    const icons: Record<string, string> = {
-      doctor_appointment: "🩺", lab_test: "🔬", video_consult: "📹",
-      home_collection: "🩸", home_visit: "🏠",
-    };
-    return icons[type] || "📋";
+    switch (type) {
+      case "doctor_appointment": return <Stethoscope size={20} />;
+      case "lab_test": return <Activity size={20} />;
+      case "video_consult": return <Video size={20} />;
+      case "home_collection": return <Droplet size={20} />;
+      case "home_visit": return <Home size={20} />;
+      default: return <ClipboardList size={20} />;
+    }
   };
 
   const formatTime = (isoStr: string) => {
@@ -251,65 +276,93 @@ export default function StaffDashboard() {
       }
     >
         {/* Today's Stats */}
-        <div className="stats-grid">
-          <div className="card stat-card">
-            <div className="stat-card__icon" style={{ background: "#dbeafe", color: "#2563eb" }}>📋</div>
+        <div className="cm-kpi-grid">
+          <div className="cm-kpi-card" onClick={() => setFilterStatus("confirmed")} style={{ cursor: "pointer" }}>
+            <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
             <div>
-              <div className="stat-card__value">{confirmedToday}</div>
-              <div className="stat-card__label">Upcoming Today</div>
+              <div className="cm-kpi-card__label">Upcoming Today</div>
+              <div className="cm-kpi-card__value">{confirmedToday}</div>
+              <div className="cm-kpi-card__subtitle">Scheduled intake</div>
+            </div>
+            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
+              <ClipboardList size={22} />
             </div>
           </div>
-          <div className="card stat-card">
-            <div className="stat-card__icon" style={{ background: "#fef3c7", color: "#d97706" }}>🏥</div>
+
+          <div className="cm-kpi-card" onClick={() => setFilterStatus("checked_in")} style={{ cursor: "pointer" }}>
+            <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
             <div>
-              <div className="stat-card__value">{checkedInToday}</div>
-              <div className="stat-card__label">Checked In</div>
+              <div className="cm-kpi-card__label">Checked In</div>
+              <div className="cm-kpi-card__value">{checkedInToday}</div>
+              <div className="cm-kpi-card__subtitle">In waiting area</div>
+            </div>
+            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
+              <Building2 size={22} />
             </div>
           </div>
-          <div className="card stat-card">
-            <div className="stat-card__icon" style={{ background: "#dcfce7", color: "#16a34a" }}>✅</div>
+
+          <div className="cm-kpi-card" onClick={() => setFilterStatus("completed")} style={{ cursor: "pointer" }}>
+            <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
             <div>
-              <div className="stat-card__value">{completedToday}</div>
-              <div className="stat-card__label">Completed</div>
+              <div className="cm-kpi-card__label">Completed</div>
+              <div className="cm-kpi-card__value">{completedToday}</div>
+              <div className="cm-kpi-card__subtitle">Discharged / routed</div>
+            </div>
+            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
+              <CheckCircle2 size={22} />
             </div>
           </div>
-          <div className="card stat-card">
-            <div className="stat-card__icon" style={{ background: "#fee2e2", color: "#dc2626" }}>❌</div>
+
+          <div className="cm-kpi-card" onClick={() => setFilterStatus("cancelled")} style={{ cursor: "pointer" }}>
+            <div className="cm-kpi-card__accent cm-kpi-card__accent--urgent" />
             <div>
-              <div className="stat-card__value">{cancelledToday}</div>
-              <div className="stat-card__label">Cancelled</div>
+              <div className="cm-kpi-card__label">Cancelled</div>
+              <div className="cm-kpi-card__value">{cancelledToday}</div>
+              <div className="cm-kpi-card__subtitle">No-shows / drops</div>
+            </div>
+            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)" }}>
+              <XCircle size={22} />
             </div>
           </div>
         </div>
 
         {/* Revenue & Payment Summary */}
-        <div className="card" style={{ padding: 20, marginBottom: 24, background: 'linear-gradient(135deg, #f0fff4 0%, #ebf8ff 100%)', border: '1px solid #c6f6d5' }}>
-          <h4 style={{ fontSize: '0.9rem', color: '#1a2b4a', marginBottom: 12, fontFamily: 'var(--font-body)' }}>💰 Today&apos;s Payment Summary</h4>
+        <div style={{ padding: 20, marginBottom: 24, background: 'var(--cm-surface)', borderRadius: 12, border: '1px solid var(--cm-line)' }}>
+          <h4 style={{ fontSize: '0.9rem', color: 'var(--cm-navy)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+            <DollarSign size={16} color="var(--cm-done)" />
+            Today&apos;s Payment Summary
+          </h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2f855a' }}>₹{todayRevenue.toLocaleString()}</div>
+            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'var(--cm-surface-2)', borderRadius: 10, border: '1px solid var(--cm-line)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--cm-done)' }}>₹{todayRevenue.toLocaleString()}</div>
               {unpricedCount > 0 && (
-                <div style={{ fontSize: '0.7rem', color: '#718096', marginTop: 2 }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--cm-ink-3)', marginTop: 2 }}>
                   excludes {unpricedCount} booking{unpricedCount === 1 ? '' : 's'} with no price recorded
                 </div>
               )}
-              <div style={{ fontSize: '0.72rem', color: '#718096', fontWeight: 600 }}>Today&apos;s Revenue</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--cm-ink-3)', fontWeight: 600 }}>Today&apos;s Revenue</div>
             </div>
-            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2563eb' }}>{prepaidCount}</div>
-              <div style={{ fontSize: '0.72rem', color: '#718096', fontWeight: 600 }}>💳 Prepaid Online</div>
+            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'var(--cm-surface-2)', borderRadius: 10, border: '1px solid var(--cm-line)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--cm-active)' }}>{prepaidCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--cm-ink-3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <CreditCard size={12} /> Prepaid Online
+              </div>
             </div>
-            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#d97706' }}>{payAtCounterCount}</div>
-              <div style={{ fontSize: '0.72rem', color: '#718096', fontWeight: 600 }}>🏪 Pay at Counter</div>
+            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'var(--cm-surface-2)', borderRadius: 10, border: '1px solid var(--cm-line)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--cm-waiting)' }}>{payAtCounterCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--cm-ink-3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <Banknote size={12} /> Pay at Counter
+              </div>
             </div>
-            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'white', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16a34a' }}>{settledCount}</div>
-              <div style={{ fontSize: '0.72rem', color: '#718096', fontWeight: 600 }}>✅ Settled to Bank</div>
+            <div style={{ textAlign: 'center', padding: 12, backgroundColor: 'var(--cm-surface-2)', borderRadius: 10, border: '1px solid var(--cm-line)' }}>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--cm-done)' }}>{settledCount}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--cm-ink-3)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <CheckCircle2 size={12} /> Settled to Bank
+              </div>
             </div>
           </div>
-          <div style={{ fontSize: '0.7rem', color: '#a0aec0', marginTop: 8, textAlign: 'center' }}>
-            💡 In production, revenue is settled to your bank via Razorpay Route within T+1 day, minus platform commission.
+          <div style={{ fontSize: '0.7rem', color: 'var(--cm-ink-3)', marginTop: 8, textAlign: 'center' }}>
+            In production, revenue is settled to your bank via Razorpay Route within T+1 day, minus platform commission.
           </div>
         </div>
 
@@ -319,9 +372,9 @@ export default function StaffDashboard() {
             <div key={d.value}
               style={{
                 padding: '8px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'center', minWidth: 80,
-                border: filterDate === d.value ? '2px solid #1a2b4a' : '2px solid #e2e8f0',
-                backgroundColor: filterDate === d.value ? '#1a2b4a' : 'white',
-                color: filterDate === d.value ? 'white' : 'inherit',
+                border: filterDate === d.value ? '2px solid var(--cm-navy)' : '1px solid var(--cm-line)',
+                backgroundColor: filterDate === d.value ? 'var(--cm-navy)' : 'var(--cm-surface)',
+                color: filterDate === d.value ? '#ffffff' : 'var(--cm-ink)',
                 transition: 'all 0.2s',
               }}
               onClick={() => setFilterDate(d.value)}
@@ -336,13 +389,23 @@ export default function StaffDashboard() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
           {[
             { key: "all", label: "All" },
-            { key: "confirmed", label: "✅ Confirmed" },
-            { key: "checked_in", label: "🏥 Checked In" },
-            { key: "completed", label: "✔ Completed" },
-            { key: "cancelled", label: "✖ Cancelled" },
+            { key: "confirmed", label: "Confirmed" },
+            { key: "checked_in", label: "Checked In" },
+            { key: "completed", label: "Completed" },
+            { key: "cancelled", label: "Cancelled" },
           ].map(f => (
             <button key={f.key} className={`chip ${filterStatus === f.key ? 'active' : ''}`}
-              style={{ cursor: 'pointer', border: filterStatus === f.key ? '2px solid #1a2b4a' : '2px solid #e2e8f0', borderRadius: 20, padding: '6px 14px', fontSize: '0.8rem', fontWeight: 600, backgroundColor: filterStatus === f.key ? '#1a2b4a' : 'white', color: filterStatus === f.key ? 'white' : '#4a5568', transition: 'all 0.2s' }}
+              style={{
+                cursor: 'pointer',
+                border: filterStatus === f.key ? '2px solid var(--cm-navy)' : '1px solid var(--cm-line)',
+                borderRadius: 20,
+                padding: '6px 14px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                backgroundColor: filterStatus === f.key ? 'var(--cm-navy)' : 'var(--cm-surface)',
+                color: filterStatus === f.key ? '#ffffff' : 'var(--cm-ink-2)',
+                transition: 'all 0.2s'
+              }}
               onClick={() => setFilterStatus(f.key)}
             >
               {f.label}
@@ -351,50 +414,59 @@ export default function StaffDashboard() {
         </div>
 
         {/* Bookings List */}
-        <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1.1rem", marginBottom: 12 }}>
+        <h3 style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--cm-navy)", marginBottom: 12 }}>
           Appointments ({filteredBookings.length})
         </h3>
 
         {loading ? (
-          <div className="card" style={{ padding: 40, textAlign: "center", color: "var(--color-gray-500)" }}>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--cm-ink-3)", background: "var(--cm-surface)", borderRadius: 12, border: "1px solid var(--cm-line)" }}>
             Loading bookings...
           </div>
         ) : filteredBookings.length === 0 ? (
-          <div className="card" style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📭</div>
-            <h3 style={{ fontFamily: "var(--font-body)", fontSize: "1rem", marginBottom: 8, color: "#718096" }}>
+          <div style={{ padding: 40, textAlign: "center", background: "var(--cm-surface)", borderRadius: 12, border: "1px solid var(--cm-line)" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--cm-surface-3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", color: "var(--cm-ink-3)" }}>
+              <ClipboardList size={24} />
+            </div>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: 6, color: "var(--cm-navy)" }}>
               No appointments for this date/filter
             </h3>
-            <p style={{ color: "#a0aec0", fontSize: "0.85rem" }}>
+            <p style={{ color: "var(--cm-ink-3)", fontSize: "0.85rem" }}>
               Bookings will appear here when patients book appointments at your organization.
             </p>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {filteredBookings.map((booking: any) => (
-              <div key={booking.id} className="card" style={{ padding: 20, transition: 'all 0.2s' }}>
+              <div key={booking.id} style={{ padding: 20, background: "var(--cm-surface)", borderRadius: 12, border: "1px solid var(--cm-line)", transition: 'all 0.2s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
                   {/* Left: Details */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1 }}>
                     <div style={{
-                      width: 48, height: 48, borderRadius: 12, flexShrink: 0,
-                      backgroundColor: booking.service_type === "lab_test" ? "#dbeafe" : booking.service_type === "video_consult" ? "#f3e8ff" : "#fef3c7",
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem'
+                      width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                      backgroundColor: booking.service_type === "lab_test" ? "var(--cm-active-surface)" : booking.service_type === "video_consult" ? "var(--cm-surface-3)" : "var(--cm-waiting-surface)",
+                      color: booking.service_type === "lab_test" ? "var(--cm-active)" : booking.service_type === "video_consult" ? "var(--cm-navy)" : "var(--cm-waiting)",
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
                       {getServiceIcon(booking.service_type)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, color: '#1a2b4a', fontSize: '0.95rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--cm-navy)', fontSize: '0.95rem' }}>
                           {booking.notes || booking.service_type?.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                         </span>
                         {getStatusBadge(booking.status)}
                       </div>
-                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: '0.82rem', color: '#718096', alignItems: 'center' }}>
-                        <span>🕐 {formatTime(booking.slot_start)}{booking.slot_end ? ` – ${formatTime(booking.slot_end)}` : ''}</span>
-                        <span>📅 {booking.slot_start?.split("T")[0] || booking.created_at?.split("T")[0] || "—"}</span>
-                        <span>🆔 {booking.patient_id?.substring(0, 8)}...</span>
-                        <span style={{ fontWeight: 700, color: typeof booking.amount === "number" ? '#2f855a' : '#718096' }}>
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--cm-ink-2)', alignItems: 'center' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={12} color="var(--cm-ink-3)" />
+                          {formatTime(booking.slot_start)}{booking.slot_end ? ` – ${formatTime(booking.slot_end)}` : ''}
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Calendar size={12} color="var(--cm-ink-3)" />
+                          {booking.slot_start?.split("T")[0] || booking.created_at?.split("T")[0] || "—"}
+                        </span>
+                        <span>ID: {booking.patient_id?.substring(0, 8)}...</span>
+                        <span style={{ fontWeight: 700, color: typeof booking.amount === "number" ? 'var(--cm-done)' : 'var(--cm-ink-3)' }}>
                           {typeof booking.amount === "number" ? `₹${booking.amount}` : "Price not set"}
                         </span>
                         {getPaymentBadge(booking)}
@@ -407,35 +479,35 @@ export default function StaffDashboard() {
                     {booking.status === "confirmed" && (
                       <button
                         className="btn btn-primary btn-sm"
-                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', backgroundColor: '#2563eb', borderColor: '#2563eb' }}
+                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         disabled={actionLoading === booking.id}
                         onClick={() => handleAction(booking.id, "checkin")}
                       >
-                        {actionLoading === booking.id ? "..." : "🏥 Check In"}
+                        <Building2 size={13} />
+                        {actionLoading === booking.id ? "..." : "Check In"}
                       </button>
                     )}
                     {booking.status === "checked_in" && (
                       <button
                         className="btn btn-primary btn-sm"
-                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', backgroundColor: 'var(--cm-done)', borderColor: 'var(--cm-done)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         disabled={actionLoading === booking.id}
                         onClick={() => handleAction(booking.id, "complete")}
                       >
-                        {actionLoading === booking.id ? "..." : "✅ Complete"}
+                        <CheckCircle2 size={13} />
+                        {actionLoading === booking.id ? "..." : "Complete"}
                       </button>
                     )}
                     {(booking.status === "confirmed" || booking.status === "checked_in") && (
                       <button
                         className="btn btn-secondary btn-sm"
-                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', color: '#dc2626', borderColor: '#fecaca' }}
+                        style={{ borderRadius: 8, padding: '6px 14px', fontSize: '0.78rem', color: 'var(--cm-urgent)', borderColor: 'var(--cm-urgent-line)', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         disabled={actionLoading === booking.id}
                         onClick={() => handleAction(booking.id, "cancel")}
                       >
-                        ✖ Cancel
+                        <XCircle size={13} />
+                        Cancel
                       </button>
-                    )}
-                    {(booking.status === "completed" || booking.status === "cancelled") && (
-                      <span style={{ fontSize: '0.78rem', color: '#a0aec0', fontStyle: 'italic' }}>No actions</span>
                     )}
                   </div>
                 </div>
