@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Eye,
   EyeOff,
@@ -17,17 +18,6 @@ import {
   ArrowRight,
   Lock,
 } from "lucide-react";
-
-/** Decode JWT payload to check expiry without verifying signature */
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const exp = payload.exp * 1000;
-    return Date.now() >= exp;
-  } catch {
-    return true;
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -90,58 +80,26 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "calc(100vh - 64px)",
-        background: "radial-gradient(ellipse at 20% 20%, #0c1a30 0%, #060b17 100%)",
+        background: "var(--cm-surface)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "32px 16px",
-        position: "relative",
-        overflow: "hidden",
-        color: "#f8fafc",
+        padding: "48px 16px",
+        color: "var(--cm-ink)",
       }}
     >
-      {/* Background ambient lighting orbs */}
-      <div
-        style={{
-          position: "absolute",
-          top: "10%",
-          left: "5%",
-          width: "420px",
-          height: "420px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, transparent 70%)",
-          filter: "blur(60px)",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: "10%",
-          right: "5%",
-          width: "480px",
-          height: "480px",
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%)",
-          filter: "blur(70px)",
-          pointerEvents: "none",
-        }}
-      />
-
       <div
         style={{
           width: "100%",
           maxWidth: "1160px",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-          gap: "36px",
+          gap: "48px",
           alignItems: "center",
-          position: "relative",
-          zIndex: 1,
         }}
       >
         {/* Left: Brand Value Showcase */}
-        <div style={{ padding: "16px 20px" }}>
+        <div style={{ padding: "8px 12px" }}>
           <div
             style={{
               display: "inline-flex",
@@ -149,179 +107,116 @@ export default function LoginPage() {
               gap: 8,
               padding: "6px 14px",
               borderRadius: "999px",
-              background: "rgba(14, 165, 233, 0.12)",
-              border: "1px solid rgba(14, 165, 233, 0.3)",
-              color: "#38bdf8",
-              fontSize: "0.82rem",
+              background: "var(--cm-active-surface)",
+              border: "1px solid var(--cm-active-line)",
+              color: "var(--cm-active)",
+              fontSize: "var(--cm-text-xs)",
               fontWeight: 700,
               marginBottom: 20,
               letterSpacing: "0.03em",
               textTransform: "uppercase",
             }}
           >
-            <ShieldCheck size={14} /> Vizag&apos;s #1 Healthcare Platform
+            <ShieldCheck size={14} /> Vizag Verified Healthcare Platform
           </div>
 
           <h1
             style={{
-              fontSize: "clamp(2rem, 4vw, 2.85rem)",
+              fontSize: "clamp(2rem, 3.5vw, 2.75rem)",
               fontWeight: 900,
               lineHeight: 1.15,
               marginBottom: 16,
               letterSpacing: "-0.02em",
-              background: "linear-gradient(135deg, #ffffff 30%, #94a3b8 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              color: "var(--cm-navy)",
             }}
           >
-            Smart Healthcare,
+            Clinical Precision,
             <br />
-            <span
-              style={{
-                background: "linear-gradient(90deg, #38bdf8, #34d399)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
+            <span style={{ color: "var(--cm-active)" }}>
               Unified &amp; Instant.
             </span>
           </h1>
 
-          <p style={{ fontSize: "1.05rem", color: "#94a3b8", lineHeight: 1.6, marginBottom: 28, maxWidth: "480px" }}>
-            Access seamless teleconsultations, Rapido-style doorstep phlebotomy and nurse dispatch, ABHA records, and dedicated clinical command centers for doctors.
+          <p style={{ fontSize: "var(--cm-text-base)", color: "var(--cm-ink-2)", lineHeight: 1.6, marginBottom: 28, maxWidth: "480px" }}>
+            Access verified doctor teleconsultations, Rapido-style doorstep phlebotomist dispatch, ABHA health records, and clinical command stations.
           </p>
 
           {/* Feature Badges */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: "8px", background: "rgba(14, 165, 233, 0.15)", color: "#38bdf8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center" }}>
                 <Zap size={18} />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#f1f5f9" }}>60-Second Instant Teleconsultations</div>
-                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Live AI Scribe summaries and digital e-Prescriptions</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Instant Telemedicine Consultations</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Live AI Scribe summaries and digital e-Prescriptions</div>
               </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: "8px", background: "rgba(16, 185, 129, 0.15)", color: "#34d399", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center" }}>
                 <MapPin size={18} />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#f1f5f9" }}>Live Doorstep Dispatch Radar</div>
-                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Home doctor, nurse, physio &amp; NABL sample collection</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Doorstep Dispatch Radar</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Home doctor, nurse, physio &amp; NABL sample collection</div>
               </div>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: "8px", background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center" }}>
                 <CheckCircle2 size={18} />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#f1f5f9" }}>80% Provider Remuneration Standard</div>
-                <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Transparent 80/20 revenue split as per official CallMedex MOUs</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>80% Provider Remuneration Standard</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Transparent 80/20 revenue split as per official CallMedex MOUs</div>
               </div>
             </div>
           </div>
 
           {/* Quick Demo Fillers for testing */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 16 }}>
-            <div style={{ fontSize: "0.76rem", color: "#64748b", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 10 }}>
+          <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 16 }}>
+            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 10 }}>
               Quick Demo Accounts
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               <button
                 type="button"
                 onClick={() => setDemoAccount("doctor@callmedex.in")}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(14, 165, 233, 0.12)",
-                  border: "1px solid rgba(14, 165, 233, 0.25)",
-                  color: "#38bdf8",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
               >
                 <Stethoscope size={13} /> Doctor
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("patient@callmedex.in")}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(16, 185, 129, 0.12)",
-                  border: "1px solid rgba(16, 185, 129, 0.25)",
-                  color: "#34d399",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
               >
                 <User size={13} /> Patient
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("nurse@callmedex.in")}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(244, 63, 94, 0.12)",
-                  border: "1px solid rgba(244, 63, 94, 0.25)",
-                  color: "#fb7185",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
               >
                 <HeartHandshake size={13} /> Nurse
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("dietitian@callmedex.in")}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(16, 185, 129, 0.12)",
-                  border: "1px solid rgba(16, 185, 129, 0.25)",
-                  color: "#34d399",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
               >
                 <Apple size={13} /> Dietitian
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("physio@callmedex.in")}
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(139, 92, 246, 0.12)",
-                  border: "1px solid rgba(139, 92, 246, 0.25)",
-                  color: "#a78bfa",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
               >
                 <Activity size={13} /> Physio
               </button>
@@ -329,26 +224,24 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Right: Modern High-Brand Login Card */}
+        {/* Right: Modern Clinical White Login Card */}
         <div>
           <div
+            className="cm-card"
             style={{
-              background: "rgba(15, 23, 42, 0.82)",
-              backdropFilter: "blur(18px)",
-              WebkitBackdropFilter: "blur(18px)",
-              borderRadius: "20px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+              background: "var(--cm-surface)",
+              borderRadius: "var(--cm-radius)",
+              border: "1px solid var(--cm-line)",
+              boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.07)",
               overflow: "hidden",
-              position: "relative",
             }}
           >
-            {/* Top Accent Stripe */}
+            {/* Top Navy Accent Stripe */}
             <div
               style={{
-                height: "5px",
+                height: "4px",
                 width: "100%",
-                background: "linear-gradient(90deg, #0284c7, #10b981, #6366f1)",
+                background: "var(--cm-navy)",
               }}
             />
 
@@ -359,19 +252,19 @@ export default function LoginPage() {
                     display: "inline-flex",
                     padding: 14,
                     borderRadius: "16px",
-                    background: "linear-gradient(135deg, rgba(2, 132, 199, 0.2), rgba(16, 185, 129, 0.2))",
-                    border: "1px solid rgba(56, 189, 248, 0.25)",
-                    color: "#38bdf8",
+                    background: "var(--cm-surface-2)",
+                    border: "1px solid var(--cm-line)",
+                    color: "var(--cm-navy)",
                     marginBottom: 14,
                   }}
                 >
                   <HeartPulse size={32} />
                 </div>
-                <h2 style={{ fontSize: "1.6rem", fontWeight: 800, color: "#ffffff", margin: "0 0 6px 0", letterSpacing: "-0.01em" }}>
-                  Welcome Back
+                <h2 style={{ fontSize: "var(--cm-text-xl)", fontWeight: 800, color: "var(--cm-navy)", margin: "0 0 6px 0", letterSpacing: "-0.01em" }}>
+                  Welcome to CallMedex
                 </h2>
-                <p style={{ fontSize: "0.9rem", color: "#94a3b8", margin: 0 }}>
-                  Enter your verified credentials to access your Command Center
+                <p style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", margin: 0 }}>
+                  Enter your credentials to access your Command Center
                 </p>
               </div>
 
@@ -380,12 +273,12 @@ export default function LoginPage() {
                   style={{
                     textAlign: "left",
                     marginBottom: 20,
-                    fontSize: "0.86rem",
+                    fontSize: "var(--cm-text-xs)",
                     padding: "12px 14px",
-                    background: "rgba(239, 68, 68, 0.12)",
-                    border: "1px solid rgba(239, 68, 68, 0.3)",
-                    color: "#fca5a5",
-                    borderRadius: 10,
+                    background: "var(--cm-urgent-surface)",
+                    border: "1px solid var(--cm-urgent-line)",
+                    color: "var(--cm-urgent)",
+                    borderRadius: "var(--cm-radius-sm)",
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
@@ -400,7 +293,7 @@ export default function LoginPage() {
                 <div style={{ marginBottom: 18 }}>
                   <label
                     htmlFor="login-email"
-                    style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#cbd5e1", marginBottom: 6 }}
+                    style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", marginBottom: 6 }}
                   >
                     Email Address
                   </label>
@@ -414,21 +307,13 @@ export default function LoginPage() {
                     style={{
                       width: "100%",
                       padding: "12px 14px",
-                      borderRadius: "10px",
-                      background: "rgba(30, 41, 59, 0.8)",
-                      border: "1px solid rgba(255, 255, 255, 0.12)",
-                      color: "#ffffff",
-                      fontSize: "0.95rem",
+                      borderRadius: "var(--cm-radius-sm)",
+                      background: "#ffffff",
+                      border: "1px solid var(--cm-line-strong)",
+                      color: "var(--cm-ink)",
+                      fontSize: "var(--cm-text-sm)",
                       outline: "none",
-                      transition: "border-color 0.2s, box-shadow 0.2s",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = "#38bdf8";
-                      e.target.style.boxShadow = "0 0 0 3px rgba(56, 189, 248, 0.15)";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = "rgba(255, 255, 255, 0.12)";
-                      e.target.style.boxShadow = "none";
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
@@ -437,16 +322,16 @@ export default function LoginPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <label
                       htmlFor="login-password"
-                      style={{ fontSize: "0.85rem", fontWeight: 600, color: "#cbd5e1" }}
+                      style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}
                     >
                       Password
                     </label>
-                    <a
+                    <Link
                       href="/auth/forgot-password"
-                      style={{ fontSize: "0.8rem", color: "#38bdf8", textDecoration: "none", fontWeight: 600 }}
+                      style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", textDecoration: "none", fontWeight: 700 }}
                     >
                       Forgot Password?
-                    </a>
+                    </Link>
                   </div>
                   <div style={{ position: "relative" }}>
                     <input
@@ -459,21 +344,13 @@ export default function LoginPage() {
                       style={{
                         width: "100%",
                         padding: "12px 44px 12px 14px",
-                        borderRadius: "10px",
-                        background: "rgba(30, 41, 59, 0.8)",
-                        border: "1px solid rgba(255, 255, 255, 0.12)",
-                        color: "#ffffff",
-                        fontSize: "0.95rem",
+                        borderRadius: "var(--cm-radius-sm)",
+                        background: "#ffffff",
+                        border: "1px solid var(--cm-line-strong)",
+                        color: "var(--cm-ink)",
+                        fontSize: "var(--cm-text-sm)",
                         outline: "none",
-                        transition: "border-color 0.2s, box-shadow 0.2s",
-                      }}
-                      onFocus={(e) => {
-                        e.target.style.borderColor = "#38bdf8";
-                        e.target.style.boxShadow = "0 0 0 3px rgba(56, 189, 248, 0.15)";
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = "rgba(255, 255, 255, 0.12)";
-                        e.target.style.boxShadow = "none";
+                        boxSizing: "border-box",
                       }}
                     />
                     <button
@@ -493,7 +370,7 @@ export default function LoginPage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "#94a3b8",
+                        color: "var(--cm-ink-3)",
                       }}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -501,12 +378,12 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", marginBottom: 24, fontSize: "0.85rem", color: "#94a3b8" }}>
+                <div style={{ display: "flex", alignItems: "center", marginBottom: 24, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input
                       type="checkbox"
                       defaultChecked
-                      style={{ accentColor: "#0284c7", width: 16, height: 16, borderRadius: 4 }}
+                      style={{ accentColor: "var(--cm-active)", width: 16, height: 16, borderRadius: 4 }}
                     />
                     Stay signed in for 30 days
                   </label>
@@ -515,29 +392,20 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
+                  className="cm-btn cm-btn--primary cm-btn--lg"
                   style={{
                     width: "100%",
-                    padding: "13px",
-                    borderRadius: "10px",
-                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                    color: "#ffffff",
-                    border: "none",
-                    fontWeight: 700,
-                    fontSize: "1rem",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    boxShadow: "0 4px 14px 0 rgba(2, 132, 199, 0.39)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 8,
-                    transition: "transform 0.1s ease, box-shadow 0.2s ease",
                   }}
                 >
                   {loading ? (
                     "Authenticating..."
                   ) : (
                     <>
-                      Login to Command Center <ArrowRight size={18} />
+                      Sign In to Command Center <ArrowRight size={18} />
                     </>
                   )}
                 </button>
@@ -548,18 +416,18 @@ export default function LoginPage() {
                   textAlign: "center",
                   marginTop: 24,
                   paddingTop: 20,
-                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                  fontSize: "0.9rem",
-                  color: "#94a3b8",
+                  borderTop: "1px solid var(--cm-line)",
+                  fontSize: "var(--cm-text-xs)",
+                  color: "var(--cm-ink-3)",
                 }}
               >
                 New healthcare provider or patient?{" "}
-                <a
+                <Link
                   href="/auth/signup"
-                  style={{ color: "#38bdf8", fontWeight: 700, textDecoration: "none" }}
+                  style={{ color: "var(--cm-active)", fontWeight: 700, textDecoration: "none" }}
                 >
                   Create Account
-                </a>
+                </Link>
               </div>
             </div>
           </div>

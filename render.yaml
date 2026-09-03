@@ -124,3 +124,57 @@ services:
     plan: starter
     maxmemoryPolicy: allkeys-lru
     ipAllowList: [] # internal access only
+
+  # ─── Celery Background Worker Service ────────────────────────────────────
+  - type: worker
+    name: callmedex-celery-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    plan: starter
+    region: singapore
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: callmedex-redis
+          property: connectionString
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_TEMPLATE_ID
+        sync: false
+      - key: MSG91_FLOW_ID
+        sync: false
+      - key: FCM_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: support@mail.callmedex.com
+
+  # ─── Celery Beat Scheduler Service ───────────────────────────────────────
+  - type: worker
+    name: callmedex-celery-beat
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: celery -A app.workers.celery_app beat --loglevel=info
+    plan: starter
+    region: singapore
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: callmedex-redis
+          property: connectionString

@@ -1060,9 +1060,6 @@ export default function PatientDashboard() {
           );
         })()}
 
-        {/* ─── INTERACTIVE ORGAN BODY MAP & HEALTH TWIN ─── */}
-        <InteractiveBodyMap />
-
         {/* Modern KPI Stats */}
         <div className="cm-kpi-grid">
           <div className="cm-kpi-card">
@@ -1178,6 +1175,11 @@ export default function PatientDashboard() {
           </div>
         )}
 
+        {/* Interactive 3D Anatomical Twin Stage */}
+        <div style={{ marginBottom: 24 }}>
+          <InteractiveBodyMap />
+        </div>
+
         {/* Quick Actions */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.2rem", color: "var(--cm-ink)", fontWeight: 800 }}>
@@ -1196,9 +1198,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #06b6d4)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#10b981" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
                 <Droplet size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1208,7 +1210,7 @@ export default function PatientDashboard() {
                 {t.quickActions.urgentHomeCollectionSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
               {t.quickActions.urgentHomeCollectionTag}
             </span>
           </button>
@@ -1220,9 +1222,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #3b82f6, #6366f1)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(59, 130, 246, 0.12)", color: "#3b82f6" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
                 <Stethoscope size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1232,7 +1234,7 @@ export default function PatientDashboard() {
                 {t.quickActions.urgentHomeDoctorSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(59, 130, 246, 0.1)", color: "#2563eb", border: "1px solid rgba(59, 130, 246, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
               {t.quickActions.urgentHomeDoctorTag}
             </span>
           </button>
@@ -1244,9 +1246,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #f43f5e, #e11d48)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-urgent)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(244, 63, 94, 0.12)", color: "#f43f5e" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)" }}>
                 <HeartHandshake size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1256,7 +1258,7 @@ export default function PatientDashboard() {
                 {t.quickActions.urgentHomeNurseSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(244, 63, 94, 0.1)", color: "#e11d48", border: "1px solid rgba(244, 63, 94, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)", border: "1px solid var(--cm-urgent-line)" }}>
               {t.quickActions.urgentHomeNurseTag}
             </span>
           </button>
@@ -1268,9 +1270,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #f59e0b, #ea580c)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-waiting)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(245, 158, 11, 0.12)", color: "#f59e0b" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
                 <Truck size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1280,7 +1282,7 @@ export default function PatientDashboard() {
                 {t.quickActions.urgentPharmacySub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(245, 158, 11, 0.1)", color: "#d97706", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "1px solid var(--cm-waiting-line)" }}>
               {t.quickActions.urgentPharmacyTag}
             </span>
           </button>
@@ -1292,9 +1294,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #059669)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
                 <Apple size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1304,7 +1306,7 @@ export default function PatientDashboard() {
                 {t.quickActions.homeDietitianSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
               {t.quickActions.homeDietitianTag}
             </span>
           </button>
@@ -1316,9 +1318,9 @@ export default function PatientDashboard() {
             disabled={requestingDispatch !== null}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #0284c7, #4f46e5)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(2, 132, 199, 0.12)", color: "#0284c7" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
                 <Activity size={24} />
               </div>
               <h4 className="cm-quick-card__title">
@@ -1328,16 +1330,16 @@ export default function PatientDashboard() {
                 {t.quickActions.homePhysioSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
               {t.quickActions.homePhysioTag}
             </span>
           </button>
 
           {/* Video Consultation */}
           <a href="/booking?type=video_consult" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #8b5cf6, #a855f7)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-navy)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(139, 92, 246, 0.12)", color: "#8b5cf6" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-surface-2)", color: "var(--cm-navy)" }}>
                 <Video size={24} />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.videoConsult}</h4>
@@ -1345,16 +1347,16 @@ export default function PatientDashboard() {
                 {t.quickActions.videoConsultSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(139, 92, 246, 0.1)", color: "#7c3aed", border: "1px solid rgba(139, 92, 246, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-surface-2)", color: "var(--cm-navy)", border: "1px solid var(--cm-line-strong)" }}>
               {t.quickActions.videoConsultTag}
             </span>
           </a>
 
           {/* AB-PMJAY Cashless */}
           <a href="/dashboard/patient/pmjay" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #10b981, #f59e0b)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#059669" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
                 <Building2 size={24} />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.pmjay}</h4>
@@ -1362,16 +1364,16 @@ export default function PatientDashboard() {
                 {t.quickActions.pmjaySub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(16, 185, 129, 0.1)", color: "#059669", border: "1px solid rgba(16, 185, 129, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
               {t.quickActions.pmjayTag}
             </span>
           </a>
 
           {/* AI Reports */}
           <a href="/dashboard/patient/reports" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "linear-gradient(90deg, #06b6d4, #8b5cf6)" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "rgba(6, 182, 212, 0.12)", color: "#06b6d4" }}>
+              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
                 <Sparkles size={24} />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
@@ -1379,7 +1381,7 @@ export default function PatientDashboard() {
                 {t.quickActions.aiReportsSub}
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "rgba(6, 182, 212, 0.1)", color: "#0284c7", border: "1px solid rgba(6, 182, 212, 0.25)" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
               {t.quickActions.aiReportsTag}
             </span>
           </a>

@@ -18,6 +18,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { telemedAPI, discoveryAPI } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import StateDistrictPicker from '@/components/StateDistrictPicker';
+import {
+  Video,
+  Building2,
+  Home,
+  Search,
+  MapPin,
+  Star,
+  ShieldCheck,
+  Stethoscope,
+} from 'lucide-react';
 
 type ConsultMode = 'teleconsultation' | 'walkin' | 'home';
 
@@ -75,28 +85,19 @@ const ORG_TYPE_LABEL: Record<string, string> = {
   nursing_home: 'Nursing Home',
 };
 
-const ORG_TYPE_ICON: Record<string, string> = {
-  dental_clinic: '🦷',
-  physiotherapy_center: '🧘',
-  clinic: '🏥',
-  polyclinic: '🏥',
-  hospital: '🏨',
-  nursing_home: '🏨',
-};
-
 const MODE_META: Record<ConsultMode, { title: string; subtitle: string; empty: string }> = {
   teleconsultation: {
-    title: '📹 Video Consultation',
-    subtitle: 'Connect with verified doctors via HD video call — with AI-generated e-prescriptions',
+    title: 'Video Teleconsultation',
+    subtitle: 'Connect with verified doctors via HD video call with digital e-prescriptions',
     empty: 'No doctors available for video consultation right now. Try again shortly.',
   },
   walkin: {
-    title: '🏥 Walk-in Consultation',
+    title: 'Walk-in Consultation',
     subtitle: 'Book an in-person visit — verified doctors, dental clinics, physiotherapy centres and hospitals near you',
     empty: 'No walk-in providers found. Try a different location or filter.',
   },
   home: {
-    title: '🏠 Home Visit',
+    title: 'Home Doctor Visit',
     subtitle: 'Verified doctors and physiotherapists who come to your doorstep',
     empty: 'No home-visit providers found. Try a different location.',
   },
@@ -355,48 +356,64 @@ function ConsultationContent() {
         <div style={{
           display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
           justifyContent: 'center', marginBottom: 22, padding: '14px 18px',
-          background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12,
+          background: 'var(--cm-surface-2)', border: '1px solid var(--cm-line)', borderRadius: 'var(--cm-radius)',
         }}>
-          <span style={{ fontSize: '0.9rem', color: '#1e3a8a', fontWeight: 600 }}>
+          <span style={{ fontSize: '0.9rem', color: 'var(--cm-navy)', fontWeight: 600 }}>
             Looking for a physiotherapist or dietitian?
           </span>
-          <a
-            href="/booking/therapy?role=physiotherapist"
-            style={{
-              padding: '8px 16px', borderRadius: 8, background: '#0f4c81',
-              color: 'white', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none',
-            }}
-          >
-            Book a physiotherapist
-          </a>
-          <a
-            href="/booking/therapy?role=dietitian"
-            style={{
-              padding: '8px 16px', borderRadius: 8, background: 'white',
-              color: '#0f4c81', border: '1px solid #0f4c81', fontWeight: 700,
-              fontSize: '0.85rem', textDecoration: 'none',
-            }}
-          >
-            Book a dietitian
-          </a>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <a
+              href="/booking/therapy?role=physiotherapist"
+              className="btn btn-primary btn-sm"
+              style={{
+                textDecoration: 'none',
+                backgroundColor: 'var(--cm-navy)',
+                color: '#ffffff',
+                fontWeight: 700,
+                borderRadius: '8px',
+                padding: '8px 16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              Consult a Physio
+            </a>
+            <a
+              href="/booking/therapy?role=dietitian"
+              className="btn btn-secondary btn-sm"
+              style={{
+                textDecoration: 'none',
+                backgroundColor: '#ffffff',
+                color: 'var(--cm-navy)',
+                border: '1.5px solid var(--cm-navy)',
+                fontWeight: 700,
+                borderRadius: '8px',
+                padding: '8px 16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              Consult a Dietitian
+            </a>
+          </div>
         </div>
 
         {/* ── Mode Toggle ─────────────────────────────────────────── */}
         <div style={{
-          display: 'flex', gap: 0, justifyContent: 'center', marginBottom: 28,
-          background: '#f1f5f9', borderRadius: 14, padding: 4,
-          maxWidth: 560, margin: '0 auto 28px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 28,
+          background: 'var(--cm-surface-2)', borderRadius: 'var(--cm-radius-sm)', padding: 6,
+          maxWidth: 580, margin: '0 auto 28px',
+          border: '1px solid var(--cm-line)',
         }}>
-          {modeButton('teleconsultation', '📹 Teleconsultation',
-            'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-            '0 4px 12px rgba(2,132,199,0.3)')}
-          {modeButton('walkin', '🏥 Walk-in',
-            'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-            '0 4px 12px rgba(15,23,42,0.3)')}
-          {modeButton('home', '🏠 Home Visit',
-            'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-            '0 4px 12px rgba(22,163,74,0.3)')}
+          {modeButton('teleconsultation', 'Video Consultation',
+            'var(--cm-active)',
+            'none')}
+          {modeButton('walkin', 'Walk-in Visit',
+            'var(--cm-navy)',
+            'none')}
+          {modeButton('home', 'Home Visit',
+            'var(--cm-done)',
+            'none')}
         </div>
 
         {/* ── Search & Location Bar ───────────────────────────────── */}
@@ -405,7 +422,7 @@ function ConsultationContent() {
             <input
               type="text"
               className="form-input"
-              placeholder="🔍 Search by doctor name, specialization, or language..."
+              placeholder="Search by doctor name, specialization, or language..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{ flex: 2, paddingLeft: 16, fontSize: '0.95rem', minWidth: 240 }}
@@ -484,7 +501,9 @@ function ConsultationContent() {
           <>
             {filteredDoctors.length === 0 && filteredOrgs.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-                <p style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</p>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--cm-surface-2)', color: 'var(--cm-ink-3)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
+                  <Search size={22} />
+                </div>
                 <p style={{ color: 'var(--color-gray-500)' }}>{meta.empty}</p>
               </div>
             ) : (
@@ -498,21 +517,18 @@ function ConsultationContent() {
                     <div
                       className="doctor-card__avatar"
                       style={{
-                        width: 72,
-                        height: 72,
+                        width: 64,
+                        height: 64,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        background: consultMode === 'home'
-                          ? 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'
-                          : 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.8rem',
-                        color: '#fff',
+                        background: 'var(--cm-surface-2)',
+                        border: '1px solid var(--cm-line-strong)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: 'var(--cm-navy)',
                       }}
                     >
-                      {ORG_TYPE_ICON[org.organization_type] || '🏥'}
+                      <Building2 size={28} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -530,8 +546,8 @@ function ConsultationContent() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {(org.city || org.state) && (
-                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              📍 {[org.city, org.state].filter(Boolean).join(', ')}
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                              <MapPin size={12} /> {[org.city, org.state].filter(Boolean).join(', ')}
                             </span>
                           )}
                         </div>
@@ -546,7 +562,7 @@ function ConsultationContent() {
                             onClick={() => handleOrgBooking(org)}
                             style={{ minWidth: 110 }}
                           >
-                            {consultMode === 'home' ? '🏠 Book Home Visit' : '🏥 Book Visit'}
+                            {consultMode === 'home' ? 'Book Home Visit' : 'Book Visit'}
                           </button>
                         </div>
                       </div>
@@ -563,23 +579,18 @@ function ConsultationContent() {
                     <div
                       className="doctor-card__avatar"
                       style={{
-                        width: 72,
-                        height: 72,
+                        width: 64,
+                        height: 64,
                         borderRadius: '50%',
                         flexShrink: 0,
-                        background: consultMode === 'teleconsultation'
-                          ? 'linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-light) 100%)'
-                          : consultMode === 'home'
-                            ? 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'
-                            : 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.8rem',
-                        color: '#fff',
+                        background: 'var(--cm-surface-2)',
+                        border: '1px solid var(--cm-line-strong)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: consultMode === 'teleconsultation' ? 'var(--cm-active)' : 'var(--cm-navy)',
                       }}
                     >
-                      {consultMode === 'teleconsultation' ? '👨‍⚕️' : consultMode === 'home' ? '🏠' : '🏥'}
+                      {consultMode === 'teleconsultation' ? <Video size={28} /> : consultMode === 'home' ? <Home size={28} /> : <Stethoscope size={28} />}
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -603,14 +614,16 @@ function ConsultationContent() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {doc.rating && (
-                            <span style={{ color: 'var(--color-amber)' }}>⭐ {doc.rating}</span>
+                            <span style={{ color: 'var(--cm-waiting)', display: 'inline-flex', alignItems: 'center', gap: 2, fontWeight: 700 }}>
+                              <Star size={12} fill="currentColor" /> {doc.rating}
+                            </span>
                           )}
                           <span style={{ fontSize: '0.8rem', color: 'var(--color-gray-400)' }}>
                             · {doc.languages.join(', ')}
                           </span>
                           {needsLocation && (doc.city || doc.district) && (
-                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              · 📍 {[doc.city || doc.district, doc.state].filter(Boolean).join(', ')}
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                              · <MapPin size={12} /> {[doc.city || doc.district, doc.state].filter(Boolean).join(', ')}
                             </span>
                           )}
                         </div>
@@ -625,10 +638,10 @@ function ConsultationContent() {
                             style={{ minWidth: 110 }}
                           >
                             {consultMode === 'teleconsultation'
-                              ? (doc.available ? '📹 Consult' : 'Unavailable')
+                              ? (doc.available ? 'Consult' : 'Unavailable')
                               : consultMode === 'home'
-                                ? (doc.available ? '🏠 Book Home Visit' : 'Unavailable')
-                                : (doc.available ? '🏥 Book Visit' : 'Unavailable')
+                                ? (doc.available ? 'Book Home Visit' : 'Unavailable')
+                                : (doc.available ? 'Book Visit' : 'Unavailable')
                             }
                           </button>
                         </div>
@@ -652,8 +665,8 @@ function ConsultationContent() {
             border: '1px solid var(--color-gray-200)',
           }}
         >
-          <p style={{ fontSize: '0.9rem', color: 'var(--color-gray-500)' }}>
-            🔒 All consultations comply with NMC 2026 telemedicine guidelines · Prescriptions include
+          <p style={{ fontSize: '0.9rem', color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <ShieldCheck size={16} style={{ color: 'var(--cm-done)' }} /> All consultations comply with NMC 2026 telemedicine guidelines · Prescriptions include
             generic names per BIS mandate · Sessions encrypted end-to-end · AI-assisted e-prescriptions
           </p>
         </div>

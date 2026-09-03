@@ -1,9 +1,16 @@
 "use client";
+
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { bookingsAPI } from "@/lib/api";
 import DashboardShell from "../../components/DashboardShell";
+import {
+  Calendar, Video, FlaskConical, Stethoscope, Activity,
+  Clock, CheckCircle2, XCircle, ArrowLeft,
+} from "lucide-react";
 
 export default function BookingsHistoryPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +24,7 @@ export default function BookingsHistoryPage() {
         });
         const data = await res.json();
         if (data.success) {
-          setBookings(data.data.bookings || []);
+          setBookings(data.data?.bookings || []);
         }
       } catch (e) {
         console.error(e);
@@ -48,79 +55,144 @@ export default function BookingsHistoryPage() {
     }
   };
 
+  const getServiceIcon = (type: string) => {
+    switch (type) {
+      case "video_consult":
+        return <Video size={20} />;
+      case "lab_test":
+      case "home_collection":
+        return <FlaskConical size={20} />;
+      default:
+        return <Stethoscope size={20} />;
+    }
+  };
+
   return (
     <DashboardShell
       role="patient"
-      title="My Bookings"
-      subtitle="Everything you have booked, newest first."
+      title="Appointment & Booking History"
+      subtitle="Complete chronological timeline of your diagnostic tests and specialist consultations."
       tabs={[]}
       activeTab=""
       onTabChange={() => {}}
       aside={
-        <a
-          href="/dashboard/patient"
-          style={{
-            padding: '10px 18px', borderRadius: 999, textDecoration: 'none',
-            border: '1px solid rgba(255,255,255,0.35)',
-            background: 'rgba(255,255,255,0.12)', color: '#fff',
-            fontWeight: 700, fontSize: '0.85rem',
-          }}
+        <button
+          type="button"
+          onClick={() => router.push("/dashboard/patient")}
+          className="cm-btn cm-btn--secondary cm-btn--sm"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
         >
-          ← Dashboard
-        </a>
+          <ArrowLeft size={14} /> Back to Command Center
+        </button>
       }
     >
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
         {loading ? (
-          <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>Loading history...</div>
+          <div className="cm-panel" style={{ padding: "var(--cm-6)", textAlign: "center", color: "var(--cm-ink-3)" }}>
+            Loading your bookings history...
+          </div>
         ) : bookings.length > 0 ? (
-          bookings.map((booking: any) => (
-            <div key={booking.id} className="card" style={{ padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                <div style={{
-                  width: 50, height: 50, borderRadius: 12,
-                  background: booking.service_type === "lab_test" ? "#dbeafe" : booking.service_type === "video_consult" ? "#dcfce7" : "#fef3c7",
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem"
-                }}>
-                  {booking.service_type === "lab_test" ? "🔬" : booking.service_type === "video_consult" ? "📹" : "🩺"}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", textTransform: 'capitalize', color: '#1f2937', marginBottom: 4 }}>
-                    {booking.service_type.replace('_', ' ')}
-                  </div>
-                  <div style={{ fontSize: "0.9rem", color: "var(--color-gray-500)", marginBottom: 2 }}>
-                    <strong>Date:</strong> {new Date(booking.slot_start).toLocaleDateString()} at {new Date(booking.slot_start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </div>
-                  <div style={{ fontSize: "0.85rem", color: "#6b7280" }}>
-                    ID: {booking.id.substring(0,8)}... | {booking.notes || `Assigned to Provider ${booking.provider_id || 'Pending'}`}
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
-                <span className={`badge ${booking.status === "confirmed" ? "badge-info" : booking.status === "cancelled" ? "badge-danger" : "badge-success"}`} style={{ padding: '6px 12px', fontSize: '0.9rem', backgroundColor: booking.status === "cancelled" ? "#fee2e2" : undefined, color: booking.status === "cancelled" ? "#ef4444" : undefined }}>
-                  {booking.status.replace('_', ' ')}
-                </span>
-                {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && (
-                  <button 
-                    onClick={() => handleCancelBooking(booking.id, booking.status)}
+          bookings.map((booking: any) => {
+            const isCancelled = booking.status === "cancelled" || booking.status === "slot_rejected";
+            const isConfirmed = booking.status === "confirmed";
+            const isCompleted = booking.status === "completed";
+
+            return (
+              <div
+                key={booking.id}
+                className="cm-card"
+                style={{
+                  padding: "var(--cm-4) var(--cm-5)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "var(--cm-3)",
+                  border: "1px solid var(--cm-line)",
+                  borderRadius: "var(--cm-radius)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-4)" }}>
+                  <div
                     style={{
-                      background: 'none', border: 'none', color: '#dc2626', fontWeight: 600, 
-                      fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline', padding: 0
+                      width: 44,
+                      height: 44,
+                      borderRadius: "var(--cm-radius)",
+                      background: "var(--cm-surface-2)",
+                      color: "var(--cm-navy)",
+                      display: "grid",
+                      placeItems: "center",
+                      flexShrink: 0,
                     }}
                   >
-                    Cancel Booking
-                  </button>
-                )}
+                    {getServiceIcon(booking.service_type)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", textTransform: "capitalize", color: "var(--cm-ink)" }}>
+                      {booking.service_type.replace(/_/g, " ")}
+                    </div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                      <span>Date: <strong>{new Date(booking.slot_start).toLocaleDateString()}</strong> at {new Date(booking.slot_start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-faint)", marginTop: 2, fontFamily: "monospace" }}>
+                      ID: {booking.id.substring(0, 8)}... · {booking.notes || `Provider: ${booking.provider_id || "Assigned"}`}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--cm-2)" }}>
+                  <span
+                    className={`cm-pill ${
+                      isCancelled
+                        ? "cm-pill--urgent"
+                        : isCompleted
+                        ? "cm-pill--done"
+                        : isConfirmed
+                        ? "cm-pill--active"
+                        : "cm-pill--waiting"
+                    }`}
+                  >
+                    {isCancelled ? <XCircle size={12} /> : isConfirmed || isCompleted ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                    {booking.status.replace(/_/g, " ")}
+                  </span>
+
+                  {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelBooking(booking.id, booking.status)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--cm-urgent)",
+                        fontWeight: 700,
+                        fontSize: "var(--cm-text-xs)",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        padding: 0,
+                      }}
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
-          <div className="card" style={{ padding: "40px", textAlign: "center", color: "var(--color-gray-500)" }}>
-            <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
-            <h3>No Bookings Found</h3>
-            <p style={{ marginTop: 8 }}>You haven't made any bookings yet.</p>
-            <a href="/booking" className="btn btn-primary" style={{ marginTop: 16, display: "inline-block" }}>Book a Service Now</a>
+          <div className="cm-empty" style={{ padding: "var(--cm-6)" }}>
+            <span className="cm-empty__icon">
+              <Calendar size={28} />
+            </span>
+            <p className="cm-empty__title">No Bookings Found</p>
+            <p className="cm-empty__body">You haven&apos;t scheduled any diagnostic tests or doctor visits yet.</p>
+            <button
+              type="button"
+              className="cm-btn cm-btn--primary cm-btn--sm"
+              style={{ marginTop: "var(--cm-4)" }}
+              onClick={() => router.push("/booking")}
+            >
+              Book a Service Now
+            </button>
           </div>
         )}
       </div>

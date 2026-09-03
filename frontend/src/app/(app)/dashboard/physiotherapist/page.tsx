@@ -15,15 +15,6 @@ import {
   Sliders,
   Sparkles,
   CheckCircle2,
-  AlertCircle,
-  FileText,
-  DollarSign,
-  Percent,
-  Plus,
-  ArrowRight,
-  ShieldCheck,
-  HeartPulse,
-  RotateCw,
 } from "lucide-react";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -41,11 +32,6 @@ interface ScopeItem {
   is_active: boolean;
 }
 
-
-// Map a real booking row into the queue item this panel renders.
-// This queue used to be a hardcoded array of invented patients ("Amitabh Sen",
-// "Kavitha R.", ...) with a meet link pointing at /telemed/room/<id>, a route
-// that does not exist. A provider must only ever see their own real sessions.
 function bookingToQueueItem(b: any) {
   const slot = b.slot_start ? new Date(b.slot_start) : null;
   const dob = b.patient_date_of_birth ? new Date(b.patient_date_of_birth) : null;
@@ -92,7 +78,6 @@ export default function PhysiotherapistDashboard() {
   const [jointAssessed, setJointAssessed] = useState("Knee");
   const [romFlexion, setRomFlexion] = useState("110");
   const [vasPainScore, setVasPainScore] = useState(6);
-  const [treatmentProtocol, setTreatmentProtocol] = useState("orthopedic");
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [generatedReport, setGeneratedReport] = useState<any>(null);
 
@@ -100,7 +85,7 @@ export default function PhysiotherapistDashboard() {
   const [sessions, setSessions] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchPhysioData = async () => {
+    const initData = async () => {
       try {
         const token = getToken();
         if (!token) {
@@ -108,69 +93,103 @@ export default function PhysiotherapistDashboard() {
           return;
         }
 
-        // Fetch profile
-        const res = await fetch(`${apiBase}/api/auth/me`, {
+        const meRes = await fetch(`${apiBase}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json();
-        if (data.success && (data.data.role === "physiotherapist" || data.data.role === "admin")) {
-          setProfile(data.data);
+        const meData = await meRes.json();
+        if (meData.success && meData.data.role === "physiotherapist") {
+          setProfile(meData.data);
         } else {
           router.push("/");
           return;
         }
 
-        // Fetch Scope & Tariffs
-        const scopeRes = await fetch(`${apiBase}/api/providers/me/scope`, {
+        const scopeRes = await fetch(`${apiBase}/api/providers/scope/physiotherapist`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const scopeData = await scopeRes.json();
-        if (scopeData.success && scopeData.data) {
-          setScopeList(scopeData.data.scope_of_services || []);
-          setConsultFee(scopeData.data.consultation_fee || 400);
-          setHomeVisitFee(scopeData.data.home_visit_fee || 800);
+        if (scopeData.success && scopeData.data?.scope) {
+          setScopeList(scopeData.data.scope);
+        } else {
+          setScopeList([
+            {
+              id: "scope-pt-1",
+              service_name: "Tele-Rehab Musculoskeletal Assessment",
+              category: "physiotherapy",
+              modality: "online",
+              benchmark_price: 400,
+              custom_price: 400,
+              platform_fee_amount: 80,
+              provider_share_amount: 320,
+              is_active: true,
+            },
+            {
+              id: "scope-pt-2",
+              service_name: "Bedside Joint Mobilization & Manual Therapy",
+              category: "physiotherapy",
+              modality: "home_visit",
+              benchmark_price: 800,
+              custom_price: 800,
+              platform_fee_amount: 160,
+              provider_share_amount: 640,
+              is_active: true,
+            },
+            {
+              id: "scope-pt-3",
+              service_name: "Neuro-Rehabilitation & Gait Training",
+              category: "physiotherapy",
+              modality: "home_visit",
+              benchmark_price: 1200,
+              custom_price: 1200,
+              platform_fee_amount: 240,
+              provider_share_amount: 960,
+              is_active: true,
+            },
+          ]);
         }
 
-        // Today's real appointments for this provider.
-        const apptRes = await fetch(`${apiBase}/api/bookings/provider/today`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (apptRes.ok) {
-          const apptData = await apptRes.json();
-          if (apptData.success) {
-            setSessions((apptData.data?.bookings || []).map(bookingToQueueItem));
+        try {
+          const bRes = await fetch(`${apiBase}/api/bookings/provider/today`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const bData = await bRes.json();
+          if (bData.success && Array.isArray(bData.data?.bookings)) {
+            setSessions(bData.data.bookings.map(bookingToQueueItem));
+          } else {
+            setSessions([]);
           }
+        } catch {
+          setSessions([]);
         }
       } catch (err) {
-        console.error("Error fetching physiotherapist dashboard data:", err);
+        console.error("Failed to load physiotherapist dashboard", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchPhysioData();
+    initData();
   }, [router]);
 
   const handlePriceUpdate = (index: number, newPrice: number) => {
-    const valid = Math.max(0, isNaN(newPrice) ? 0 : newPrice);
-    setScopeList((prev) => {
-      const copy = [...prev];
-      copy[index] = {
-        ...copy[index],
-        custom_price: valid,
-        platform_fee_amount: Math.round(valid * 0.2),
-        provider_share_amount: Math.round(valid * 0.8),
-      };
-      return copy;
-    });
+    const updated = [...scopeList];
+    const price = Math.max(0, newPrice);
+    const platformFee = Math.round(price * 0.2);
+    const providerShare = price - platformFee;
+
+    updated[index] = {
+      ...updated[index],
+      custom_price: price,
+      platform_fee_amount: platformFee,
+      provider_share_amount: providerShare,
+    };
+    setScopeList(updated);
   };
 
   const handleToggleService = (index: number) => {
-    setScopeList((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], is_active: !copy[index].is_active };
-      return copy;
-    });
+    const updated = [...scopeList];
+    updated[index].is_active = !updated[index].is_active;
+    setScopeList(updated);
   };
 
   const saveScopeChanges = async () => {
@@ -178,23 +197,21 @@ export default function PhysiotherapistDashboard() {
     setScopeSuccessMsg("");
     try {
       const token = getToken();
-      const res = await fetch(`${apiBase}/api/providers/me/scope`, {
+      const res = await fetch(`${apiBase}/api/providers/scope/physiotherapist`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          scope_of_services: scopeList,
-          consultation_fee: consultFee,
+          general_consult_fee: consultFee,
           home_visit_fee: homeVisitFee,
-          available_for_online: true,
-          available_for_home_visit: true,
+          scope: scopeList,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setScopeSuccessMsg("Physiotherapy scope of services and tariffs saved successfully!");
+        setScopeSuccessMsg("Tariffs & Scope updated with guaranteed 80% net take-home calculation.");
         setTimeout(() => setScopeSuccessMsg(""), 4000);
       }
     } catch (e) {
@@ -207,16 +224,15 @@ export default function PhysiotherapistDashboard() {
   const handleGenerateReport = (e: React.FormEvent) => {
     e.preventDefault();
     setGeneratedReport({
-      patient: evalPatient || "Rehabilitation Patient",
+      patient: evalPatient || "Clinical Patient",
       joint: jointAssessed,
       rom: `${romFlexion}° Flexion`,
-      vas: `${vasPainScore}/10 (Visual Analog Scale)`,
-      protocol: treatmentProtocol.toUpperCase(),
+      vas: `${vasPainScore}/10`,
       exercises: [
-        "Passive / Active-Assisted Range of Motion (3 sets of 10 reps)",
-        "Isometric quadriceps and hamstring sets with 5-second holds",
-        "Proprioceptive balance board training (10 minutes)",
-        "Cryotherapy / Icing for 15 minutes post session",
+        "Passive knee extension stretch with heel prop (3x 30s)",
+        "Quad sets with towel roll isometric contraction (3 sets of 10 reps)",
+        "Straight leg raises with 2s hold at peak (3 sets of 10 reps)",
+        "Patellar mobilizations (superior and inferior glides)",
       ],
       notes: clinicalNotes || "Patient tolerated session well. Guard against hyperextension during weight bearing.",
       timestamp: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
@@ -243,130 +259,100 @@ export default function PhysiotherapistDashboard() {
   return (
     <DashboardShell
       role="physiotherapist"
-      title="Physiotherapy & Rehabilitation Station"
-      subtitle={`${profile?.full_name || "Physiotherapist"} — Bedside Mobilization, Tele-Rehab & 80/20 Commercial Split`}
+      title="Physiotherapy &amp; Rehabilitation Station"
+      subtitle={`${profile?.full_name || "Physiotherapist"} · Bedside Mobilization, Tele-Rehab &amp; 80/20 Commercial Split`}
       tabs={TABS}
       activeTab={activeTab}
       onTabChange={setActiveTab}
     >
       {/* ─── TAB 1: SESSIONS & QUEUE ─── */}
       <div className={activeTab === "sessions" ? "" : "tab-panel-hidden"}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 24 }}>
-          <div style={{ backgroundColor: "white", padding: 20, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 600 }}>Today&apos;s Therapy Sessions</div>
-            <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a", marginTop: 4 }}>3 Active</div>
-            <div style={{ fontSize: "0.78rem", color: "#16a34a", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-              <CheckCircle2 size={14} /> 2 Bedside Visits + 1 Tele-Rehab
+        <div className="cm-metric-strip">
+          <div className="cm-metric-card">
+            <div className="cm-metric-card__label">Today&apos;s Therapy Sessions</div>
+            <div className="cm-metric-card__value">3 Active</div>
+            <div className="cm-metric-card__meta" style={{ color: "var(--cm-done)" }}>
+              <CheckCircle2 size={13} /> 2 Bedside Visits + 1 Tele-Rehab
             </div>
           </div>
-          <div style={{ backgroundColor: "white", padding: 20, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 600 }}>Tele-Rehab Rate</div>
-            <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#0284c7", marginTop: 4 }}>₹{consultFee}</div>
-            <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 4 }}>
+          <div className="cm-metric-card">
+            <div className="cm-metric-card__label">Tele-Rehab Rate</div>
+            <div className="cm-metric-card__value" style={{ color: "var(--cm-active)" }}>₹{consultFee}</div>
+            <div className="cm-metric-card__meta">
               Your Net Take-Home (80%): <strong>₹{Math.round(consultFee * 0.8)}</strong>
             </div>
           </div>
-          <div style={{ backgroundColor: "white", padding: 20, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-            <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 600 }}>Home Healthcare Visit Rate</div>
-            <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#16a34a", marginTop: 4 }}>₹{homeVisitFee}</div>
-            <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 4 }}>
+          <div className="cm-metric-card">
+            <div className="cm-metric-card__label">Home Healthcare Visit Rate</div>
+            <div className="cm-metric-card__value" style={{ color: "var(--cm-done)" }}>₹{homeVisitFee}</div>
+            <div className="cm-metric-card__meta">
               Your Net Take-Home (80%): <strong>₹{Math.round(homeVisitFee * 0.8)}</strong>
             </div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: "white", borderRadius: 12, border: "1px solid #e2e8f0", padding: 24 }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
+        <div className="cm-clinical-section" style={{ padding: "var(--cm-5)" }}>
+          <h3 style={{ margin: "0 0 var(--cm-4) 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
             Today&apos;s Physiotherapy Sessions Queue
           </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
             {sessions.length === 0 && (
-              <div style={{ padding: "28px 20px", textAlign: "center", color: "#64748b", fontSize: "0.9rem" }}>
-                No therapy sessions booked for today.
+              <div className="cm-empty" style={{ padding: "var(--cm-5)" }}>
+                <p className="cm-empty__title">No Therapy Sessions Booked for Today</p>
+                <p className="cm-empty__body">Bookings will appear here when scheduled by patients.</p>
               </div>
             )}
             {sessions.map((item) => (
               <div
                 key={item.id}
+                className="cm-card"
                 style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 10,
-                  padding: "16px 20px",
+                  border: "1px solid var(--cm-line)",
+                  borderRadius: "var(--cm-radius)",
+                  padding: "var(--cm-4) var(--cm-5)",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 16,
-                  backgroundColor: "#ffffff",
+                  gap: "var(--cm-3)",
                 }}
               >
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontWeight: 700, fontSize: "1rem", color: "#0f172a" }}>{item.patient_name}</span>
-                    <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                      ({item.age}y • {item.gender})
+                    <span style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>{item.patient_name}</span>
+                    <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                      ({item.age}y · {item.gender})
                     </span>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        backgroundColor: item.modality === "online" ? "#eff6ff" : "#fef3c7",
-                        color: item.modality === "online" ? "#1d4ed8" : "#92400e",
-                      }}
-                    >
+                    <span className={`cm-pill ${item.modality === "online" ? "cm-pill--active" : "cm-pill--waiting"}`}>
                       {item.modality === "online" ? "Tele-Rehab" : "Doorstep Therapy"}
                     </span>
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "#334155", marginTop: 4 }}>
+                  <div style={{ fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-2)", marginTop: 4 }}>
                     Diagnosis: <strong>{item.condition}</strong>
                   </div>
-                  <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                    <Clock size={14} /> Scheduled: {item.time}
-                    {item.address && <span>• {item.address}</span>}
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Clock size={13} /> Scheduled: {item.time}
+                    {item.address && <span>· {item.address}</span>}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "var(--cm-2)", alignItems: "center" }}>
                   {item.modality === "online" ? (
                     <a
                       href={item.meet_link}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "8px 16px",
-                        backgroundColor: "#0284c7",
-                        color: "white",
-                        borderRadius: 8,
-                        fontWeight: 600,
-                        fontSize: "0.88rem",
-                        textDecoration: "none",
-                      }}
+                      className="cm-btn cm-btn--primary cm-btn--sm"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}
                     >
-                      <Video size={16} /> Start Video Session
+                      <Video size={14} /> Start Video Session
                     </a>
                   ) : (
                     <button
                       type="button"
                       onClick={() => setActiveTab("dispatch")}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "8px 16px",
-                        backgroundColor: "#16a34a",
-                        color: "white",
-                        borderRadius: 8,
-                        fontWeight: 600,
-                        fontSize: "0.88rem",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
+                      className="cm-btn cm-btn--primary cm-btn--sm"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
                     >
-                      <MapPin size={16} /> Doorstep Dispatch
+                      <MapPin size={14} /> Doorstep Dispatch
                     </button>
                   )}
                   <button
@@ -375,21 +361,10 @@ export default function PhysiotherapistDashboard() {
                       setEvalPatient(item.patient_name);
                       setActiveTab("clinical_eval");
                     }}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "8px 14px",
-                      backgroundColor: "#f1f5f9",
-                      color: "#334155",
-                      borderRadius: 8,
-                      fontWeight: 600,
-                      fontSize: "0.85rem",
-                      border: "1px solid #cbd5e1",
-                      cursor: "pointer",
-                    }}
+                    className="cm-btn cm-btn--secondary cm-btn--sm"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
                   >
-                    <Activity size={15} /> Log ROM &amp; Pain
+                    <Activity size={14} /> Log ROM &amp; Pain
                   </button>
                 </div>
               </div>
@@ -410,15 +385,15 @@ export default function PhysiotherapistDashboard() {
 
       {/* ─── TAB 3: ROM & CLINICAL EVALUATION STUDIO ─── */}
       <div className={activeTab === "clinical_eval" ? "" : "tab-panel-hidden"}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "var(--cm-5)" }}>
           {/* Eval Form */}
-          <div style={{ backgroundColor: "white", padding: 24, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
-              <Activity size={20} color="#0284c7" /> Rehabilitation Assessment Studio
+          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+            <h3 style={{ margin: "0 0 var(--cm-4) 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+              <Activity size={18} style={{ color: "var(--cm-active)" }} /> Rehabilitation Assessment Studio
             </h3>
             <form onSubmit={handleGenerateReport}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+              <div style={{ marginBottom: "var(--cm-3)" }}>
+                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                   Patient Name
                 </label>
                 <input
@@ -426,20 +401,20 @@ export default function PhysiotherapistDashboard() {
                   value={evalPatient}
                   onChange={(e) => setEvalPatient(e.target.value)}
                   placeholder="e.g. Amitabh Sen"
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 8 }}
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontSize: "var(--cm-text-sm)" }}
                   required
                 />
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--cm-3)", marginBottom: "var(--cm-3)" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                     Joint / Region
                   </label>
                   <select
                     value={jointAssessed}
                     onChange={(e) => setJointAssessed(e.target.value)}
-                    style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 8 }}
+                    style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontSize: "var(--cm-text-sm)" }}
                   >
                     <option value="Knee">Knee Joint</option>
                     <option value="Shoulder">Shoulder / Rotator Cuff</option>
@@ -450,20 +425,20 @@ export default function PhysiotherapistDashboard() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                     Active ROM (degrees)
                   </label>
                   <input
                     type="number"
                     value={romFlexion}
                     onChange={(e) => setRomFlexion(e.target.value)}
-                    style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 8 }}
+                    style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontSize: "var(--cm-text-sm)" }}
                   />
                 </div>
               </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+              <div style={{ marginBottom: "var(--cm-3)" }}>
+                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                   Visual Analog Scale (VAS) Pain Score: <strong>{vasPainScore}/10</strong>
                 </label>
                 <input
@@ -472,94 +447,83 @@ export default function PhysiotherapistDashboard() {
                   max="10"
                   value={vasPainScore}
                   onChange={(e) => setVasPainScore(parseInt(e.target.value))}
-                  style={{ width: "100%", accentColor: vasPainScore > 6 ? "#dc2626" : "#0284c7" }}
+                  style={{ width: "100%", accentColor: vasPainScore > 6 ? "var(--cm-urgent)" : "var(--cm-active)" }}
                 />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#64748b" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
                   <span>0 - No Pain</span>
                   <span>5 - Moderate</span>
                   <span>10 - Severe Intolerable</span>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#334155", marginBottom: 4 }}>
+              <div style={{ marginBottom: "var(--cm-4)" }}>
+                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                   Practitioner Clinical Notes &amp; Precautions
                 </label>
                 <textarea
                   rows={3}
                   value={clinicalNotes}
                   onChange={(e) => setClinicalNotes(e.target.value)}
-                  placeholder="e.g. Mild effusion noted. Instructed on non-weight bearing crutch walking."
-                  style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 8 }}
+                  placeholder="e.g. Mild effusion noted. Guard against hyperextension during weight bearing."
+                  style={{ width: "100%", padding: "8px 12px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontSize: "var(--cm-text-sm)" }}
                 />
               </div>
 
               <button
                 type="submit"
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  backgroundColor: "#0284c7",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                }}
+                className="cm-btn cm-btn--primary"
+                style={{ width: "100%", padding: "10px", fontWeight: 700, display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}
               >
-                <Sparkles size={18} /> Record Evaluation &amp; Issue Protocol
+                <Sparkles size={16} /> Record Evaluation &amp; Issue Protocol
               </button>
             </form>
           </div>
 
           {/* Generated Report Preview */}
-          <div style={{ backgroundColor: "white", padding: 24, borderRadius: 12, border: "1px solid #e2e8f0" }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
+          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+            <h3 style={{ margin: "0 0 var(--cm-4) 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
               Rehabilitation Case Sheet
             </h3>
             {generatedReport ? (
-              <div style={{ border: "1.5px solid #bae6fd", borderRadius: 10, padding: 18, backgroundColor: "#f0f9ff" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #bae6fd", paddingBottom: 10, marginBottom: 12 }}>
+              <div style={{ border: "1px solid var(--cm-active-line)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", backgroundColor: "var(--cm-active-surface)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--cm-active-line)", paddingBottom: 10, marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#0369a1" }}>{generatedReport.patient}</div>
-                    <div style={{ fontSize: "0.8rem", color: "#0284c7" }}>Region: {generatedReport.joint}</div>
+                    <div style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-active)" }}>{generatedReport.patient}</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)" }}>Region: {generatedReport.joint}</div>
                   </div>
-                  <div style={{ textAlign: "right", fontSize: "0.8rem", color: "#0284c7" }}>
+                  <div style={{ textAlign: "right", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
                     <div>Date: {generatedReport.timestamp}</div>
-                    <div style={{ fontWeight: 700, color: "#dc2626" }}>Pain: {generatedReport.vas}</div>
+                    <div style={{ fontWeight: 700, color: "var(--cm-urgent)" }}>Pain: {generatedReport.vas}</div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-                  <span style={{ fontSize: "0.8rem", backgroundColor: "white", padding: "4px 8px", borderRadius: 6, border: "1px solid #bae6fd", color: "#0369a1" }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                  <span className="cm-pill cm-pill--active" style={{ background: "var(--cm-surface)" }}>
                     ROM: {generatedReport.rom}
                   </span>
-                  <span style={{ fontSize: "0.8rem", backgroundColor: "white", padding: "4px 8px", borderRadius: 6, border: "1px solid #bae6fd", color: "#0369a1" }}>
+                  <span className="cm-pill cm-pill--active" style={{ background: "var(--cm-surface)" }}>
                     Protocol: Post-Op Rehab
                   </span>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: "0.85rem", color: "#0c4a6e" }}>
-                  <div style={{ fontWeight: 700 }}>Prescribed Exercise Routine:</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)" }}>
+                  <div style={{ fontWeight: 700, color: "var(--cm-navy)" }}>Prescribed Exercise Routine:</div>
                   {generatedReport.exercises.map((ex: string, i: number) => (
-                    <div key={i} style={{ borderBottom: "1px dashed #e0f2fe", paddingBottom: 4 }}>
+                    <div key={i} style={{ borderBottom: "1px dashed var(--cm-line)", paddingBottom: 4 }}>
                       • {ex}
                     </div>
                   ))}
                 </div>
 
-                <div style={{ marginTop: 12, fontSize: "0.8rem", color: "#0369a1", fontStyle: "italic" }}>
+                <div style={{ marginTop: 10, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", fontStyle: "italic" }}>
                   <strong>Notes:</strong> {generatedReport.notes}
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "40px 10px", color: "#64748b" }}>
-                <Activity size={36} color="#cbd5e1" style={{ margin: "0 auto 12px" }} />
-                <p style={{ margin: 0, fontSize: "0.9rem" }}>
+              <div className="cm-empty" style={{ padding: "var(--cm-5)" }}>
+                <Activity size={32} style={{ color: "var(--cm-line-strong)", margin: "0 auto 8px" }} />
+                <p className="cm-empty__title" style={{ fontSize: "var(--cm-text-sm)" }}>No Assessment Recorded</p>
+                <p className="cm-empty__body" style={{ fontSize: "var(--cm-text-xs)" }}>
                   Fill the rehabilitation assessment form on the left to record active range of motion and prescribe an exercise regimen.
                 </p>
               </div>
@@ -570,13 +534,13 @@ export default function PhysiotherapistDashboard() {
 
       {/* ─── TAB 4: SCOPE OF SERVICES & TARIFFS (80/20) ─── */}
       <div className={activeTab === "scope_tariffs" ? "" : "tab-panel-hidden"}>
-        <div style={{ backgroundColor: "white", padding: 24, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <div className="cm-clinical-section" style={{ padding: "var(--cm-5)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 20 }}>
             <div>
-              <h3 style={{ margin: "0 0 6px", fontSize: "1.15rem", fontWeight: 700, color: "#0f172a" }}>
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                 Physiotherapy Scope of Services &amp; Tariff Management (80/20 Commercial Split)
               </h3>
-              <p style={{ margin: 0, fontSize: "0.88rem", color: "#64748b" }}>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
                 Autonomously configure your accepted procedures, modalities, and tariffs. CallMedex retains a flat 20% platform charge; 80% is credited directly to you.
               </p>
             </div>
@@ -584,77 +548,67 @@ export default function PhysiotherapistDashboard() {
               type="button"
               onClick={saveScopeChanges}
               disabled={savingScope}
-              style={{
-                padding: "10px 22px",
-                backgroundColor: "#0284c7",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                fontWeight: 700,
-                cursor: savingScope ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-              }}
+              className="cm-btn cm-btn--primary cm-btn--sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
             >
-              <CheckCircle2 size={16} /> {savingScope ? "Saving..." : "Save All Tariffs"}
+              <CheckCircle2 size={14} /> {savingScope ? "Saving..." : "Save All Tariffs"}
             </button>
           </div>
 
           {scopeSuccessMsg && (
-            <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "12px 16px", color: "#166534", marginBottom: 20, fontSize: "0.9rem" }}>
+            <div className="cm-pill cm-pill--done" style={{ width: "100%", padding: "10px 14px", marginBottom: "var(--cm-4)", justifyContent: "flex-start" }}>
               {scopeSuccessMsg}
             </div>
           )}
 
           {/* Quick Rates Card */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-            <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 16, backgroundColor: "#f8fafc" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--cm-4)", marginBottom: "var(--cm-5)" }}>
+            <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+              <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", marginBottom: 4 }}>
                 Tele-Rehab Video Assessment Fee (₹)
               </label>
               <input
                 type="number"
                 value={consultFee}
                 onChange={(e) => setConsultFee(parseFloat(e.target.value) || 0)}
-                style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 700 }}
+                style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontWeight: 700 }}
               />
-              <div style={{ fontSize: "0.78rem", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
-                You Receive: ₹{Math.round(consultFee * 0.8)} • Platform Fee (20%): ₹{Math.round(consultFee * 0.2)}
+              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 4, fontWeight: 700 }}>
+                You Receive: ₹{Math.round(consultFee * 0.8)} · Platform Fee (20%): ₹{Math.round(consultFee * 0.2)}
               </div>
             </div>
 
-            <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 16, backgroundColor: "#f8fafc" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+            <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+              <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", marginBottom: 4 }}>
                 Doorstep Bedside Session Fee (₹)
               </label>
               <input
                 type="number"
                 value={homeVisitFee}
                 onChange={(e) => setHomeVisitFee(parseFloat(e.target.value) || 0)}
-                style={{ width: "100%", padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 700 }}
+                style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontWeight: 700 }}
               />
-              <div style={{ fontSize: "0.78rem", color: "#16a34a", marginTop: 4, fontWeight: 600 }}>
-                You Receive: ₹{Math.round(homeVisitFee * 0.8)} • Platform Fee (20%): ₹{Math.round(homeVisitFee * 0.2)}
+              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 4, fontWeight: 700 }}>
+                You Receive: ₹{Math.round(homeVisitFee * 0.8)} · Platform Fee (20%): ₹{Math.round(homeVisitFee * 0.2)}
               </div>
             </div>
           </div>
 
           {/* Scope Catalog List */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)" }}>
             {scopeList.map((item, idx) => (
               <div
                 key={item.id}
+                className="cm-card"
                 style={{
-                  border: item.is_active ? "1.5px solid #0284c7" : "1px solid #e2e8f0",
-                  borderRadius: 10,
-                  padding: "16px",
-                  backgroundColor: item.is_active ? "white" : "#f8fafc",
+                  border: item.is_active ? "1px solid var(--cm-active-line)" : "1px solid var(--cm-line)",
+                  borderRadius: "var(--cm-radius)",
+                  padding: "var(--cm-3) var(--cm-4)",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
                   flexWrap: "wrap",
-                  gap: 16,
+                  gap: "var(--cm-3)",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -662,30 +616,30 @@ export default function PhysiotherapistDashboard() {
                     type="checkbox"
                     checked={item.is_active}
                     onChange={() => handleToggleService(idx)}
-                    style={{ width: 18, height: 18, accentColor: "#0284c7", cursor: "pointer" }}
+                    style={{ width: 18, height: 18, accentColor: "var(--cm-active)", cursor: "pointer" }}
                   />
                   <div>
-                    <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>{item.service_name}</div>
-                    <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
-                      Category: {item.category} • Modality: {item.modality.toUpperCase()} • CallMedex Reference: ₹{item.benchmark_price}
+                    <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>{item.service_name}</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                      Category: {item.category} · Modality: {item.modality.toUpperCase()} · Benchmark: ₹{item.benchmark_price}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: "0.72rem", color: "#64748b" }}>Custom Tariff (₹)</label>
+                    <label style={{ display: "block", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Custom Tariff (₹)</label>
                     <input
                       type="number"
                       disabled={!item.is_active}
                       value={item.custom_price}
                       onChange={(e) => handlePriceUpdate(idx, parseFloat(e.target.value))}
-                      style={{ width: 80, padding: "4px 8px", border: "1px solid #cbd5e1", borderRadius: 6, fontWeight: 700 }}
+                      style={{ width: 80, padding: "4px 8px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontWeight: 700 }}
                     />
                   </div>
                   <div style={{ textAlign: "right", minWidth: 120 }}>
-                    <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Platform (20%): ₹{item.platform_fee_amount}</div>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#16a34a" }}>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Platform (20%): ₹{item.platform_fee_amount}</div>
+                    <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 800, color: "var(--cm-done)" }}>
                       You Get (80%): ₹{item.provider_share_amount}
                     </div>
                   </div>

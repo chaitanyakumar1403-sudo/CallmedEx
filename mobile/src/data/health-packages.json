@@ -1,0 +1,152 @@
+[
+  {
+    "id": "pkg-basic-screening-non-diabetic",
+    "name": "Basic Screening (Non Diabetic)",
+    "tests": "CBC, FBS, URIC ACID, CREATININE, TOTAL CHOLESTEROL, TOTAL BILIRUBIN, TSH, CUE",
+    "mrp": 1250,
+    "price": 349,
+    "single_price": 349,
+    "couple_price": 599,
+    "special_add_on": "Ultrasound Scan"
+  },
+  {
+    "id": "pkg-basic-screening-diabetic",
+    "name": "Basic Screening (Diabetic)",
+    "tests": "BASIC SCREENING (NON DIABETIC) + HBA1C",
+    "mrp": 1750,
+    "price": 549,
+    "single_price": 549,
+    "couple_price": 999,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-full-body-screening-non-diabetic",
+    "name": "Full Body Screening (Non Diabetic)",
+    "tests": "CBC, FBS, URIC ACID, CREATININE, UREA, LIPID PROFILE, LFT, TSH, CUE",
+    "mrp": 2100,
+    "price": 599,
+    "single_price": 599,
+    "couple_price": 1099,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-full-body-screening-diabetic",
+    "name": "Full Body Screening (Diabetic)",
+    "tests": "FULL BODY SCREENING (NON DIABETIC) + HBA1C",
+    "mrp": 2600,
+    "price": 749,
+    "single_price": 749,
+    "couple_price": 1399,
+    "special_add_on": "ECG"
+  },
+  {
+    "id": "pkg-anaemia-package",
+    "name": "Anaemia Package",
+    "tests": "CBP/ESR/IRON/TIBC/TRANSFERRIN/% IRON SATURATION",
+    "mrp": 2720,
+    "price": 849,
+    "single_price": 849,
+    "couple_price": 1599,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-cardiac-screening-package",
+    "name": "Cardiac Screening Package",
+    "tests": "CBC/CREATININE/Lipoprotein (A)/ Apolipoprotein -A1/Apolipoprotein -B/Ck-Mb",
+    "mrp": 2390,
+    "price": 1399,
+    "single_price": 1399,
+    "couple_price": 2699,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-vitamin-package",
+    "name": "Vitamin Package",
+    "tests": "CALCIUM, VIT B12 & VIT D",
+    "mrp": 2600,
+    "price": 799,
+    "single_price": 799,
+    "couple_price": 1499,
+    "special_add_on": "2D Echo"
+  },
+  {
+    "id": "pkg-hormone-package-female",
+    "name": "Hormone Package (Female)",
+    "tests": "FSH, LH, TFT, Lipid profile, Uric acid, Creatinine, FBS, CBP, VITAMIN D, Vitamin B12",
+    "mrp": 4900,
+    "price": 1299,
+    "single_price": 1299,
+    "couple_price": 2399,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-pcod-panel",
+    "name": "PCOD Panel",
+    "tests": "Testosterone, Prolactin, TFT, 17-OHP, DHEAS, FBS, Insulin, C peptide",
+    "mrp": 6890,
+    "price": 2499,
+    "single_price": 2499,
+    "couple_price": null,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-hormone-package-male",
+    "name": "Hormone Package (Male)",
+    "tests": "FSH, LH, testosterone, Lipid profile, CBP, TFT, Creatinine, Uric acid, FBS, PSA, Vitamin D, Vitamin B12",
+    "mrp": 6850,
+    "price": 1899,
+    "single_price": 1899,
+    "couple_price": 3299,
+    "special_add_on": "TMT"
+  },
+  {
+    "id": "pkg-senior-citizen-package-male",
+    "name": "Senior Citizen Package (Male)",
+    "tests": "CBP/ESR/FBS/CREATININE/URIC ACID/ELECTROLYTES/LIPID PROFILE/LFT/PSA/CUE",
+    "mrp": 3000,
+    "price": 999,
+    "single_price": 999,
+    "couple_price": 1899,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-gastric-hepatitis-package",
+    "name": "Gastric (Hepatitis) Package",
+    "tests": "HBSAG/HEPATITIS A/HCV/AMYLASE/LIPASE",
+    "mrp": 3150,
+    "price": 1199,
+    "single_price": 1199,
+    "couple_price": 1999,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-rft-kft",
+    "name": "RFT/KFT",
+    "tests": "CBC/CREATININE/UREA/BUN/URIC ACID/CALCIUM/ELECTROLYTES",
+    "mrp": 1200,
+    "price": 599,
+    "single_price": 599,
+    "couple_price": 1099,
+    "special_add_on": "Dopplers"
+  },
+  {
+    "id": "pkg-fever-profile-basic",
+    "name": "Fever Profile - Basic",
+    "tests": "CBC/ESR/QBC/WIDAL/CRP/URINE ROUTINE",
+    "mrp": 1250,
+    "price": 599,
+    "single_price": 599,
+    "couple_price": 1099,
+    "special_add_on": null
+  },
+  {
+    "id": "pkg-fever-profile-complete",
+    "name": "Fever Profile - Complete",
+    "tests": "CBC/ESR/QBC/WIDAL/DENGUE/CRP/URINE ROUTINE",
+    "mrp": 2050,
+    "price": 899,
+    "single_price": 899,
+    "couple_price": 1699,
+    "special_add_on": "X-Ray"
+  }
+]

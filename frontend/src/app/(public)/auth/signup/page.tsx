@@ -17,6 +17,8 @@ import {
   Clock,
   Info,
   AlertCircle,
+  ShieldCheck,
+  Camera,
 } from "lucide-react";
 
 // ─── Validation helpers ─────────────────────────────────────────────────────
@@ -1431,7 +1433,9 @@ export default function SignupPage() {
           {/* ─── Aadhaar Card Upload (mandatory for doctor, nurse, phlebo) ─── */}
           {(role === "doctor" || role === "nurse" || role === "phlebotomist") && (
             <div className="card-section">
-              <h4>🪪 Identity Verification — Aadhaar Card</h4>
+              <h4 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <ShieldCheck size={20} style={{ color: "var(--cm-active)" }} /> Identity Verification — Aadhaar Card
+              </h4>
               <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 16 }}>
                 Upload your Aadhaar card (front side) for AI-based identity verification.
                 Your name on the Aadhaar must match your registered name above.
@@ -1442,17 +1446,21 @@ export default function SignupPage() {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="form-input" style={{ flex: 1 }} required />
                   {verificationStatus['aadhaar'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                      <span style={{ color: 'var(--cm-done)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={14} /> AI Verified
+                      </span>
                   ) : verificationStatus['aadhaar'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                      <span style={{ color: 'var(--cm-waiting)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={14} /> Verifying...
+                      </span>
                   ) : (
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('aadhaar')}>
                           Verify via AI
                       </button>
                   )}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#92400e', marginTop: 8 }}>
-                  ⚠️ Our AI will verify your Aadhaar card is genuine and your name matches your registration.
+                <div style={{ fontSize: '0.75rem', color: '#92400e', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertCircle size={14} /> Our AI will verify your Aadhaar card is genuine and your name matches your registration.
                   Only the last 4 digits of your Aadhaar number are stored for privacy.
                 </div>
               </div>
@@ -1460,9 +1468,13 @@ export default function SignupPage() {
               <div style={{
                 backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8,
                 padding: '12px 16px', marginTop: 16, fontSize: '0.8rem', color: '#0369a1',
+                display: 'flex', alignItems: 'center', gap: 8,
               }}>
-                📸 <strong>Live Selfie Verification</strong> will be done after registration from your dashboard.
-                This is not required at signup.
+                <Camera size={16} />
+                <span>
+                  <strong>Live Selfie Verification</strong> will be done after registration from your dashboard.
+                  This is not required at signup.
+                </span>
               </div>
             </div>
           )}
@@ -1478,7 +1490,9 @@ export default function SignupPage() {
                 fontSize: '0.9rem',
                 color: '#92400e'
               }}>
-                <strong>📋 MOU Agreement Required</strong>
+                <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FileText size={16} /> MOU Agreement Required
+                </strong>
                 <p style={{ margin: '8px 0 0 0', lineHeight: 1.6 }}>
                   After submitting this form, we will send a <strong>Memorandum of Understanding (MOU)</strong> specific 
                   to your role ({ROLES.find((r) => r.value === role)?.label}) to your email. You must review and accept 

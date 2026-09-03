@@ -102,8 +102,10 @@ class Settings:
 
     # ─── Layer 0: Marketplace foundation flags ────────────────────────
     VERIFICATION_AUTO_APPROVE: bool = os.getenv("VERIFICATION_AUTO_APPROVE", "true").lower() in ("true", "1", "yes")
-    GOV_REGISTRY_MODE: str = os.getenv("GOV_REGISTRY_MODE", "off")  # off | mock | live — no real gov API keys available, using AI scoring
-    TRUSTED_PROXY_COUNT: int = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
+    TRUSTED_PROXY_COUNT: int = int(os.getenv(
+        "TRUSTED_PROXY_COUNT",
+        "1" if os.getenv("RENDER") or os.getenv("APP_ENV") in ("staging", "production") else "0"
+    ))
     ALLOWED_ORIGINS: list = [
         o.strip() for o in os.getenv(
             "ALLOWED_ORIGINS",

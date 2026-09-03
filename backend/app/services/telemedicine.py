@@ -10,6 +10,8 @@ import hashlib
 import hmac
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 import google.generativeai as genai
 from app.config import settings
 from app.database import supabase

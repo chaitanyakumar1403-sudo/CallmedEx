@@ -297,8 +297,8 @@ function TherapyBookingInner() {
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", padding: 20 }}>
       <div style={{ maxWidth: 860, margin: "0 auto" }}>
-        <div style={{ background: "linear-gradient(135deg, #0f4c81, #2563eb)", borderRadius: 16, padding: "26px 32px", color: "white", marginBottom: 22 }}>
-          <h1 style={{ margin: 0, fontSize: "1.45rem" }}>Book a {roleMeta.label}</h1>
+        <div style={{ background: "linear-gradient(135deg, var(--cm-navy), var(--cm-active))", borderRadius: 16, padding: "26px 32px", color: "white", marginBottom: 22 }}>
+          <h1 style={{ margin: 0, fontSize: "1.45rem" }}>Consult a {roleMeta.label}</h1>
           <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: "0.9rem" }}>
             Online, at your home, or at their centre — verified specialists only.
           </p>

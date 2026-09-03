@@ -24,6 +24,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import FIXED_PRICES from "@/data/lab-test-prices.json";
+import {
+  TestTube2,
+  Camera,
+  Home,
+  Building2,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  Search,
+} from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -111,31 +122,31 @@ const CURATED_NAMES = [
 // a root canal can't be home-collected. They are discoverable under
 // Consultation → Walk-in instead.
 const CATEGORIES = [
-  { id: "lab_test", label: "Lab Tests", icon: "🧪" },
-  { id: "imaging", label: "Imaging", icon: "📷" },
+  { id: "lab_test", label: "Lab Tests" },
+  { id: "imaging", label: "Imaging & Scans" },
 ];
 
 // Sub-categories for organized browsing within each category
-const SUB_CATEGORIES: Record<string, { id: string; label: string; icon: string }[]> = {
+const SUB_CATEGORIES: Record<string, { id: string; label: string }[]> = {
   lab_test: [
-    { id: "blood_test", label: "Blood Tests", icon: "🩸" },
-    { id: "hormone", label: "Hormone Tests", icon: "⚗️" },
-    { id: "diabetes", label: "Diabetes & Sugar", icon: "🍬" },
-    { id: "thyroid", label: "Thyroid Panel", icon: "🦋" },
-    { id: "liver", label: "Liver Function", icon: "🫘" },
-    { id: "kidney", label: "Kidney Function", icon: "🫧" },
-    { id: "allergy", label: "Allergy Tests", icon: "🤧" },
-    { id: "vitamin", label: "Vitamin & Nutrition", icon: "💊" },
-    { id: "infection", label: "Infection Markers", icon: "🦠" },
-    { id: "urine_stool", label: "Urine & Stool", icon: "🔬" },
+    { id: "blood_test", label: "Blood Tests" },
+    { id: "hormone", label: "Hormone Tests" },
+    { id: "diabetes", label: "Diabetes & Sugar" },
+    { id: "thyroid", label: "Thyroid Panel" },
+    { id: "liver", label: "Liver Function" },
+    { id: "kidney", label: "Kidney Function" },
+    { id: "allergy", label: "Allergy Tests" },
+    { id: "vitamin", label: "Vitamin & Nutrition" },
+    { id: "infection", label: "Infection Markers" },
+    { id: "urine_stool", label: "Urine & Stool" },
   ],
   imaging: [
-    { id: "mri", label: "MRI Scans", icon: "🧲" },
-    { id: "ct_scan", label: "CT Scans", icon: "🖥️" },
-    { id: "xray", label: "X-Ray", icon: "☢️" },
-    { id: "ultrasound", label: "Ultrasound", icon: "📡" },
-    { id: "ecg_echo", label: "ECG & Echo", icon: "💓" },
-    { id: "dexa", label: "DEXA / Bone Density", icon: "🦴" },
+    { id: "mri", label: "MRI Scans" },
+    { id: "ct_scan", label: "CT Scans" },
+    { id: "xray", label: "X-Ray" },
+    { id: "ultrasound", label: "Ultrasound" },
+    { id: "ecg_echo", label: "ECG & Echo" },
+    { id: "dexa", label: "DEXA / Bone Density" },
   ],
 };
 
@@ -157,14 +168,6 @@ const SUB_CATEGORY_KEYWORDS: Record<string, string[]> = {
   ultrasound: ["ultrasound", "usg", "sonography", "doppler"],
   ecg_echo: ["ecg", "echo", "echocardiogram", "electrocardiogram", "2d echo", "treadmill"],
   dexa: ["dexa", "bone density", "bmd", "bone mineral"],
-};
-
-const CATEGORY_ICON: Record<string, string> = {
-  lab_test: "🧪",
-  imaging: "📷",
-  procedure: "🔬",
-  health_package: "📦",
-  consultation: "🩺",
 };
 
 function inr(n: number) {
@@ -465,7 +468,7 @@ export default function DiagnosticsPage() {
                     gap: 8,
                   }}
                 >
-                  <span style={{ fontSize: "1.1rem", flexShrink: 0 }}>{CATEGORY_ICON[t.category] || "🧪"}</span>
+                  <TestTube2 size={16} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     <strong>{t.name}</strong>
                     {t.sub_category && (
@@ -499,13 +502,13 @@ export default function DiagnosticsPage() {
               />
               Home collection only
             </label>
-            <label style={{ ...filterLabel, color: urgent ? "#b91c1c" : "#475569" }}>
+            <label style={{ ...filterLabel, color: urgent ? "var(--cm-urgent)" : "var(--cm-ink-2)", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <input
                 type="checkbox"
                 checked={urgent}
                 onChange={(e) => setUrgent(e.target.checked)}
               />
-              🔴 Urgent — priority slot
+              <AlertCircle size={14} style={{ color: "var(--cm-urgent)" }} /> Urgent priority dispatch
             </label>
           </div>
         </div>
@@ -525,15 +528,14 @@ export default function DiagnosticsPage() {
                     }}
                     style={{
                       padding: "10px 20px", borderRadius: 999, cursor: "pointer",
-                      border: on ? "2px solid #1a2b4a" : "1px solid #cbd5e1",
-                      background: on ? "#1a2b4a" : "#fff",
-                      color: on ? "#fff" : "#475569",
-                      fontWeight: 600, fontSize: "0.88rem",
+                      border: on ? "2px solid var(--cm-navy)" : "1px solid var(--cm-line-strong)",
+                      background: on ? "var(--cm-navy)" : "#fff",
+                      color: on ? "#fff" : "var(--cm-ink-2)",
+                      fontWeight: 700, fontSize: "0.88rem",
                       transition: "all 0.2s ease",
-                      boxShadow: on ? "0 4px 12px rgba(26,43,74,0.25)" : "none",
                     }}
                   >
-                    {c.icon} {c.label}
+                    {c.label}
                   </button>
                 );
               })}
@@ -550,14 +552,14 @@ export default function DiagnosticsPage() {
                   onClick={() => setSubCategory("")}
                   style={{
                     padding: "6px 14px", borderRadius: 20, cursor: "pointer",
-                    border: !subCategory ? "2px solid #0284c7" : "1px solid #cbd5e1",
-                    background: !subCategory ? "#e0f2fe" : "#fff",
-                    color: !subCategory ? "#0369a1" : "#64748b",
-                    fontWeight: 600, fontSize: "0.78rem",
+                    border: !subCategory ? "2px solid var(--cm-active)" : "1px solid var(--cm-line-strong)",
+                    background: !subCategory ? "var(--cm-active-surface)" : "#fff",
+                    color: !subCategory ? "var(--cm-active)" : "var(--cm-ink-3)",
+                    fontWeight: 700, fontSize: "0.78rem",
                     transition: "all 0.2s ease",
                   }}
                 >
-                  📋 All
+                  All
                 </button>
                 {SUB_CATEGORIES[category].map((sc) => {
                   const active = subCategory === sc.id;
@@ -567,15 +569,14 @@ export default function DiagnosticsPage() {
                       onClick={() => setSubCategory(active ? "" : sc.id)}
                       style={{
                         padding: "6px 14px", borderRadius: 20, cursor: "pointer",
-                        border: active ? "2px solid #0284c7" : "1px solid #cbd5e1",
-                        background: active ? "#e0f2fe" : "#fff",
-                        color: active ? "#0369a1" : "#64748b",
+                        border: active ? "2px solid var(--cm-active)" : "1px solid var(--cm-line-strong)",
+                        background: active ? "var(--cm-active-surface)" : "#fff",
+                        color: active ? "var(--cm-active)" : "var(--cm-ink-2)",
                         fontWeight: active ? 700 : 500, fontSize: "0.78rem",
                         transition: "all 0.2s ease",
-                        boxShadow: active ? "0 2px 6px rgba(2,132,199,0.15)" : "none",
                       }}
                     >
-                      {sc.icon} {sc.label}
+                      {sc.label}
                     </button>
                   );
                 })}
@@ -619,11 +620,11 @@ export default function DiagnosticsPage() {
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: "1.1rem" }}>{CATEGORY_ICON[t.category] || "🧪"}</span>
+                        <TestTube2 size={16} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
                         <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "#0f172a" }}>{t.name}</div>
                       </div>
                       {t.sub_category && (
-                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4, marginLeft: 30 }}>{t.sub_category}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 4, marginLeft: 24 }}>{t.sub_category}</div>
                       )}
                     </button>
                   ))}
@@ -695,8 +696,8 @@ export default function DiagnosticsPage() {
 
 
             {/* Frequently booked lab tests with prices */}
-            <h3 style={{ textAlign: "center", color: "#475569", marginBottom: 16 }}>
-              🧪 Frequently Booked Lab Tests
+            <h3 style={{ textAlign: "center", color: "var(--cm-ink)", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: "var(--cm-text-base)", fontWeight: 800 }}>
+              <TestTube2 size={18} style={{ color: "var(--cm-active)" }} /> Frequently Booked Lab Tests
             </h3>
             <div className="grid-3">
               {(FIXED_RATE_CATALOG as any[]).slice(0, 12).map((t, i) => {
@@ -715,7 +716,9 @@ export default function DiagnosticsPage() {
                       color: "inherit",
                     }}
                   >
-                    <div style={{ fontSize: "1.2rem", marginBottom: 4 }}>🧪</div>
+                    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 8 }}>
+                      <TestTube2 size={16} />
+                    </div>
                     <h4 style={{ margin: "0 0 6px", fontSize: "0.92rem", color: "#0f172a" }}>{t.name}</h4>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.78rem" }}>
@@ -766,8 +769,8 @@ export default function DiagnosticsPage() {
                 marginBottom: 16,
               }}
             >
-              <h2 style={{ margin: 0 }}>
-                {CATEGORY_ICON[selected.category] || "🧪"} {selected.name}
+              <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                <TestTube2 size={24} style={{ color: "var(--cm-active)" }} /> {selected.name}
               </h2>
               <button
                 onClick={() => {
@@ -830,22 +833,31 @@ export default function DiagnosticsPage() {
                             fontSize: "0.85rem",
                             fontWeight: 600,
                             color: fulfilment.walk_in_required ? "#92400e" : "#166534",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
                           }}
                         >
-                          {fulfilment.walk_in_required
-                            ? `⚠️ Walk-in centre will be assigned in ${district}${locState ? `, ${locState}` : ""}`
-                            : `✅ Home collection available in ${district}${locState ? `, ${locState}` : ""}`}
+                          {fulfilment.walk_in_required ? (
+                            <>
+                              <AlertCircle size={14} /> Walk-in centre will be assigned in {district}{locState ? `, ${locState}` : ""}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={14} /> Home collection available in {district}{locState ? `, ${locState}` : ""}
+                            </>
+                          )}
                         </p>
                       )}
                       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                        {!fulfilment.walk_in_required && <span style={tag}>🏠 Home collection</span>}
-                        {fulfilment.walk_in_required && <span style={tag}>🏥 Walk-in visit</span>}
+                        {!fulfilment.walk_in_required && <span style={tag}><Home size={12} /> Home collection</span>}
+                        {fulfilment.walk_in_required && <span style={tag}><Building2 size={12} /> Walk-in visit</span>}
                         {selected.typical_turnaround_hours ? (
-                          <span style={tag}>⏱ {selected.typical_turnaround_hours}h report</span>
+                          <span style={tag}><Clock size={12} /> {selected.typical_turnaround_hours}h report</span>
                         ) : null}
                         {urgent && fulfilment.urgent_available && (
-                          <span style={{ ...tag, background: "#fee2e2", color: "#991b1b" }}>
-                            🔴 Priority
+                          <span className="cm-pill cm-pill--urgent" style={{ fontSize: "0.72rem" }}>
+                            <AlertCircle size={12} /> Priority
                           </span>
                         )}
                         {fulfilment.partner_count > 0 && (
@@ -946,9 +958,9 @@ export default function DiagnosticsPage() {
                                 ★ {offer.rating.toFixed(1)}
                               </span>
                             )}
-                            {offer.home_available && <span style={tag}>🏠 Home available</span>}
+                            {offer.home_available && <span style={tag}><Home size={12} /> Home available</span>}
                             {offer.turnaround_hours && (
-                              <span style={tag}>⏱ {offer.turnaround_hours}h</span>
+                              <span style={tag}><Clock size={12} /> {offer.turnaround_hours}h</span>
                             )}
                           </div>
                         </div>

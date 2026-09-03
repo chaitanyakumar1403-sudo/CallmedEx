@@ -14,3 +14,6 @@ export { AppBar } from "./AppBar";
 export { PageHeader } from "./PageHeader";
 export { Tabs } from "./Tabs";
 export type { DashTab } from "./Tabs";
+export { ClinicalSection } from "./ClinicalSection";
+export { Timeline } from "./Timeline";
+export type { TimelineStep } from "./Timeline";

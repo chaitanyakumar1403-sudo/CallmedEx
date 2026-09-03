@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X } from "lucide-react";
+import Link from "next/link";
+import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut } from "lucide-react";
 
 interface UserData {
   full_name: string;
@@ -21,6 +22,7 @@ interface NotificationItem {
 export default function SmartNavbar() {
   const [user, setUser] = useState<UserData | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
       id: "n1",
@@ -59,6 +61,12 @@ export default function SmartNavbar() {
         setUser(null);
       }
     }
+  }, [pathname]);
+
+  // Close mobile menu on page change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setShowNotifications(false);
   }, [pathname]);
 
   // Click outside to close notification dropdown
@@ -110,19 +118,19 @@ export default function SmartNavbar() {
   };
 
   return (
-    <nav className="navbar">
+    <nav className="navbar" style={{ position: "relative" }}>
       <div className="container">
-        <a href={getDashboardLink()} className="navbar__logo" style={{ display: "flex", alignItems: "center" }}>
+        <Link href={getDashboardLink()} className="navbar__logo" style={{ display: "flex", alignItems: "center" }}>
           <img src="/logo.png" alt="CallMedex Logo" style={{ height: "55px", width: "auto", objectFit: "contain" }} />
-        </a>
+        </Link>
         <ul className="navbar__nav">
-          <li><a href="/about">About</a></li>
-          <li><a href="/packages">Health Packages</a></li>
+          <li><Link href="/about">About</Link></li>
+          <li><Link href="/packages">Health Packages</Link></li>
           {(!user || user.role === "patient") && (
             <>
-              <li><a href="/diagnostics">Book a Test</a></li>
-              <li><a href="/consultation">Consultation</a></li>
-              <li><a href="/pharmacy">Pharmacy</a></li>
+              <li><Link href="/diagnostics">Book a Test</Link></li>
+              <li><Link href="/consultation">Consultation</Link></li>
+              <li><Link href="/pharmacy">Pharmacy</Link></li>
             </>
           )}
         </ul>
@@ -145,6 +153,8 @@ export default function SmartNavbar() {
                     justifyContent: "center",
                     color: "#f8fafc",
                     position: "relative",
+                    minWidth: "40px",
+                    minHeight: "40px",
                   }}
                   aria-label="View notifications"
                 >
@@ -155,7 +165,7 @@ export default function SmartNavbar() {
                         position: "absolute",
                         top: -4,
                         right: -4,
-                        background: "#ef4444",
+                        background: "var(--cm-urgent)",
                         color: "#ffffff",
                         fontSize: "0.68rem",
                         fontWeight: 800,
@@ -184,24 +194,38 @@ export default function SmartNavbar() {
                       background: "#ffffff",
                       borderRadius: "14px",
                       boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--cm-line)",
                       zIndex: 100,
                       overflow: "hidden",
-                      color: "#0f172a",
+                      color: "var(--cm-ink)",
                     }}
                   >
                     <div
                       style={{
                         padding: "14px 16px",
-                        background: "#0f172a",
+                        background: "var(--cm-navy)",
                         color: "#ffffff",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                       }}
                     >
-                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-                        Notifications ({unreadCount} new)
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>Notifications</span>
+                        {unreadCount > 0 && (
+                          <span
+                            style={{
+                              background: "var(--cm-urgent)",
+                              color: "#ffffff",
+                              fontSize: "0.68rem",
+                              fontWeight: 800,
+                              padding: "2px 6px",
+                              borderRadius: "999px",
+                            }}
+                          >
+                            {unreadCount} New
+                          </span>
+                        )}
                       </div>
                       {unreadCount > 0 && (
                         <button
@@ -210,10 +234,9 @@ export default function SmartNavbar() {
                           style={{
                             background: "transparent",
                             border: "none",
-                            color: "#38bdf8",
-                            fontSize: "0.74rem",
+                            color: "#94a3b8",
+                            fontSize: "0.75rem",
                             cursor: "pointer",
-                            fontWeight: 600,
                           }}
                         >
                           Mark all as read
@@ -221,54 +244,57 @@ export default function SmartNavbar() {
                       )}
                     </div>
 
-                    <div style={{ maxHeight: "320px", overflowY: "auto", padding: "8px 0" }}>
+                    <div style={{ maxHeight: "300px", overflowY: "auto" }}>
                       {notifications.map((n) => (
                         <div
                           key={n.id}
                           style={{
-                            padding: "10px 16px",
-                            borderBottom: "1px solid #f1f5f9",
-                            background: n.read ? "#ffffff" : "#f0f9ff",
+                            padding: "12px 16px",
+                            borderBottom: "1px solid var(--cm-line)",
+                            background: n.read ? "#ffffff" : "var(--cm-surface-2)",
                             display: "flex",
                             gap: 12,
-                            alignItems: "flex-start",
                           }}
                         >
                           <div
                             style={{
-                              marginTop: 2,
-                              padding: 6,
-                              borderRadius: "6px",
+                              width: "32px",
+                              height: "32px",
+                              borderRadius: "8px",
                               background:
                                 n.type === "booking"
-                                  ? "#e0f2fe"
+                                  ? "var(--cm-active-surface)"
                                   : n.type === "dispatch"
-                                  ? "#fee2e2"
-                                  : "#dcfce7",
+                                  ? "var(--cm-done-surface)"
+                                  : "var(--cm-waiting-surface)",
                               color:
                                 n.type === "booking"
-                                  ? "#0284c7"
+                                  ? "var(--cm-active)"
                                   : n.type === "dispatch"
-                                  ? "#ef4444"
-                                  : "#16a34a",
+                                  ? "var(--cm-done)"
+                                  : "var(--cm-waiting)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
                             }}
                           >
                             {n.type === "booking" ? (
-                              <Clock size={14} />
+                              <Clock size={16} />
                             ) : n.type === "dispatch" ? (
-                              <MapPin size={14} />
+                              <MapPin size={16} />
                             ) : (
-                              <DollarSign size={14} />
+                              <DollarSign size={16} />
                             )}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: "0.84rem", color: "#0f172a" }}>
+                            <div style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)" }}>
                               {n.title}
                             </div>
-                            <div style={{ fontSize: "0.78rem", color: "#475569", marginTop: 2, lineHeight: 1.4 }}>
+                            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", marginTop: 2, lineHeight: 1.4 }}>
                               {n.message}
                             </div>
-                            <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 4 }}>
+                            <div style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
                               {n.time}
                             </div>
                           </div>
@@ -280,45 +306,199 @@ export default function SmartNavbar() {
                       style={{
                         padding: "10px",
                         textAlign: "center",
-                        background: "#f8fafc",
-                        borderTop: "1px solid #e2e8f0",
-                        fontSize: "0.78rem",
+                        background: "var(--cm-surface-2)",
+                        borderTop: "1px solid var(--cm-line)",
+                        fontSize: "var(--cm-text-xs)",
                       }}
                     >
-                      <a
+                      <Link
                         href={getDashboardLink()}
-                        style={{ color: "#0284c7", fontWeight: 700, textDecoration: "none" }}
+                        style={{ color: "var(--cm-active)", fontWeight: 700, textDecoration: "none" }}
                       >
                         Go to {roleLabel[user.role] || "User"} Command Center
-                      </a>
+                      </Link>
                     </div>
                   </div>
                 )}
               </div>
 
-              <a href={getDashboardLink()} className="btn btn-secondary btn-sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: "0.75rem", backgroundColor: "#0284c7", color: "white", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+              <Link href={getDashboardLink()} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: "0.75rem", backgroundColor: "var(--cm-active)", color: "white", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
                   {roleLabel[user.role] || user.role}
                 </span>
                 {user.full_name?.split(" ")[0] || "User"}
-              </a>
-              <button onClick={handleLogout} className="btn btn-primary btn-sm" style={{ backgroundColor: "#ef4444", borderColor: "#ef4444" }}>
+              </Link>
+              <button onClick={handleLogout} className="cm-btn cm-btn--primary cm-btn--sm" style={{ backgroundColor: "var(--cm-urgent)", borderColor: "var(--cm-urgent)" }}>
                 Logout
               </button>
             </>
           ) : (
             <>
-              <a href="/auth/login" className="btn btn-secondary btn-sm">Login</a>
-              <a href="/auth/signup" className="btn btn-primary btn-sm">Sign Up</a>
+              <Link href="/auth/login" className="cm-btn cm-btn--secondary cm-btn--sm">Login</Link>
+              <Link href="/auth/signup" className="cm-btn cm-btn--primary cm-btn--sm">Sign Up</Link>
             </>
           )}
         </div>
-        <button className="navbar__hamburger" aria-label="Menu">
-          <span></span>
-          <span></span>
-          <span></span>
+
+        {/* Mobile Hamburger Toggle */}
+        <button
+          className="navbar__hamburger"
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#ffffff",
+            cursor: "pointer",
+            padding: "8px",
+            minWidth: "44px",
+            minHeight: "44px",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
+
+      {/* Mobile Responsive Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            background: "var(--cm-surface)",
+            borderBottom: "2px solid var(--cm-navy)",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
+            padding: "20px 24px",
+            zIndex: 99,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Link
+              href="/about"
+              style={{
+                padding: "12px 14px",
+                borderRadius: "var(--cm-radius-sm)",
+                color: "var(--cm-ink)",
+                fontWeight: 700,
+                fontSize: "var(--cm-text-sm)",
+                textDecoration: "none",
+                background: "var(--cm-surface-2)",
+                minHeight: "44px",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              About CallMedex
+            </Link>
+            <Link
+              href="/packages"
+              style={{
+                padding: "12px 14px",
+                borderRadius: "var(--cm-radius-sm)",
+                color: "var(--cm-ink)",
+                fontWeight: 700,
+                fontSize: "var(--cm-text-sm)",
+                textDecoration: "none",
+                background: "var(--cm-surface-2)",
+                minHeight: "44px",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              Health Packages
+            </Link>
+            {(!user || user.role === "patient") && (
+              <>
+                <Link
+                  href="/diagnostics"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Book a Test (Diagnostics)
+                </Link>
+                <Link
+                  href="/consultation"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Video Consultation
+                </Link>
+                <Link
+                  href="/pharmacy"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Prescription Pharmacy
+                </Link>
+              </>
+            )}
+
+            <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 16, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+              {user ? (
+                <>
+                  <Link
+                    href={getDashboardLink()}
+                    className="cm-btn cm-btn--primary cm-btn--lg"
+                    style={{ width: "100%", justifyContent: "center" }}
+                  >
+                    Open {roleLabel[user.role] || "User"} Dashboard
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="cm-btn cm-btn--secondary cm-btn--lg"
+                    style={{ width: "100%", justifyContent: "center", color: "var(--cm-urgent)", borderColor: "var(--cm-urgent)" }}
+                  >
+                    <LogOut size={16} /> Logout ({user.full_name?.split(" ")[0]})
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Link href="/auth/login" className="cm-btn cm-btn--secondary cm-btn--lg" style={{ justifyContent: "center" }}>
+                    Login
+                  </Link>
+                  <Link href="/auth/signup" className="cm-btn cm-btn--primary cm-btn--lg" style={{ justifyContent: "center" }}>
+                    Sign Up
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

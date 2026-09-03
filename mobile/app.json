@@ -1,0 +1,91 @@
+{
+  "expo": {
+    "name": "CallMedex",
+    "slug": "callmedex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "callmedex",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A2540"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.callmedex.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CallMedex needs camera access to scan diagnostic barcodes, upload prescriptions, and conduct telemedicine video calls.",
+        "NSMicrophoneUsageDescription": "CallMedex needs microphone access to conduct telemedicine consultations with healthcare providers.",
+        "NSFaceIDUsageDescription": "CallMedex uses Face ID to securely authenticate and safeguard your private medical records.",
+        "NSLocationWhenInUseUsageDescription": "CallMedex requires your location for emergency SOS dispatch and live phlebotomist home sample collection routing."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A2540"
+      },
+      "package": "com.callmedex.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#00D4B2",
+          "sounds": ["./assets/sounds/emergency_alert.wav"]
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow CallMedex to use Face ID for fast and secure healthcare access."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow CallMedex to access camera for telemedicine and barcode scanning."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow CallMedex to access your location for emergency dispatch and home visits."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "callmedex-production-mobile"
+      },
+      "apiBaseUrl": "https://api.callmedex.com"
+    }
+  }
+}

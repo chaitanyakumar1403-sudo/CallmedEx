@@ -122,8 +122,12 @@ def resolve_client_ip(xff, direct_ip: str, trusted_proxy_count: int) -> str:
     if trusted_proxy_count <= 0 or not xff:
         return direct_ip
     parts = [p.strip() for p in xff.split(",") if p.strip()]
+    if not parts:
+        return direct_ip
     idx = len(parts) - trusted_proxy_count
-    return parts[idx - 1] if 0 < idx <= len(parts) else direct_ip
+    if idx <= 0:
+        return parts[0]
+    return parts[idx - 1]
 
 
 def _get_client_ip(request: Request) -> str:

@@ -12,7 +12,10 @@ Handles:
 import base64
 import json
 import logging
+import warnings
 from typing import Dict, Any, Optional
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 
 from app.config import settings
 

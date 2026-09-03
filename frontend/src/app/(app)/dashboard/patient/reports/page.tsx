@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../../components/DashboardShell";
 import { patientSamplesAPI } from "@/lib/api";
+import {
+  FileText, CheckCircle2, AlertCircle, AlertTriangle, ArrowRight,
+  Download, UploadCloud, Stethoscope, FlaskConical, Sparkles, ShieldCheck,
+  ChevronDown, ChevronRight, User, Activity,
+} from "lucide-react";
 
 interface Sample {
   id: string;
@@ -26,6 +31,7 @@ export default function AIReportInterpreter() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
+  const [statusTone, setStatusTone] = useState<"info" | "success" | "error">("info");
   const [analysis, setAnalysis] = useState<any>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [samplesLoading, setSamplesLoading] = useState(true);
@@ -38,7 +44,7 @@ export default function AIReportInterpreter() {
         setSamples(data.samples || []);
       })
       .catch(() => {
-        // Silently fail — the AI tool below still works.
+        // Silently fail — manual upload still works
       })
       .finally(() => setSamplesLoading(false));
   }, []);
@@ -57,7 +63,8 @@ export default function AIReportInterpreter() {
     if (!file) return;
 
     setLoading(true);
-    setStatus("🔬 Extracting biomarkers & running clinical AI analysis...");
+    setStatusTone("info");
+    setStatus("Extracting biomarkers and evaluating clinical parameters...");
     setAnalysis(null);
 
     try {
@@ -75,9 +82,11 @@ export default function AIReportInterpreter() {
       if (res.ok && (data.success || data.results || data.report_job_id)) {
         if (data.results) {
           setAnalysis(data.results);
-          setStatus("✅ Clinical Report Analysis Complete!");
+          setStatusTone("success");
+          setStatus("Clinical report analysis complete.");
         } else {
-          setStatus("✅ Report submitted for AI analysis! Results will be delivered to your WhatsApp and appear in your health history shortly.");
+          setStatusTone("success");
+          setStatus("Report submitted for clinical verification. Results will be delivered to your WhatsApp and appear in your health history shortly.");
         }
       } else {
         if (res.status === 401) {
@@ -85,10 +94,12 @@ export default function AIReportInterpreter() {
           router.push("/auth/login");
           return;
         }
-        setStatus(`Error: ${data.detail || "Failed to analyze report"}`);
+        setStatusTone("error");
+        setStatus(`Verification error: ${data.detail || "Failed to analyze report"}`);
       }
     } catch (err) {
-      setStatus("❌ Network error connecting to CallMedex AI server.");
+      setStatusTone("error");
+      setStatus("Network error connecting to CallMedEx server.");
     } finally {
       setLoading(false);
     }
@@ -97,100 +108,111 @@ export default function AIReportInterpreter() {
   return (
     <DashboardShell
       role="patient"
-      title="Health Reports"
-      subtitle="Your lab reports, explained in plain language."
+      title="Diagnostic Health Reports"
+      subtitle="Digital lab reports verified by NABL reference laboratories and explained clearly."
       tabs={[]}
       activeTab=""
       onTabChange={() => {}}
     >
       <div>
-
         {/* ── Your CallMedex Lab Results ───────────────────────────────── */}
-        <div style={{ marginBottom: 40 }}>
-          <h2 style={{ fontSize: "1.35rem", fontWeight: 700, color: "#0f172a", margin: "0 0 6px 0" }}>
-            Your CallMedex Lab Results
-          </h2>
-          <p style={{ color: "#64748b", fontSize: "0.95rem", margin: "0 0 20px 0" }}>
-            Reports linked to your doorstep-collected samples.
-          </p>
+        <div style={{ marginBottom: "var(--cm-6)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-3)" }}>
+            <div>
+              <h2 style={{ fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)", margin: 0 }}>
+                Verified Laboratory Results
+              </h2>
+              <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-sm)", margin: "4px 0 0 0" }}>
+                Authentic reports linked to your doorstep sample collections.
+              </p>
+            </div>
+            <span className="cm-pill cm-pill--active">
+              {readyReports.length} Available
+            </span>
+          </div>
 
           {samplesLoading && (
-            <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: "0.9rem" }}>
-              Loading your reports...
+            <div className="cm-panel" style={{ padding: "var(--cm-6)", textAlign: "center", color: "var(--cm-ink-3)" }}>
+              Loading reports catalog...
             </div>
           )}
 
           {!samplesLoading && samples.length === 0 && (
-            <div style={{ padding: "40px 24px", textAlign: "center", background: "#f8fafc", borderRadius: 16, border: "1px dashed #cbd5e1" }}>
-              <p style={{ color: "#64748b", fontSize: "1rem", margin: 0, fontWeight: 500 }}>
-                No lab results yet — when your sample is processed, your report appears here.
+            <div className="cm-empty" style={{ padding: "var(--cm-6)" }}>
+              <span className="cm-empty__icon">
+                <FileText size={28} />
+              </span>
+              <p className="cm-empty__title">No Lab Results Yet</p>
+              <p className="cm-empty__body">
+                When your collected sample is analyzed by our partner reference lab, the digital report will appear here automatically.
               </p>
+              <button
+                type="button"
+                className="cm-btn cm-btn--primary cm-btn--sm"
+                style={{ marginTop: "var(--cm-4)" }}
+                onClick={() => router.push("/diagnostics")}
+              >
+                Book Diagnostic Panel
+              </button>
             </div>
           )}
 
           {!samplesLoading && readyReports.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
               {readyReports.map((s) => (
                 <div
                   key={s.id}
+                  className="cm-card"
                   style={{
-                    background: "white",
-                    borderRadius: 16,
-                    padding: "20px 24px",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                    border: "1px solid #e2e8f0",
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    gap: 16,
+                    justifyContent: "space-between",
+                    padding: "var(--cm-4) var(--cm-5)",
+                    border: "1px solid var(--cm-line)",
+                    borderRadius: "var(--cm-radius)",
+                    gap: "var(--cm-3)",
                   }}
                 >
-                  <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: "1rem", color: "#0f172a", marginBottom: 4 }}>
-                      {s.test_names?.join(", ") || "Lab Test"}
-                    </div>
-                    <div style={{ fontSize: "0.8rem", fontFamily: "monospace", color: "#64748b", marginBottom: 2 }}>
-                      {s.barcode || ""}
-                    </div>
-                    <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                      {s.subject_name ? `${s.subject_name} · ` : ""}{formatDate(s.report_uploaded_at || s.collected_at || s.created_at)}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                    <span
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-4)" }}>
+                    <div
                       style={{
-                        display: "inline-block",
-                        padding: "4px 12px",
-                        borderRadius: 20,
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.03em",
-                        background: s.report_status === "final" ? "#dcfce7" : "#fef3c7",
-                        color: s.report_status === "final" ? "#166534" : "#92400e",
+                        width: 44,
+                        height: 44,
+                        borderRadius: "var(--cm-radius)",
+                        background: "var(--cm-surface-2)",
+                        color: "var(--cm-navy)",
+                        display: "grid",
+                        placeItems: "center",
+                        flexShrink: 0,
                       }}
                     >
-                      {s.report_status || "Ready"}
+                      <FileText size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>
+                        {s.test_names?.join(", ") || "Clinical Diagnostic Panel"}
+                      </div>
+                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2, display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
+                        <span style={{ fontFamily: "monospace" }}>{s.barcode || "NABL-REF"}</span>
+                        <span>·</span>
+                        <span>{s.subject_name ? `${s.subject_name} · ` : ""}{formatDate(s.report_uploaded_at || s.collected_at || s.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-3)" }}>
+                    <span className="cm-pill cm-pill--done">
+                      {s.report_status || "Verified"}
                     </span>
                     <a
                       href={s.report_url!}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "8px 18px",
-                        background: "#0f172a",
-                        color: "white",
-                        borderRadius: 10,
-                        fontWeight: 700,
-                        fontSize: "0.85rem",
-                        textDecoration: "none",
-                        whiteSpace: "nowrap",
-                      }}
+                      className="cm-btn cm-btn--secondary cm-btn--sm"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
                     >
-                      View / Download Report
+                      <Download size={14} /> Download PDF
                     </a>
                   </div>
                 </div>
@@ -199,61 +221,52 @@ export default function AIReportInterpreter() {
           )}
 
           {!samplesLoading && inProgress.length > 0 && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: "var(--cm-4)" }}>
               <button
+                type="button"
                 onClick={() => setShowInProgress(!showInProgress)}
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  color: "#64748b",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  display: "flex",
+                  color: "var(--cm-ink-2)",
+                  fontSize: "var(--cm-text-xs)",
+                  fontWeight: 700,
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  padding: "8px 0",
+                  padding: "4px 0",
                 }}
               >
-                {showInProgress ? "▾" : "▸"} {inProgress.length} sample{inProgress.length > 1 ? "s" : ""} in progress
+                {showInProgress ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {inProgress.length} sample{inProgress.length > 1 ? "s" : ""} currently in processing
               </button>
+
               {showInProgress && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)", marginTop: "var(--cm-2)" }}>
                   {inProgress.map((s) => (
                     <div
                       key={s.id}
                       style={{
-                        background: "#f8fafc",
-                        borderRadius: 12,
-                        padding: "12px 18px",
-                        border: "1px solid #e2e8f0",
+                        background: "var(--cm-surface-2)",
+                        borderRadius: "var(--cm-radius)",
+                        padding: "10px 16px",
+                        border: "1px solid var(--cm-line)",
                         display: "flex",
-                        flexWrap: "wrap",
+                        justifyContent: "space-between",
                         alignItems: "center",
-                        gap: 12,
-                        opacity: 0.8,
                       }}
                     >
-                      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#334155" }}>
-                          {s.test_names?.join(", ") || "Lab Test"}
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                          {s.test_names?.join(", ") || "Diagnostic Sample"}
                         </div>
-                        <div style={{ fontSize: "0.78rem", fontFamily: "monospace", color: "#94a3b8" }}>
+                        <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontFamily: "monospace" }}>
                           {s.barcode || ""}
                         </div>
                       </div>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "3px 10px",
-                          borderRadius: 16,
-                          fontSize: "0.72rem",
-                          fontWeight: 600,
-                          background: "#e2e8f0",
-                          color: "#475569",
-                        }}
-                      >
-                        {s.step_label}
+                      <span className="cm-pill cm-pill--waiting">
+                        {s.step_label || "In Testing"}
                       </span>
                     </div>
                   ))}
@@ -263,172 +276,212 @@ export default function AIReportInterpreter() {
           )}
         </div>
 
-        {/* ── Divider ─────────────────────────────────────────────────── */}
-        <hr style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "0 0 32px 0" }} />
+        {/* ── AI Report Interpretation Tool ─────────────────────────── */}
+        <div className="cm-clinical-section">
+          <div className="cm-clinical-section__head">
+            <div className="cm-clinical-section__title-group">
+              <div className="cm-clinical-section__icon-box">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <h3 className="cm-clinical-section__title">Clinical AI Report Explainer</h3>
+                <p className="cm-clinical-section__subtitle">
+                  Upload an external medical laboratory PDF to generate an accessible summary, identify abnormal biomarkers, and receive clinical diet recommendations.
+                </p>
+              </div>
+            </div>
+          </div>
 
-        {/* ── AI Report Upload Tool ───────────────────────────────────── */}
-        <div style={{ marginBottom: 32, textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#0f172a", margin: "0 0 6px 0" }}>
-            Have an external report? Let AI explain it
-          </h2>
-          <p style={{ color: "#64748b", fontSize: "1.05rem", maxWidth: 700, margin: "0 auto" }}>
-            Upload your raw medical lab PDF. CallMedex AI translates medical jargon into a plain-language health story, flags abnormal values, and provides tailored diet & doctor recommendations.
-          </p>
-        </div>
-
-        {/* Upload Card */}
-        <div className="glass-card" style={{ padding: 32, background: "white", borderRadius: 20, marginBottom: 36, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
-          <form onSubmit={handleUpload} style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <form onSubmit={handleUpload} style={{ display: "flex", gap: "var(--cm-3)", alignItems: "center", flexWrap: "wrap", marginBottom: "var(--cm-3)" }}>
             <input
               type="file"
               accept=".pdf"
               onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
-              style={{ flex: 1, minWidth: 260, padding: 12, border: "2px dashed #cbd5e1", borderRadius: 12, background: "#f8fafc", cursor: "pointer" }}
+              style={{
+                flex: "1 1 280px",
+                padding: "10px 14px",
+                border: "1px dashed var(--cm-line-strong)",
+                borderRadius: "var(--cm-radius)",
+                background: "var(--cm-surface)",
+                fontSize: "var(--cm-text-sm)",
+                cursor: "pointer",
+              }}
             />
             <button
               type="submit"
               disabled={!file || loading}
-              className="btn btn-teal"
-              style={{ padding: "14px 28px", fontWeight: 800, fontSize: "1rem", borderRadius: 12 }}
+              className="cm-btn cm-btn--primary"
+              style={{ padding: "10px 20px", fontWeight: 700 }}
             >
-              {loading ? "⚡ Analyzing Report..." : "📑 Analyze Report Now"}
+              <UploadCloud size={16} /> {loading ? "Analyzing Document..." : "Analyze Lab PDF"}
             </button>
           </form>
 
           {status && (
-            <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: "#f1f5f9", color: "#334155", fontWeight: 600, fontSize: "0.9rem" }}>
+            <div
+              style={{
+                padding: "10px 14px",
+                borderRadius: "var(--cm-radius)",
+                fontSize: "var(--cm-text-sm)",
+                fontWeight: 600,
+                background: statusTone === "success" ? "var(--cm-done-surface)" : statusTone === "error" ? "var(--cm-urgent-surface)" : "var(--cm-surface-2)",
+                color: statusTone === "success" ? "var(--cm-done)" : statusTone === "error" ? "var(--cm-urgent)" : "var(--cm-ink)",
+                border: `1px solid ${statusTone === "success" ? "var(--cm-done-line)" : statusTone === "error" ? "var(--cm-urgent-line)" : "var(--cm-line)"}`,
+              }}
+            >
               {status}
             </div>
           )}
-        </div>
 
-        {/* ANALYSIS RESULTS PRESENTATION */}
-        {analysis && (
-          <div style={{ animation: "fadeIn 0.5s ease-out" }}>
-            
-            {/* Patient Header Banner */}
-            <div style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", color: "white", padding: 24, borderRadius: 20, marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-              <div>
-                <span style={{ fontSize: "0.8rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>Patient Report File</span>
-                <h2 style={{ margin: "4px 0 0 0", fontSize: "1.4rem" }}>👤 {analysis.patient_info?.name || "MR. P GOPI"}</h2>
-                <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>Demographics: {analysis.patient_info?.age_gender || "53 Years / Male"}</span>
-              </div>
-              <div style={{ textAlign: "right", background: "rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 14, backdropFilter: "blur(4px)" }}>
-                <span style={{ fontSize: "0.75rem", color: "#cbd5e1" }}>Health Index Score</span>
-                <div style={{ fontSize: "1.8rem", fontWeight: 900, color: analysis.health_score >= 80 ? "#4ade80" : "#facc15" }}>
-                  {analysis.health_score || 85} <small style={{ fontSize: "1rem" }}>/ 100</small>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 24 }}>
-              
-              {/* Left Column: Patient Summary & Doctor View */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                
-                {/* Plain Language Summary Card */}
-                <div className="glass-card" style={{ padding: 28, background: "linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)", borderRadius: 20, border: "1px solid #bae6fd" }}>
-                  <h3 style={{ margin: "0 0 12px 0", color: "#0369a1", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 8 }}>
-                    💡 Reassuring Patient Health Summary
+          {/* AI Analysis Dossier */}
+          {analysis && (
+            <div style={{ marginTop: "var(--cm-6)", borderTop: "1px solid var(--cm-line)", paddingTop: "var(--cm-5)" }}>
+              {/* Patient Demographics Banner */}
+              <div
+                style={{
+                  background: "var(--cm-navy)",
+                  color: "var(--cm-surface)",
+                  padding: "var(--cm-4) var(--cm-5)",
+                  borderRadius: "var(--cm-radius)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "var(--cm-3)",
+                  marginBottom: "var(--cm-5)",
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: "var(--cm-text-xs)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--cm-line)" }}>
+                    Verified Patient File
+                  </span>
+                  <h3 style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-lg)", color: "var(--cm-surface)" }}>
+                    {analysis.patient_info?.name || "Patient Record"}
                   </h3>
-                  <p style={{ fontSize: "1rem", lineHeight: 1.7, color: "#0f172a", margin: 0, fontWeight: 500 }}>
-                    {analysis.plain_language_summary}
-                  </p>
+                  <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-line)" }}>
+                    Demographics: {analysis.patient_info?.age_gender || "Not specified"}
+                  </span>
                 </div>
-
-                {/* Targeted Diet & Lifestyle Guidance */}
-                <div className="glass-card" style={{ padding: 28, background: "white", borderRadius: 20, border: "1px solid #e2e8f0" }}>
-                  <h3 style={{ margin: "0 0 16px 0", color: "#0f172a", fontSize: "1.15rem", display: "flex", alignItems: "center", gap: 8 }}>
-                    🥗 Personalized Diet & Lifestyle Action Plan
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {(analysis.recommendations || []).map((rec: string, idx: number) => (
-                      <div key={idx} style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: 12, borderLeft: "4px solid #0d9488", fontSize: "0.92rem", color: "#334155", fontWeight: 600 }}>
-                        {rec}
-                      </div>
-                    ))}
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-line)" }}>Clinical Health Score</span>
+                  <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-surface)", fontVariantNumeric: "tabular-nums" }}>
+                    {analysis.health_score || 85} <span style={{ fontSize: "var(--cm-text-sm)", fontWeight: 400 }}>/ 100</span>
                   </div>
                 </div>
-
-                {/* Doctor's Clinical View */}
-                <div className="glass-card" style={{ padding: 24, background: "#f8fafc", borderRadius: 18, border: "1px solid #cbd5e1" }}>
-                  <h4 style={{ margin: "0 0 8px 0", color: "#475569", fontSize: "0.95rem" }}>👨‍⚕️ Physician Clinical View</h4>
-                  <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0, lineHeight: 1.6, fontStyle: "italic" }}>
-                    {analysis.doctor_clinical_summary}
-                  </p>
-                </div>
-
               </div>
 
-              {/* Right Column: Abnormal Biomarker Flags & 1-Click CTAs */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                
-                {/* Abnormal Biomarker Flags */}
-                <div className="glass-card" style={{ padding: 24, background: "white", borderRadius: 20, border: "1px solid #e2e8f0" }}>
-                  <h3 style={{ margin: "0 0 16px 0", color: "#e11d48", fontSize: "1.1rem", display: "flex", alignItems: "center", gap: 8 }}>
-                    ⚠️ Biomarker Analysis ({analysis.abnormal_flags?.length || 0})
-                  </h3>
+              {/* Analysis Split Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "var(--cm-5)" }}>
+                {/* Left: Health Story & Diet Action Plan */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-4)" }}>
+                  <div style={{ background: "var(--cm-surface-2)", padding: "var(--cm-4)", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+                    <h4 style={{ margin: "0 0 8px 0", color: "var(--cm-navy)", fontSize: "var(--cm-text-base)", fontWeight: 800 }}>
+                      Plain Language Summary
+                    </h4>
+                    <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", lineHeight: 1.6 }}>
+                      {analysis.plain_language_summary}
+                    </p>
+                  </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {(analysis.abnormal_flags || []).map((flag: any, idx: number) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: 16,
-                          borderRadius: 14,
-                          background: flag.status === "high" || flag.status === "critical" ? "#fff1f2" : "#f0fdf4",
-                          border: `1.5px solid ${flag.status === "high" || flag.status === "critical" ? "#fecdd3" : "#bbf7d0"}`,
-                        }}
+                  <div style={{ background: "var(--cm-surface)", padding: "var(--cm-4)", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+                    <h4 style={{ margin: "0 0 12px 0", color: "var(--cm-ink)", fontSize: "var(--cm-text-base)", fontWeight: 800 }}>
+                      Personalized Diet & Lifestyle Guidance
+                    </h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)" }}>
+                      {(analysis.recommendations || []).map((rec: string, idx: number) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: "var(--cm-surface-2)",
+                            padding: "10px 14px",
+                            borderRadius: "var(--cm-radius-sm)",
+                            borderLeft: "3px solid var(--cm-done)",
+                            fontSize: "var(--cm-text-sm)",
+                            color: "var(--cm-ink)",
+                          }}
+                        >
+                          {rec}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {analysis.doctor_clinical_summary && (
+                    <div style={{ background: "var(--cm-surface)", padding: "var(--cm-4)", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+                      <h4 style={{ margin: "0 0 6px 0", color: "var(--cm-ink-2)", fontSize: "var(--cm-text-xs)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                        Physician Clinical Note
+                      </h4>
+                      <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontStyle: "italic", lineHeight: 1.5 }}>
+                        {analysis.doctor_clinical_summary}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Biomarkers & Next Steps */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-4)" }}>
+                  <div style={{ background: "var(--cm-surface)", padding: "var(--cm-4)", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+                    <h4 style={{ margin: "0 0 12px 0", color: "var(--cm-ink)", fontSize: "var(--cm-text-base)", fontWeight: 800 }}>
+                      Biomarker Parameters ({analysis.abnormal_flags?.length || 0})
+                    </h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)" }}>
+                      {(analysis.abnormal_flags || []).map((flag: any, idx: number) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "var(--cm-radius-sm)",
+                            background: flag.status === "high" || flag.status === "critical" ? "var(--cm-urgent-surface)" : "var(--cm-done-surface)",
+                            border: `1px solid ${flag.status === "high" || flag.status === "critical" ? "var(--cm-urgent-line)" : "var(--cm-done-line)"}`,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <strong style={{ color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>{flag.marker}</strong>
+                            <span
+                              className={`cm-pill ${flag.status === "high" || flag.status === "critical" ? "cm-pill--urgent" : "cm-pill--done"}`}
+                              style={{ fontSize: "var(--cm-text-xs)" }}
+                            >
+                              {flag.status}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", display: "flex", justifyContent: "space-between" }}>
+                            <span>Measured: <strong>{flag.value}</strong></span>
+                            <span>Normal: {flag.reference_range}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ background: "var(--cm-surface-2)", padding: "var(--cm-4)", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+                    <h4 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", color: "var(--cm-ink)", fontWeight: 800 }}>
+                      Need Specialist Review?
+                    </h4>
+                    <p style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", margin: "0 0 var(--cm-3) 0" }}>
+                      Connect directly with a verified doctor to evaluate these lab results in a secure telemedicine consultation.
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)" }}>
+                      <button
+                        type="button"
+                        className="cm-btn cm-btn--primary cm-btn--sm"
+                        onClick={() => router.push("/consultation")}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                          <strong style={{ color: "#0f172a", fontSize: "0.95rem" }}>{flag.marker}</strong>
-                          <span
-                            className={`badge ${flag.status === "high" || flag.status === "critical" ? "badge-danger" : "badge-success"}`}
-                            style={{ fontSize: "0.72rem", textTransform: "uppercase" }}
-                          >
-                            {flag.status}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "0.85rem", color: "#475569", display: "flex", justifyContent: "space-between" }}>
-                          <span>Measured: <strong style={{ color: "#0f172a" }}>{flag.value}</strong></span>
-                          <span>Normal: {flag.reference_range}</span>
-                        </div>
-                      </div>
-                    ))}
+                        <Stethoscope size={14} /> Schedule Video Consultation
+                      </button>
+                      <button
+                        type="button"
+                        className="cm-btn cm-btn--secondary cm-btn--sm"
+                        onClick={() => router.push("/diagnostics")}
+                      >
+                        <FlaskConical size={14} /> Book Follow-up Test
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* 1-Click Next Actions */}
-                <div className="glass-card" style={{ padding: 24, background: "linear-gradient(135deg, #0d9488 0%, #06b6d4 100%)", color: "white", borderRadius: 20, textAlign: "center" }}>
-                  <h4 style={{ margin: "0 0 8px 0", fontSize: "1.1rem" }}>🩺 Need Specialist Consultation?</h4>
-                  <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: "0 0 16px 0" }}>
-                    Connect with a verified specialist to review these results in HD video or request home visit.
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ background: "white", color: "#0f766e", fontWeight: 800, width: "100%" }}
-                      onClick={() => router.push("/consultation")}
-                    >
-                      📹 Consult Doctor Now
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid white", fontWeight: 700, width: "100%" }}
-                      onClick={() => router.push("/diagnostics")}
-                    >
-                      🧪 Book Follow-up Test
-                    </button>
-                  </div>
-                </div>
-
               </div>
-
             </div>
-
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     </DashboardShell>
   );

@@ -1,4 +1,5 @@
 import SmartNavbar from "../components/SmartNavbar";
+import { Phone, ShieldAlert, Droplet, ShieldCheck, MessageSquare } from "lucide-react";
 
 export default function PublicLayout({
   children,
@@ -11,12 +12,20 @@ export default function PublicLayout({
       <div className="utility-bar">
         <div className="container">
           <div className="utility-bar__left">
-            <a href="tel:108">🚑 Ambulance: 108</a>
-            <a href="tel:104">📞 Health Helpline: 104</a>
-            <a href="tel:1910">🩸 Blood Bank: 1910</a>
+            <a href="tel:108" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ShieldAlert size={14} style={{ color: "var(--cm-urgent)" }} /> Ambulance: 108
+            </a>
+            <a href="tel:104" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Phone size={14} style={{ color: "var(--cm-active)" }} /> Health Helpline: 104
+            </a>
+            <a href="tel:1910" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Droplet size={14} style={{ color: "var(--cm-urgent)" }} /> Blood Bank: 1910
+            </a>
           </div>
           <div className="utility-bar__right">
-            <span className="tagline-badge">✨ Vizag&apos;s #1 Healthcare Platform</span>
+            <span className="tagline-badge" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Vizag&apos;s Verified Healthcare Platform
+            </span>
           </div>
         </div>
       </div>
@@ -24,8 +33,7 @@ export default function PublicLayout({
       {/* Smart Auth-Aware Navbar */}
       <SmartNavbar />
 
-      {/* Page Content — landmark target for the skip link, and the region a
-          screen reader jumps to past ~14 tab stops of nav and utility bar. */}
+      {/* Page Content — landmark target for the skip link */}
       <main id="main">{children}</main>
 
       {/* Footer */}
@@ -72,8 +80,8 @@ export default function PublicLayout({
 
       {/* Chat Widget */}
       <div className="chat-widget">
-        <button className="chat-widget__btn" aria-label="Chat with us">
-          💬
+        <button className="chat-widget__btn" aria-label="Chat with clinical coordinator" style={{ display: "grid", placeItems: "center" }}>
+          <MessageSquare size={20} color="#ffffff" />
           <span className="chat-widget__pulse"></span>
         </button>
       </div>

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { KeyRound, Mail, CheckCircle2, ArrowLeft, ShieldCheck } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -34,64 +36,61 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="auth-page">
-        <div className="card auth-card" style={{ maxWidth: 460, margin: "0 auto", padding: 40 }}>
+      <div className="auth-page" style={{ background: "var(--cm-surface)", minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+        <div className="cm-card" style={{ maxWidth: 460, width: "100%", padding: 40, border: "1px solid var(--cm-line)" }}>
           <div style={{ textAlign: "center" }}>
             <div style={{
-              width: 80, height: 80, borderRadius: "50%",
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 20px", fontSize: "2.2rem",
-              boxShadow: "0 8px 24px rgba(16, 185, 129, 0.3)"
+              width: 72, height: 72, borderRadius: "50%",
+              background: "var(--cm-done-surface)", border: "1px solid var(--cm-done-line)",
+              color: "var(--cm-done)",
+              display: "grid", placeItems: "center",
+              margin: "0 auto 20px",
             }}>
-              ✉️
+              <CheckCircle2 size={36} />
             </div>
-            <h2 style={{ color: "#1e293b", marginBottom: 8 }}>Check Your Email</h2>
-            <p style={{ color: "#64748b", fontSize: "0.92rem", lineHeight: 1.6, marginBottom: 24 }}>
+
+            <h2 style={{ color: "var(--cm-navy)", marginBottom: 8, fontSize: "var(--cm-text-xl)", fontWeight: 800 }}>Check Your Inbox</h2>
+            <p style={{ color: "var(--cm-ink-2)", fontSize: "var(--cm-text-sm)", lineHeight: 1.6, marginBottom: 24 }}>
               We&apos;ve sent a <strong>6-digit verification code</strong> to<br />
-              <span style={{ color: "#0284c7", fontWeight: 700 }}>{email}</span>
+              <span style={{ color: "var(--cm-active)", fontWeight: 700 }}>{email}</span>
             </p>
 
             <div style={{
-              background: "#f0f9ff", borderRadius: 12, padding: 20,
-              border: "1px solid #bae6fd", marginBottom: 24, textAlign: "left"
+              background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius-sm)", padding: 20,
+              border: "1px solid var(--cm-line)", marginBottom: 24, textAlign: "left"
             }}>
-              <div style={{ fontWeight: 700, color: "#0369a1", fontSize: "0.85rem", marginBottom: 8 }}>📋 What to do next:</div>
-              <ol style={{ margin: 0, paddingLeft: 20, color: "#475569", fontSize: "0.83rem", lineHeight: 1.8 }}>
-                <li>Open your email inbox (check spam/junk too)</li>
-                <li>Find the email from <strong>CallMedex</strong></li>
+              <div style={{ fontWeight: 800, color: "var(--cm-navy)", fontSize: "var(--cm-text-xs)", marginBottom: 8 }}>Next Steps:</div>
+              <ol style={{ margin: 0, paddingLeft: 20, color: "var(--cm-ink-2)", fontSize: "var(--cm-text-xs)", lineHeight: 1.8 }}>
+                <li>Open your email inbox (check spam/junk folder too)</li>
+                <li>Find the email from <strong>CallMedex Security</strong></li>
                 <li>Copy the <strong>6-digit OTP code</strong> or click the reset button</li>
-                <li>Enter your new password on the reset page</li>
+                <li>Enter your new password on the verification page</li>
               </ol>
             </div>
 
-            <a
+            <Link
               href={`/auth/reset-password?email=${encodeURIComponent(email)}`}
+              className="cm-btn cm-btn--primary cm-btn--lg"
               style={{
-                display: "inline-block", width: "100%", padding: "14px 0",
-                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                color: "white", borderRadius: 10, fontWeight: 700,
-                textDecoration: "none", fontSize: "0.95rem",
-                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
-                textAlign: "center",
+                display: "flex", width: "100%", alignItems: "center", justifyContent: "center", gap: 8,
               }}
             >
-              🔑 Enter OTP & Reset Password
-            </a>
+              <KeyRound size={16} /> Enter OTP &amp; Reset Password
+            </Link>
 
-            <p style={{ marginTop: 20, fontSize: "0.82rem", color: "#94a3b8" }}>
+            <p style={{ marginTop: 20, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
               Didn&apos;t receive the email?{" "}
               <button
                 onClick={() => { setSent(false); setEmail(""); }}
-                style={{ color: "#0284c7", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontSize: "0.82rem" }}
+                style={{ color: "var(--cm-active)", fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontSize: "var(--cm-text-xs)" }}
               >
                 Try again
               </button>
             </p>
 
-            <a href="/auth/login" style={{ display: "block", marginTop: 12, fontSize: "0.85rem", color: "#64748b" }}>
-              ← Back to Login
-            </a>
+            <Link href="/auth/login" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", textDecoration: "none", fontWeight: 600 }}>
+              <ArrowLeft size={14} /> Back to Login
+            </Link>
           </div>
         </div>
       </div>
@@ -99,36 +98,36 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="card auth-card" style={{ maxWidth: 460, margin: "0 auto", padding: 40 }}>
+    <div className="auth-page" style={{ background: "var(--cm-surface)", minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="cm-card" style={{ maxWidth: 460, width: "100%", padding: 40, border: "1px solid var(--cm-line)" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{
-            width: 72, height: 72, borderRadius: "50%",
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 16px", fontSize: "2rem",
-            boxShadow: "0 8px 24px rgba(2, 132, 199, 0.25)"
+            width: 64, height: 64, borderRadius: "50%",
+            background: "var(--cm-surface-2)", border: "1px solid var(--cm-line-strong)",
+            color: "var(--cm-navy)",
+            display: "grid", placeItems: "center",
+            margin: "0 auto 16px",
           }}>
-            🔐
+            <KeyRound size={28} />
           </div>
-          <h2 style={{ color: "#1e293b", marginBottom: 6 }}>Forgot Password?</h2>
-          <p style={{ color: "#64748b", fontSize: "0.88rem", lineHeight: 1.5 }}>
+          <h2 style={{ color: "var(--cm-navy)", marginBottom: 6, fontSize: "var(--cm-text-xl)", fontWeight: 800 }}>Forgot Password?</h2>
+          <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-xs)", lineHeight: 1.5 }}>
             Enter your registered email address and we&apos;ll send you a verification code to reset your password.
           </p>
         </div>
 
         {error && (
           <div style={{
-            textAlign: "center", marginBottom: 16, fontSize: "0.88rem",
-            padding: 12, background: "#fef2f2", borderRadius: 8,
-            color: "#dc2626", border: "1px solid #fecaca"
+            textAlign: "center", marginBottom: 16, fontSize: "var(--cm-text-xs)",
+            padding: 12, background: "var(--cm-urgent-surface)", borderRadius: "var(--cm-radius-sm)",
+            color: "var(--cm-urgent)", border: "1px solid var(--cm-urgent-line)"
           }}>
             {error}
           </div>
         )}
 
         <div className="form-group" style={{ marginBottom: 20 }}>
-          <label className="form-label" style={{ fontWeight: 600 }}>Email Address</label>
+          <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>Email Address</label>
           <input
             type="email"
             className="form-input"
@@ -136,27 +135,30 @@ export default function ForgotPasswordPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            style={{ fontSize: "0.95rem", padding: "12px 16px" }}
+            style={{ fontSize: "var(--cm-text-sm)", padding: "12px 16px", width: "100%", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", boxSizing: "border-box" }}
           />
         </div>
 
         <button
           type="button"
           onClick={handleSubmit}
-          className="btn btn-primary btn-full btn-lg"
+          className="cm-btn cm-btn--primary cm-btn--lg"
           disabled={loading}
           style={{
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            borderRadius: 10, fontWeight: 700, padding: "14px 0",
-            boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+            width: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}
         >
-          {loading ? "Sending..." : "📧 Send Reset Code"}
+          {loading ? "Sending..." : (
+            <>
+              <Mail size={16} /> Send Reset Code
+            </>
+          )}
         </button>
 
-        <p style={{ textAlign: "center", marginTop: 24, fontSize: "0.88rem", color: "#64748b" }}>
+        <p style={{ textAlign: "center", marginTop: 24, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
           Remember your password?{" "}
-          <a href="/auth/login" style={{ color: "var(--color-navy)", fontWeight: 600 }}>Back to Login</a>
+          <Link href="/auth/login" style={{ color: "var(--cm-active)", fontWeight: 700, textDecoration: "none" }}>Back to Login</Link>
         </p>
       </div>
     </div>

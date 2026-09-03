@@ -19,6 +19,7 @@ import PCIntakePanel from "../components/PCIntakePanel";
 import PCBatchPanel from "../components/PCBatchPanel";
 import PCRosterPanel from "../components/PCRosterPanel";
 import { pcAPI } from "@/lib/api";
+import { Building2 } from "lucide-react";
 
 const TABS: DashTab[] = [
   { id: "queue", label: "Queue" },
@@ -83,10 +84,12 @@ export default function ProcessingCenterDashboard() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
-        <div style={{ padding: 40, textAlign: "center", backgroundColor: "white", borderRadius: 16, border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏬</div>
-          <h3 style={{ color: "#1e293b", margin: "0 0 8px 0" }}>Processing Center Staff Account</h3>
-          <p style={{ color: "#64748b", fontSize: "0.9rem", maxWidth: 500, margin: "0 auto 20px auto" }}>
+        <div className="cm-card" style={{ padding: "var(--cm-6)", textAlign: "center", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", margin: "0 auto 16px" }}>
+            <Building2 size={28} />
+          </div>
+          <h3 style={{ color: "var(--cm-ink)", margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800 }}>Processing Center Staff Account</h3>
+          <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-sm)", maxWidth: 500, margin: "0 auto 20px auto", lineHeight: 1.5 }}>
             Your account is authenticated as Processing Center staff. Once assigned to a specific branch in the Admin Panel, your live queue, intake scans, batches, and roster tools will activate automatically.
           </p>
         </div>

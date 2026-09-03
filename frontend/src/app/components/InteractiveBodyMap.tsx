@@ -4,10 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Stethoscope, FlaskConical, Video, Building2, Star, MapPin, Search,
-  CheckCircle2, ArrowLeft, ClipboardList, Activity,
+  CheckCircle2, ArrowLeft, ClipboardList, Activity, Layers, Box,
   Sparkles, Smile, Eye, Ear, Brain, Heart, Wind, Droplet, Bone,
   type LucideIcon,
 } from "lucide-react";
+import AnatomicalTwin3D from "./AnatomicalTwin3D";
 
 interface TestDetail {
   name: string;
@@ -35,7 +36,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Skin & Hair (Dermatology)",
     Icon: Sparkles,
     specialization: "Dermatology",
-    color: "#ec4899",
+    color: "var(--cm-magenta, #db2777)",
     vitalSummary: "Epidermal Barrier: Intact · Allergen Sensitivity: Low",
     tests: ["Skin Biopsy", "Allergy Comprehensive Panel", "Dermatology Teleconsult", "Fungal Culture"],
     testDetails: [
@@ -49,7 +50,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Teeth & Oral Care (Dentistry)",
     Icon: Smile,
     specialization: "Dentistry",
-    color: "#14b8a6",
+    color: "var(--cm-teal, #0d9488)",
     vitalSummary: "Gingival Index: Grade 0 · Decay Risk: Minimal",
     tests: ["Dental X-Ray (OPG)", "Scaling & Polishing", "Cavity & Gum Inspection"],
     testDetails: [
@@ -63,7 +64,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Eyes & Vision (Ophthalmology)",
     Icon: Eye,
     specialization: "Ophthalmology",
-    color: "#3b82f6",
+    color: "var(--cm-active, #0369a1)",
     vitalSummary: "Visual Acuity: 20/20 · Intraocular Pressure: 14 mmHg (Normal)",
     tests: ["Refraction Vision Test", "Fundus Examination", "Tonometry (Eye Pressure)", "Dry Eye Screening"],
     testDetails: [
@@ -77,7 +78,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Ears, Nose & Throat (ENT)",
     Icon: Ear,
     specialization: "ENT",
-    color: "#f97316",
+    color: "var(--cm-waiting, #b45309)",
     vitalSummary: "Audiometry Threshold: 15 dB · Nasal Airway: Clear",
     tests: ["Audiometry Hearing Test", "Nasal Endoscopy", "Throat Swab Culture", "Sinus Evaluation"],
     testDetails: [
@@ -91,7 +92,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Brain & Nervous System (Neurology)",
     Icon: Brain,
     specialization: "Neurology",
-    color: "#8b5cf6",
+    color: "#4338ca",
     vitalSummary: "Cognitive Load: Balanced · Migraine Triggers: Low",
     tests: ["Brain MRI / CT Scan", "EEG (Electroencephalogram)", "Migraine Risk Panel"],
     testDetails: [
@@ -105,7 +106,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Heart & Cardiovascular System",
     Icon: Heart,
     specialization: "Cardiology",
-    color: "#ef4444",
+    color: "var(--cm-urgent, #d92020)",
     vitalSummary: "Resting HR: 72 bpm · Blood Pressure: 118/78 mmHg · Cardiac Risk: Low",
     tests: ["ECG (12-Lead)", "Echocardiogram (2D Echo)", "Lipid Profile", "Cardiac Troponin T"],
     testDetails: [
@@ -120,7 +121,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Lungs & Respiratory System",
     Icon: Wind,
     specialization: "Pulmonology",
-    color: "#06b6d4",
+    color: "var(--cm-active, #0369a1)",
     vitalSummary: "SpO2: 98% Room Air · Peak Expiratory Flow: 460 L/min",
     tests: ["Chest X-Ray (PA View)", "Spirometry (Pulmonary Function)", "SpO2 & ABG Test"],
     testDetails: [
@@ -134,7 +135,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Abdomen & Digestive System",
     Icon: Droplet,
     specialization: "Gastroenterology",
-    color: "#10b981",
+    color: "var(--cm-done, #15803d)",
     vitalSummary: "Liver Enzymes: Balanced · Renal Clearance (eGFR): >90 mL/min",
     tests: ["Ultrasound Abdomen & Pelvis", "Liver Function Test (LFT)", "Kidney Function Test (KFT)"],
     testDetails: [
@@ -148,7 +149,7 @@ const ORGANS: Record<string, OrganInfo> = {
     name: "Joints, Bones & Spine (Orthopedics)",
     Icon: Bone,
     specialization: "Orthopedics",
-    color: "#f59e0b",
+    color: "var(--cm-waiting, #b45309)",
     vitalSummary: "Bone Mineral Density: Normal · Uric Acid: 4.8 mg/dL",
     tests: ["Bone Mineral Density (DEXA)", "Joint X-Ray", "Uric Acid Test", "RA Factor"],
     testDetails: [
@@ -174,6 +175,7 @@ const HOTSPOTS: { id: string; cx: number; cy: number; r: number; heart?: boolean
 export default function InteractiveBodyMap() {
   const router = useRouter();
   const [selectedOrgan, setSelectedOrgan] = useState<string>("heart");
+  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
   const [consultMode, setConsultMode] = useState<null | "choosing" | "offline_list">(null);
   const [realClinics, setRealClinics] = useState<any[]>([]);
   const [clinicsLoading, setClinicsLoading] = useState<boolean>(false);
@@ -202,245 +204,212 @@ export default function InteractiveBodyMap() {
   };
 
   return (
-    <div className="cm-panel" style={{ border: "1px solid var(--cm-line-strong)", boxShadow: "0 10px 30px -10px rgba(15, 23, 42, 0.08)" }}>
+    <div className="cm-panel" style={{ background: "var(--cm-surface)", border: "1px solid var(--cm-line)", boxShadow: "var(--cm-shadow-1)" }}>
       {/* Header Bar with clinical telemetry badge */}
-      <div className="cm-row-between" style={{ marginBottom: "var(--cm-4)" }}>
+      <div className="cm-row-between" style={{ marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: "var(--cm-3)" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
             <span style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 32, height: 32, borderRadius: 8, background: "var(--cm-active-surface)", color: "var(--cm-active)"
+              width: 34, height: 34, borderRadius: "var(--cm-radius)", background: "var(--cm-surface-2)", color: "var(--cm-navy)",
+              border: "1px solid var(--cm-line)"
             }}>
               <Activity size={18} />
             </span>
-            <h3 className="cm-panel__title" style={{ margin: 0, fontSize: "1.25rem", color: "var(--cm-ink)", fontWeight: 800 }}>
+            <h3 className="cm-panel__title" style={{ margin: 0, fontSize: "var(--cm-text-lg)", color: "var(--cm-ink)", fontWeight: 800 }}>
               Interactive Anatomical Twin
             </h3>
-            <span className="cm-pill cm-pill--done" style={{ fontWeight: 700, fontSize: "0.75rem" }}>
-              Bio-Scan v3.2 Active
+            <span className="cm-pill cm-pill--done" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)" }}>
+              Clinical Telemetry
             </span>
           </div>
-          <p className="cm-panel__note" style={{ margin: "4px 0 0 0", color: "var(--cm-ink-3)", fontSize: "0.88rem" }}>
-            Select an organ region to inspect real-time clinical parameters, recommended diagnostic panels, and consult verified specialists.
+          <p className="cm-panel__note" style={{ margin: "var(--cm-1) 0 0 0", color: "var(--cm-ink-3)", fontSize: "var(--cm-text-sm)" }}>
+            Select an anatomical region to review vital benchmarks, certified NABL diagnostic panels, and consult verified specialists.
           </p>
+        </div>
+
+        {/* 3D / 2D View Switcher */}
+        <div style={{ display: "inline-flex", background: "var(--cm-surface-2)", padding: 3, borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+          <button
+            type="button"
+            onClick={() => setViewMode("3d")}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: "calc(var(--cm-radius) - 2px)",
+              fontSize: "var(--cm-text-xs)", fontWeight: 700,
+              background: viewMode === "3d" ? "var(--cm-surface)" : "transparent",
+              color: viewMode === "3d" ? "var(--cm-navy)" : "var(--cm-ink-3)",
+              border: viewMode === "3d" ? "1px solid var(--cm-line-strong)" : "1px solid transparent",
+              boxShadow: viewMode === "3d" ? "var(--cm-shadow-1)" : "none",
+              cursor: "pointer",
+            }}
+          >
+            <Box size={14} /> 3D Anatomical Twin
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("2d")}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "6px 12px", borderRadius: "calc(var(--cm-radius) - 2px)",
+              fontSize: "var(--cm-text-xs)", fontWeight: 700,
+              background: viewMode === "2d" ? "var(--cm-surface)" : "transparent",
+              color: viewMode === "2d" ? "var(--cm-navy)" : "var(--cm-ink-3)",
+              border: viewMode === "2d" ? "1px solid var(--cm-line-strong)" : "1px solid transparent",
+              boxShadow: viewMode === "2d" ? "var(--cm-shadow-1)" : "none",
+              cursor: "pointer",
+            }}
+          >
+            <Layers size={14} /> 2D Anatomy Map
+          </button>
         </div>
       </div>
 
-      {/* Segmented Organ Selector Chips Bar */}
-      <div style={{
-        display: "flex", gap: "var(--cm-2)", overflowX: "auto", paddingBottom: "var(--cm-2)",
-        marginBottom: "var(--cm-5)", scrollbarWidth: "none"
-      }}>
-        {Object.values(ORGANS).map((org) => {
-          const isSelected = org.id === selectedOrgan;
-          const OrgIcon = org.Icon;
-          return (
-            <button
-              key={org.id}
-              type="button"
-              onClick={() => { setSelectedOrgan(org.id); setConsultMode(null); }}
-              style={{
-                borderRadius: "9999px",
-                border: isSelected ? `2px solid ${org.color}` : "1px solid var(--cm-line-strong)",
-                background: isSelected ? "var(--cm-surface-2)" : "var(--cm-surface)",
-                color: isSelected ? "var(--cm-ink)" : "var(--cm-ink-2)",
-                padding: "8px 16px",
-                fontSize: "0.85rem",
-                fontWeight: isSelected ? 800 : 600,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                boxShadow: isSelected ? `0 0 12px ${org.color}33` : "none",
-                transition: "all 0.2s ease",
-                whiteSpace: "nowrap"
-              }}
-            >
-              <span style={{
-                color: isSelected ? org.color : "var(--cm-ink-3)",
-                display: "inline-flex"
-              }}>
-                <OrgIcon size={16} />
-              </span>
-              {org.name.split(" ")[0]}
-            </button>
-          );
-        })}
-      </div>
+      {/* Main Grid: Anatomical Twin + Organ Clinical Dossier */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.3fr", gap: "var(--cm-5)", alignItems: "start" }}>
 
-      {/* Main Grid: Anatomical Bio-Scanner + Organ Dossier */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.05fr 1.35fr", gap: "var(--cm-5)", alignItems: "start" }}>
+        {/* Left Column: 3D Twin OR 2D Fallback */}
+        {viewMode === "3d" ? (
+          <AnatomicalTwin3D
+            selectedOrgan={selectedOrgan}
+            onSelectOrgan={(id) => { setSelectedOrgan(id); setConsultMode(null); }}
+          />
+        ) : (
+          <div style={{
+            background: "var(--cm-surface)",
+            border: "1px solid var(--cm-line)",
+            borderRadius: "var(--cm-radius-lg)",
+            padding: "var(--cm-4)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            boxShadow: "var(--cm-shadow-1)",
+          }}>
+            <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--cm-line)", paddingBottom: 8, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+              <span style={{ fontWeight: 700, color: "var(--cm-navy)" }}>2D Clinical Contour</span>
+              <span>Coordinates: Sagittal Plan</span>
+            </div>
 
-        {/* Anatomical Holographic Bio-Scanner */}
-        <div className="cm-scanner-enclosure" style={{ minHeight: 460, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div className="cm-scanner-grid-bg" />
-          <div className="cm-scanner-beam" />
+            {/* Clean SVG Vector Body Silhouette on White Canvas */}
+            <div style={{ width: "100%", maxWidth: 260, margin: "var(--cm-4) 0", textAlign: "center" }}>
+              <svg viewBox="0 0 200 420" style={{ width: "100%", maxHeight: 380 }}>
+                {/* Anatomical Human Contour Silhouette */}
+                <path
+                  d="M100 22 C118 22 132 36 132 54 C132 68 123 78 114 84 L142 104 L162 176 L144 186 L134 128 L134 225 L148 376 L124 376 L110 258 L90 258 L76 376 L52 376 L66 225 L66 128 L56 186 L38 176 L58 104 L86 84 C77 78 68 68 68 54 C68 36 82 22 100 22 Z"
+                  fill="var(--cm-surface-2)"
+                  stroke="var(--cm-line-strong)"
+                  strokeWidth="1.8"
+                />
 
-          {/* Scanner Telemetry Header */}
-          <div style={{ position: "relative", zIndex: 2, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", paddingBottom: 8, fontSize: "0.72rem", color: "rgba(255,255,255,0.7)", letterSpacing: "1px" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 8px #10b981" }} />
-              OPTICAL BODY SCANNER
-            </span>
-            <span style={{ fontFamily: "monospace", color: "#38bdf8" }}>LAT: 17.3850° N</span>
-          </div>
+                {/* Medical Axis Guides */}
+                <line x1="78" y1="125" x2="122" y2="125" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
+                <line x1="82" y1="190" x2="118" y2="190" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
+                <line x1="88" y1="260" x2="112" y2="260" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
 
-          {/* SVG Vector Hologram */}
-          <div style={{ position: "relative", zIndex: 2, textAlign: "center", margin: "16px 0" }}>
-            <svg viewBox="0 0 200 420" style={{ width: "100%", maxHeight: 370, filter: "drop-shadow(0 0 16px rgba(56, 189, 248, 0.25))" }}>
-              <defs>
-                <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#1e293b" stopOpacity="0.85" />
-                  <stop offset="50%" stopColor="#0f172a" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#091428" stopOpacity="0.85" />
-                </linearGradient>
-                <radialGradient id="cardiacGlow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
-                </radialGradient>
-              </defs>
+                {/* Interactive Organ Hotspots */}
+                {HOTSPOTS.map((spot) => {
+                  const isSelected = spot.id === selectedOrgan;
+                  const org = ORGANS[spot.id];
+                  const SpotIcon = org.Icon;
+                  const spotColor = org.color;
+                  const iconSize = spot.r * 1.1;
 
-              {/* Anatomical Human Contour Silhouette */}
-              <path
-                d="M100 22 C118 22 132 36 132 54 C132 68 123 78 114 84 L142 104 L162 176 L144 186 L134 128 L134 225 L148 376 L124 376 L110 258 L90 258 L76 376 L52 376 L66 225 L66 128 L56 186 L38 176 L58 104 L86 84 C77 78 68 68 68 54 C68 36 82 22 100 22 Z"
-                fill="url(#bodyGradient)"
-                stroke="#38bdf8"
-                strokeWidth="1.8"
-                strokeOpacity="0.55"
-              />
+                  return (
+                    <g
+                      key={spot.id}
+                      onClick={() => { setSelectedOrgan(spot.id); setConsultMode(null); }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {/* Active Ring */}
+                      {isSelected && (
+                        <circle
+                          cx={spot.cx}
+                          cy={spot.cy}
+                          r={spot.r * 1.5}
+                          fill="none"
+                          stroke={spotColor}
+                          strokeWidth="2"
+                        />
+                      )}
 
-              {/* Anatomical Grid Coordinates & Contour Guides */}
-              <line x1="78" y1="125" x2="122" y2="125" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="3,3" strokeOpacity="0.4" />
-              <line x1="82" y1="190" x2="118" y2="190" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="3,3" strokeOpacity="0.4" />
-              <line x1="88" y1="260" x2="112" y2="260" stroke="#38bdf8" strokeWidth="0.8" strokeDasharray="3,3" strokeOpacity="0.4" />
-              <circle cx="100" cy="54" r="28" stroke="#38bdf8" strokeWidth="0.5" strokeOpacity="0.3" fill="none" strokeDasharray="2,4" />
-
-              {/* Interactive Organ Hotspots with Clinical Color Nodes */}
-              {HOTSPOTS.map((spot) => {
-                const isSelected = spot.id === selectedOrgan;
-                const org = ORGANS[spot.id];
-                const SpotIcon = org.Icon;
-                const spotColor = org.color;
-                const iconSize = spot.r * 1.1;
-
-                return (
-                  <g
-                    key={spot.id}
-                    onClick={() => { setSelectedOrgan(spot.id); setConsultMode(null); }}
-                    className="cm-organ-node"
-                    style={{ cursor: "pointer" }}
-                  >
-                    {/* Animated Pulsing Ring for Selected Hotspot or Heart */}
-                    {(isSelected || spot.heart) && (
+                      {/* Node Circle */}
                       <circle
                         cx={spot.cx}
                         cy={spot.cy}
-                        r={spot.r * 1.8}
-                        fill="none"
-                        stroke={spotColor}
-                        strokeWidth="1.5"
-                        strokeOpacity={isSelected ? 0.9 : 0.4}
-                        style={{
-                          transformOrigin: `${spot.cx}px ${spot.cy}px`,
-                          animation: "cm-heartbeat-ring 1.8s infinite ease-out"
-                        }}
+                        r={spot.r}
+                        fill={isSelected ? "var(--cm-navy)" : "var(--cm-surface)"}
+                        stroke={isSelected ? "var(--cm-navy)" : "var(--cm-line-strong)"}
+                        strokeWidth={isSelected ? 2 : 1.5}
                       />
-                    )}
 
-                    {/* HUD Target Brackets when selected */}
-                    {isSelected && (
-                      <g stroke={spotColor} strokeWidth="1.5" fill="none">
-                        <path d={`M${spot.cx - spot.r - 4} ${spot.cy - 6} L${spot.cx - spot.r - 4} ${spot.cy - spot.r - 4} L${spot.cx - 6} ${spot.cy - spot.r - 4}`} />
-                        <path d={`M${spot.cx + spot.r + 4} ${spot.cy - 6} L${spot.cx + spot.r + 4} ${spot.cy - spot.r - 4} L${spot.cx + 6} ${spot.cy - spot.r - 4}`} />
-                        <path d={`M${spot.cx - spot.r - 4} ${spot.cy + 6} L${spot.cx - spot.r - 4} ${spot.cy + spot.r + 4} L${spot.cx - 6} ${spot.cy + spot.r + 4}`} />
-                        <path d={`M${spot.cx + spot.r + 4} ${spot.cy + 6} L${spot.cx + spot.r + 4} ${spot.cy + spot.r + 4} L${spot.cx + 6} ${spot.cy + spot.r + 4}`} />
-                      </g>
-                    )}
-
-                    {/* Node Circle Background */}
-                    <circle
-                      cx={spot.cx}
-                      cy={spot.cy}
-                      r={spot.r}
-                      fill={isSelected ? spotColor : "#1e293b"}
-                      stroke={isSelected ? "#ffffff" : spotColor}
-                      strokeWidth={isSelected ? 2.5 : 1.5}
-                      filter={isSelected ? `drop-shadow(0 0 8px ${spotColor})` : "none"}
-                    />
-
-                    {/* Node Icon */}
-                    <svg
-                      x={spot.cx - iconSize / 2}
-                      y={spot.cy - iconSize / 2}
-                      width={iconSize}
-                      height={iconSize}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={isSelected ? "#ffffff" : spotColor}
-                      strokeWidth={2.4}
-                      pointerEvents="none"
-                    >
-                      <SpotIcon width={24} height={24} />
-                    </svg>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* Scanner Bottom Telemetry */}
-          <div style={{ position: "relative", zIndex: 2, background: "rgba(15, 23, 42, 0.75)", padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(56, 189, 248, 0.2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Selected Region</div>
-              <div style={{ fontSize: "0.95rem", fontWeight: 800, color: current.color }}>{current.name}</div>
+                      {/* Node Icon */}
+                      <svg
+                        x={spot.cx - iconSize / 2}
+                        y={spot.cy - iconSize / 2}
+                        width={iconSize}
+                        height={iconSize}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={isSelected ? "#ffffff" : "var(--cm-ink-2)"}
+                        strokeWidth={2.4}
+                        pointerEvents="none"
+                      >
+                        <SpotIcon width={24} height={24} />
+                      </svg>
+                    </g>
+                  );
+                })}
+              </svg>
             </div>
-            <span style={{ fontSize: "0.75rem", background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "4px 10px", borderRadius: 9999, border: "1px solid rgba(56, 189, 248, 0.3)", fontWeight: 700 }}>
-              {current.specialization}
-            </span>
-          </div>
-        </div>
 
-        {/* Selected Organ Diagnostic Dossier */}
-        <div className="cm-card" style={{ border: `1px solid var(--cm-line)`, borderTop: `4px solid ${current.color}`, borderRadius: "var(--cm-radius-lg)", boxShadow: "0 4px 14px rgba(15, 23, 42, 0.04)" }}>
+            <div style={{ width: "100%", background: "var(--cm-surface-2)", padding: "8px 12px", borderRadius: "var(--cm-radius)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Selected System</span>
+              <span style={{ fontSize: "var(--cm-text-xs)", fontWeight: 800, color: "var(--cm-navy)" }}>{current.name.split(" ")[0]}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Right Column: Selected Organ Clinical Dossier */}
+        <div className="cm-card" style={{ border: `1px solid var(--cm-line)`, borderTop: `4px solid ${current.color}`, borderRadius: "var(--cm-radius-lg)", boxShadow: "var(--cm-shadow-1)" }}>
           {/* Dossier Header */}
           <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-3)", marginBottom: "var(--cm-3)" }}>
             <span style={{
-              display: "grid", placeItems: "center", width: 50, height: 50, borderRadius: "var(--cm-radius)",
-              background: `${current.color}18`, color: current.color, flex: "none", border: `1px solid ${current.color}33`
+              display: "grid", placeItems: "center", width: 46, height: 46, borderRadius: "var(--cm-radius)",
+              background: "var(--cm-surface-2)", color: current.color, flex: "none", border: `1px solid var(--cm-line)`
             }}>
-              <current.Icon size={26} />
+              <current.Icon size={24} />
             </span>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <h4 style={{ margin: 0, fontSize: "1.15rem", color: "var(--cm-ink)", fontWeight: 800 }}>{current.name}</h4>
-              </div>
+              <h4 style={{ margin: 0, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)", fontWeight: 800 }}>{current.name}</h4>
               <span className="cm-pill cm-pill--active" style={{ marginTop: 4, background: "var(--cm-surface-2)", color: "var(--cm-ink)", border: "1px solid var(--cm-line-strong)" }}>
                 {current.specialization} Specialist Care
               </span>
             </div>
           </div>
 
-          <p style={{ fontSize: "0.9rem", color: "var(--cm-ink-3)", margin: "0 0 var(--cm-4) 0", lineHeight: 1.5 }}>
+          <p style={{ fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", margin: "0 0 var(--cm-4) 0", lineHeight: 1.5 }}>
             {current.description}
           </p>
 
           {/* Vitals Benchmark Card */}
-          <div style={{ background: "var(--cm-surface-2)", padding: "12px 16px", borderRadius: "var(--cm-radius)", marginBottom: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+          <div style={{ background: "var(--cm-surface-2)", padding: "12px 14px", borderRadius: "var(--cm-radius)", marginBottom: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)", marginBottom: 4 }}>
               <ClipboardList size={16} style={{ color: current.color }} />
-              <strong style={{ fontSize: "0.85rem", color: "var(--cm-ink)" }}>System Vitals & Clinical Target</strong>
+              <strong style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                Clinical Benchmark Target
+              </strong>
             </div>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--cm-ink-2)", fontWeight: 600 }}>
+            <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-2)", fontWeight: 600 }}>
               {current.vitalSummary}
             </p>
           </div>
 
           {/* Recommended Diagnostic Test Cards */}
           <div style={{ marginBottom: "var(--cm-5)" }}>
-            <strong style={{ fontSize: "0.88rem", color: "var(--cm-ink)", display: "block", marginBottom: 8 }}>
+            <strong style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.03em", display: "block", marginBottom: 8 }}>
               Certified NABL Diagnostic Panels
             </strong>
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 8 }}>
               {current.testDetails.map((t, i) => (
                 <div
                   key={i}
@@ -451,33 +420,38 @@ export default function InteractiveBodyMap() {
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
                       <CheckCircle2 size={14} style={{ color: "var(--cm-done)" }} />
                       {t.name}
                     </div>
-                    <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
                       {t.parameters} · <span style={{ color: "var(--cm-active)", fontWeight: 600 }}>{t.turnaround}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--cm-ink)" }}>₹{t.price}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--cm-ink-3)", textDecoration: "line-through" }}>₹{t.marketPrice}</div>
+                    <div style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>₹{t.price}</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textDecoration: "line-through", fontVariantNumeric: "tabular-nums" }}>₹{t.marketPrice}</div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Consultation Actions — Online/Offline choice */}
+          {/* Consultation Actions — Online / Offline choice */}
           {consultMode === null && (
             <div style={{ display: "flex", gap: "var(--cm-2)", flexWrap: "wrap" }}>
-              <button type="button" className="cm-btn cm-btn--primary" style={{ flex: 1, padding: "12px 18px", fontWeight: 700 }} onClick={() => setConsultMode("choosing")}>
+              <button
+                type="button"
+                className="cm-btn cm-btn--primary"
+                style={{ flex: 1, padding: "10px 16px", fontWeight: 700 }}
+                onClick={() => setConsultMode("choosing")}
+              >
                 <Stethoscope size={16} /> Consult {current.specialization}
               </button>
               <button
                 type="button"
-                className="cm-btn"
-                style={{ flex: 1, background: "var(--cm-navy-deep)", color: "#fff", padding: "12px 18px", fontWeight: 700 }}
+                className="cm-btn cm-btn--secondary"
+                style={{ flex: 1, padding: "10px 16px", fontWeight: 700 }}
                 onClick={() => router.push(`/diagnostics?search=${encodeURIComponent(current.name)}`)}
               >
                 <FlaskConical size={16} /> Book Lab Package
@@ -487,10 +461,10 @@ export default function InteractiveBodyMap() {
 
           {/* Online vs Offline Choice */}
           {consultMode === "choosing" && (
-            <div style={{ background: "var(--cm-active-bg)", borderRadius: "var(--cm-radius-lg)", padding: "var(--cm-4)", border: "1px solid var(--cm-active-line)" }}>
+            <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
               <div className="cm-row-between" style={{ marginBottom: "var(--cm-3)" }}>
                 <strong style={{ color: "var(--cm-navy)", fontSize: "var(--cm-text-sm)" }}>
-                  How would you like to consult?
+                  Select Consultation Channel
                 </strong>
                 <button type="button" onClick={() => setConsultMode(null)} className="cm-btn cm-btn--ghost cm-btn--sm">
                   <ArrowLeft size={14} /> Back
@@ -501,14 +475,14 @@ export default function InteractiveBodyMap() {
                   type="button"
                   onClick={handleOnlineConsult}
                   className="cm-card cm-card--interactive"
-                  style={{ textAlign: "center", border: "2px solid var(--cm-navy)" }}
+                  style={{ textAlign: "center", border: "2px solid var(--cm-navy)", background: "var(--cm-surface)" }}
                 >
-                  <Video size={26} style={{ color: "var(--cm-navy)", marginBottom: 6 }} />
+                  <Video size={22} style={{ color: "var(--cm-navy)", marginBottom: 6 }} />
                   <div style={{ fontWeight: 700, color: "var(--cm-navy)", fontSize: "var(--cm-text-sm)" }}>
-                    Online
+                    Teleconsultation
                   </div>
                   <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
-                    Video consultation from home. HD call with AI-drafted summary.
+                    HD video call with verified specialist.
                   </div>
                   <span className="cm-pill cm-pill--done" style={{ marginTop: 8 }}>Available Now</span>
                 </button>
@@ -517,16 +491,16 @@ export default function InteractiveBodyMap() {
                   type="button"
                   onClick={() => setConsultMode("offline_list")}
                   className="cm-card cm-card--interactive"
-                  style={{ textAlign: "center", border: "2px solid var(--cm-line-strong)" }}
+                  style={{ textAlign: "center", border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}
                 >
-                  <Building2 size={26} style={{ color: "var(--cm-ink)", marginBottom: 6 }} />
+                  <Building2 size={22} style={{ color: "var(--cm-ink)", marginBottom: 6 }} />
                   <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>
-                    Offline
+                    Clinic Visit
                   </div>
                   <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
-                    Visit a partner clinic near you. In-person examination.
+                    In-person physical examination.
                   </div>
-                  <span className="cm-pill cm-pill--active" style={{ marginTop: 8 }}>Walk-in</span>
+                  <span className="cm-pill cm-pill--active" style={{ marginTop: 8 }}>Partner Clinic</span>
                 </button>
               </div>
             </div>
@@ -534,7 +508,7 @@ export default function InteractiveBodyMap() {
 
           {/* Offline Clinic List */}
           {consultMode === "offline_list" && (
-            <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius-lg)", padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+            <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
               <div className="cm-row-between" style={{ marginBottom: "var(--cm-3)" }}>
                 <strong style={{ color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)", display: "flex", alignItems: "center", gap: 6 }}>
                   <Building2 size={14} /> Walk-in {current.specialization} Clinics
@@ -562,7 +536,7 @@ export default function InteractiveBodyMap() {
                         type="button"
                         onClick={() => router.push(`/booking?type=doctor&doctor=${cId}&spec=${encodeURIComponent(current.specialization)}`)}
                         className="cm-card cm-card--interactive"
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", gap: "var(--cm-3)", padding: "var(--cm-3) var(--cm-4)" }}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", gap: "var(--cm-3)", padding: "var(--cm-3) var(--cm-4)", background: "var(--cm-surface)" }}
                       >
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>

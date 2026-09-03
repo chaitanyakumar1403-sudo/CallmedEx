@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { KeyRound, Lock, CheckCircle2, AlertCircle, LogIn, Link2 } from "lucide-react";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -26,11 +28,11 @@ function ResetPasswordContent() {
     if (/[A-Z]/.test(pw)) score++;
     if (/[0-9]/.test(pw)) score++;
     if (/[^A-Za-z0-9]/.test(pw)) score++;
-    if (score <= 1) return { label: "Weak", color: "#ef4444", percent: 20 };
-    if (score === 2) return { label: "Fair", color: "#f59e0b", percent: 40 };
-    if (score === 3) return { label: "Good", color: "#eab308", percent: 60 };
-    if (score === 4) return { label: "Strong", color: "#22c55e", percent: 80 };
-    return { label: "Very Strong", color: "#059669", percent: 100 };
+    if (score <= 1) return { label: "Weak", color: "var(--cm-urgent)", percent: 20 };
+    if (score === 2) return { label: "Fair", color: "var(--cm-waiting)", percent: 40 };
+    if (score === 3) return { label: "Good", color: "var(--cm-active)", percent: 60 };
+    if (score === 4) return { label: "Strong", color: "var(--cm-done)", percent: 80 };
+    return { label: "Very Strong", color: "var(--cm-done)", percent: 100 };
   };
 
   const strength = getPasswordStrength(newPassword);
@@ -51,29 +53,50 @@ function ResetPasswordContent() {
     setError("");
 
     try {
-      let url: string;
-      let body: Record<string, string>;
-
-      if (mode === "token" && token) {
-        url = "/api/auth/reset-password";
-        body = { token, new_password: newPassword, confirm_password: confirmPassword };
+      if (mode === "otp") {
+        if (!email.trim() || !otpCode.trim()) {
+          setError("Please enter your email and 6-digit OTP code");
+          setLoading(false);
+          return;
+        }
+        const res = await fetch("/api/auth/reset-password-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            otp_code: otpCode.trim(),
+            new_password: newPassword,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to reset password");
+        }
       } else {
-        if (!email.trim()) { setError("Please enter your email"); setLoading(false); return; }
-        if (!otpCode.trim() || otpCode.length !== 6) { setError("Please enter the 6-digit OTP code"); setLoading(false); return; }
-        url = "/api/auth/verify-reset-otp";
-        body = { email: email.trim().toLowerCase(), otp_code: otpCode.trim(), new_password: newPassword, confirm_password: confirmPassword };
+        const resetToken = token || (document.querySelector("textarea") as HTMLTextAreaElement)?.value?.trim();
+        if (!resetToken) {
+          setError("Please provide the reset token");
+          setLoading(false);
+          return;
+        }
+        const res = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: resetToken,
+            new_password: newPassword,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to reset password");
+        }
       }
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || "Failed to reset password");
-      }
       setSuccess(true);
+      setTimeout(() => {
+        router.push("/auth/login");
+      }, 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -81,58 +104,52 @@ function ResetPasswordContent() {
     }
   };
 
-  // Success screen
   if (success) {
     return (
-      <div className="auth-page">
-        <div className="card auth-card" style={{ maxWidth: 460, margin: "0 auto", padding: 40 }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: "50%",
-              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 20px", fontSize: "2.2rem",
-              boxShadow: "0 8px 24px rgba(16, 185, 129, 0.3)"
-            }}>
-              ✅
-            </div>
-            <h2 style={{ color: "#1e293b", marginBottom: 8 }}>Password Reset Successful!</h2>
-            <p style={{ color: "#64748b", fontSize: "0.92rem", lineHeight: 1.6, marginBottom: 28 }}>
-              Your password has been updated. You can now log in with your new password.
-            </p>
-
-            <button
-              onClick={() => router.push("/auth/login")}
-              className="btn btn-primary btn-full btn-lg"
-              style={{
-                background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                borderRadius: 10, fontWeight: 700, padding: "14px 0",
-                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
-              }}
-            >
-              🔓 Go to Login
-            </button>
+      <div className="auth-page" style={{ background: "var(--cm-surface)", minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+        <div className="cm-card" style={{ maxWidth: 460, width: "100%", padding: 40, textAlign: "center", border: "1px solid var(--cm-line)" }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: "50%",
+            background: "var(--cm-done-surface)", border: "1px solid var(--cm-done-line)",
+            color: "var(--cm-done)",
+            display: "grid", placeItems: "center",
+            margin: "0 auto 20px",
+          }}>
+            <CheckCircle2 size={36} />
           </div>
+          <h2 style={{ color: "var(--cm-navy)", marginBottom: 8, fontSize: "var(--cm-text-xl)", fontWeight: 800 }}>Password Reset Successfully!</h2>
+          <p style={{ color: "var(--cm-ink-2)", fontSize: "var(--cm-text-sm)", lineHeight: 1.5, marginBottom: 24 }}>
+            Your account password has been updated. You will be redirected to the login screen automatically in 3 seconds.
+          </p>
+          <Link
+            href="/auth/login"
+            className="cm-btn cm-btn--primary cm-btn--lg"
+            style={{
+              display: "flex", width: "100%", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <LogIn size={16} /> Go to Login
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="auth-page">
-      <div className="card auth-card" style={{ maxWidth: 480, margin: "0 auto", padding: 40 }}>
+    <div className="auth-page" style={{ background: "var(--cm-surface)", minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="cm-card" style={{ maxWidth: 480, width: "100%", padding: 40, border: "1px solid var(--cm-line)" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{
-            width: 72, height: 72, borderRadius: "50%",
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 16px", fontSize: "2rem",
-            boxShadow: "0 8px 24px rgba(2, 132, 199, 0.25)"
+            width: 64, height: 64, borderRadius: "50%",
+            background: "var(--cm-surface-2)", border: "1px solid var(--cm-line-strong)",
+            color: "var(--cm-navy)",
+            display: "grid", placeItems: "center",
+            margin: "0 auto 16px",
           }}>
-            🔑
+            <KeyRound size={28} />
           </div>
-          <h2 style={{ color: "#1e293b", marginBottom: 6 }}>Reset Your Password</h2>
-          <p style={{ color: "#64748b", fontSize: "0.85rem" }}>
+          <h2 style={{ color: "var(--cm-navy)", marginBottom: 6, fontSize: "var(--cm-text-xl)", fontWeight: 800 }}>Reset Your Password</h2>
+          <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-xs)" }}>
             {mode === "token" ? "Set your new password below." : "Enter the 6-digit code sent to your email and choose a new password."}
           </p>
         </div>
@@ -140,41 +157,43 @@ function ResetPasswordContent() {
         {/* Mode toggle (only show when no token in URL) */}
         {!token && (
           <div style={{
-            display: "flex", borderRadius: 10, overflow: "hidden",
-            border: "1px solid #e2e8f0", marginBottom: 20
+            display: "flex", borderRadius: "var(--cm-radius-sm)", overflow: "hidden",
+            border: "1px solid var(--cm-line-strong)", marginBottom: 20
           }}>
             <button
               onClick={() => setMode("otp")}
               style={{
                 flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
-                fontWeight: 600, fontSize: "0.82rem",
-                background: mode === "otp" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "white",
-                color: mode === "otp" ? "white" : "#64748b",
+                fontWeight: 700, fontSize: "var(--cm-text-xs)",
+                background: mode === "otp" ? "var(--cm-navy)" : "white",
+                color: mode === "otp" ? "white" : "var(--cm-ink-3)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
                 transition: "all 0.2s"
               }}
             >
-              🔢 Enter OTP Code
+              <KeyRound size={14} /> Enter OTP Code
             </button>
             <button
               onClick={() => setMode("token")}
               style={{
                 flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
-                fontWeight: 600, fontSize: "0.82rem",
-                background: mode === "token" ? "linear-gradient(135deg, #0284c7, #0369a1)" : "white",
-                color: mode === "token" ? "white" : "#64748b",
+                fontWeight: 700, fontSize: "var(--cm-text-xs)",
+                background: mode === "token" ? "var(--cm-navy)" : "white",
+                color: mode === "token" ? "white" : "var(--cm-ink-3)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
                 transition: "all 0.2s"
               }}
             >
-              🔗 Paste Reset Link Token
+              <Link2 size={14} /> Paste Reset Link Token
             </button>
           </div>
         )}
 
         {error && (
           <div style={{
-            textAlign: "center", marginBottom: 16, fontSize: "0.88rem",
-            padding: 12, background: "#fef2f2", borderRadius: 8,
-            color: "#dc2626", border: "1px solid #fecaca"
+            textAlign: "center", marginBottom: 16, fontSize: "var(--cm-text-xs)",
+            padding: 12, background: "var(--cm-urgent-surface)", borderRadius: "var(--cm-radius-sm)",
+            color: "var(--cm-urgent)", border: "1px solid var(--cm-urgent-line)"
           }}>
             {error}
           </div>
@@ -184,30 +203,29 @@ function ResetPasswordContent() {
         {mode === "otp" && (
           <>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label" style={{ fontWeight: 600 }}>Email Address</label>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>Email Address</label>
               <input
                 type="email"
                 className="form-input"
-                placeholder="Enter your registered email"
+                placeholder="Your registered email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ fontSize: "0.95rem", padding: "12px 16px" }}
+                style={{ fontSize: "var(--cm-text-sm)", padding: "10px 14px", width: "100%", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", boxSizing: "border-box" }}
               />
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label" style={{ fontWeight: 600 }}>6-Digit OTP Code</label>
+              <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>6-Digit OTP Code</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Enter 6-digit code from email"
+                placeholder="123456"
                 maxLength={6}
                 value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                 style={{
-                  fontSize: "1.5rem", fontWeight: 800, letterSpacing: "8px",
-                  textAlign: "center", padding: "14px 16px",
-                  fontFamily: "'Courier New', monospace",
-                  background: "#f8fafc",
+                  fontSize: "1.3rem", fontWeight: 800, textAlign: "center",
+                  letterSpacing: "0.25em", padding: "10px 14px", fontFamily: "monospace",
+                  width: "100%", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", boxSizing: "border-box"
                 }}
               />
             </div>
@@ -217,15 +235,15 @@ function ResetPasswordContent() {
         {/* Token Mode Field */}
         {mode === "token" && !token && (
           <div className="form-group" style={{ marginBottom: 14 }}>
-            <label className="form-label" style={{ fontWeight: 600 }}>Reset Token (from email link)</label>
+            <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>Reset Token (from email link)</label>
             <textarea
               className="form-input"
               placeholder="Paste the token from your email reset link here..."
               rows={3}
-              style={{ fontSize: "0.8rem", fontFamily: "monospace", resize: "none" }}
+              style={{ fontSize: "var(--cm-text-xs)", fontFamily: "monospace", resize: "none", width: "100%", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", boxSizing: "border-box", padding: 10 }}
             />
-            <p style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
-              💡 Tip: It&apos;s easier to just click the reset button directly in your email
+            <p style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
+              Tip: It&apos;s easier to just click the reset button directly in your email
             </p>
           </div>
         )}
@@ -233,29 +251,29 @@ function ResetPasswordContent() {
         {/* Auto token info */}
         {token && (
           <div style={{
-            padding: 12, background: "#ecfdf5", borderRadius: 8,
-            border: "1px solid #a7f3d0", marginBottom: 14,
-            fontSize: "0.82rem", color: "#065f46"
+            padding: 12, background: "var(--cm-done-surface)", borderRadius: "var(--cm-radius-sm)",
+            border: "1px solid var(--cm-done-line)", marginBottom: 14,
+            fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", display: "flex", alignItems: "center", gap: 6, fontWeight: 700
           }}>
-            ✅ Reset token auto-detected from email link
+            <CheckCircle2 size={14} /> Reset token auto-detected from email link
           </div>
         )}
 
         {/* New Password */}
         <div className="form-group" style={{ marginBottom: 14 }}>
-          <label className="form-label" style={{ fontWeight: 600 }}>New Password</label>
+          <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>New Password</label>
           <input
             type="password"
             className="form-input"
             placeholder="Minimum 8 characters"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            style={{ fontSize: "0.95rem", padding: "12px 16px" }}
+            style={{ fontSize: "var(--cm-text-sm)", padding: "10px 14px", width: "100%", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", boxSizing: "border-box" }}
           />
           {newPassword.length > 0 && (
             <div style={{ marginTop: 8 }}>
               <div style={{
-                height: 4, borderRadius: 4, background: "#e2e8f0",
+                height: 4, borderRadius: 4, background: "var(--cm-surface-2)",
                 overflow: "hidden", marginBottom: 4
               }}>
                 <div style={{
@@ -265,7 +283,7 @@ function ResetPasswordContent() {
                   transition: "all 0.3s ease"
                 }} />
               </div>
-              <span style={{ fontSize: "0.72rem", color: strength.color, fontWeight: 600 }}>
+              <span style={{ fontSize: "0.72rem", color: strength.color, fontWeight: 700 }}>
                 {strength.label}
               </span>
             </div>
@@ -274,7 +292,7 @@ function ResetPasswordContent() {
 
         {/* Confirm Password */}
         <div className="form-group" style={{ marginBottom: 24 }}>
-          <label className="form-label" style={{ fontWeight: 600 }}>Confirm New Password</label>
+          <label className="form-label" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>Confirm New Password</label>
           <input
             type="password"
             className="form-input"
@@ -282,18 +300,18 @@ function ResetPasswordContent() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             style={{
-              fontSize: "0.95rem", padding: "12px 16px",
-              borderColor: passwordsMatch ? "#22c55e" : passwordsMismatch ? "#ef4444" : undefined,
+              fontSize: "var(--cm-text-sm)", padding: "10px 14px", width: "100%", borderRadius: "var(--cm-radius-sm)", boxSizing: "border-box",
+              border: passwordsMatch ? "1px solid var(--cm-done)" : passwordsMismatch ? "1px solid var(--cm-urgent)" : "1px solid var(--cm-line-strong)",
             }}
           />
           {passwordsMatch && (
-            <span style={{ fontSize: "0.75rem", color: "#22c55e", fontWeight: 600, marginTop: 4, display: "block" }}>
-              ✅ Passwords match
+            <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <CheckCircle2 size={12} /> Passwords match
             </span>
           )}
           {passwordsMismatch && (
-            <span style={{ fontSize: "0.75rem", color: "#ef4444", fontWeight: 600, marginTop: 4, display: "block" }}>
-              ❌ Passwords do not match
+            <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-urgent)", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <AlertCircle size={12} /> Passwords do not match
             </span>
           )}
         </div>
@@ -301,26 +319,28 @@ function ResetPasswordContent() {
         <button
           type="button"
           onClick={handleSubmit}
-          className="btn btn-primary btn-full btn-lg"
+          className="cm-btn cm-btn--primary cm-btn--lg"
           disabled={loading || !newPassword || !confirmPassword || passwordsMismatch}
           style={{
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            borderRadius: 10, fontWeight: 700, padding: "14px 0",
-            boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             opacity: loading || !newPassword || !confirmPassword || passwordsMismatch ? 0.6 : 1,
           }}
         >
-          {loading ? "Resetting..." : "🔒 Reset Password"}
+          {loading ? "Resetting..." : (
+            <>
+              <Lock size={16} /> Reset Password
+            </>
+          )}
         </button>
 
         <div style={{ textAlign: "center", marginTop: 20 }}>
-          <a href="/auth/forgot-password" style={{ fontSize: "0.82rem", color: "#0284c7", fontWeight: 600 }}>
+          <Link href="/auth/forgot-password" style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", fontWeight: 700, textDecoration: "none" }}>
             Request a new code
-          </a>
-          <span style={{ margin: "0 10px", color: "#cbd5e1" }}>|</span>
-          <a href="/auth/login" style={{ fontSize: "0.82rem", color: "#64748b" }}>
+          </Link>
+          <span style={{ margin: "0 10px", color: "var(--cm-line-strong)" }}>|</span>
+          <Link href="/auth/login" style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textDecoration: "none" }}>
             Back to Login
-          </a>
+          </Link>
         </div>
       </div>
     </div>
@@ -330,10 +350,12 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="auth-page">
-        <div className="card auth-card" style={{ maxWidth: 460, margin: "0 auto", padding: 40, textAlign: "center" }}>
-          <div style={{ fontSize: "2rem", marginBottom: 12 }}>🔑</div>
-          <p style={{ color: "#64748b" }}>Loading reset form...</p>
+      <div className="auth-page" style={{ background: "var(--cm-surface)", minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        <div className="cm-card" style={{ maxWidth: 460, margin: "0 auto", padding: 40, textAlign: "center" }}>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>
+            <KeyRound size={24} />
+          </div>
+          <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-xs)" }}>Loading verification form...</p>
         </div>
       </div>
     }>

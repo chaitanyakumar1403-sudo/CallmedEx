@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import {
+  Search,
+  MapPin,
+  Home,
+  Stethoscope,
+  Pill,
+  Microscope,
+  Building2,
+  CheckCircle2,
+} from "lucide-react";
 
 interface Provider {
   provider_user_id: string;
@@ -27,16 +37,23 @@ interface CatalogItem {
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Provider-type visual language — icon + accent tint, derived from the subject.
-function visualFor(p: Provider): { icon: string; accent: string; tint: string; label: string } {
+// Provider-type visual language — derived from the subject.
+function visualFor(p: Provider): { type: string; accent: string; tint: string; label: string } {
   const t = (p.subtype || "").toLowerCase();
   const pt = (p.provider_type || "").toLowerCase();
-  if (pt === "doctor") return { icon: "🩺", accent: "#7c3aed", tint: "#f3ecfe", label: p.subtype || "Doctor" };
-  if (pt === "pharmacy") return { icon: "💊", accent: "#16a34a", tint: "#e8f7ee", label: "Pharmacy" };
-  if (t.includes("diagnostic") || t.includes("lab")) return { icon: "🧪", accent: "#0891b2", tint: "#e2f6fb", label: "Diagnostic Center" };
-  if (t.includes("hospital")) return { icon: "🏥", accent: "#4f46e5", tint: "#ecebfe", label: "Hospital" };
-  if (t.includes("clinic")) return { icon: "🏩", accent: "#0284c7", tint: "#e4f1fb", label: "Polyclinic" };
-  return { icon: "🏥", accent: "#1a2b4a", tint: "#e8edf5", label: p.subtype || "Facility" };
+  if (pt === "doctor") return { type: "doctor", accent: "var(--cm-active)", tint: "var(--cm-surface-2)", label: p.subtype || "Doctor" };
+  if (pt === "pharmacy") return { type: "pharmacy", accent: "var(--cm-done)", tint: "var(--cm-surface-2)", label: "Pharmacy" };
+  if (t.includes("diagnostic") || t.includes("lab")) return { type: "lab", accent: "var(--cm-active)", tint: "var(--cm-surface-2)", label: "Diagnostic Center" };
+  if (t.includes("hospital")) return { type: "hospital", accent: "var(--cm-navy)", tint: "var(--cm-surface-2)", label: "Hospital" };
+  if (t.includes("clinic")) return { type: "clinic", accent: "var(--cm-active)", tint: "var(--cm-surface-2)", label: "Polyclinic" };
+  return { type: "facility", accent: "var(--cm-navy)", tint: "var(--cm-surface-2)", label: p.subtype || "Facility" };
+}
+
+function renderVisualIcon(type: string, size = 20) {
+  if (type === "doctor") return <Stethoscope size={size} />;
+  if (type === "pharmacy") return <Pill size={size} />;
+  if (type === "lab") return <Microscope size={size} />;
+  return <Building2 size={size} />;
 }
 
 const FILTERS: { key: string; label: string; match: (p: Provider) => boolean }[] = [
@@ -124,7 +141,7 @@ export default function SearchPage() {
         {/* Search */}
         <form className="mkt-search" onSubmit={fetchProviders}>
           <div className="mkt-field">
-            <span className="mkt-ic" aria-hidden>🔍</span>
+            <span className="mkt-ic" aria-hidden><Search size={16} /></span>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -133,7 +150,7 @@ export default function SearchPage() {
             />
           </div>
           <div className="mkt-field">
-            <span className="mkt-ic" aria-hidden>📍</span>
+            <span className="mkt-ic" aria-hidden><MapPin size={16} /></span>
             <input
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
@@ -183,7 +200,7 @@ export default function SearchPage() {
               return (
                 <article key={p.provider_user_id} className="mkt-card">
                   <div className="mkt-avatar" style={{ background: v.tint, color: v.accent }}>
-                    <span aria-hidden>{v.icon}</span>
+                    {renderVisualIcon(v.type)}
                   </div>
 
                   <div className="mkt-body">
@@ -194,10 +211,16 @@ export default function SearchPage() {
                     <div className="mkt-meta">
                       <span className="mkt-type" style={{ color: v.accent, background: v.tint }}>{v.label}</span>
                       <span className="mkt-rate">★ {(p.rating ?? 5).toFixed(1)}</span>
-                      {loc && <span className="mkt-loc">📍 {loc}</span>}
+                      {loc && (
+                        <span className="mkt-loc" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                          <MapPin size={12} /> {loc}
+                        </span>
+                      )}
                     </div>
                     {p.home_service_enabled && (
-                      <span className="mkt-home">🏠 Home collection available</span>
+                      <span className="mkt-home" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <Home size={12} /> Home collection available
+                      </span>
                     )}
                   </div>
 
@@ -218,7 +241,9 @@ export default function SearchPage() {
 
           {!loading && hasSearched && results.length === 0 && (
             <div className="mkt-empty">
-              <span aria-hidden>🔎</span>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--cm-surface-2)", color: "var(--cm-ink-3)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>
+                <Search size={24} />
+              </div>
               <h3>No verified providers match</h3>
               <p>Try a different name, clear the location, or switch the filter above.</p>
             </div>
@@ -234,7 +259,7 @@ export default function SearchPage() {
 
             <div className="mkt-modal-head">
               <div className="mkt-avatar mkt-avatar-lg" style={{ background: visualFor(selected).tint, color: visualFor(selected).accent }}>
-                <span aria-hidden>{visualFor(selected).icon}</span>
+                {renderVisualIcon(visualFor(selected).type, 28)}
               </div>
               <div>
                 <div className="mkt-namerow">
@@ -245,7 +270,9 @@ export default function SearchPage() {
                   <span className="mkt-type" style={{ color: visualFor(selected).accent, background: visualFor(selected).tint }}>{visualFor(selected).label}</span>
                   <span className="mkt-rate">★ {(selected.rating ?? 5).toFixed(1)}</span>
                   {[selected.city, selected.state].filter(Boolean).length > 0 && (
-                    <span className="mkt-loc">📍 {[selected.city, selected.state].filter(Boolean).join(", ")}</span>
+                    <span className="mkt-loc" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <MapPin size={12} /> {[selected.city, selected.state].filter(Boolean).join(", ")}
+                    </span>
                   )}
                 </div>
               </div>
@@ -264,7 +291,11 @@ export default function SearchPage() {
                           <div className="mkt-item-name">{s.name}</div>
                           <div className="mkt-item-sub">
                             {s.category && <span className="mkt-tag">{s.category.replace(/_/g, " ")}</span>}
-                            {s.home_available && <span className="mkt-tag mkt-tag-home">🏠 home</span>}
+                            {s.home_available && (
+                              <span className="mkt-tag mkt-tag-home" style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                                <Home size={10} /> home
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="mkt-item-buy">

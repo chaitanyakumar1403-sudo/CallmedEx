@@ -1954,6 +1954,339 @@ input[type="radio"] {
   color: var(--cm-ink-3);
 }
 
+/* ============================================================================
+   Clinical Command Center & Premium Healthcare Layout Primitives (Wave 1)
+   ============================================================================ */
+
+/* Primary Command Center Grid */
+.cm-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1.15fr);
+  gap: var(--cm-6);
+  align-items: start;
+  margin-bottom: var(--cm-6);
+}
+
+@media (max-width: 1024px) {
+  .cm-command-grid {
+    grid-template-columns: 1fr;
+    gap: var(--cm-5);
+  }
+}
+
+/* Clinical Telemetry Metric Strip */
+.cm-metric-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--cm-4);
+  margin-bottom: var(--cm-6);
+}
+
+.cm-metric-card {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius);
+  padding: var(--cm-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-1);
+  box-shadow: var(--cm-shadow-1);
+  transition: transform var(--cm-fast) var(--cm-ease), box-shadow var(--cm-fast) var(--cm-ease);
+}
+
+.cm-metric-card:hover {
+  box-shadow: var(--cm-shadow-2);
+}
+
+.cm-metric-card__label {
+  font-size: var(--cm-text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cm-ink-3);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-1);
+}
+
+.cm-metric-card__value {
+  font-size: var(--cm-text-2xl);
+  font-weight: 800;
+  color: var(--cm-ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.cm-metric-card__meta {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-2);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-1);
+}
+
+/* Clinical Section Card */
+.cm-clinical-section {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  padding: var(--cm-6);
+  margin-bottom: var(--cm-6);
+  box-shadow: var(--cm-shadow-1);
+}
+
+.cm-clinical-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--cm-5);
+  padding-bottom: var(--cm-3);
+  border-bottom: 1px solid var(--cm-line);
+}
+
+.cm-clinical-section__title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--cm-3);
+}
+
+.cm-clinical-section__icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--cm-radius);
+  background: var(--cm-surface-2);
+  border: 1px solid var(--cm-line);
+  color: var(--cm-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-clinical-section__title {
+  margin: 0;
+  font-size: var(--cm-text-lg);
+  font-weight: 800;
+  color: var(--cm-ink);
+}
+
+.cm-clinical-section__subtitle {
+  margin: var(--cm-1) 0 0 0;
+  font-size: var(--cm-text-sm);
+  color: var(--cm-ink-3);
+}
+
+/* High-Density Clinical Table */
+.cm-clinical-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--cm-text-sm);
+}
+
+.cm-clinical-table th {
+  background: var(--cm-surface-2);
+  color: var(--cm-ink-2);
+  font-weight: 700;
+  font-size: var(--cm-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--cm-3) var(--cm-4);
+  text-align: left;
+  border-bottom: 1px solid var(--cm-line-strong);
+}
+
+.cm-clinical-table td {
+  padding: var(--cm-3) var(--cm-4);
+  border-bottom: 1px solid var(--cm-line);
+  color: var(--cm-ink);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.cm-clinical-table tbody tr:hover {
+  background: var(--cm-surface-2);
+}
+
+/* Clinical Timeline */
+.cm-clinical-timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: var(--cm-6);
+  margin: var(--cm-4) 0;
+}
+
+.cm-clinical-timeline::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 9px;
+  width: 2px;
+  background: var(--cm-line-strong);
+}
+
+.cm-clinical-timeline__step {
+  position: relative;
+  padding-bottom: var(--cm-5);
+}
+
+.cm-clinical-timeline__step:last-child {
+  padding-bottom: 0;
+}
+
+.cm-clinical-timeline__dot {
+  position: absolute;
+  left: calc(-1 * var(--cm-6) + 1px);
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--cm-surface);
+  border: 3px solid var(--cm-line-strong);
+  box-sizing: border-box;
+}
+
+.cm-clinical-timeline__step--active .cm-clinical-timeline__dot {
+  border-color: var(--cm-active);
+  background: var(--cm-surface);
+  box-shadow: 0 0 0 3px var(--cm-active-line);
+}
+
+.cm-clinical-timeline__step--done .cm-clinical-timeline__dot {
+  border-color: var(--cm-done);
+  background: var(--cm-done);
+}
+
+.cm-clinical-timeline__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cm-clinical-timeline__label {
+  font-size: var(--cm-text-sm);
+  font-weight: 700;
+  color: var(--cm-ink);
+}
+
+.cm-clinical-timeline__desc {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-3);
+}
+
+.cm-clinical-timeline__time {
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3D Anatomical Twin Canvas & Controls */
+.cm-twin-container {
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--cm-shadow-1);
+}
+
+.cm-twin-viewport {
+  width: 100%;
+  height: 480px;
+  position: relative;
+  background: radial-gradient(circle at 50% 50%, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cm-twin-overlay-hud {
+  position: absolute;
+  top: var(--cm-3);
+  left: var(--cm-4);
+  right: var(--cm-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.cm-twin-overlay-hud > * {
+  pointer-events: auto;
+}
+
+.cm-twin-controls {
+  position: absolute;
+  bottom: var(--cm-4);
+  right: var(--cm-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-2);
+  z-index: 10;
+}
+
+.cm-twin-ctrl-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--cm-radius-sm);
+  background: var(--cm-surface);
+  border: 1px solid var(--cm-line-strong);
+  color: var(--cm-ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--cm-shadow-1);
+  cursor: pointer;
+  transition: all var(--cm-fast) var(--cm-ease);
+}
+
+.cm-twin-ctrl-btn:hover {
+  background: var(--cm-surface-2);
+  color: var(--cm-ink);
+  border-color: var(--cm-navy);
+}
+
+.cm-twin-organ-chips {
+  display: flex;
+  gap: var(--cm-2);
+  overflow-x: auto;
+  padding: var(--cm-3) var(--cm-4);
+  background: var(--cm-surface);
+  border-top: 1px solid var(--cm-line);
+  scrollbar-width: none;
+}
+
+.cm-twin-organ-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cm-2);
+  padding: var(--cm-2) var(--cm-3);
+  border-radius: var(--cm-radius-pill);
+  border: 1px solid var(--cm-line);
+  background: var(--cm-surface);
+  color: var(--cm-ink-2);
+  font-size: var(--cm-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--cm-fast) var(--cm-ease);
+}
+
+.cm-twin-organ-chip:hover {
+  border-color: var(--cm-line-strong);
+  background: var(--cm-surface-2);
+}
+
+.cm-twin-organ-chip--selected {
+  background: var(--cm-navy);
+  color: var(--cm-surface);
+  border-color: var(--cm-navy);
+  font-weight: 700;
+}
+
+
 
 
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles, ShieldCheck } from "lucide-react";
 import healthPackages from "@/data/health-packages.json";
 import PackageAddonModal, { HealthPackageItem, SelectedAddonTest } from "@/app/components/PackageAddonModal";
 
@@ -66,10 +67,10 @@ export default function PackagesPage() {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 8,
-              background: "rgba(2, 132, 199, 0.1)",
-              border: "1px solid rgba(2, 132, 199, 0.25)",
-              color: "#0284c7",
+              gap: 6,
+              background: "var(--cm-active-surface)",
+              border: "1px solid var(--cm-active-line)",
+              color: "var(--cm-active)",
               padding: "6px 16px",
               borderRadius: 999,
               fontSize: "0.82rem",
@@ -77,7 +78,7 @@ export default function PackagesPage() {
               marginBottom: 12,
             }}
           >
-            🎁 100% TRANSPARENT HEALTH PACKAGES • VIZAG HOME COLLECTION INCLUDED
+            <ShieldCheck size={14} /> 100% Transparent Health Packages · Vizag Home Collection Included
           </div>
           <h1 style={{ fontSize: "2.4rem", fontWeight: 900, color: "#0f172a", margin: "0 0 8px" }}>
             Health Packages
@@ -248,7 +249,8 @@ export default function PackagesPage() {
                       marginBottom: 8,
                     }}
                   >
-                    <span>🎁 Add Tests & Save 30%</span>
+                    <Sparkles size={16} />
+                    <span>Add Tests &amp; Save 30%</span>
                   </button>
 
                   <button

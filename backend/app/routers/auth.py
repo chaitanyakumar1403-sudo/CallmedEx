@@ -405,9 +405,9 @@ async def signup(user: UserSignup):
         role_display = user.role.value.replace("_", " ").title()
         mou_sent_to = mou_recipient if mou_recipient != user.email else user.email
 
-        message = f"Registration initiated. A {role_display} MOU has been sent to {mou_sent_to}. The owner must review and accept it to activate the account."
+        message = f"Registration initiated. A {role_display} MOU has been dispatched to {mou_sent_to}. The verified owner must review and accept it to activate the account."
         if not email_sent:
-            message = f"Registration initiated but email delivery failed. Please use the magic link to accept the {role_display} MOU and activate the account."
+            message = f"Registration initiated. However, email dispatch to {mou_sent_to} encountered an issue. Our onboarding team has been notified, or you can contact support."
 
         return APIResponse(
             success=True,
@@ -416,8 +416,6 @@ async def signup(user: UserSignup):
                 "status": "pending_mou",
                 "role": user.role.value,
                 "mou_sent_to": mou_sent_to,
-                "mou_token": mou_token,
-                "magic_link": magic_link,
                 "email_sent": email_sent,
             },
         )

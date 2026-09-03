@@ -1,164 +1,323 @@
-export default function Home() {
+import Link from "next/link";
+import {
+  Microscope,
+  Video,
+  Pill,
+  Home,
+  ShieldCheck,
+  Languages,
+  Navigation,
+  CheckCircle2,
+  Activity,
+  ArrowRight,
+  Sparkles,
+  HeartPulse,
+  Clock,
+  Award,
+} from "lucide-react";
+
+export default function HomePage() {
   return (
-    <>
-      {/* ─── Hero Section ─────────────────────────────────────────── */}
-      <section className="hero">
-        <div className="container">
-          <div className="hero__content">
-            <h1>
-              Your Health, <span>Orchestrated</span> by AI
+    <div style={{ backgroundColor: "var(--cm-surface)", color: "var(--cm-ink)", minHeight: "100vh" }}>
+      {/* ─── Hero Section ─── */}
+      <section style={{ borderBottom: "1px solid var(--cm-line)", padding: "72px 24px 64px", background: "var(--cm-surface)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center" }}>
+          <div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: "999px", background: "var(--cm-active-surface)", border: "1px solid var(--cm-active-line)", color: "var(--cm-active)", fontSize: "var(--cm-text-xs)", fontWeight: 700, marginBottom: 20 }}>
+              <ShieldCheck size={14} /> National Health Authority (ABHA) Integrated
+            </div>
+
+            <h1 style={{ margin: "0 0 20px 0", fontSize: "clamp(2rem, 4vw, 3.2rem)", fontWeight: 900, color: "var(--cm-navy)", letterSpacing: "-0.02em", lineHeight: 1.15 }}>
+              India&apos;s High-Precision <span style={{ color: "var(--cm-active)" }}>Clinical Healthcare</span> Operating System
             </h1>
-            <p>
-              Book diagnostic tests, video consultations, pharmacy deliveries, and home
-              sample collections — all from one ABHA-linked platform. Real doctors.
-              Real-time tracking. Real care.
+
+            <p style={{ margin: "0 0 32px 0", fontSize: "var(--cm-text-base)", color: "var(--cm-ink-2)", lineHeight: 1.6, maxWidth: 540 }}>
+              Book doorstep phlebotomy, verified NMC doctor teleconsultations, and doorstep nursing care with real-time GPS chain-of-custody tracking.
             </p>
-            <div className="hero__actions">
-              <a href="/auth/signup" className="btn btn-teal btn-lg">
-                Get Started Free
-              </a>
-              <a href="/diagnostics" className="btn btn-secondary btn-lg" style={{ borderColor: '#fff', color: '#fff' }}>
-                Book a Test
-              </a>
+
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 40 }}>
+              <Link href="/auth/signup" className="cm-btn cm-btn--primary cm-btn--lg" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                Get Started Free <ArrowRight size={16} />
+              </Link>
+              <Link href="/diagnostics" className="cm-btn cm-btn--secondary cm-btn--lg" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                Book Diagnostic Test
+              </Link>
             </div>
-            <div className="hero__stats">
-              <div className="hero__stat">
-                <div className="hero__stat-number">50+</div>
-                <div className="hero__stat-label">Partner Clinics</div>
+
+            {/* Metrics Ticker */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, borderTop: "1px solid var(--cm-line)", paddingTop: 24 }}>
+              <div>
+                <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 900, color: "var(--cm-navy)", fontVariantNumeric: "tabular-nums" }}>50+</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600 }}>NABL Accredited Labs</div>
               </div>
-              <div className="hero__stat">
-                <div className="hero__stat-number">200+</div>
-                <div className="hero__stat-label">Diagnostic Tests</div>
+              <div>
+                <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 900, color: "var(--cm-active)", fontVariantNumeric: "tabular-nums" }}>200+</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600 }}>Verified Biomarkers</div>
               </div>
-              <div className="hero__stat">
-                <div className="hero__stat-number">10K+</div>
-                <div className="hero__stat-label">Patients Served</div>
+              <div>
+                <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 900, color: "var(--cm-done)", fontVariantNumeric: "tabular-nums" }}>10K+</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600 }}>Patients Served</div>
               </div>
             </div>
           </div>
-          <div className="hero__visual">
-            {/* Decorative medical illustration */}
-            <div style={{
-              width: 400, height: 400, borderRadius: '50%',
-              background: 'radial-gradient(circle at 30% 30%, rgba(34,211,238,0.2), rgba(26,43,74,0.3))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '8rem', backdropFilter: 'blur(10px)',
-              border: '2px solid rgba(255,255,255,0.1)',
-            }}>
-              🏥
+
+          {/* Hero Visual Card: Clinical Status Preview */}
+          <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.06)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid var(--cm-line)", paddingBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center" }}>
+                  <HeartPulse size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Live Clinical Dispatch</div>
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", display: "flex", alignItems: "center", gap: 4, fontWeight: 700 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cm-done)" }} /> 24/7 Network Active
+                  </div>
+                </div>
+              </div>
+              <span className="cm-pill cm-pill--active">Vizag Command</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Microscope size={18} style={{ color: "var(--cm-active)" }} />
+                  <div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>Complete Blood Count (CBC)</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Home Collection · Phlebotomist En Route</div>
+                  </div>
+                </div>
+                <span className="cm-pill cm-pill--waiting">ETA 12m</span>
+              </div>
+
+              <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Video size={18} style={{ color: "var(--cm-done)" }} />
+                  <div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>General Physician Teleconsult</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>HD WebRTC Exam Room · Scribe Active</div>
+                  </div>
+                </div>
+                <span className="cm-pill cm-pill--done">Connected</span>
+              </div>
+
+              <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Pill size={18} style={{ color: "var(--cm-navy)" }} />
+                  <div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>Prescription Dispensation</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Licensed Jan Aushadhi Partner Pharmacy</div>
+                  </div>
+                </div>
+                <span className="cm-pill cm-pill--active">Verified</span>
+              </div>
+            </div>
+
+            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--cm-line)", paddingTop: 14 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Zero Data Leakage Guarantee
+              </span>
+              <span style={{ fontWeight: 700, color: "var(--cm-ink)" }}>NMC 2026 Compliant</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── Services Section ─────────────────────────────────────── */}
-      <section className="section" style={{ background: '#fff' }}>
-        <div className="container">
-          <div className="section-title">
-            <h2>Healthcare Services, Reimagined</h2>
-            <p>From diagnostic tests to pharmacy deliveries — all connected through one intelligent platform</p>
+      {/* ─── Services Section ─── */}
+      <section style={{ padding: "64px 24px", background: "var(--cm-surface)", borderBottom: "1px solid var(--cm-line)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ margin: "0 0 10px 0", fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-navy)" }}>
+              Clinical Healthcare Services, Coordinated
+            </h2>
+            <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", maxWidth: 540, marginInline: "auto" }}>
+              From door-to-lab diagnostic sample custody to HD video teleconsultations — seamlessly orchestrated on one verified canvas.
+            </p>
           </div>
-          <div className="grid-4">
-            <div className="card service-card">
-              <div className="service-card__icon service-card__icon--diagnostics">🔬</div>
-              <h3>Diagnostics</h3>
-              <p>Book lab tests online. Choose home collection or visit a partner center. Get AI-interpreted results.</p>
-              <a href="/diagnostics" className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>Book Now</a>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
+            {/* Card 1 */}
+            <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                  <Microscope size={22} />
+                </div>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  Home Diagnostics &amp; Lab Tests
+                </h3>
+                <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                  Certified phlebotomists at your doorstep with barcode-sealed tubes, temperature sensors, and rapid NABL lab processing.
+                </p>
+              </div>
+              <Link href="/diagnostics" className="cm-btn cm-btn--secondary cm-btn--sm" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                Explore 200+ Tests <ArrowRight size={14} />
+              </Link>
             </div>
-            <div className="card service-card">
-              <div className="service-card__icon service-card__icon--consult">👨‍⚕️</div>
-              <h3>Video Consultation</h3>
-              <p>Connect with verified doctors via video call. Live translated captions. AI-generated prescriptions.</p>
-              <a href="/consultation" className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>Consult Now</a>
+
+            {/* Card 2 */}
+            <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                  <Video size={22} />
+                </div>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  Telemedicine Consultations
+                </h3>
+                <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                  Connect with verified NMC doctors over encrypted WebRTC video. Real-time clinical transcription and official generic e-Rx.
+                </p>
+              </div>
+              <Link href="/consultation" className="cm-btn cm-btn--secondary cm-btn--sm" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                Consult Specialist <ArrowRight size={14} />
+              </Link>
             </div>
-            <div className="card service-card">
-              <div className="service-card__icon service-card__icon--pharmacy">💊</div>
-              <h3>Pharmacy</h3>
-              <p>Order medicines from the nearest pharmacy. One-tap e-prescription ordering. Delivery tracking.</p>
-              <a href="/pharmacy" className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>Order Medicines</a>
+
+            {/* Card 3 */}
+            <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                  <Pill size={22} />
+                </div>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  Prescription Pharmacy
+                </h3>
+                <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                  Direct transmission of your doctor&apos;s e-Rx to licensed neighborhood pharmacies with generic cost savings and tracking.
+                </p>
+              </div>
+              <Link href="/pharmacy" className="cm-btn cm-btn--secondary cm-btn--sm" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                Upload &amp; Order <ArrowRight size={14} />
+              </Link>
             </div>
-            <div className="card service-card">
-              <div className="service-card__icon service-card__icon--home">🏠</div>
-              <h3>Home Collection</h3>
-              <p>Phlebotomist at your doorstep. Live GPS tracking. Chain-of-custody for every sample.</p>
-              <a href="/booking?type=home_collection" className="btn btn-secondary btn-sm" style={{ marginTop: 16 }}>Book Now</a>
+
+            {/* Card 4 */}
+            <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-waiting)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                  <Home size={22} />
+                </div>
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  Doorstep Nursing &amp; Therapy
+                </h3>
+                <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                  Sterile wound dressing, post-op IV infusions, and bedside physiotherapy mobilizations dispatched to your residence.
+                </p>
+              </div>
+              <Link href="/booking?type=home_collection" className="cm-btn cm-btn--secondary cm-btn--sm" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                Book Home Visit <ArrowRight size={14} />
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── Why CallMedex Section ────────────────────────────────── */}
-      <section className="section" style={{ background: '#fff' }}>
-        <div className="container">
-          <div className="section-title">
-            <h2>Why Thousands Choose CallMedex</h2>
-            <p>Built different from legacy healthcare platforms</p>
+      {/* ─── Clinical Excellence Pillars ─── */}
+      <section style={{ padding: "64px 24px", background: "var(--cm-surface-2)", borderBottom: "1px solid var(--cm-line)" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ margin: "0 0 10px 0", fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-navy)" }}>
+              Engineered for Healthcare Rigor
+            </h2>
+            <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", maxWidth: 540, marginInline: "auto" }}>
+              Built with zero shortcuts in patient data privacy, provider licensing, and medical accuracy.
+            </p>
           </div>
-          <div className="grid-3">
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>🔗</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>ABHA-Linked Records</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Your health records follow you, not the hospital. Connected to India&apos;s national health data network.
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <ShieldCheck size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                ABHA &amp; National Health Grid
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Your diagnostic reports and digital e-prescriptions are linked directly to your 14-digit Ayushman Bharat Health Account (ABHA).
               </p>
             </div>
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>🤖</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>AI-Powered Insights</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Lab reports explained in plain language. Abnormal values flagged automatically. Trends tracked over time.
+
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <Sparkles size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Verified Clinical Interpretation
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Every report includes structured bio-marker ranges, flags out-of-range parameters, and pairs recommendations with licensed specialists.
               </p>
             </div>
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>📱</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>WhatsApp-Native</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Book appointments, receive reports, and get reminders — all via WhatsApp. No app download needed.
+
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <Languages size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Multilingual Consultations
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Live translated speech captions during video calls across Telugu, Hindi, Tamil, and English for accessible healthcare.
               </p>
             </div>
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>🌐</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>Multilingual Captions</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Live translated captions during video consults. Speak your language — the doctor sees translated text.
+
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <Navigation size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Live GPS Telemetry
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Track home phlebotomist and nursing dispatch with live countdown, distance meters, and two-party OTP arrival handshakes.
               </p>
             </div>
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>📍</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>Live Tracking</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Track your phlebotomist in real-time, like tracking a delivery. ETA, distance, and arrival notifications.
+
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <Award size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                100% NMC Registered Doctors
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Every doctor is authenticated against National Medical Commission state council records before they can consult on CallMedex.
               </p>
             </div>
-            <div className="card" style={{ textAlign: 'center', padding: '32px 24px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 16 }}>✅</div>
-              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', marginBottom: 8 }}>Verified Providers</h3>
-              <p style={{ color: 'var(--color-gray-500)', fontSize: '0.9rem' }}>
-                Every doctor verified against NMC registry. Every pharmacy license-checked. Trust scores visible.
+
+            <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", marginBottom: 16 }}>
+                <Clock size={22} />
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Zero-Hold Booking Flow
+              </h3>
+              <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                Instant booking confirmation via WhatsApp and SMS with calibrated morning fasting slots and prep instructions.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── CTA Section ──────────────────────────────────────────── */}
-      <section className="section" style={{
-        background: 'linear-gradient(135deg, var(--color-navy-dark) 0%, var(--color-navy) 100%)',
-        color: '#fff', textAlign: 'center'
-      }}>
-        <div className="container">
-          <h2 style={{ color: '#fff', marginBottom: 16 }}>Ready to Experience Healthcare, Reimagined?</h2>
-          <p style={{ color: 'var(--color-gray-300)', maxWidth: 500, margin: '0 auto 32px', fontSize: '1.1rem' }}>
-            Join thousands of patients and healthcare providers on India&apos;s smartest healthcare platform.
+      {/* ─── Call to Action Section ─── */}
+      <section style={{ padding: "64px 24px", background: "var(--cm-navy)", color: "#ffffff", textAlign: "center" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <h2 style={{ color: "#ffffff", margin: "0 0 16px 0", fontSize: "var(--cm-text-2xl)", fontWeight: 800 }}>
+            Experience Next-Generation Clinical Healthcare Today
+          </h2>
+          <p style={{ color: "#cbd5e1", maxWidth: 560, margin: "0 auto 32px auto", fontSize: "var(--cm-text-base)", lineHeight: 1.6 }}>
+            Join thousands of patients, certified phlebotomists, and NMC doctors on India&apos;s most reliable health platform.
           </p>
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a href="/auth/signup" className="btn btn-teal btn-lg">Create Your Account</a>
-            <a href="/auth/signup?role=doctor" className="btn btn-lg" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)' }}>
-              Register as Provider
-            </a>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link href="/auth/signup" className="cm-btn cm-btn--primary cm-btn--lg" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              Create Patient Account <ArrowRight size={16} />
+            </Link>
+            <Link href="/auth/signup?role=doctor" className="cm-btn cm-btn--secondary cm-btn--lg" style={{ background: "rgba(255,255,255,0.1)", color: "#ffffff", borderColor: "rgba(255,255,255,0.3)" }}>
+              Register as Medical Provider
+            </Link>
           </div>
         </div>
       </section>
-    </>
+    </div>
   );
 }
