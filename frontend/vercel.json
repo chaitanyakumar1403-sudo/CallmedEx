@@ -4,12 +4,6 @@
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
   "outputDirectory": ".next",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://staging-api.callmedex.com/api/:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",

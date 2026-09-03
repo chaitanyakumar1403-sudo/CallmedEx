@@ -29,13 +29,20 @@ export default function LoginPage() {
     const password = passwordRef.current?.value || "";
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+      const res = await fetch(`${apiBase}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(rawText && rawText.length < 300 ? rawText : `Server returned ${res.status} ${res.statusText}`);
+      }
 
       if (!res.ok) {
         const errorMsg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
