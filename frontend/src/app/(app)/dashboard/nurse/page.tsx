@@ -273,7 +273,6 @@ export default function NurseDashboard() {
           title="Nurse Doorstep Care Station"
           providerType="nurse"
           embedded
-          earningsRate={350}
         />
       </div>
 

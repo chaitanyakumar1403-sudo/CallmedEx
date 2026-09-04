@@ -15,7 +15,7 @@ export const PhlebotomistRadar: React.FC<Props> = ({
   phleboName = 'Ravi Kumar (Certified Phlebotomist)',
   etaMinutes = 8,
   temperatureCelsius = 4.2,
-  otpPin = '4829',
+  otpPin,
   speedKmh = 24,
 }) => {
   return (
@@ -70,10 +70,15 @@ export const PhlebotomistRadar: React.FC<Props> = ({
             Doorstep Verification OTP
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: 900, letterSpacing: 4, background: '#fff', color: '#0284c7', padding: '4px 12px', borderRadius: 8, display: 'inline-block' }}>
-            {otpPin}
+            {/* No invented PIN. Until the collector marks themselves arrived
+                the backend does not release one, and printing a placeholder
+                that looks like a code is worse than showing none. */}
+            {otpPin || "••••"}
           </div>
           <div style={{ fontSize: '0.68rem', color: '#e0f2fe', marginTop: 6 }}>
-            Share only upon phlebotomist arrival
+            {otpPin
+              ? "Share only upon phlebotomist arrival"
+              : "Your OTP appears here once the collector arrives"}
           </div>
         </div>
       </div>

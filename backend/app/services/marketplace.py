@@ -573,7 +573,9 @@ class MarketplaceService:
                 "provider_type": provider.get("subtype") or provider.get("provider_type"),
                 "city": provider.get("city", ""),
                 "state": provider.get("state", ""),
-                "rating": _num(provider.get("rating"), 5.0),
+                # None, not 5.0. Defaulting an unrated partner to a perfect
+                # score put a five-star badge on a centre nobody has reviewed.
+                "rating": provider.get("rating"),
                 "home_available": bool(svc.get("home_available")),
                 "urgent_available": bool(svc.get("urgent_available")),
                 "turnaround_hours": svc.get("turnaround_hours") or (
@@ -638,12 +640,45 @@ class MarketplaceService:
                         if already_has:
                             continue
 
-                        # Use the catalog MRP as the fixed rate for PC-serviced tests
-                        mrp = _num(test.get("mrp")) or _num(test.get("base_price", 0))
+                        # Lab tests and health packages are priced by CallMedex,
+                        # not by the centre: the patient books at the platform
+                        # rate, a phlebotomist collects, and the sample goes to
+                        # whichever partner centre works for CallMedex. That
+                        # fixed rate lives on service_catalog as reference_mrp /
+                        # reference_offer_price (database/catalog_master_data.sql).
+                        #
+                        # This read `test.get("mrp")`, which no service_catalog
+                        # row has -- _load_catalog does select("*") and the
+                        # column is called reference_mrp. So every real test
+                        # missed and fell through to a hardcoded 599, which is
+                        # what the patient was quoted and what create-order then
+                        # billed, whatever CallMedex had actually fixed.
+                        mrp = (
+                            _num(test.get("reference_mrp"))
+                            or _num(test.get("mrp"))
+                            or _num(test.get("base_price", 0))
+                        )
                         if mrp <= 0:
-                            mrp = 599.0  # Fallback default price for test packages if not specified
+                            # Nothing priced this test. A made-up figure would
+                            # commit the patient to a number nobody set, so the
+                            # offer is withheld instead.
+                            logger.warning(
+                                "PC fallback skipped for %s: no CallMedex price on record",
+                                test.get("id"),
+                            )
+                            continue
 
-                        pricing = PricingService.quote(mrp, 0.0, urgent=urgent)
+                        # reference_offer_price is the fixed price CallMedex
+                        # advertises; the gap to reference_mrp is the real,
+                        # platform-set saving rather than an invented one.
+                        offer_price = _num(test.get("reference_offer_price"))
+                        fixed_discount_pct = (
+                            round((mrp - offer_price) / mrp * 100, 2)
+                            if 0 < offer_price < mrp else 0.0
+                        )
+                        pricing = PricingService.quote(
+                            mrp, fixed_discount_pct, urgent=urgent
+                        )
                         offers.append({
                             "service_id": pc_svc_id,
                             "service_name": test.get("name"),
@@ -652,7 +687,7 @@ class MarketplaceService:
                             "provider_type": "processing_center",
                             "city": pc.get("city", ""),
                             "state": pc.get("state", ""),
-                            "rating": 5.0,
+                            "rating": None,
                             "home_available": True,
                             "urgent_available": True,
                             "turnaround_hours": test.get("typical_turnaround_hours"),
@@ -663,7 +698,7 @@ class MarketplaceService:
                 logger.error(f"PC area fallback failed: {e}")
 
         # Cheapest first: price is the comparison the patient actually came for.
-        offers.sort(key=lambda o: (o["payable"], -o["rating"]))
+        offers.sort(key=lambda o: (o["payable"], -(o["rating"] or 0.0)))
 
         return {
             "test": test,
@@ -717,7 +752,7 @@ class MarketplaceService:
         candidates = home_capable if (home and home_capable) else offers
         chosen = sorted(
             candidates,
-            key=lambda o: (o["payable"], -o["rating"], o.get("turnaround_hours") or 9999),
+            key=lambda o: (o["payable"], -(o["rating"] or 0.0), o.get("turnaround_hours") or 9999),
         )[0]
 
         return {
@@ -906,154 +941,241 @@ class MarketplaceService:
 
     @staticmethod
     def radiology_services_with_offers(city: Optional[str] = None) -> List[dict]:
-        """
-        Returns all canonical radiology and imaging services (X-Ray Single/Double,
-        Spine X-Ray Single/Double, ECG, PFT, Audiometry) accompanied by diagnostic
-        centres providing that service along with their respective prices.
+        """Canonical imaging services, each with the centres that genuinely offer it.
+
+        Everything a patient reads on this screen is attributed to a named, real
+        business, so every field has to come from a record someone actually
+        entered. The previous version manufactured most of it:
+
+          * `rating: 4.9 if verified else 4.7` and `reviews_count: 128` --
+            invented, for a real centre, while ratings.py holds the real ones.
+          * `accreditation: "NABL Accredited Diagnostic Center"` and
+            `equipment_type: "Schiller 12-Channel ... Electrocardiograph"` --
+            regulatory and equipment claims made on a third party behalf with
+            nothing behind them.
+          * `verified: True` hardcoded, and only *rejected* organisations were
+            filtered out, so a centre still awaiting verification was shown as
+            a "Registered Diagnostic Center".
+          * `price or mrp` -- a centre that had published no price was quoted at
+            the catalogue benchmark as though that were their rate.
+          * `savings`/`discount_pct` measured against that same benchmark, so
+            the "Save Rs X" was against a number the centre never quoted.
+          * `address` was read from `organizations.operating_hours` (the table
+            has no address column at all; the address lives on `users`).
+
+        Now: verified organisations only, joined to their real address, only
+        where they have published a price, priced through PricingService like
+        every other offer so the MOU split is identical, and rated from
+        provider_ratings or not at all. A service nobody offers comes back with
+        an empty `offers` list and `min_price: None` rather than a benchmark
+        figure dressed up as a bookable price.
         """
         canonical_services = CANONICAL_RADIOLOGY_SERVICES
-        target_city = (city or "Visakhapatnam").strip().title()
+        city_filter = (city or "").strip().lower()
 
-        # Pre-curated verified diagnostic network benchmarks for imaging
-        partner_templates = [
-            {
-                "id_suffix": "apex-imaging",
-                "center_name": "Apex Imaging & Radiodiagnostics",
-                "accreditation": "NABL & AERB Certified",
-                "address": "Dwaraka Nagar, Main Road",
-                "city": target_city,
-                "rating": 4.9,
-                "reviews_count": 384,
-                "discount_pct": 18,
-                "turnaround_hours": 2,
-                "equipment_type": "High-Frequency 500mA Digital Radiography",
-            },
-            {
-                "id_suffix": "vijaya-diag",
-                "center_name": "Vijaya Diagnostic & Imaging Centre",
-                "accreditation": "NABL Accredited Lab",
-                "address": "Maharanipeta, Near Collector Office",
-                "city": target_city,
-                "rating": 4.8,
-                "reviews_count": 512,
-                "discount_pct": 22,
-                "turnaround_hours": 3,
-                "equipment_type": "Computed Radiography (CR/DR) Dual Detector",
-            },
-            {
-                "id_suffix": "medall-healthcare",
-                "center_name": "Medall Healthcare & Scans",
-                "accreditation": "ISO 9001:2015 & NABL Certified",
-                "address": "Gajuwaka Junction, Highway Road",
-                "city": target_city,
-                "rating": 4.7,
-                "reviews_count": 296,
-                "discount_pct": 25,
-                "turnaround_hours": 4,
-                "equipment_type": "Digital Radiography & BPL 12-Lead Tracing",
-            },
-            {
-                "id_suffix": "apollo-radiology",
-                "center_name": "Apollo Clinic & Radiology Unit",
-                "accreditation": "JCI & NABL Accredited",
-                "address": "Waltair Uplands, VIP Road",
-                "city": target_city,
-                "rating": 4.9,
-                "reviews_count": 640,
-                "discount_pct": 12,
-                "turnaround_hours": 2,
-                "equipment_type": "Siemens Multix Impact Digital X-Ray System",
-            },
-        ]
+        if not supabase:
+            return [
+                {
+                    "id": s["id"], "slug": s["slug"], "name": s["name"],
+                    "category": s["category"], "sub_category": s["sub_category"],
+                    "typical_turnaround_hours": s["typical_turnaround_hours"],
+                    "benchmark_mrp": float(s["mrp"]),
+                    "min_price": None, "max_savings": 0.0,
+                    "preparation": s.get("preparation", ""),
+                    "description": s.get("description", ""),
+                    "offers_count": 0, "offers": [],
+                }
+                for s in canonical_services
+            ]
+
+        # -- Real, verified organisations, with the address the patient needs --
+        # organizations carries no address; users does. Without the join the
+        # card had nothing truthful to print in its address line.
+        org_by_id: dict = {}
+        try:
+            for o in _rows(
+                supabase.table("organizations")
+                .select("*, users!inner(id, full_name, address, city, district, state)")
+                .eq("verification_status", "verified")
+                .execute()
+            ):
+                org_by_id[o["id"]] = o
+        except Exception as e:
+            logger.error(f"radiology: organizations read failed: {e}")
+
+        try:
+            active_org_services = _rows(
+                supabase.table("organization_services")
+                .select("*").eq("is_active", True).gt("price", 0).execute()
+            )
+        except Exception as e:
+            logger.error(f"radiology: organization_services read failed: {e}")
+            active_org_services = []
+
+        try:
+            active_prov_services = _rows(
+                supabase.table("provider_services")
+                .select("*").eq("is_active", True).gt("base_price", 0).execute()
+            )
+        except Exception as e:
+            logger.error(f"radiology: provider_services read failed: {e}")
+            active_prov_services = []
+
+        # One index for both branches: an organisation commercial settings row
+        # hangs off its login user, the same key provider_services already uses.
+        index_ids = {
+            s["provider_user_id"] for s in active_prov_services if s.get("provider_user_id")
+        }
+        for o in org_by_id.values():
+            uid = (o.get("users") or {}).get("id") or o.get("user_id")
+            if uid:
+                index_ids.add(uid)
+        provider_index = MarketplaceService._provider_index(list(index_ids))
+
+        from app.services import ratings as _ratings
+        rating_summaries = _ratings.get_summaries(list(index_ids), db=supabase) if index_ids else {}
+
+        def _matches(svc: dict, name: str) -> bool:
+            """Does this published service name denote this canonical study?"""
+            name = (name or "").strip().lower()
+            if not name:
+                return False
+            slug = svc.get("slug", "")
+            rules = {
+                "x-ray-single": lambda n: "single" in n or "chest pa" in n or "pa view" in n or n == "x-ray",
+                "x-ray-double": lambda n: "double" in n or "2 view" in n or "two view" in n,
+                "spine-x-ray-single": lambda n: "spine" in n and "single" in n,
+                "spine-x-ray-double": lambda n: "spine" in n and ("double" in n or "2" in n or "two" in n),
+                "ecg-12-lead": lambda n: "ecg" in n or "electrocardiogram" in n,
+                "pft-spirometry": lambda n: "pft" in n or "pulmonary" in n or "spirometry" in n,
+                "audiometry-hearing-test": lambda n: "audiometry" in n or "hearing" in n,
+            }
+            rule = rules.get(slug)
+            if rule and rule(name):
+                return True
+            syns = [svc["name"].lower()] + [str(s).lower() for s in (svc.get("synonyms") or [])]
+            return any(syn in name or name in syn for syn in syns)
+
+        def _offer(*, provider_user_id, display_name, list_price, service_id,
+                   address, city_name, state, license_number, operating_hours,
+                   emergency_phone, head_of_institution, turnaround_hours,
+                   provider_kind) -> dict:
+            """One bookable offer, carrying only what a record actually holds."""
+            settings = provider_index.get(provider_user_id) or {}
+            # The centre published price is their list price, and the discount
+            # is the one they agreed in provider_settings. Routing it through
+            # PricingService is what keeps the 80/20 split and the discount cap
+            # identical to every other offer in the marketplace.
+            pricing = PricingService.quote(
+                list_price, _num(settings.get("partner_discount_pct"))
+            )
+            summary = rating_summaries.get(provider_user_id) or {}
+            return {
+                "provider_id": provider_user_id,
+                "provider_kind": provider_kind,
+                "service_id": service_id,
+                "center_name": display_name,
+                # Only a real registration number, never a manufactured
+                # accreditation claim. The UI omits the line when absent.
+                "license_number": license_number or "",
+                "address": address or "",
+                "city": city_name or "",
+                "state": state or "",
+                "operating_hours": operating_hours or "",
+                "emergency_phone": emergency_phone or "",
+                "head_of_institution": head_of_institution or "",
+                # None when nobody has rated them yet: an unrated centre is
+                # unrated, and the card drops the badge rather than inventing
+                # trust for a real business.
+                "rating": summary.get("average_stars"),
+                "reviews_count": summary.get("rating_count", 0),
+                "turnaround_hours": turnaround_hours,
+                "mrp": pricing["mrp"],
+                "callmedex_price": pricing["price"],
+                "savings": pricing["savings"],
+                "discount_pct": pricing["discount_pct"],
+                "verified": True,
+                "is_live": True,
+            }
 
         result: List[dict] = []
 
         for svc in canonical_services:
-            mrp = float(svc["mrp"])
             svc_offers: List[dict] = []
-            seen_provider_names = set()
+            seen: set = set()
 
-            # 1. Check live offers from DB if available
-            try:
-                live_res = MarketplaceService.find_offers(
-                    catalog_id=svc["id"], query=svc["name"], city=city, limit=20
-                )
-                for lo in (live_res.get("offers") or []):
-                    p_name = lo.get("provider_name") or "Diagnostic Partner"
-                    if p_name.lower() in seen_provider_names:
-                        continue
-                    seen_provider_names.add(p_name.lower())
-                    p_payable = float(lo.get("payable") or mrp)
-                    p_mrp = float(lo.get("mrp") or mrp)
-                    p_savings = max(0.0, p_mrp - p_payable)
-                    disc = round((p_savings / p_mrp) * 100) if p_mrp > 0 else 0
-                    svc_offers.append({
-                        "provider_id": lo.get("provider_user_id") or lo.get("service_id"),
-                        "center_name": p_name,
-                        "accreditation": "Verified Clinical Center",
-                        "address": f"{lo.get('city', '')} {lo.get('state', '')}".strip() or target_city,
-                        "city": lo.get("city") or target_city,
-                        "rating": float(lo.get("rating") or 4.8),
-                        "reviews_count": 150,
-                        "turnaround_hours": lo.get("turnaround_hours") or svc.get("typical_turnaround_hours", 4),
-                        "mrp": p_mrp,
-                        "callmedex_price": p_payable,
-                        "savings": p_savings,
-                        "discount_pct": disc,
-                        "equipment_type": "Certified Diagnostic System",
-                        "verified": True,
-                        "is_live": True,
-                    })
-            except Exception as e:
-                logger.error(f"Failed to query live offers for {svc['name']}: {e}")
-
-            # 2. Enrich with verified partner diagnostic network with differentiated pricing
-            for pt in partner_templates:
-                p_name = pt["center_name"]
-                if p_name.lower() in seen_provider_names:
+            for os_row in active_org_services:
+                if not _matches(svc, os_row.get("name", "")):
                     continue
-                seen_provider_names.add(p_name.lower())
+                org = org_by_id.get(os_row.get("organization_id"))
+                if not org:
+                    continue  # unverified, rejected, or no longer registered
+                u = org.get("users") or {}
+                uid = u.get("id") or org.get("user_id")
+                if not uid or (provider_index.get(uid) or {}).get("is_listed") is False:
+                    continue
+                org_city = u.get("city") or ""
+                haystack = f"{org_city} {u.get('district') or ''} {u.get('state') or ''}".lower()
+                if city_filter and city_filter not in haystack:
+                    continue
+                name = (org.get("organization_name") or "").strip()
+                if not name or name.lower() in seen:
+                    continue
+                seen.add(name.lower())
+                svc_offers.append(_offer(
+                    provider_user_id=uid,
+                    display_name=name,
+                    list_price=_num(os_row.get("price")),
+                    service_id=os_row.get("id"),
+                    address=u.get("address"),
+                    city_name=org_city,
+                    state=u.get("state"),
+                    license_number=org.get("license_number"),
+                    operating_hours=org.get("operating_hours"),
+                    emergency_phone=org.get("emergency_phone") or org.get("alternate_phone"),
+                    head_of_institution=org.get("head_of_institution"),
+                    turnaround_hours=svc.get("typical_turnaround_hours"),
+                    provider_kind="organization",
+                ))
 
-                disc_pct = pt["discount_pct"]
-                payable = round(mrp * (1.0 - (disc_pct / 100.0)))
-                savings = round(mrp - payable)
+            for ps in active_prov_services:
+                if not _matches(svc, ps.get("name", "")):
+                    continue
+                uid = ps.get("provider_user_id")
+                provider = provider_index.get(uid) or {}
+                if provider.get("verification_status") != "verified":
+                    continue
+                if provider.get("is_listed") is False:
+                    continue
+                p_city = provider.get("city") or ""
+                haystack = f"{p_city} {provider.get('district') or ''} {provider.get('state') or ''}".lower()
+                if city_filter and city_filter not in haystack:
+                    continue
+                name = (provider.get("display_name") or "").strip()
+                if not name or name.lower() in seen:
+                    continue
+                seen.add(name.lower())
+                svc_offers.append(_offer(
+                    provider_user_id=uid,
+                    display_name=name,
+                    list_price=_num(ps.get("base_price")),
+                    service_id=ps.get("id"),
+                    address="",  # provider_directory carries no street address
+                    city_name=p_city,
+                    state=provider.get("state"),
+                    license_number="",
+                    operating_hours="",
+                    emergency_phone="",
+                    head_of_institution="",
+                    turnaround_hours=ps.get("turnaround_hours") or svc.get("typical_turnaround_hours"),
+                    provider_kind=provider.get("provider_type") or "provider",
+                ))
 
-                # Custom equipment labeling per test type
-                sub_cat = svc.get("sub_category", "")
-                if sub_cat == "ecg_echo":
-                    equip = "Schiller 12-Channel High-Precision Electrocardiograph"
-                elif sub_cat == "pft":
-                    equip = "CareFusion Computerized Ultrasonic Spirometer"
-                elif sub_cat == "audiometry":
-                    equip = "Interacoustics Soundproof Booth & Pure Tone Audiometer"
-                elif "spine" in svc.get("slug", ""):
-                    equip = "High-kV Spine Digital Column Positioner"
-                else:
-                    equip = pt["equipment_type"]
-
-                svc_offers.append({
-                    "provider_id": f"prov-{pt['id_suffix']}",
-                    "center_name": p_name,
-                    "accreditation": pt["accreditation"],
-                    "address": pt["address"],
-                    "city": pt["city"],
-                    "rating": pt["rating"],
-                    "reviews_count": pt["reviews_count"],
-                    "turnaround_hours": pt["turnaround_hours"],
-                    "mrp": mrp,
-                    "callmedex_price": payable,
-                    "savings": savings,
-                    "discount_pct": disc_pct,
-                    "equipment_type": equip,
-                    "verified": True,
-                    "is_live": False,
-                })
-
-            # Sort offers: lowest price first
-            svc_offers.sort(key=lambda o: (o["callmedex_price"], -o["rating"]))
-
-            min_p = min((o["callmedex_price"] for o in svc_offers), default=mrp)
-            max_s = max((o["savings"] for o in svc_offers), default=0.0)
+            # Cheapest first; a rated centre only outranks an unrated one at the
+            # same price, and an unrated centre is not pushed to the bottom.
+            svc_offers.sort(
+                key=lambda o: (o["callmedex_price"], -(o["rating"] or 0.0))
+            )
 
             result.append({
                 "id": svc["id"],
@@ -1062,9 +1184,15 @@ class MarketplaceService:
                 "category": svc["category"],
                 "sub_category": svc["sub_category"],
                 "typical_turnaround_hours": svc["typical_turnaround_hours"],
-                "mrp": mrp,
-                "min_price": min_p,
-                "max_savings": max_s,
+                # Renamed from `mrp`: it is a catalogue benchmark, not any
+                # centre quoted price, and the card used to print it as
+                # "Standard Benchmark MRP" struck through against a real offer.
+                "benchmark_mrp": float(svc["mrp"]),
+                # None, not the benchmark, when nobody offers it -- otherwise the
+                # grid advertised a bookable price for a service with no centre
+                # behind it.
+                "min_price": min((o["callmedex_price"] for o in svc_offers), default=None),
+                "max_savings": max((o["savings"] for o in svc_offers), default=0.0),
                 "preparation": svc.get("preparation", ""),
                 "description": svc.get("description", ""),
                 "offers_count": len(svc_offers),

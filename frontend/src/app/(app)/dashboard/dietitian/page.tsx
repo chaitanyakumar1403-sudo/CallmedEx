@@ -385,7 +385,6 @@ export default function DietitianDashboard() {
         <ProviderDispatchTracker
           title="Doorstep Nutritional &amp; MNT Visits"
           providerType="dietitian"
-          earningsRate={640}
           embedded={true}
         />
       </div>

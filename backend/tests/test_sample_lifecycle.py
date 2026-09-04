@@ -74,6 +74,14 @@ class FakeQuery:
         self.filters.append(("gte", col, val))
         return self
 
+    def gt(self, col, val):
+        self.filters.append(("gt", col, val))
+        return self
+
+    def lt(self, col, val):
+        self.filters.append(("lt", col, val))
+        return self
+
     def is_(self, col, val):
         self.filters.append(("negated_is" if self._negate_next else "is", col, val))
         self._negate_next = False
@@ -133,6 +141,10 @@ class FakeQuery:
             if kind == "lte" and not (row.get(col) is not None and row[col] <= val):
                 return False
             if kind == "gte" and not (row.get(col) is not None and row[col] >= val):
+                return False
+            if kind == "gt" and not (row.get(col) is not None and row[col] > val):
+                return False
+            if kind == "lt" and not (row.get(col) is not None and row[col] < val):
                 return False
             if kind == "is" and val == "null" and row.get(col) is not None:
                 return False

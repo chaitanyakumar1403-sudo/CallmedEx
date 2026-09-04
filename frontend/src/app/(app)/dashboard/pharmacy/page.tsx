@@ -432,7 +432,6 @@ export default function PharmacyDashboard() {
                 <ProviderDispatchTracker
                   title="Pharmacy Delivery Dispatch"
                   providerType="pharmacy_delivery"
-                  earningsRate={100}
                 />
               </div>
             )}

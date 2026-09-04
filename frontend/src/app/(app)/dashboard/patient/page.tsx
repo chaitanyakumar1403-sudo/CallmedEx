@@ -312,8 +312,22 @@ export default function PatientDashboard() {
   // with nothing to tell this tab it now exists.
   useEffect(() => {
     if (activeDispatchId) return;
+    // Home COLLECTION was the only kind looked for, so a home VISIT — a
+    // physiotherapist, dietitian, nurse or doctor coming to the patient — was
+    // never discovered here. Its dispatch_id reached this page only via the
+    // localStorage entry the booking page writes, so booking on a phone and
+    // opening the dashboard on a laptop (or clearing site data, or booking
+    // over WhatsApp) left the patient with no tracking card and, worse, no
+    // arrival OTP — and the provider cannot start a visit without that OTP.
+    //
+    // Statuses past "confirmed" are included for the same reason: once the
+    // provider accepts, the booking moves to provider_accepted/in_progress,
+    // and a reload at that point must still find the visit in flight.
     const candidates = bookings.filter(
-      (b) => b.status === "confirmed" && b.booking_kind === "home_collection"
+      (b) =>
+        ["confirmed", "provider_accepted", "in_progress"].includes(b.status) &&
+        (b.booking_kind === "home_collection" ||
+          b.consultation_mode === "home_visit")
     );
     if (candidates.length === 0) return;
 
@@ -710,8 +724,15 @@ export default function PatientDashboard() {
           {FEATURE_FLAGS.ENABLE_EMERGENCY_SOS && <EmergencySOSWidget lang={lang} />}
           {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && <BiomarkerMatrix lang={lang} />}
           {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && <MedicineCabinetGrid lang={lang} />}
-          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && (
-            <PhlebotomistRadar otpPin={patientOtp || "4829"} />
+          {/* Cold-chain radar is sample-collection kit: it shows a carrier-box
+              temperature, so it must not render over a physiotherapy or
+              dietetics visit. And `patientOtp || "4829"` printed a FAKE
+              verification PIN over a real dispatch for the whole window before
+              the provider marked themselves arrived — the patient reads that
+              out, the provider's verify-OTP rejects it, and the visit stalls. */}
+          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId
+            && (trackingData?.provider_type || "phlebotomist") === "phlebotomist" && (
+            <PhlebotomistRadar otpPin={patientOtp ?? undefined} />
           )}
         </div>
 
@@ -828,6 +849,24 @@ export default function PatientDashboard() {
           };
 
           const otp = isReal ? patientOtp : "4829";
+
+          // Every string in this card used to say "phlebotomist". The card now
+          // also carries physiotherapy, dietetics, nursing and home-visit
+          // doctor dispatches, so a physiotherapy patient was being told we
+          // were "broadcasting to nearby certified phlebotomists" and shown
+          // NABL cold-chain badges for a session with no sample in it.
+          const PROVIDER_LABEL: Record<string, string> = {
+            phlebotomist: "Certified Phlebotomists",
+            nurse: "Home Nurses",
+            doctor: "Home-Visit Doctors",
+            dietitian: "Dietitians",
+            physiotherapist: "Physiotherapists",
+            ambulance: "Ambulances",
+            pharmacy_delivery: "Delivery Partners",
+          };
+          const providerType = isReal ? (trackingData.provider_type || "phlebotomist") : "phlebotomist";
+          const providerLabel = PROVIDER_LABEL[providerType] || "Providers";
+          const isCollection = providerType === "phlebotomist";
 
           return (
             <div className="cm-rapido-panel" style={{ animation: "fadeIn 0.4s ease-out" }}>
@@ -969,12 +1008,17 @@ export default function PatientDashboard() {
                     <Bike size={36} />
                   </div>
                   <h4 style={{ margin: "0 0 6px 0", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
-                    Broadcasting to Nearby Certified Phlebotomists...
+                    Broadcasting to nearby {providerLabel}...
                   </h4>
                   <p style={{ margin: "0 0 16px 0", fontSize: "0.85rem", color: "var(--cm-ink-3)", maxWidth: 500 }}>
-                    Scanning 8 verified NABL phlebotomists within 4.5 km of your location. Typical assignment takes under 2 minutes.
+                    {/* The old line quoted "8 verified NABL phlebotomists within
+                        4.5 km" and "under 2 minutes" — none of which this page
+                        is told; the tracking payload carries no candidate count
+                        and no radius. */}
+                    We are contacting verified providers near your location. You
+                    will see their name and live ETA here as soon as one accepts.
                   </p>
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                  <div style={{ display: isCollection ? "flex" : "none", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
                     <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.vaccinated}
                     </span>

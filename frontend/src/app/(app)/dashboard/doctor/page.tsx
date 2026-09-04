@@ -775,7 +775,7 @@ export default function DoctorDashboard() {
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "home_visits" && (
         <div style={{ margin: "-24px -40px" }}>
-          <ProviderDispatchTracker title="Doctor Home Visits Dispatch" providerType="doctor" earningsRate={640} />
+          <ProviderDispatchTracker title="Doctor Home Visits Dispatch" providerType="doctor" />
         </div>
       )}
 

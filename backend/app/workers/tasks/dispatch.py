@@ -71,6 +71,24 @@ def _alert_no_provider(dispatch: dict) -> None:
     dispatch_id = dispatch.get("id")
     patient_id = dispatch.get("patient_id")
 
+    # The sweep cancels the dispatch row with a raw table update, bypassing
+    # UniversalDispatchEngine.update_status and therefore the booking-status
+    # sync it carries. So the visit died while the booking stayed "confirmed":
+    # the patient's dashboard still showed a confirmed, paid appointment that
+    # no one was ever coming to, and no refund path was triggered.
+    booking_id = dispatch.get("booking_id")
+    if booking_id and supabase:
+        try:
+            supabase.table("bookings").update({
+                "status": "cancelled",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", booking_id).execute()
+        except Exception as e:
+            logger.error(
+                f"Could not cancel booking {booking_id} after dispatch "
+                f"{dispatch_id} expired: {e}"
+            )
+
     try:
         from app.services.ops_alerts import OpsAlertService
         OpsAlertService.create_alert(
@@ -259,6 +277,32 @@ def _expire_individual_offers(cutoff_iso: str):
         logger.error(f"_expire_individual_offers error: {e}")
 
 
+def _cancel_direct(dispatch_id: str) -> None:
+    """Close a direct dispatch nobody answered and tell the patient.
+
+    Delegates to the engine's own decline handler so the cancel reason, the
+    booking rollback and the patient notification stay defined in one place.
+    """
+    try:
+        import asyncio
+        from app.services.dispatch_engine import UniversalDispatchEngine
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                UniversalDispatchEngine._cancel_declined_direct(dispatch_id)
+            )
+        finally:
+            loop.close()
+        logger.info(
+            f"Dispatch {dispatch_id}: direct offer expired unanswered — "
+            "cancelled instead of re-offered."
+        )
+    except Exception as e:
+        logger.error(f"Could not cancel unanswered direct dispatch {dispatch_id}: {e}")
+
+
 def _try_re_fan_out(dispatch_id: str):
     """Attempt to find new providers for a dispatch whose offers expired/were rejected.
 
@@ -307,12 +351,28 @@ def _try_re_fan_out(dispatch_id: str):
         # Collect all providers who already declined or expired
         previous_offers = _rows(
             supabase.table("dispatch_offers")
-            .select("provider_id")
+            .select("provider_id, distance_km")
             .eq("dispatch_request_id", dispatch_id)
             .in_("status", ["rejected", "expired", "declined"])
             .execute()
         )
         excluded_ids = [o["provider_id"] for o in previous_offers]
+
+        # A direct dispatch is the one provider the patient chose by name and is
+        # paying that person's published rate for. create_direct_dispatch is the
+        # only path that offers with no distance, which is what identifies one.
+        #
+        # respond_to_offer._handle_decline already refuses to re-fan these, but
+        # the expiry sweep reached here without that check — so a chosen
+        # physiotherapist who simply did not answer within the window had their
+        # booking handed to whoever else was nearby, at a rate that patient
+        # never agreed to and from a provider they never picked. Close it and
+        # tell the patient instead, exactly as the decline path does.
+        if previous_offers and all(
+            o.get("distance_km") is None for o in previous_offers
+        ):
+            _cancel_direct(dispatch_id)
+            return
 
         # Widen radius
         base_radius = dispatch.get("search_radius_km") or 10.0

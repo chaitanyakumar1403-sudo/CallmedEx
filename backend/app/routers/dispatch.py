@@ -656,6 +656,7 @@ async def update_location_simple(
     "phlebotomist doesn't get notified" bug.
     """
     from app.database import supabase
+    from app.services.dispatch_engine import VALID_PROVIDER_TYPES
     from datetime import datetime, timezone
     import uuid as _uuid
     if supabase:
@@ -671,10 +672,17 @@ async def update_location_simple(
             }).eq("user_id", current_user["sub"]).execute()
             if not loc_result.data:
                 # Insert if no existing record (first time going online)
+                # The provider's own role, not a guess. The allow-list here
+                # stopped at doctor, so a dietitian, physiotherapist, ambulance
+                # or delivery partner whose row had to be created here was
+                # filed as a "phlebotomist": find_nearby_providers filters on
+                # provider_type, so they were invisible to every dispatch of
+                # their own kind — and visible as a phlebotomist to blood
+                # collection work they are not qualified to do.
                 supabase.table("provider_locations").insert({
                     "id": str(_uuid.uuid4()),
                     "user_id": current_user["sub"],
-                    "provider_type": role if role in ("phlebotomist", "nurse", "doctor") else "phlebotomist",
+                    "provider_type": role if role in VALID_PROVIDER_TYPES else "phlebotomist",
                     "is_online": True,
                     "current_lat": body.lat,
                     "current_lng": body.lng,

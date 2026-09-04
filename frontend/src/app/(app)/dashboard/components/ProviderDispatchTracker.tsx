@@ -63,17 +63,18 @@ interface ProviderDispatchTrackerProps {
    */
   embedded?: boolean;
   providerType: string;
-  earningsRate: number;
 }
 
-export default function ProviderDispatchTracker({ title, providerType, earningsRate, embedded = false }: ProviderDispatchTrackerProps) {
+export default function ProviderDispatchTracker({ title, providerType, embedded = false }: ProviderDispatchTrackerProps) {
   const router = useRouter();
   const [onDuty, setOnDuty] = useState(false);
   const [tasks, setTasks] = useState<DispatchTask[]>([]);
   // Separate state for pending offers (dispatch_offers, not yet accepted)
   const [offers, setOffers] = useState<any[]>([]);
   const [completedToday, setCompletedToday] = useState(0);
-  const [earnings, setEarnings] = useState(0);
+  // null = not known (the earnings call failed); never a fabricated figure.
+  const [earnings, setEarnings] = useState<number | null>(null);
+  const [earningsNote, setEarningsNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [dutyLoading, setDutyLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
@@ -198,7 +199,6 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         setTasks(filtered);
         const done = all.filter((t: DispatchTask) => t.status === "completed");
         setCompletedToday(done.length);
-        setEarnings(done.length * earningsRate);
         // Find current in-progress task
         const active = all.find((t: DispatchTask) =>
           ["provider_accepted", "en_route", "arrived", "in_progress"].includes(t.status)
@@ -206,7 +206,37 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         setActiveTask(active || null);
       }
     } catch (e) { console.error(e); }
-  }, [earningsRate]);
+  }, []);
+
+  // ─── Real earnings ────────────────────────────────────────────────────
+  // This used to be completedToday x a flat per-dashboard constant (640 for a
+  // dietitian, 350 for a nurse...), presented to the provider as "Today's
+  // earnings" in rupees. Payout is 80% of what the patient actually paid and
+  // every service in scope_catalogs carries its own price, so the figure was
+  // fiction that never errored. /payments/my-earnings is the server's own
+  // computed payout; when it cannot be read the stat shows nothing rather
+  // than a number nobody can stand behind.
+  const fetchEarnings = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/payments/my-earnings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { setEarnings(null); return; }
+      const data = await res.json();
+      const total = data?.earnings?.total_earned;
+      setEarnings(typeof total === "number" ? total : null);
+      const pending = data?.earnings?.pending_settlement;
+      setEarningsNote(
+        typeof pending === "number" && pending > 0
+          ? `₹${pending.toLocaleString("en-IN")} awaiting settlement`
+          : "settled to date"
+      );
+    } catch {
+      setEarnings(null);
+    }
+  }, []);
 
   const fetchOffers = useCallback(async () => {
     const token = getToken();
@@ -226,15 +256,17 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     fetchDutyStatus();
     fetchTasks();
     fetchOffers();
+    fetchEarnings();
     taskIntervalRef.current = setInterval(() => { fetchTasks(); fetchOffers(); }, 5000);
     return () => {
       if (taskIntervalRef.current) clearInterval(taskIntervalRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
-  }, [fetchDutyStatus, fetchTasks]);
+  }, [fetchDutyStatus, fetchTasks, fetchOffers, fetchEarnings]);
 
   // ─── GPS Location Broadcasting ────────────────────────────────────────
   const startLocationBroadcast = useCallback(() => {
+    if (locationIntervalRef.current) return; // already broadcasting
     if (!navigator.geolocation) {
       setLocationError("GPS not available on this device.");
       return;
@@ -274,6 +306,19 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
     }
   }, []);
 
+  // ─── Broadcast GPS whenever on duty ───────────────────────────────────
+  // Starting the broadcast inside handleToggleDuty was the only trigger, so a
+  // provider who was already on duty and simply reloaded the dashboard — or
+  // navigated away and back — stopped sending their position entirely. Nothing
+  // said so: fetchDutyStatus restored the toggle from the server, DutyBar kept
+  // showing "GPS live", and dispatch went on ranking them from a frozen
+  // location while the patient's tracking map watched a stationary dot.
+  // Duty state is the single source of truth for this now.
+  useEffect(() => {
+    if (onDuty) startLocationBroadcast();
+    else stopLocationBroadcast();
+  }, [onDuty, startLocationBroadcast, stopLocationBroadcast]);
+
   // ─── Toggle Duty ──────────────────────────────────────────────────────
   const onToggleClick = () => {
     if (!onDuty && providerType === "phlebotomist") {
@@ -297,14 +342,13 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
       if (res.ok) {
         setOnDuty(newStatus);
         if (newStatus) {
-          startLocationBroadcast();
+          // The effect above starts/stops the GPS broadcast off this state.
           // Request browser notification permission so offer alerts work
           if (typeof Notification !== "undefined" && Notification.permission === "default") {
             Notification.requestPermission();
           }
           setStatusMsg({ tone: "done", text: "You're now on duty — accepting dispatch requests" });
         } else {
-          stopLocationBroadcast();
           setStatusMsg({ tone: "active", text: "You're now off duty" });
         }
       } else {
@@ -385,6 +429,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
       if (data.success) {
         setStatusMsg({ tone: "done", text: `Status updated to: ${newStatus}` });
         fetchTasks();
+        if (newStatus === "completed") fetchEarnings();
       } else {
         setStatusMsg({ tone: "urgent", text: data.detail || "Update failed" });
       }
@@ -541,7 +586,7 @@ export default function ProviderDispatchTracker({ title, providerType, earningsR
         activeCount={tasks.length}
         completedToday={completedToday}
         earnings={earnings}
-        earningsRate={earningsRate}
+        earningsNote={earningsNote}
         onToggle={onToggleClick}
         onShowAllTasks={() => setShowAllTasks(true)}
       />

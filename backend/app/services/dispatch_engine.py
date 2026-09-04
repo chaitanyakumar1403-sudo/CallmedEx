@@ -323,7 +323,8 @@ class UniversalDispatchEngine:
         from app.services import ratings as _ratings
 
         summaries = _ratings.get_summaries(
-            [c.get("user_id") for c in candidates if c.get("user_id")]
+            [c.get("user_id") for c in candidates if c.get("user_id")],
+            db=supabase,
         )
         for c in candidates:
             summary = summaries.get(c.get("user_id") or "") or {}

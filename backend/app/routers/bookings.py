@@ -181,6 +181,18 @@ def _resolve_provider_fee(
     return fee if fee > 0 else None
 
 
+# The three values bookings_consultation_mode_check allows (see
+# database/booking_consultation_mode.sql). BookingCreate.consultation_mode is
+# free text off the wire, and writing an unlisted value straight through would
+# have Postgres reject the whole insert — turning a bad client string into a
+# failed booking rather than a mislabelled one.
+_CONSULTATION_MODES = {"in_person", "online", "home_visit"}
+
+
+def _normalised_mode(mode: Optional[str]) -> str:
+    return mode if mode in _CONSULTATION_MODES else "in_person"
+
+
 def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
     """True when a picked slot is already close enough that waiting for the
     next trigger_dispatch_for_upcoming_bookings poll tick (every 10 min)
@@ -535,15 +547,27 @@ async def create_booking(
         booking.home and allocation and not allocation["fulfilment"].get("walk_in_required")
     )
 
-    if is_diagnostic_review and not resolved_provider_id:
-        # Partner-blind diagnostic booking: patient selects date + time slot.
-        # When a specific time is given, confirm immediately.
-        # When only date is chosen (no time), the org reviews and allots later.
-        booking_status = (
-            BookingStatus.CONFIRMED.value
-            if slot_has_time
-            else BookingStatus.PENDING_REVIEW.value
-        )
+    # Partner-blind diagnostic booking: patient selects date + time slot.
+    # When a specific time is given, confirm immediately. When only a date is
+    # chosen, the centre reviews and allots the time later.
+    #
+    # The gate used to be `not resolved_provider_id`, which the allocation a few
+    # lines above always fills in — so it was never true and this whole branch
+    # was dead. Every walk-in diagnostic and dental booking without a time was
+    # written CONFIRMED against a 00:00–23:59 slot: the centre's pending-review
+    # queue stayed empty, /allot-slot refused the booking because it was already
+    # confirmed, and the patient held a "confirmed" appointment with no time on
+    # it. What actually decides this is whether a time was picked.
+    #
+    # Home collection is excluded on purpose: there the phlebotomist is
+    # dispatched to the patient inside the day's window, so there is no centre
+    # slot to allot and the roster/dispatch machinery below owns the booking.
+    needs_org_review = (
+        is_diagnostic_review and not slot_has_time and not is_home_collection
+    )
+
+    if needs_org_review:
+        booking_status = BookingStatus.PENDING_REVIEW.value
         booking_data = {
             "id": booking_id,
             "patient_id": current_user["sub"],
@@ -558,6 +582,7 @@ async def create_booking(
             "notes": booking.notes or "",
             "selected_tests": booking.selected_tests or [],
             "total_price": resolved_price,
+            "consultation_mode": _normalised_mode(booking.consultation_mode),
             "created_at": now,
         }
     else:
@@ -575,6 +600,14 @@ async def create_booking(
             "notes": booking.notes or "",
             "selected_tests": booking.selected_tests or [],
             "total_price": resolved_price,
+            # The mode decides the price (_resolve_provider_fee reads
+            # home_visit_fee vs consultation_fee) and decides whether a
+            # dispatch is raised, but it was never written to the row — so
+            # afterwards nothing could tell a home visit from a clinic visit:
+            # not the patient dashboard looking for a visit to track, not the
+            # provider's day list, not a billing query asking why this booking
+            # cost Rs 800.
+            "consultation_mode": _normalised_mode(booking.consultation_mode),
             "created_at": now,
         }
 
@@ -833,11 +866,20 @@ async def create_booking(
         "Booking confirmed — your time slot has been booked."
         if slot_has_time
         else "Booking submitted for review. The diagnostic centre will allot your time slot."
-        if is_diagnostic_review and not resolved_provider_id
+        if needs_org_review
         else "Booking confirmed"
     )
 
-    if supabase and booking_data.get("status") == BookingStatus.CONFIRMED.value:
+    # A booking parked in the org's review queue is still a booking someone has
+    # to act on. The gate used to be CONFIRMED-only, so a patient who booked a
+    # root canal or a diagnostic without picking a time landed in the centre's
+    # pending-review queue and NOBODY was told — no email, no in-app row, no
+    # push. The centre found out whenever they next happened to open the tab.
+    _booking_status = booking_data.get("status")
+    _is_confirmed = _booking_status == BookingStatus.CONFIRMED.value
+    _awaiting_review = _booking_status == BookingStatus.PENDING_REVIEW.value
+
+    if supabase and (_is_confirmed or _awaiting_review):
         try:
             patient_row = _rows(
                 supabase.table("users").select("full_name, mobile, email")
@@ -846,8 +888,10 @@ async def create_booking(
             p_name = (patient_row[0].get("full_name") if patient_row else None) or current_user.get("name") or "Patient"
             p_email = (patient_row[0].get("email") if patient_row else None) or current_user.get("email")
 
-            # 1. SMS Notification to Patient
-            if patient_row and patient_row[0].get("mobile"):
+            # 1. SMS Notification to Patient — only once it is actually
+            # confirmed. A booking still awaiting slot allotment must not be
+            # announced to the patient as confirmed.
+            if _is_confirmed and patient_row and patient_row[0].get("mobile"):
                 try:
                     from app.workers.tasks.notifications import send_booking_confirmation
                     send_booking_confirmation.delay(
@@ -860,8 +904,8 @@ async def create_booking(
                 except Exception as sms_err:
                     logger.warning(f"SMS enqueue failed for {booking_id}: {sms_err}")
 
-            # 2. Email Confirmation to Patient
-            if p_email:
+            # 2. Email Confirmation to Patient (confirmed bookings only)
+            if _is_confirmed and p_email:
                 try:
                     EmailService.send_booking_alert_email(
                         to_email=p_email,
@@ -910,7 +954,13 @@ async def create_booking(
                                 "patient_name": p_name,
                                 "service_type": booking_data.get("service_type", ""),
                                 "slot_time": booking_data.get("slot_start", ""),
-                                "notes": booking_data.get("notes") or "Appointment booked via CallMedex",
+                                "notes": (
+                                    "ACTION REQUIRED — the patient chose a date "
+                                    "but no time. Allot a slot from your dashboard."
+                                    if _awaiting_review
+                                    else booking_data.get("notes")
+                                    or "Appointment booked via CallMedex"
+                                ),
                                 "amount": booking_data.get("total_price") or booking_data.get("final_amount") or 0,
                             }
                         )
@@ -928,11 +978,23 @@ async def create_booking(
                         await NotificationEngine.send_multi(
                             user_id=prov_user_id,
                             channels=["in_app", "push"],
-                            title="New booking assigned to you",
+                            title=(
+                                "New booking awaiting your slot"
+                                if _awaiting_review
+                                else "New booking assigned to you"
+                            ),
                             body=(
                                 f"{p_name} booked "
                                 f"{(booking_data.get('service_type') or 'an appointment').replace('_', ' ')}"
-                                + (f" for {slot_when[:16].replace('T', ' ')}." if slot_when else ".")
+                                + (
+                                    " and is waiting for you to allot a time slot."
+                                    if _awaiting_review
+                                    else (
+                                        f" for {slot_when[:16].replace('T', ' ')}."
+                                        if slot_when
+                                        else "."
+                                    )
+                                )
                             ),
                             data={
                                 "booking_id": booking_id,
@@ -1362,6 +1424,34 @@ async def get_org_services_for_booking(org_id: str):
                 org_id = resolved.data[0]["id"]
         except Exception:
             pass
+
+        # This route is public and takes an id straight off the URL, so it was
+        # the one way to reach a centre the marketplace filters out. A centre
+        # that is not verified is not bookable, and listing its services to a
+        # patient presents it as one that is.
+        #
+        # Deliberately outside the try above: if we cannot establish that the
+        # centre is verified, we withhold the listing rather than fall through
+        # to it. Failing open here would defeat the check entirely.
+        empty = {"services": [], "packages": [], "doctors": [], "timings": []}
+        try:
+            status_row = _rows(
+                supabase.table("organizations")
+                .select("verification_status").eq("id", org_id).limit(1).execute()
+            )
+        except Exception as e:
+            logger.warning(f"Could not read verification for org {org_id}: {e}")
+            return APIResponse(
+                success=True,
+                message="Could not confirm this centre right now. Please retry.",
+                data=empty,
+            )
+        if not status_row or status_row[0].get("verification_status") != "verified":
+            return APIResponse(
+                success=True,
+                message="This centre is not currently accepting bookings.",
+                data=empty,
+            )
 
         # Fetch active services
         services_res = supabase.table("organization_services").select("*").eq("organization_id", org_id).eq("is_active", True).execute()

@@ -83,6 +83,16 @@ MOU_REQUIRED_ROLES = {
     UserRole.PHLEBOTOMIST,
     UserRole.NURSE,
     UserRole.STAFF,
+    # Both were missing while every other partner role was here. The signup
+    # page shows them the same "Register & Send MOU to Email" button and the
+    # same "Check Your Email!" screen as everyone else, so a dietitian or
+    # physiotherapist was told to wait for an MOU that was never sent — their
+    # account was created active instead, with no acceptance record behind the
+    # 80/20 split that app/services/scope_catalogs.py bills them under.
+    # legal.py already carries mou_dietitian / mou_physiotherapist and their
+    # fallback text; only this set was short.
+    UserRole.DIETITIAN,
+    UserRole.PHYSIOTHERAPIST,
 }
 
 # ─── Role-to-table and profile builder mapping ────────────────────────────

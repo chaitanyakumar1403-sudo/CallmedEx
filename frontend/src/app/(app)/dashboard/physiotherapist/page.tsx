@@ -378,7 +378,6 @@ export default function PhysiotherapistDashboard() {
         <ProviderDispatchTracker
           title="Doorstep Physiotherapy Visits"
           providerType="physiotherapist"
-          earningsRate={640}
           embedded={true}
         />
       </div>

@@ -475,27 +475,144 @@ def test_popular_ranks_by_partner_availability(fake_db):
 
 # ── Radiology & Diagnostic Imaging ──────────────────────────────────────────
 
-def test_radiology_services_with_offers_returns_all_canonical():
-    """All 7 canonical imaging services (X-Ray, Spine, ECG, PFT, Audiometry) must be returned with diagnostic centers."""
-    services = MarketplaceService.radiology_services_with_offers(city="Visakhapatnam")
-    assert len(services) == 7
+def _seed_org(fake, name, *, price, verified=True, listed=True,
+              service_name="X-Ray (Single View)", city="Visakhapatnam",
+              address="12-3-45 Dwaraka Nagar", discount=0.0):
+    """A registered organisation publishing one imaging service at `price`."""
+    org_id, user_id = str(uuid.uuid4()), str(uuid.uuid4())
+    fake.db.setdefault("organizations", []).append({
+        "id": org_id,
+        "user_id": user_id,
+        "organization_name": name,
+        "organization_type": "diagnostic_center",
+        "license_number": "AP/DC/2024/0091",
+        "operating_hours": "Mon-Sat 8am-8pm",
+        "emergency_phone": "+91 90000 00000",
+        "head_of_institution": "Dr Test Head",
+        "verification_status": "verified" if verified else "pending",
+        "users": {
+            "id": user_id, "full_name": name, "address": address,
+            "city": city, "district": city, "state": "Andhra Pradesh",
+        },
+    })
+    fake.db.setdefault("organization_services", []).append({
+        "id": str(uuid.uuid4()), "organization_id": org_id,
+        "name": service_name, "price": price, "is_active": True,
+        "service_type": "imaging",
+    })
+    fake.db.setdefault("provider_settings", []).append({
+        "provider_user_id": user_id, "partner_discount_pct": discount,
+        "home_service_enabled": False, "is_listed": listed,
+    })
+    return user_id
 
-    slugs = [s["slug"] for s in services]
-    assert "x-ray-single" in slugs
-    assert "x-ray-double" in slugs
-    assert "spine-x-ray-single" in slugs
-    assert "spine-x-ray-double" in slugs
-    assert "ecg-12-lead" in slugs
-    assert "pft-spirometry" in slugs
-    assert "audiometry-hearing-test" in slugs
+
+def test_radiology_returns_every_canonical_service(fake_db):
+    """The catalogue is fixed; what varies is who offers each study."""
+    services = MarketplaceService.radiology_services_with_offers(city="Visakhapatnam")
+
+    assert {s["slug"] for s in services} == {
+        "x-ray-single", "x-ray-double", "spine-x-ray-single",
+        "spine-x-ray-double", "ecg-12-lead", "pft-spirometry",
+        "audiometry-hearing-test",
+    }
+
+
+def test_a_service_nobody_offers_advertises_no_price(fake_db):
+    """min_price used to fall back to the catalogue benchmark, so the grid
+    showed a bookable price for a study with no centre behind it."""
+    services = MarketplaceService.radiology_services_with_offers()
 
     for s in services:
-        assert s["mrp"] > 0
-        assert len(s["offers"]) >= 4
-        for offer in s["offers"]:
-            assert "center_name" in offer
-            assert "callmedex_price" in offer
-            assert offer["callmedex_price"] <= offer["mrp"]
-            assert offer["savings"] >= 0
-            assert offer["rating"] >= 4.0
+        assert s["offers"] == []
+        assert s["offers_count"] == 0
+        assert s["min_price"] is None, (
+            "a benchmark figure must never be presented as a bookable price"
+        )
+        assert s["max_savings"] == 0.0
+        # The benchmark is still carried, but under a name that cannot be
+        # mistaken for a centre own quote.
+        assert s["benchmark_mrp"] > 0
+        assert "mrp" not in s
 
+
+def test_only_verified_centres_that_published_a_price_are_shown(fake_db):
+    listed = _seed_org(fake_db, "Genuine Imaging Centre", price=400.0)
+    _seed_org(fake_db, "Awaiting Verification Scans", price=350.0, verified=False)
+    _seed_org(fake_db, "Verified But Unpriced Labs", price=0.0)
+    _seed_org(fake_db, "Delisted Radiology", price=300.0, listed=False)
+
+    xray = next(
+        s for s in MarketplaceService.radiology_services_with_offers()
+        if s["slug"] == "x-ray-single"
+    )
+
+    assert [o["center_name"] for o in xray["offers"]] == ["Genuine Imaging Centre"]
+    assert xray["offers"][0]["provider_id"] == listed
+
+
+def test_an_offer_carries_only_what_a_record_actually_holds(fake_db):
+    _seed_org(fake_db, "Genuine Imaging Centre", price=400.0)
+
+    xray = next(
+        s for s in MarketplaceService.radiology_services_with_offers()
+        if s["slug"] == "x-ray-single"
+    )
+    offer = xray["offers"][0]
+
+    # Nobody has rated them, so they are unrated -- not 4.9, not 4.7, not 5.0.
+    assert offer["rating"] is None
+    assert offer["reviews_count"] == 0
+    # Claims that were manufactured on a real business behalf are gone.
+    assert "equipment_type" not in offer
+    assert "accreditation" not in offer
+    # The address is the centre real address, not its opening hours.
+    assert offer["address"] == "12-3-45 Dwaraka Nagar"
+    assert offer["operating_hours"] == "Mon-Sat 8am-8pm"
+    assert offer["license_number"] == "AP/DC/2024/0091"
+    assert offer["city"] == "Visakhapatnam"
+
+
+def test_the_price_shown_is_the_centres_own_price_through_the_mou_split(fake_db):
+    """No discount agreed means no advertised saving, at the centre own rate."""
+    _seed_org(fake_db, "Genuine Imaging Centre", price=400.0)
+
+    xray = next(
+        s for s in MarketplaceService.radiology_services_with_offers()
+        if s["slug"] == "x-ray-single"
+    )
+    offer = xray["offers"][0]
+
+    assert offer["mrp"] == 400.0
+    assert offer["callmedex_price"] == 400.0
+    assert offer["savings"] == 0.0, (
+        "savings used to be measured against a catalogue benchmark the centre "
+        "never quoted"
+    )
+    assert xray["min_price"] == 400.0
+
+
+def test_an_agreed_discount_is_the_only_source_of_a_saving(fake_db):
+    _seed_org(fake_db, "Discounting Imaging Centre", price=500.0, discount=10.0)
+
+    xray = next(
+        s for s in MarketplaceService.radiology_services_with_offers()
+        if s["slug"] == "x-ray-single"
+    )
+    offer = xray["offers"][0]
+
+    # Same arithmetic as every other marketplace offer.
+    expected = PricingService.quote(500.0, 10.0)
+    assert offer["callmedex_price"] == expected["price"]
+    assert offer["savings"] == expected["savings"]
+    assert offer["discount_pct"] == expected["discount_pct"]
+
+
+def test_a_centre_in_another_city_is_not_offered(fake_db):
+    _seed_org(fake_db, "Hyderabad Imaging", price=400.0, city="Hyderabad")
+
+    xray = next(
+        s for s in MarketplaceService.radiology_services_with_offers(city="Visakhapatnam")
+        if s["slug"] == "x-ray-single"
+    )
+    assert xray["offers"] == []

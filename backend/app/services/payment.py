@@ -66,6 +66,64 @@ class PaymentService:
             return False
 
     @staticmethod
+    def resolve_booking_payee(booking_id: str) -> Optional[str]:
+        """The users.id whose payout ledger this booking's payment belongs to.
+
+        create_order took provider_id straight from the request body, optional
+        and unchecked. Two ways that went wrong:
+
+          * a client that simply omitted it (the schema allows it) wrote a
+            payment with no provider at all, so get_provider_earnings — which
+            filters on payments.provider_id — reported zero to a provider who
+            had been paid;
+          * anyone could name somebody else's id and credit their ledger.
+
+        bookings.provider_id is the server's own record of who is owed. For
+        diagnostics it holds organizations.id rather than a users.id (see the
+        allocation in routers/bookings.create_booking), so resolve that through
+        to the organisation's login user — otherwise the centre's earnings page
+        is empty for the same reason.
+
+        Returns None only when the booking or provider cannot be read; the
+        caller keeps its existing behaviour in that case.
+        """
+        if not supabase:
+            return None
+        try:
+            rows = (
+                supabase.table("bookings")
+                .select("provider_id, provider_type")
+                .eq("id", booking_id)
+                .limit(1)
+                .execute()
+            ).data or []
+            if not rows:
+                return None
+            provider_id = rows[0].get("provider_id")
+            if not provider_id:
+                return None
+
+            user_rows = (
+                supabase.table("users").select("id")
+                .eq("id", provider_id).limit(1).execute()
+            ).data or []
+            if user_rows:
+                return provider_id
+
+            org_rows = (
+                supabase.table("organizations").select("user_id")
+                .eq("id", provider_id).limit(1).execute()
+            ).data or []
+            if org_rows and org_rows[0].get("user_id"):
+                return org_rows[0]["user_id"]
+            return None
+        except Exception as e:
+            logger.warning(
+                f"Could not resolve the payee for booking {booking_id}: {e}"
+            )
+            return None
+
+    @staticmethod
     def resolve_booking_amount(booking_id: str, patient_id: str) -> float:
         """The rupee amount this patient actually owes for this booking, read
         from the server's own records.

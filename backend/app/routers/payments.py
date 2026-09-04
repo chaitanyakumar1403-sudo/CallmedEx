@@ -67,12 +67,20 @@ async def create_order(
             detail=f"Amount mismatch. The amount payable for this booking is Rs {amount:.2f}.",
         )
 
+    # The payee is the server's record too, for the same reason the amount is.
+    # body.provider_id was optional and unchecked: a client that omitted it
+    # wrote a payment with no provider, so that provider's earnings page showed
+    # zero for work they had been paid for — and a client that supplied someone
+    # else's id credited the wrong ledger. It is accepted and ignored so older
+    # mobile builds keep working.
+    payee_id = PaymentService.resolve_booking_payee(body.booking_id) or body.provider_id
+
     try:
         result = PaymentService.create_order(
             amount=amount,
             booking_id=body.booking_id,
             patient_id=current_user["sub"],
-            provider_id=body.provider_id,
+            provider_id=payee_id,
             description=body.description or "CallMedex Booking Payment",
         )
         return {"success": True, "order": result}

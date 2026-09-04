@@ -11,7 +11,7 @@ import { ClipboardList, CheckCircle2, Wallet, Power } from "@/components/ui/icon
  */
 export function DutyBar({
   title, onDuty, dutyLoading, gpsLive,
-  activeCount, completedToday, earnings, earningsRate,
+  activeCount, completedToday, earnings, earningsNote,
   onToggle, onShowAllTasks,
 }: {
   /**
@@ -26,8 +26,9 @@ export function DutyBar({
   gpsLive: boolean;
   activeCount: number;
   completedToday: number;
-  earnings: number;
-  earningsRate: number;
+  /** Server-computed payout, or null when it could not be read. */
+  earnings: number | null;
+  earningsNote?: string;
   onToggle: () => void;
   onShowAllTasks: () => void;
 }) {
@@ -67,8 +68,10 @@ export function DutyBar({
         />
         <Stat label="Done today" value={completedToday} icon={CheckCircle2}
               tone={completedToday > 0 ? "done" : "default"} />
-        <Stat label="Today's earnings" value={`₹${earnings}`}
-              meta={`₹${earningsRate} per completed job`} icon={Wallet} />
+        <Stat label="Earnings"
+              value={earnings === null ? "—" : `₹${earnings.toLocaleString("en-IN")}`}
+              meta={earnings === null ? "could not load earnings" : earningsNote}
+              icon={Wallet} />
       </StatGrid>
     </section>
   );

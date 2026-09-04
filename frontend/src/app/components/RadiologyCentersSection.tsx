@@ -21,17 +21,19 @@ import { toast } from "sonner";
 export interface DiagnosticOffer {
   provider_id: string;
   center_name: string;
-  accreditation: string;
   address: string;
   city: string;
-  rating: number;
+  /** Null until a real patient rating exists. Never a placeholder score. */
+  rating: number | null;
   reviews_count: number;
   turnaround_hours: number;
+  /** The centre's own published list price. */
   mrp: number;
   callmedex_price: number;
   savings: number;
   discount_pct: number;
-  equipment_type: string;
+  license_number?: string;
+  operating_hours?: string;
   verified: boolean;
   is_live?: boolean;
 }
@@ -43,8 +45,10 @@ export interface RadiologyService {
   category: string;
   sub_category: string;
   typical_turnaround_hours: number;
-  mrp: number;
-  min_price: number;
+  /** Catalogue benchmark, not any centre's quote. Never shown as bookable. */
+  benchmark_mrp: number;
+  /** Null when no centre offers this study yet. */
+  min_price: number | null;
   max_savings: number;
   preparation?: string;
   description?: string;
@@ -118,7 +122,7 @@ export default function RadiologyCentersSection({
     if (sortBy === "price") {
       list.sort((a, b) => a.callmedex_price - b.callmedex_price);
     } else if (sortBy === "rating") {
-      list.sort((a, b) => b.rating - a.rating);
+      list.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     } else if (sortBy === "turnaround") {
       list.sort((a, b) => a.turnaround_hours - b.turnaround_hours);
     }
@@ -216,7 +220,11 @@ export default function RadiologyCentersSection({
             }}
           >
             <ShieldCheck size={14} />
-            <span>AERB & NABL Certified Imaging Network</span>
+            {/* Was "AERB & NABL Certified Imaging Network" -- a regulatory
+                claim made on behalf of every listed centre with nothing on
+                record behind it. Each centre's own registration number is
+                shown on its card when it has one. */}
+            <span>Registered Diagnostic Centres</span>
           </div>
           <h3
             style={{
@@ -345,12 +353,20 @@ export default function RadiologyCentersSection({
                       borderRadius: "9999px",
                       background: isSelected
                         ? "rgba(255, 255, 255, 0.2)"
-                        : "var(--cm-done-surface)",
-                      color: isSelected ? "#ffffff" : "var(--cm-done)",
+                        : svc.offers_count > 0
+                        ? "var(--cm-done-surface)"
+                        : "var(--cm-surface-3)",
+                      color: isSelected
+                        ? "#ffffff"
+                        : svc.offers_count > 0
+                        ? "var(--cm-done)"
+                        : "var(--cm-ink-3)",
                       fontWeight: 800,
                     }}
                   >
-                    From ₹{svc.min_price}
+                    {svc.offers_count > 0
+                      ? `${svc.offers_count} Center${svc.offers_count > 1 ? "s" : ""} · ₹${svc.min_price}`
+                      : "No centre yet"}
                   </span>
                 </button>
               );
@@ -424,262 +440,310 @@ export default function RadiologyCentersSection({
 
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
-                  Standard Benchmark MRP: ₹{activeService.mrp}
+                  Indicative market rate: ₹{activeService.benchmark_mrp}
                 </div>
                 <div
                   style={{
                     fontSize: "0.85rem",
-                    color: "var(--cm-done)",
+                    color: activeService.offers_count > 0 ? "var(--cm-done)" : "var(--cm-ink-3)",
                     fontWeight: 700,
                   }}
                 >
-                  Save up to ₹{activeService.max_savings} at Partner Centers
+                  {activeService.offers_count > 0
+                    ? `Save up to ₹${activeService.max_savings} at Registered Centers`
+                    : "Awaiting diagnostic center price publishing"}
                 </div>
               </div>
             </div>
           )}
 
           {/* Diagnostic Centers Comparison Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-              gap: "16px",
-            }}
-          >
-            {sortedOffers.map((offer) => (
+          {sortedOffers.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "48px 24px",
+                backgroundColor: "var(--cm-surface-2)",
+                borderRadius: "12px",
+                border: "1px dashed var(--cm-line)",
+              }}
+            >
               <div
-                key={offer.provider_id}
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "52px",
+                  height: "52px",
+                  borderRadius: "50%",
                   backgroundColor: "var(--cm-surface)",
-                  borderRadius: "12px",
+                  color: "var(--cm-ink-3)",
+                  marginBottom: "14px",
                   border: "1px solid var(--cm-line)",
-                  padding: "18px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: "0 1px 4px rgba(0, 0, 0, 0.04)",
-                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
                 }}
               >
-                <div>
-                  {/* Center Name & Accreditation */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      gap: "8px",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 800,
-                          fontSize: "0.95rem",
-                          color: "var(--cm-ink)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        <Building2 size={16} style={{ color: "var(--cm-active)" }} />
-                        <span>{offer.center_name}</span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--cm-done)",
-                          fontWeight: 700,
-                          marginTop: "2px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        <ShieldCheck size={12} />
-                        <span>{offer.accreditation}</span>
-                      </div>
-                    </div>
-
-                    {/* Rating Pill */}
+                <Building2 size={26} />
+              </div>
+              <h4
+                style={{
+                  margin: "0 0 6px 0",
+                  fontSize: "1.05rem",
+                  fontWeight: 800,
+                  color: "var(--cm-ink)",
+                }}
+              >
+                No registered diagnostic centers offering this test yet
+              </h4>
+              <p
+                style={{
+                  margin: "0 auto",
+                  fontSize: "0.85rem",
+                  color: "var(--cm-ink-3)",
+                  maxWidth: "520px",
+                  lineHeight: "1.5",
+                }}
+              >
+                Only genuine registered diagnostic centers that have verified their credentials and revealed their prices appear here. Diagnostic partners can register this test and publish pricing from their Organization Dashboard.
+              </p>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                gap: "16px",
+              }}
+            >
+              {sortedOffers.map((offer) => (
+                <div
+                  key={offer.provider_id}
+                  style={{
+                    backgroundColor: "var(--cm-surface)",
+                    borderRadius: "12px",
+                    border: "1px solid var(--cm-line)",
+                    padding: "18px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                  }}
+                >
+                  <div>
+                    {/* Top Row: Center Name & Accreditation */}
                     <div
                       style={{
                         display: "flex",
-                        alignItems: "center",
-                        gap: "3px",
-                        background: "var(--cm-surface-2)",
-                        padding: "3px 8px",
-                        borderRadius: "6px",
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: "var(--cm-ink)",
-                        border: "1px solid var(--cm-line)",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: "8px",
+                        marginBottom: "10px",
                       }}
                     >
-                      <Star size={12} fill="#eab308" color="#eab308" />
-                      <span>{offer.rating}</span>
-                      <span style={{ color: "var(--cm-ink-3)", fontSize: "0.7rem" }}>
-                        ({offer.reviews_count})
-                      </span>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <Building2 size={16} style={{ color: "var(--cm-navy)" }} />
+                          <h5
+                            style={{
+                              margin: 0,
+                              fontSize: "1rem",
+                              fontWeight: 800,
+                              color: "var(--cm-ink)",
+                            }}
+                          >
+                            {offer.center_name}
+                          </h5>
+                        </div>
+                        {/* Was `offer.accreditation`, which the API filled
+                            with "NABL Accredited Diagnostic Center" for every
+                            centre regardless of whether any such accreditation
+                            was on record. Only the registration number the
+                            centre actually entered is shown now. */}
+                        {offer.license_number && (
+                          <span
+                            style={{
+                              display: "inline-block",
+                              fontSize: "0.72rem",
+                              color: "var(--cm-ink-3)",
+                              marginTop: "2px",
+                            }}
+                          >
+                            Reg. {offer.license_number}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* No badge for an unrated centre. The API used to
+                          send 4.9 or 4.7 depending only on verification
+                          status, which put a near-perfect score on a real
+                          business nobody had reviewed. */}
+                      {offer.rating !== null && offer.rating !== undefined && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            backgroundColor: "var(--cm-surface-2)",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            color: "var(--cm-ink)",
+                          }}
+                        >
+                          <Star size={13} style={{ fill: "var(--cm-warn)", color: "var(--cm-warn)" }} />
+                          <span>{offer.rating}</span>
+                          <span style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", fontWeight: 400 }}>
+                            ({offer.reviews_count})
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  {/* Address & Equipment */}
-                  <div
-                    style={{
-                      fontSize: "0.78rem",
-                      color: "var(--cm-ink-3)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    <MapPin size={13} style={{ color: "var(--cm-ink-3)" }} />
-                    <span>{offer.address}</span>
-                  </div>
+                    {/* Address & Equipment */}
+                    <div
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "var(--cm-ink-3)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        marginBottom: "6px",
+                      }}
+                    >
+                      <MapPin size={13} style={{ color: "var(--cm-ink-3)" }} />
+                      <span>{offer.address}</span>
+                    </div>
 
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "var(--cm-ink-2)",
-                      backgroundColor: "var(--cm-surface-2)",
-                      padding: "6px 10px",
-                      borderRadius: "6px",
-                      marginBottom: "12px",
-                      border: "1px solid var(--cm-line)",
-                    }}
-                  >
-                    <strong>Equipment:</strong> {offer.equipment_type}
-                  </div>
-                </div>
-
-                {/* Pricing & Booking Footer */}
-                <div
-                  style={{
-                    borderTop: "1px dashed var(--cm-line)",
-                    paddingTop: "12px",
-                    marginTop: "8px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-end",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    <div>
+                    {/* Was `offer.equipment_type`, which named specific
+                        hardware ("Schiller 12-Channel ... Electrocardiograph")
+                        the platform has no record of any centre owning.
+                        Opening hours are something the centre did enter. */}
+                    {offer.operating_hours && (
                       <div
                         style={{
                           fontSize: "0.75rem",
-                          color: "var(--cm-ink-3)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
+                          color: "var(--cm-ink-2)",
+                          backgroundColor: "var(--cm-surface-2)",
+                          padding: "6px 10px",
+                          borderRadius: "6px",
+                          marginBottom: "12px",
+                          border: "1px solid var(--cm-line)",
                         }}
                       >
-                        <span style={{ textDecoration: "line-through" }}>
-                          MRP ₹{offer.mrp}
-                        </span>
-                        <span
-                          style={{
-                            color: "var(--cm-done)",
-                            fontWeight: 700,
-                            background: "var(--cm-done-surface)",
-                            padding: "1px 6px",
-                            borderRadius: "4px",
-                            fontSize: "0.7rem",
-                          }}
-                        >
-                          {offer.discount_pct}% OFF
-                        </span>
+                        <strong>Open:</strong> {offer.operating_hours}
                       </div>
-                      <div
-                        style={{
-                          fontSize: "1.25rem",
-                          fontWeight: 900,
-                          color: "var(--cm-navy)",
-                          lineHeight: "1.2",
-                        }}
-                      >
-                        ₹{offer.callmedex_price}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "0.72rem",
-                          color: "var(--cm-done)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Save ₹{offer.savings} with CallMedex
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: "right" }}>
-                      <div
-                        style={{
-                          fontSize: "0.72rem",
-                          color: "var(--cm-ink-3)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "3px",
-                          justifyContent: "flex-end",
-                          marginBottom: "4px",
-                        }}
-                      >
-                        <Clock size={12} />
-                        <span>Report in {offer.turnaround_hours}h</span>
-                      </div>
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          color: "var(--cm-active)",
-                          fontWeight: 600,
-                        }}
-                      >
-                        Verified Walk-In / Slot
-                      </span>
-                    </div>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBookingModal({
-                        service: activeService,
-                        offer: offer,
-                      })
-                    }
+                  {/* Pricing & Booking Footer */}
+                  <div
                     style={{
-                      width: "100%",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "none",
-                      background: "var(--cm-navy)",
-                      color: "#ffffff",
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                      transition: "opacity 0.15s ease",
+                      borderTop: "1px dashed var(--cm-line)",
+                      paddingTop: "12px",
+                      marginTop: "8px",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
                   >
-                    <span>Book Center Appointment</span>
-                    <ChevronRight size={16} />
-                  </button>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-end",
+                        marginBottom: "12px",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--cm-ink-3)",
+                            textDecoration: "line-through",
+                          }}
+                        >
+                          MRP ₹{offer.mrp}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "1.25rem",
+                            fontWeight: 900,
+                            color: "var(--cm-navy)",
+                            lineHeight: "1.2",
+                          }}
+                        >
+                          ₹{offer.callmedex_price}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "var(--cm-done)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {offer.savings > 0 ? `Save ₹${offer.savings} with CallMedex` : "Direct Center Price"}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: "right" }}>
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "var(--cm-ink-3)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            justifyContent: "flex-end",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          <Clock size={12} />
+                          <span>Report in {offer.turnaround_hours}h</span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            color: "var(--cm-active)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Verified Walk-In / Slot
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBookingModal({
+                          service: activeService,
+                          offer,
+                        })
+                      }
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: "var(--cm-navy)",
+                        color: "#ffffff",
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        transition: "opacity 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                    >
+                      <span>Book Center Appointment</span>
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
