@@ -471,3 +471,31 @@ def test_popular_ranks_by_partner_availability(fake_db):
     tests = MarketplaceService.popular_tests()
     assert tests[0]["slug"] == "cbc" and tests[0]["provider_count"] == 3
     assert tests[1]["slug"] == "mammography" and tests[1]["provider_count"] == 1
+
+
+# ── Radiology & Diagnostic Imaging ──────────────────────────────────────────
+
+def test_radiology_services_with_offers_returns_all_canonical():
+    """All 7 canonical imaging services (X-Ray, Spine, ECG, PFT, Audiometry) must be returned with diagnostic centers."""
+    services = MarketplaceService.radiology_services_with_offers(city="Visakhapatnam")
+    assert len(services) == 7
+
+    slugs = [s["slug"] for s in services]
+    assert "x-ray-single" in slugs
+    assert "x-ray-double" in slugs
+    assert "spine-x-ray-single" in slugs
+    assert "spine-x-ray-double" in slugs
+    assert "ecg-12-lead" in slugs
+    assert "pft-spirometry" in slugs
+    assert "audiometry-hearing-test" in slugs
+
+    for s in services:
+        assert s["mrp"] > 0
+        assert len(s["offers"]) >= 4
+        for offer in s["offers"]:
+            assert "center_name" in offer
+            assert "callmedex_price" in offer
+            assert offer["callmedex_price"] <= offer["mrp"]
+            assert offer["savings"] >= 0
+            assert offer["rating"] >= 4.0
+

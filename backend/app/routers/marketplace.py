@@ -127,3 +127,19 @@ async def urgent_pricing(base_price: float = Query(0, ge=0)):
         "config": PricingService.urgent_surcharge_config(),
         "surcharge": PricingService.urgent_surcharge_for(base_price),
     }
+
+
+@router.get("/radiology/services")
+async def get_radiology_services(city: Optional[str] = Query(None, description="Patient's city")):
+    """
+    Returns canonical radiology & diagnostic imaging services (X-Ray, Spine X-Ray,
+    ECG, PFT, Audiometry) with diagnostic centers offering each test and their respective prices.
+    """
+    services = MarketplaceService.radiology_services_with_offers(city=city)
+    return {
+        "success": True,
+        "total": len(services),
+        "city": city or "All Locations",
+        "services": services,
+    }
+

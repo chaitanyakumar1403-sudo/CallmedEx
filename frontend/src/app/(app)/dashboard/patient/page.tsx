@@ -19,6 +19,7 @@ import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
+import RadiologyCentersSection from "@/app/components/RadiologyCentersSection";
 import {
   Mic,
   Shield,
@@ -1417,6 +1418,9 @@ export default function PatientDashboard() {
             </span>
           </a>
         </div>
+
+        {/* Radiology & Diagnostic Imaging Centers (X-Ray, ECG, PFT, Audiometry) */}
+        <RadiologyCentersSection onBookingCreated={refreshBookings} lang={lang} />
 
         {/* Family Members */}
         <FamilyMembersPanel />

@@ -465,9 +465,26 @@ export default function OrganizationDashboard() {
     { id: "l3", type: "lab_test", name: "Thyroid Profile (T3, T4, TSH)", price: 500, description: "Thyroid function test" },
     { id: "l4", type: "lab_test", name: "HbA1c", price: 400, description: "3-month average blood sugar" },
     { id: "l5", type: "lab_test", name: "Liver Function Test (LFT)", price: 600, description: "Liver health markers" },
+    // Canonical Radiology & Diagnostic Imaging Services (X-Ray, Spine, ECG, PFT, Audiometry)
+    { id: "xr-1", type: "imaging", name: "X-Ray (Single View)", price: 450, description: "Digital radiography single projection for bone, chest, or joint evaluation" },
+    { id: "xr-2", type: "imaging", name: "X-Ray (Double View)", price: 750, description: "Dual orthogonal projections (AP and Lateral) for anatomical alignment" },
+    { id: "xr-3", type: "imaging", name: "Spine X-Ray (Single View)", price: 550, description: "Targeted digital spinal radiography evaluating vertebral alignment and disc spaces" },
+    { id: "xr-4", type: "imaging", name: "Spine X-Ray (Double View)", price: 950, description: "AP and Lateral dual projections for spine, curvature and disc pathology" },
+    { id: "xr-5", type: "imaging", name: "ECG (12-Lead Resting)", price: 350, description: "12-lead resting electrocardiogram with cardiologist interpretation" },
+    { id: "xr-6", type: "imaging", name: "Pulmonary Function Test (PFT)", price: 850, description: "Computerized spirometry testing FVC, FEV1, and airway resistance" },
+    { id: "xr-7", type: "imaging", name: "Audiometry (Hearing Evaluation)", price: 700, description: "Pure-tone air and bone conduction hearing threshold evaluation in sound booth" },
     { id: "i1", type: "imaging", name: "X-Ray Chest PA View", price: 400, description: "Standard chest X-ray" },
     { id: "i2", type: "imaging", name: "USG Whole Abdomen", price: 1200, description: "Ultrasound scan" },
-    { id: "i3", type: "imaging", name: "ECG", price: 300, description: "Electrocardiogram" },
+    // Dental Clinic Scope of Procedures (from CALL MEDEX - DENTAL PROCEDURE.xlsx)
+    { id: "dt-1", type: "procedure", name: "Routine Dental Cleanings (Prophylaxis)", price: 800, description: "Plaque and calculus ultrasonic scaling to prevent periodontal disease" },
+    { id: "dt-2", type: "consultation", name: "Comprehensive Oral Examination", price: 400, description: "Physical evaluation of teeth, gingival tissues, bite occlusion, and cavity" },
+    { id: "dt-3", type: "imaging", name: "Dental X-Rays (Digital IOPA)", price: 300, description: "Targeted high-resolution digital radiograph for root and bone evaluation" },
+    { id: "dt-4", type: "procedure", name: "Dental Composite Fillings", price: 900, description: "Decay excavation followed by tooth-colored composite resin restoration" },
+    { id: "dt-5", type: "procedure", name: "Root Canal Therapy (RCT)", price: 3500, description: "Endodontic extirpation of infected pulp tissue to preserve natural tooth" },
+    { id: "dt-6", type: "procedure", name: "Dental Crowns (Caps)", price: 4500, description: "Full-coverage custom-fabricated ceramic or zirconia crown prosthesis" },
+    { id: "dt-7", type: "procedure", name: "Scaling and Root Planing", price: 1500, description: "Therapeutic deep instrumentation below gumline to clear subgingival calculus" },
+    { id: "dt-8", type: "procedure", name: "Tooth Extractions", price: 1000, description: "Surgical or non-surgical removal of non-restorable or fractured teeth" },
+    { id: "dt-9", type: "procedure", name: "Wisdom Teeth Removal", price: 3500, description: "Surgical extraction of impacted, malposed, or symptomatic third molars" },
   ];
 
   const handleBulkAddServices = async () => {
@@ -887,7 +904,7 @@ export default function OrganizationDashboard() {
                     backgroundColor: "#f0f9ff", color: "#0284c7", border: "1px solid #bae6fd",
                     padding: "6px 12px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: "0.8rem",
                   }}>
-                    📋 Select Scope of Services
+                    Select Scope of Services
                   </button>
                 </div>
                 <form onSubmit={handleAddService}>
@@ -898,11 +915,11 @@ export default function OrganizationDashboard() {
                       onChange={e => setAddSvcForm({ ...addSvcForm, service_type: e.target.value })}
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
                     >
-                      <option value="lab_test">🧪 Lab Test</option>
-                      <option value="health_package">📦 Health Package</option>
-                      <option value="imaging">📷 Imaging</option>
-                      <option value="procedure">🔬 Procedure</option>
-                      <option value="consultation">🩺 Consultation</option>
+                      <option value="lab_test">Lab Test</option>
+                      <option value="health_package">Health Package</option>
+                      <option value="imaging">Radiology & Imaging</option>
+                      <option value="procedure">Clinical Procedure</option>
+                      <option value="consultation">Consultation</option>
                     </select>
                   </div>
                   <div style={{ marginBottom: 14 }}>
@@ -1034,7 +1051,7 @@ export default function OrganizationDashboard() {
                   <div style={{ marginBottom: 20 }}>
                     <input
                       type="text"
-                      placeholder="🔍 Search for a service (e.g. Blood Test, X-Ray)"
+                      placeholder="Search for a service (e.g. Blood Test, X-Ray, ECG, Spine)"
                       value={scopeSearchQuery}
                       onChange={(e) => setScopeSearchQuery(e.target.value)}
                       style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
