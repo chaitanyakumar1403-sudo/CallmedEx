@@ -25,9 +25,15 @@ export interface MedicationItem {
   medicineName: string;
   dosage: string;
   totalPills: number;
+  /** Server-projected count: the stored figure burnt down by elapsed days. */
   remainingPills: number;
   pillsPerDay: number;
   refillDate?: string;
+  /** Days of supply left, computed server-side. Null when the dose is unknown. */
+  daysLeft?: number | null;
+  /** Server's own refill verdict, so the badge and the maths cannot disagree. */
+  needsRefill?: boolean;
+  outOfStock?: boolean;
 }
 
 export interface FamilyHubState {

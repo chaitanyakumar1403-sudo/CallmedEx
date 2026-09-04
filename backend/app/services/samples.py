@@ -210,15 +210,54 @@ class SampleService:
 
     @staticmethod
     def get_home_lab(phlebotomist_user_id: str) -> dict:
-        """The centre this collector hands samples to by default."""
+        """Where this collector submits their tubes at the end of a run.
+
+        Two linkages exist and only one of them was ever read here. A
+        collector attached to a CallMedex processing centre by an admin
+        (`phlebotomists.processing_center_id`) had no `home_lab_org_user_id`
+        at all, so this returned nulls, the dashboard fell back to a typed-in
+        hub name, and `request_handover` refused the submission outright with
+        "No destination diagnostic centre". The processing centre IS the
+        destination in that model; report it.
+        """
         profile = SampleService._phlebo_profile(phlebotomist_user_id)
         lab_id = profile.get("home_lab_org_user_id")
-        if not lab_id:
-            return {"home_lab_org_user_id": None, "home_lab_name": None}
+        centre = SampleService._processing_centre(profile.get("processing_center_id"))
         return {
             "home_lab_org_user_id": lab_id,
-            "home_lab_name": SampleService._org_display_name(lab_id),
+            "home_lab_name": SampleService._org_display_name(lab_id) if lab_id else None,
+            "processing_center_id": centre.get("id"),
+            "processing_center_name": centre.get("name"),
+            "processing_center_code": centre.get("code"),
+            "processing_center_city": centre.get("city"),
+            "processing_center_address": centre.get("address"),
+            # What the collector's UI should show as "submit to".
+            "destination_kind": (
+                "processing_center" if centre.get("id")
+                else "organization" if lab_id
+                else None
+            ),
         }
+
+    @staticmethod
+    def _processing_centre(centre_id: Optional[str]) -> dict:
+        """Public-safe fields of a processing centre, or {}. Never raises.
+
+        Deliberately excludes partner_lab_name / partner_lab_reference — those
+        are internal-only per the centre schema and must not reach a provider
+        payload.
+        """
+        if not supabase or not centre_id:
+            return {}
+        try:
+            return _first(
+                supabase.table("processing_centers")
+                .select("id, code, name, city, address, status")
+                .eq("id", centre_id).limit(1).execute()
+            )
+        except Exception as e:
+            logger.warning(f"processing centre lookup failed for {centre_id}: {e}")
+            return {}
 
     @staticmethod
     def _authorise_collection(
@@ -399,6 +438,17 @@ class SampleService:
             return {"success": False, "message": "Database not configured"}
         if not sample_ids:
             return {"success": False, "message": "No samples selected"}
+
+        # A collector posted to a CallMedex processing centre submits THERE.
+        # `sample_handovers` addresses an organization user, which such a
+        # collector does not have, so this used to dead-end at "No destination
+        # diagnostic centre" and their whole day's run could not be filed.
+        if not destination_org_user_id:
+            profile = SampleService._phlebo_profile(phlebotomist_user_id)
+            if profile.get("processing_center_id") and not profile.get("home_lab_org_user_id"):
+                return SampleService.submit_run_to_centre(
+                    phlebotomist_user_id, sample_ids=sample_ids, notes=notes,
+                )
 
         try:
             owned = _rows(
@@ -1006,3 +1056,119 @@ class SampleService:
         except Exception as e:
             logger.error(f"get_custody_trail failed for {sample_id}: {e}")
             return {}
+
+    # ── Run submission to the processing centre ───────────────────────────
+    @staticmethod
+    def submit_run_to_centre(
+        phlebotomist_user_id: str,
+        sample_ids: Optional[List[str]] = None,
+        notes: str = "",
+    ) -> dict:
+        """Mark this collector's tubes as in transit to their processing centre.
+
+        This step did not exist. `collected` was written when the barcode was
+        scanned at the doorstep and nothing ever moved it on, so the centre had
+        no signal that a run was inbound — the tubes only appeared once someone
+        happened to scan them at the intake desk. `in_transit` is already a
+        legal FSM transition out of `collected` and is already accepted by
+        `/api/pc/verify-incoming-barcode`, so this closes the loop without
+        touching intake at all.
+
+        Idempotent: tubes already in transit or already received are reported,
+        not re-written.
+        """
+        if not supabase:
+            return {"success": False, "message": "Database unavailable."}
+
+        profile = SampleService._phlebo_profile(phlebotomist_user_id)
+        centre_id = profile.get("processing_center_id")
+        if not centre_id:
+            return {
+                "success": False,
+                "message": (
+                    "You are not attached to a processing centre yet. "
+                    "Ask your centre admin to add you before submitting a run."
+                ),
+            }
+
+        try:
+            query = (
+                supabase.table("samples")
+                .select("id, status, barcode, processing_center_id")
+                .eq("phlebotomist_user_id", phlebotomist_user_id)
+                .eq("status", "collected")
+            )
+            if sample_ids:
+                query = query.in_("id", sample_ids)
+            owned = _rows(query.execute())
+        except Exception as e:
+            logger.error(f"submit_run lookup failed for {phlebotomist_user_id}: {e}")
+            return {"success": False, "message": f"Could not read your samples: {e}"}
+
+        if not owned:
+            return {
+                "success": False,
+                "message": "No collected tubes are waiting in your possession.",
+            }
+
+        # A tube provisioned for another centre must not be walked into this
+        # one — its booking, its report route and its billing all sit there.
+        mismatched = [s for s in owned
+                      if s.get("processing_center_id")
+                      and s["processing_center_id"] != centre_id]
+        movable = [s for s in owned if s not in mismatched]
+        if not movable:
+            # Name the tubes. "Hand those over elsewhere" without saying which
+            # ones leaves the collector holding an unlabelled problem.
+            return {
+                "success": False,
+                "message": (
+                    "Every selected tube belongs to a different processing "
+                    "centre. Hand those over at the centre that provisioned them."
+                ),
+                "submitted_count": 0,
+                "submitted_sample_ids": [],
+                "skipped_other_centre": [s["barcode"] for s in mismatched],
+            }
+
+        moved: List[str] = []
+        for sample in movable:
+            try:
+                validate_sample_transition(sample.get("status", ""), "in_transit")
+            except ValueError:
+                continue
+            try:
+                # The .eq("status", "collected") guard makes a double-tap a
+                # no-op rather than a second custody event on a tube the
+                # centre has already received.
+                supabase.table("samples").update(
+                    {"status": "in_transit"}
+                ).eq("id", sample["id"]).eq("status", "collected").execute()
+            except Exception as e:
+                logger.error(f"submit_run update failed for {sample['id']}: {e}")
+                continue
+            moved.append(sample["id"])
+            try:
+                SampleService._log_event(
+                    sample["id"], "in_transit",
+                    actor_id=phlebotomist_user_id, actor_role="phlebotomist",
+                    notes=notes or "Run submitted to processing centre",
+                )
+            except Exception as e:
+                # The tube has already moved; a lost custody line is a gap to
+                # surface loudly, not a reason to abort the rest of the run.
+                logger.error(f"custody event write failed for {sample['id']}: {e}")
+
+        centre = SampleService._processing_centre(centre_id)
+        return {
+            "success": bool(moved),
+            "message": (
+                f"{len(moved)} tube(s) submitted to {centre.get('name') or 'your processing centre'}."
+                if moved else "Nothing could be submitted — please retry."
+            ),
+            "submitted_count": len(moved),
+            "submitted_sample_ids": moved,
+            "skipped_other_centre": [s["barcode"] for s in mismatched],
+            "processing_center_id": centre_id,
+            "processing_center_name": centre.get("name"),
+        }

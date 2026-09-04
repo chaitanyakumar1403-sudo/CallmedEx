@@ -18,6 +18,7 @@ import pytest
 import app.services.dispatch_engine as engine_mod
 from app.services.dispatch_engine import (
     DEFAULT_OFFER_WINDOW_MINUTES,
+    DEFAULT_SEARCH_RADIUS_KM,
     NORMAL_MAX_OFFERS,
     URGENT_MAX_OFFERS,
     URGENT_RADIUS_MULTIPLIER,
@@ -143,7 +144,10 @@ async def test_priority_is_persisted_on_the_request(fake_db):
     assert row["priority"] == "urgent"
     # The widened radius is recorded, not the requested one, so operations can
     # see how far the net was actually cast.
-    assert row["search_radius_km"] == 10.0 * URGENT_RADIUS_MULTIPLIER
+    # No radius was passed, so the engine's own default is the base that gets
+    # widened — pinning 10.0 here silently re-encoded a value the engine no
+    # longer uses (the service radius is 15 km, per DEFAULT_SEARCH_RADIUS_KM).
+    assert row["search_radius_km"] == DEFAULT_SEARCH_RADIUS_KM * URGENT_RADIUS_MULTIPLIER
 
 
 @pytest.mark.asyncio

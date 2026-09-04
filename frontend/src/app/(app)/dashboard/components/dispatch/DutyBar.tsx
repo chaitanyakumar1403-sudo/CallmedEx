@@ -12,6 +12,7 @@ import { ClipboardList, CheckCircle2, Wallet, Power } from "@/components/ui/icon
 export function DutyBar({
   title, onDuty, dutyLoading, gpsLive,
   activeCount, completedToday, earnings, earningsNote,
+  centreName, centreCode, salaried = false,
   onToggle, onShowAllTasks,
 }: {
   /**
@@ -29,6 +30,11 @@ export function DutyBar({
   /** Server-computed payout, or null when it could not be read. */
   earnings: number | null;
   earningsNote?: string;
+  /** The processing centre this collector is posted to, when one is assigned. */
+  centreName?: string;
+  centreCode?: string;
+  /** Full-time collectors are on a fixed salary: no per-collection earnings. */
+  salaried?: boolean;
   onToggle: () => void;
   onShowAllTasks: () => void;
 }) {
@@ -45,6 +51,14 @@ export function DutyBar({
             {onDuty
               ? "Receiving field requests in your area"
               : "You will not receive new field requests"}
+          </p>
+          {/* Which centre a collector is posted to decides which jobs they can
+              be offered and where they submit their tubes, and it was shown
+              nowhere at all. */}
+          <p className="cm-duty__sub">
+            {centreName
+              ? `Processing centre: ${centreName}${centreCode ? ` (${centreCode})` : ""}`
+              : "No processing centre assigned — ask your centre admin"}
           </p>
         </div>
         {onDuty && gpsLive && <Pill tone="active">GPS live</Pill>}
@@ -68,10 +82,14 @@ export function DutyBar({
         />
         <Stat label="Done today" value={completedToday} icon={CheckCircle2}
               tone={completedToday > 0 ? "done" : "default"} />
-        <Stat label="Earnings"
-              value={earnings === null ? "—" : `₹${earnings.toLocaleString("en-IN")}`}
-              meta={earnings === null ? "could not load earnings" : earningsNote}
-              icon={Wallet} />
+        {salaried ? (
+          <Stat label="Engagement" value="Full-time" meta="fixed salary" icon={Wallet} />
+        ) : (
+          <Stat label="Earnings"
+                value={earnings === null ? "—" : `₹${earnings.toLocaleString("en-IN")}`}
+                meta={earnings === null ? "could not load earnings" : earningsNote}
+                icon={Wallet} />
+        )}
       </StatGrid>
     </section>
   );

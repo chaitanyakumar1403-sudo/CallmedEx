@@ -82,13 +82,18 @@ export default function PhlebotomistDashboard() {
     fetchTasks();
   }, []);
 
+  // Full-time collectors are salaried — incentives only, no per-collection
+  // accrual — so a wallet showing "earnings" is meaningless to them and reads
+  // as if pay were missing. Part-time and freelance keep it.
+  const isSalaried = (profile?.phleb_type || "full_time") === "full_time";
+
   const TABS = [
     { id: "dispatch", label: "Live Dispatch", icon: MapPin },
     { id: "collection", label: "Doorstep Collection", icon: ScanLine },
     { id: "samples", label: "Samples & Handover", icon: TestTube },
     { id: "schedule", label: "Schedule", icon: CalendarDays },
     { id: "stock", label: "Kit & Stock", icon: Package },
-    { id: "wallet", label: "Wallet", icon: Wallet },
+    ...(isSalaried ? [] : [{ id: "wallet", label: "Wallet", icon: Wallet }]),
     { id: "profile", label: "Profile", icon: User },
   ];
 
@@ -201,7 +206,7 @@ export default function PhlebotomistDashboard() {
 
         {activeTab === "schedule" && <PhleboSchedulePanel />}
 
-        {activeTab === "wallet" && <PhleboWalletPanel />}
+        {activeTab === "wallet" && !isSalaried && <PhleboWalletPanel />}
 
       {activeTab === "profile" && (
         <>

@@ -12,6 +12,7 @@ import { SelfieModal } from "./dispatch/SelfieModal";
 import { LabHandoverModal } from "./dispatch/LabHandoverModal";
 import { VitalsModal, type Vitals } from "./dispatch/VitalsModal";
 import { serviceLabel } from "./dispatch/serviceLabel";
+import CollectionKitWidget from "./CollectionKitWidget";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -31,6 +32,8 @@ export interface DispatchTask {
   slot_start?: string;
   /** Raw slot_id (e.g. "|2026-08-06|15:00"), attached by _attach_slot_times */
   slot_id?: string;
+  /** Present on home-collection runs; keys the collection-kit lookup. */
+  booking_id?: string;
 }
 
 /** Format a slot_start ISO string into a compact human-readable form for the dashboard. */
@@ -77,6 +80,9 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
   const [earningsNote, setEarningsNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [dutyLoading, setDutyLoading] = useState(false);
+  // Drives both the error banner and the "GPS live" pill: the pill used to be
+  // driven by duty state alone, so it claimed a live fix directly above a
+  // banner reporting a GPS failure.
   const [locationError, setLocationError] = useState("");
   const [activeTask, setActiveTask] = useState<DispatchTask | null>(null);
   const [actionLoading, setActionLoading] = useState("");
@@ -91,7 +97,9 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
 
   // Phlebotomist Lab Handover State
   const [showLabModal, setShowLabModal] = useState(false);
-  const [labHubName, setLabHubName] = useState("Apollo Diagnostics Central Hub");
+  // Was hardcoded to a real competitor's brand name, which every collector
+  // then submitted their run against. Resolved from /samples/my-lab below.
+  const [labHubName, setLabHubName] = useState("");
   const [sampleBarcodes, setSampleBarcodes] = useState("");
   const [labNotes, setLabNotes] = useState("");
 
@@ -165,11 +173,14 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
       const data = await res.json();
       if (data.success) {
         setOnDuty(data.data.is_online || false);
+        if (providerType === "phlebotomist") {
+          setSalaried((data.data.phleb_type || "full_time") === "full_time");
+        }
       } else {
         router.push("/auth/login");
       }
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [router]);
+  }, [router, providerType]);
 
   const fetchTasks = useCallback(async () => {
     const token = getToken();
@@ -238,6 +249,38 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
     }
   }, []);
 
+  // The collector's real handover destination — the processing centre an
+  // admin attached them to. Until this loaded, the modal defaulted to a
+  // hardcoded competitor brand name that every run was then filed against.
+  const [assignedCentre, setAssignedCentre] = useState<{
+    name?: string; code?: string; city?: string; kind?: string;
+  } | null>(null);
+  // Salaried collectors accrue nothing per tube, so the earnings stat and the
+  // /my-earnings call are both meaningless for them.
+  const [salaried, setSalaried] = useState(false);
+
+  const fetchAssignedCentre = useCallback(async () => {
+    const token = getToken();
+    if (!token || providerType !== "phlebotomist") return;
+    try {
+      const res = await fetch(`${apiBase}/api/samples/my-lab`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const name = data.processing_center_name || data.home_lab_name;
+      if (name) {
+        setAssignedCentre({
+          name,
+          code: data.processing_center_code,
+          city: data.processing_center_city,
+          kind: data.destination_kind,
+        });
+        setLabHubName(name);
+      }
+    } catch { /* the modal falls back to a typed name */ }
+  }, [providerType]);
+
   const fetchOffers = useCallback(async () => {
     const token = getToken();
     if (!token) return;
@@ -257,47 +300,89 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
     fetchTasks();
     fetchOffers();
     fetchEarnings();
+    fetchAssignedCentre();
     taskIntervalRef.current = setInterval(() => { fetchTasks(); fetchOffers(); }, 5000);
     return () => {
       if (taskIntervalRef.current) clearInterval(taskIntervalRef.current);
       if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     };
-  }, [fetchDutyStatus, fetchTasks, fetchOffers, fetchEarnings]);
+  }, [fetchDutyStatus, fetchTasks, fetchOffers, fetchEarnings, fetchAssignedCentre]);
 
   // ─── GPS Location Broadcasting ────────────────────────────────────────
+  // A single high-accuracy fix with an 8s deadline and no cache allowance is
+  // the "GPS error" collectors kept hitting: indoors, on a cold start, or on
+  // a laptop with no GPS radio at all, it times out every 30s forever and the
+  // provider's coordinates are never sent. Now: try high accuracy briefly,
+  // fall back to a coarse/cached fix, and say something actionable when the
+  // fix genuinely cannot be had. Dispatch also falls back to the collector's
+  // registered base location server-side, so a missing fix no longer makes
+  // them invisible — but it does make them less accurately ranked, which is
+  // what the banner says.
+  const postLocation = useCallback(async (pos: GeolocationPosition) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      await fetch(`${apiBase}/api/dispatch/update-location`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          provider_type: providerType,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          heading: pos.coords.heading || null,
+          speed_kmh: pos.coords.speed ? pos.coords.speed * 3.6 : null,
+        }),
+      });
+      setLocationError("");
+    } catch { /* a dropped ping is retried on the next tick */ }
+  }, [providerType]);
+
   const startLocationBroadcast = useCallback(() => {
     if (locationIntervalRef.current) return; // already broadcasting
-    if (!navigator.geolocation) {
-      setLocationError("GPS not available on this device.");
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError(
+        "This device has no location service. Dispatch will rank you from your registered base address."
+      );
       return;
     }
+
+    const describe = (err: GeolocationPositionError) => {
+      switch (err.code) {
+        case err.PERMISSION_DENIED:
+          return "Location permission is blocked. Enable it for this site in your browser settings, then toggle duty off and on.";
+        case err.POSITION_UNAVAILABLE:
+          return "No GPS fix right now — dispatch is using your registered base address. Step outside or enable Wi-Fi/mobile data for a precise fix.";
+        default:
+          return "GPS is taking too long to respond — dispatch is using your registered base address for now.";
+      }
+    };
+
     const sendLoc = () => {
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const token = getToken();
-          if (!token) return;
-          try {
-            await fetch(`${apiBase}/api/dispatch/update-location`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({
-                provider_type: providerType,
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                heading: pos.coords.heading || null,
-                speed_kmh: pos.coords.speed ? pos.coords.speed * 3.6 : null,
-              }),
-            });
-            setLocationError("");
-          } catch { /* silent */ }
+        postLocation,
+        () => {
+          // Second chance without the high-accuracy demand, and accepting a
+          // fix up to 5 minutes old — this is what actually succeeds indoors.
+          navigator.geolocation.getCurrentPosition(
+            postLocation,
+            (err) => {
+              setLocationError(describe(err));
+              if (err.code === err.PERMISSION_DENIED && locationIntervalRef.current) {
+                // Re-prompting every 30s cannot fix a denied permission; it
+                // just burns battery and keeps the error flashing.
+                clearInterval(locationIntervalRef.current);
+                locationIntervalRef.current = null;
+              }
+            },
+            { enableHighAccuracy: false, timeout: 20000, maximumAge: 300000 }
+          );
         },
-        (err) => { setLocationError(`GPS error: ${err.message}`); },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
       );
     };
     sendLoc(); // Send immediately
     locationIntervalRef.current = setInterval(sendLoc, 30000); // Every 30s
-  }, [providerType]);
+  }, [postLocation]);
 
   const stopLocationBroadcast = useCallback(() => {
     if (locationIntervalRef.current) {
@@ -472,21 +557,45 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
   // ─── Lab Handover Submit ────────────────────────────────────────────────
   const handleLabHandoverSubmit = async () => {
     if (!activeTask) return;
+    if (!labHubName.trim()) {
+      setStatusMsg({ tone: "urgent", text: "No destination centre — contact your centre admin." });
+      return;
+    }
+    // "BAR-DEFAULT-001" used to be substituted when this was left blank,
+    // writing a barcode that matches no tube into a chain-of-custody record.
+    if (!sampleBarcodes.trim()) {
+      setStatusMsg({ tone: "urgent", text: "Enter the barcode of every tube you are handing over." });
+      return;
+    }
     setActionLoading("lab_handover");
     const token = getToken();
     try {
+      // Move the tubes to in_transit so the centre sees the run coming. The
+      // dispatch note below is the narrative record; this is the state change.
+      const submit = await fetch(`${apiBase}/api/samples/submit-run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ notes: labNotes }),
+      });
+      if (!submit.ok) {
+        const err = await submit.json().catch(() => ({}));
+        setStatusMsg({ tone: "urgent", text: err.detail || "Could not submit your tubes." });
+        setActionLoading("");
+        return;
+      }
+
       const res = await fetch(`${apiBase}/api/dispatch/${activeTask.id}/lab-handover`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           hub_name: labHubName,
-          sample_barcodes: sampleBarcodes || "BAR-DEFAULT-001",
+          sample_barcodes: sampleBarcodes,
           notes: labNotes,
         }),
       });
       const data = await res.json();
       if (data.success) {
-        setStatusMsg({ tone: "done", text: `Samples Handed Over to ${labHubName}!` });
+        setStatusMsg({ tone: "done", text: `Samples submitted to ${labHubName}.` });
         setShowLabModal(false);
         fetchTasks();
       } else {
@@ -582,16 +691,33 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
         title={embedded ? undefined : title}
         onDuty={onDuty}
         dutyLoading={dutyLoading || verifyingSelfie}
-        gpsLive={onDuty}
+        gpsLive={onDuty && !locationError}
         activeCount={tasks.length}
         completedToday={completedToday}
         earnings={earnings}
         earningsNote={earningsNote}
+        centreName={assignedCentre?.name}
+        centreCode={assignedCentre?.code}
+        salaried={salaried}
         onToggle={onToggleClick}
         onShowAllTasks={() => setShowAllTasks(true)}
       />
 
       <div className={embedded ? undefined : "cm-tracker__body"}>
+        {/* What to physically carry, before anything else on the screen: the
+            collector reads this while still at the centre. */}
+        {/* Show the kit for the run in hand, or — when nothing is accepted yet
+            — for the nearest pending offer, so the collector knows what the
+            job needs BEFORE deciding to take it. */}
+        {providerType === "phlebotomist" && (activeTask?.booking_id || offers[0]?.booking_id) && (
+          <CollectionKitWidget
+            bookingId={activeTask?.booking_id || offers[0].booking_id}
+            serviceLabel={serviceLabel(
+              activeTask?.service_type || offers[0]?.service_subtype,
+            )}
+          />
+        )}
+
         {statusMsg && (
           <Banner tone={statusMsg.tone} onDismiss={() => setStatusMsg(null)}>
             {statusMsg.text}
@@ -737,6 +863,7 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
           onChange={handleLabFieldChange}
           onSubmit={handleLabHandoverSubmit}
           loading={actionLoading === "lab_handover"}
+          centreAssigned={!!assignedCentre?.name}
         />
 
         {/* ─── CLINICAL VITALS & NOTES MODAL (Nurse) ─── */}

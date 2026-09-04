@@ -271,6 +271,9 @@ export default function PatientDashboard() {
               remainingPills: m.remaining_pills,
               pillsPerDay: m.pills_per_day,
               refillDate: m.refill_date,
+              daysLeft: m.days_left,
+              needsRefill: m.needs_refill,
+              outOfStock: m.out_of_stock,
             }));
             const { familyHubStore } = await import('@/store/useFamilyHubStore');
             familyHubStore.setMedications(mappedMeds);
@@ -731,9 +734,20 @@ export default function PatientDashboard() {
               verification PIN over a real dispatch for the whole window before
               the provider marked themselves arrived — the patient reads that
               out, the provider's verify-OTP rejects it, and the visit stalls. */}
-          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId
-            && (trackingData?.provider_type || "phlebotomist") === "phlebotomist" && (
-            <PhlebotomistRadar otpPin={patientOtp ?? undefined} />
+          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && trackingData
+            && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"]
+              .includes(trackingData.status)
+            && (trackingData.provider_type || "phlebotomist") === "phlebotomist" && (
+            <PhlebotomistRadar
+              status={trackingData.status}
+              phleboName={trackingData.provider?.name}
+              etaMinutes={trackingData.provider?.eta_minutes}
+              distanceKm={trackingData.provider?.distance_km}
+              speedKmh={trackingData.provider?.speed_kmh}
+              candidates={trackingData.searching_candidates || []}
+              locationSource={trackingData.provider?.location_source}
+              otpPin={patientOtp ?? undefined}
+            />
           )}
         </div>
 
@@ -1259,7 +1273,7 @@ export default function PatientDashboard() {
 
         {/* Quick Actions */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.2rem", color: "var(--cm-ink)", fontWeight: 800 }}>
+          <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.35rem", color: "var(--cm-ink)", fontWeight: 800 }}>
             {t.quickActions.title}
           </h3>
           <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
@@ -1277,8 +1291,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="droplet" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="droplet" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "phlebotomist" ? t.quickActions.requesting : t.quickActions.urgentHomeCollection}
@@ -1301,8 +1315,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="stethoscope" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="stethoscope" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "doctor" ? t.quickActions.requesting : t.quickActions.urgentHomeDoctor}
@@ -1325,8 +1339,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-urgent)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="nurse" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="nurse" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "nurse" ? t.quickActions.requesting : t.quickActions.urgentHomeNurse}
@@ -1349,8 +1363,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-waiting)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="delivery" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="delivery" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "pharmacy_delivery" ? t.quickActions.requesting : t.quickActions.urgentPharmacy}
@@ -1373,8 +1387,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="dietitian" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="dietitian" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "dietitian" ? t.quickActions.requesting : t.quickActions.homeDietitian}
@@ -1397,8 +1411,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="physio" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="physio" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "physiotherapist" ? t.quickActions.requesting : t.quickActions.homePhysio}
@@ -1416,8 +1430,8 @@ export default function PatientDashboard() {
           <a href="/booking?type=video_consult" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-navy)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="video" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="video" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.videoConsult}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1433,8 +1447,8 @@ export default function PatientDashboard() {
           <a href="/dashboard/patient/pmjay" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="hospital" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="hospital" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.pmjay}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1450,8 +1464,8 @@ export default function PatientDashboard() {
           <a href="/dashboard/patient/reports" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="sparkles" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="sparkles" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1474,8 +1488,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "#0ea5e9" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
-                <Clinical3DIcon name="dental" size={42} glow />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
+                <Clinical3DIcon name="dental" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">Dental Walk-In Care</h4>
               <p className="cm-quick-card__subtitle">
@@ -1798,7 +1812,7 @@ export default function PatientDashboard() {
           }
         }}
       >
-        <AlertTriangle size={18} style={{ marginRight: 6 }} /> {t.emergencySOSBtn}
+        <AlertTriangle size={14} /> {t.emergencySOSBtn}
       </button>
 
       {/* Industry-First Feature Modals */}

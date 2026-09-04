@@ -207,7 +207,17 @@ export default function SampleStatusRail({ lang = 'en' }: { lang?: PatientLang }
   const load = useCallback(async () => {
     try {
       const data = await patientSamplesAPI.getMySamples();
-      setSamples(data.samples || []);
+      // The endpoint doubles as the "My Reports" inbox, so it returns finished
+      // and cancelled tubes too. Those belong in the reports list, not on a
+      // live progress rail — they used to render here as "Pending Collection"
+      // forever, so a test cancelled months ago still looked like a collection
+      // on its way.
+      const all = data.samples || [];
+      setSamples(
+        all.filter((s: any) =>
+          s.is_active ?? !["cancelled", "completed", "delivered", "failed"].includes(s.status),
+        ),
+      );
     } catch {
       // Silent fail — the section simply won't show
     } finally {

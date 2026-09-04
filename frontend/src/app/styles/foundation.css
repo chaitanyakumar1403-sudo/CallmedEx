@@ -546,18 +546,21 @@ input[type="radio"] {
 }
 
 /* ── Empty state ──────────────────────────────────────────────────────── */
+/* 40px of vertical padding round two lines of text turned every empty widget
+   into a large void -- on the patient dashboard the empty biomarker panel was
+   taller than the booking cards. Still airy, no longer dominant. */
 .cm-empty {
   display: flex; flex-direction: column; align-items: center;
-  text-align: center; padding: var(--cm-10) var(--cm-6);
+  text-align: center; padding: var(--cm-6) var(--cm-5);
   border: 1px dashed var(--cm-line-strong);
   border-radius: var(--cm-radius-lg);
   background: var(--cm-surface);
 }
 .cm-empty__icon {
   display: grid; place-items: center;
-  width: 48px; height: 48px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   background: var(--cm-surface-3); color: var(--cm-ink-3);
-  margin-bottom: var(--cm-3);
+  margin-bottom: var(--cm-2);
 }
 .cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg); }
 .cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; }
@@ -1512,7 +1515,10 @@ input[type="radio"] {
 /* ─── Modern Vibrant Quick Action Cards ──────────────────────────────── */
 .cm-quick-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  /* 170px packed five-plus cards into a row and left the primary action
+     smaller than the medicine cabinet beneath it. Booking is the main column
+     on this page, so the cards get real width. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--cm-4);
   margin-bottom: var(--cm-6);
 }
@@ -1521,7 +1527,8 @@ input[type="radio"] {
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
   border-radius: var(--cm-radius-lg);
-  padding: var(--cm-4);
+  padding: var(--cm-5);
+  min-height: 172px;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -1549,8 +1556,8 @@ input[type="radio"] {
 }
 
 .cm-quick-card__icon-disc {
-  width: 46px;
-  height: 46px;
+  width: 54px;
+  height: 54px;
   border-radius: var(--cm-radius);
   display: flex;
   align-items: center;
@@ -1564,14 +1571,14 @@ input[type="radio"] {
 }
 
 .cm-quick-card__title {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--cm-ink);
-  margin: 0 0 4px 0;
+  margin: 0 0 5px 0;
 }
 
 .cm-quick-card__subtitle {
-  font-size: 0.78rem;
+  font-size: 0.83rem;
   color: var(--cm-ink-3);
   line-height: 1.35;
   margin: 0 0 var(--cm-3) 0;
@@ -2298,3 +2305,275 @@ input[type="radio"] {
 
 
 
+
+
+/* ============================================================================
+   DESK DASHBOARDS — clinical glass
+   ============================================================================
+
+   Applies to [data-surface="glass"], which DashboardShell sets for the doctor,
+   organization and processing-centre roles. The field roles deliberately do
+   not get it: this file's no-glass rule exists for a collector outdoors at
+   05:15 on a cheap Android in direct sun and for a patient who may be elderly
+   and reading Telugu, and a blur helps neither. A physician, a centre
+   administrator and a lab technician all read their screen indoors at a desk.
+
+   Same palette, same type, same guarantees — 44px targets, status never by
+   colour alone, and a solid fallback the moment the viewer asks for reduced
+   transparency or more contrast.
+
+   The one bold move is the stat strip straddling the navy band. Glass only
+   reads as glass when there is something behind it to refract; a frosted card
+   on a plain white page is just a grey box. Everything below the fold has
+   nothing behind it, so panels and cards are NOT frosted — they get a softer
+   edge instead. Blurring a flat background costs GPU and buys nothing.
+
+   The three dashboards each use a different stat component
+   (.cm-metric-card / .cm-kpi-card / .cm-stat), so those are listed together
+   wherever the treatment is identical.
+   ============================================================================ */
+
+[data-surface="glass"] {
+  /* Built from the brand navy already in :root — no new hue is introduced. */
+  --glass:        rgba(255, 255, 255, 0.92);
+  --glass-edge:   rgba(255, 255, 255, 0.75);
+  --glass-line:   rgba(26, 43, 74, 0.10);
+  --glass-shadow: 0 10px 30px -12px rgba(15, 29, 51, 0.45);
+  --glass-blur:   blur(16px) saturate(160%);
+}
+
+/* ── Header: depth without a gradient smudge ──────────────────────────────
+   Two wide, very low-contrast radial pools rather than a linear gradient. On
+   a desk monitor they give the glass above something to refract; at this
+   contrast they collapse to flat navy on a poor panel instead of banding,
+   which is what a linear gradient does wrong. */
+[data-surface="glass"] .cm-dash__head,
+[data-surface="glass"] .cm-dash__tabs {
+  position: relative;
+  background-color: var(--cm-navy);
+  background-image:
+    radial-gradient(60rem 22rem at 12% -40%, rgba(3, 105, 161, 0.30), transparent 70%),
+    radial-gradient(46rem 20rem at 88% -10%, rgba(15, 29, 51, 0.55), transparent 72%);
+}
+
+/* Room for the strip to sit in. The band grows by more than the strip rises,
+   so the tabs keep their own breathing space above it. */
+[data-surface="glass"] .cm-dash__tabs {
+  padding-bottom: 112px;
+}
+
+/* ── The lift ─────────────────────────────────────────────────────────────
+   `.cm-dash__body` carries its own var(--cm-6) top padding, which cancels
+   24px of this — the visible straddle is ~76px, a little over half the card.
+   Pull any less and the glass sits almost entirely on the light surface with
+   nothing behind it, which defeats the treatment. */
+[data-surface="glass"] .cm-dash__body {
+  position: relative;
+  margin-top: -100px;
+}
+
+[data-surface="glass"] .cm-metric-strip,
+[data-surface="glass"] .cm-kpi-grid,
+[data-surface="glass"] .cm-stats {
+  gap: var(--cm-3);
+  margin-bottom: var(--cm-8);
+}
+
+/* ── The frosted stat surface ───────────────────────────────────────────── */
+[data-surface="glass"] .cm-metric-card,
+[data-surface="glass"] .cm-kpi-card,
+[data-surface="glass"] .cm-stat {
+  position: relative;
+  overflow: hidden;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-radius: var(--cm-radius-lg);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  /* Three sides only. `.cm-stat` carries its status on a 4px LEFT border
+     (`.cm-stat--urgent { border-left-color }`), and a blanket `border-color`
+     here outranks that selector and erases it — which is exactly the
+     "never communicated by colour alone" rule this file exists to keep. */
+  border-top-color: var(--glass-edge);
+  border-right-color: var(--glass-edge);
+  border-bottom-color: var(--glass-edge);
+}
+
+/* These two have no left accent to protect, so their fourth side matches. */
+[data-surface="glass"] .cm-metric-card,
+[data-surface="glass"] .cm-kpi-card {
+  border-left-color: var(--glass-edge);
+}
+
+/* .cm-stat carries its status on a 4px left border, and .cm-kpi-card on a 3px
+   top bar. Both survive the glass, so neither needs a spine adding — rule 2 of
+   this file (never colour alone) is already satisfied by the existing device
+   plus the label. Only .cm-metric-card, which has no such device, gets one. */
+[data-surface="glass"] .cm-metric-card {
+  padding: var(--cm-4) var(--cm-4) var(--cm-4) var(--cm-5);
+}
+[data-surface="glass"] .cm-metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--cm-navy-soft);
+}
+[data-surface="glass"] .cm-metric-card:nth-child(1)::before { background: var(--cm-urgent); }
+[data-surface="glass"] .cm-metric-card:nth-child(2)::before { background: var(--cm-active); }
+[data-surface="glass"] .cm-metric-card:nth-child(3)::before { background: var(--cm-done); }
+[data-surface="glass"] .cm-metric-card:nth-child(4)::before { background: var(--cm-navy-soft); }
+
+/* The glass tint costs contrast. --cm-ink-3 reads 4.76:1 on pure white but
+   only 4.10:1 once the card is white-over-navy, which fails WCAG AA for text
+   this small; --cm-ink-faint is worse still at 2.21:1 (it already failed on
+   white, at 2.56:1 — flagged, not fixed globally here, because that token is
+   used across every dashboard). One step darker restores both to 8.93:1. */
+[data-surface="glass"] .cm-metric-card__label,
+[data-surface="glass"] .cm-kpi-card__label,
+[data-surface="glass"] .cm-stat__label,
+[data-surface="glass"] .cm-kpi-card__subtitle,
+[data-surface="glass"] .cm-stat__meta {
+  color: var(--cm-ink-2);
+}
+
+[data-surface="glass"] .cm-metric-card__value {
+  font-size: var(--cm-text-3xl);
+  letter-spacing: -0.03em;
+}
+
+[data-surface="glass"] .cm-metric-card:hover,
+[data-surface="glass"] .cm-kpi-card:hover,
+[data-surface="glass"] .cm-stat--btn:hover {
+  box-shadow: 0 16px 38px -14px rgba(15, 29, 51, 0.55),
+              inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+}
+
+/* These strips are clickable; they must show a ring like anything focusable. */
+[data-surface="glass"] .cm-metric-card:focus-visible,
+[data-surface="glass"] .cm-kpi-card:focus-visible,
+[data-surface="glass"] .cm-stat:focus-visible {
+  outline: 3px solid var(--cm-active);
+  outline-offset: 2px;
+}
+
+/* ── Panels and cards: opaque, softer edge ──────────────────────────────── */
+[data-surface="glass"] .cm-panel {
+  border-radius: var(--cm-radius-lg);
+  border-color: var(--glass-line);
+  box-shadow: 0 1px 2px rgba(15, 29, 51, 0.05),
+              0 8px 24px -18px rgba(15, 29, 51, 0.40);
+}
+
+[data-surface="glass"] .cm-card {
+  border-radius: var(--cm-radius);
+  border-color: var(--glass-line);
+  transition: border-color var(--cm-fast) var(--cm-ease),
+              box-shadow var(--cm-fast) var(--cm-ease),
+              transform var(--cm-fast) var(--cm-ease);
+}
+[data-surface="glass"] .cm-card--interactive:hover {
+  border-color: var(--cm-active-line);
+  box-shadow: 0 8px 20px -14px rgba(15, 29, 51, 0.45);
+  transform: translateY(-1px);
+}
+
+/* ── Tabs: a lit rail rather than a plain underline ─────────────────────── */
+[data-surface="glass"] .cm-tab {
+  border-radius: var(--cm-radius) var(--cm-radius) 0 0;
+}
+[data-surface="glass"] .cm-tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-surface="glass"] .cm-tab[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 -3px 0 #fff;
+  border-bottom-color: transparent;
+}
+
+/* ── Primary action in the header ────────────────────────────────────────
+   It sits on navy, so it must read as glass-on-navy, not a second navy block. */
+[data-surface="glass"] .cm-dash__head .cm-btn--primary {
+  background: rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #fff;
+}
+[data-surface="glass"] .cm-dash__head .cm-btn--primary:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Accessibility floor — all three escape hatches stay open ───────────── */
+
+/* Some people ask the OS for opaque surfaces; give them opaque surfaces. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-surface="glass"] .cm-metric-card,
+  [data-surface="glass"] .cm-kpi-card,
+  [data-surface="glass"] .cm-stat,
+  [data-surface="glass"] .cm-dash__head .cm-btn--primary {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  [data-surface="glass"] .cm-metric-card,
+  [data-surface="glass"] .cm-kpi-card,
+  [data-surface="glass"] .cm-stat {
+    background: var(--cm-surface);
+    border-color: var(--cm-line);
+  }
+  [data-surface="glass"] .cm-dash__head .cm-btn--primary {
+    background: var(--cm-navy-deep);
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* Sunlight mode: flatten everything back to the base system. */
+@media (prefers-contrast: more) {
+  [data-surface="glass"] .cm-dash__head,
+  [data-surface="glass"] .cm-dash__tabs {
+    background-image: none;
+  }
+  [data-surface="glass"] .cm-metric-card,
+  [data-surface="glass"] .cm-kpi-card,
+  [data-surface="glass"] .cm-stat {
+    background: var(--cm-surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 2px solid var(--cm-ink);
+    box-shadow: none;
+  }
+  [data-surface="glass"] .cm-metric-card::before { width: 5px; }
+  [data-surface="glass"] .cm-kpi-card__accent { height: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-surface="glass"] .cm-metric-card,
+  [data-surface="glass"] .cm-kpi-card,
+  [data-surface="glass"] .cm-stat,
+  [data-surface="glass"] .cm-card {
+    transition: none;
+  }
+  [data-surface="glass"] .cm-metric-card:hover,
+  [data-surface="glass"] .cm-kpi-card:hover,
+  [data-surface="glass"] .cm-stat--btn:hover,
+  [data-surface="glass"] .cm-card--interactive:hover {
+    transform: none;
+  }
+}
+
+/* On a phone the band is short and the strip is a single column; straddling
+   it there just pushes the first card over the tabs. */
+@media (max-width: 640px) {
+  [data-surface="glass"] .cm-dash__tabs { padding-bottom: var(--cm-3); }
+  [data-surface="glass"] .cm-dash__body { margin-top: 0; }
+  [data-surface="glass"] .cm-metric-card__value { font-size: var(--cm-text-2xl); }
+}
+
+/* Between phone and desktop the strip is two columns, so it is twice as tall
+   as the band can hold. Straddle by a token amount only. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-surface="glass"] .cm-dash__tabs { padding-bottom: var(--cm-8); }
+  [data-surface="glass"] .cm-dash__body { margin-top: calc(var(--cm-6) * -1); }
+}

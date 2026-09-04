@@ -40,7 +40,27 @@ STAGE_MAP = {
     "batched":            {"stage": "verified",           "step": 3, "label": "Verified"},
     "sent_to_lab":        {"stage": "sent_to_lab",        "step": 4, "label": "Sent to Reference Lab"},
     "rejected":           {"stage": "rejected",           "step": -1, "label": "Rejected"},
+    # Every status below was missing, and the lookup below falls back to
+    # pending_collection -- so a cancelled, completed or failed tube rendered
+    # on the patient's dashboard as "Pending Collection", for ever. That is
+    # what produced rails for tests that were finished or called off months
+    # earlier.
+    "processing":         {"stage": "processing",         "step": 4, "label": "Being Analysed"},
+    "report_ready":       {"stage": "report_ready",       "step": 5, "label": "Report Ready"},
+    "delivered":          {"stage": "delivered",          "step": 5, "label": "Report Delivered"},
+    "completed":          {"stage": "completed",          "step": 5, "label": "Completed"},
+    "failed":             {"stage": "failed",             "step": -1, "label": "Could Not Be Processed"},
+    "cancelled":          {"stage": "cancelled",          "step": -1, "label": "Cancelled"},
 }
+
+# What the live rail is for: work still in flight. A finished or cancelled tube
+# is history and must drop off the tracker — but this endpoint is also the
+# "My Reports" inbox, which needs exactly those finished rows. So the split is
+# published as a per-sample `is_active` flag rather than filtered away here.
+ACTIVE_SAMPLE_STATUSES = (
+    "pending_collection", "collected", "in_transit", "handover_requested",
+    "received", "verified", "batched", "sent_to_lab", "processing",
+)
 
 
 @router.get("/my-samples")
@@ -150,7 +170,9 @@ async def my_samples(user: dict = Depends(get_current_user)):
     out = []
     for s in samples:
         status = s.get("status", "pending_collection")
-        stage_info = STAGE_MAP.get(status, STAGE_MAP["pending_collection"])
+        stage_info = STAGE_MAP.get(status) or {
+            "stage": status or "unknown", "step": 0, "label": "Processing",
+        }
 
         # Leak guard — only expose safe fields
         safe = {k: s.get(k) for k in PATIENT_SAFE_FIELDS if k in s}
@@ -166,6 +188,10 @@ async def my_samples(user: dict = Depends(get_current_user)):
             "cap_colour": tube_info.get("cap_colour", ""),
             "test_names": sample_tests_map.get(s["id"], []),
             "subject_name": subject_names.get(s.get("booking_subject_id", ""), ""),
+            # Drives the live status rail. Cancelled and finished tubes stayed
+            # on it forever, rendered as "Pending Collection", because every
+            # status missing from STAGE_MAP fell back to that.
+            "is_active": status in ACTIVE_SAMPLE_STATUSES,
         })
         out.append(safe)
 

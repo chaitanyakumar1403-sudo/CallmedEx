@@ -89,9 +89,26 @@ export default function PCQueuePanel() {
           <Stat
             label="Pending Receipt"
             value={data.pending_receipt ?? data.pending_collection}
-            meta="In transit / expecting arrival"
+            meta="Not yet at the intake desk"
             icon={Clock}
             tone="default"
+          />
+          {/* `collected` counted in no tile at all, so a barcoded tube in a
+              collector's bag was invisible to the centre until someone
+              happened to scan it at intake. */}
+          <Stat
+            label="Collected in field"
+            value={data.collected_awaiting_submission ?? 0}
+            meta="Barcoded, still with the collector"
+            icon={Package}
+            tone="default"
+          />
+          <Stat
+            label="In transit to us"
+            value={data.in_transit_to_centre ?? 0}
+            meta="Run submitted — expect arrival"
+            icon={Clock}
+            tone={(data.in_transit_to_centre ?? 0) > 0 ? "active" : "default"}
           />
           <Stat
             label="Received"

@@ -22,6 +22,49 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [msg, setMsg] = useState<string>('');
 
+  const [refilling, setRefilling] = useState<string>('');
+
+  /** The "Refill Needed" button was decorative: no handler, so the badge could
+   *  be raised and never cleared. This resets the count to a full pack and
+   *  re-anchors the server-side burn-down. */
+  const handleRefill = async (med: (typeof medications)[number]) => {
+    setRefilling(med.id);
+    setMsg('');
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const res = await fetch(`${apiBase}/api/v1/patient/medications/${med.id}/refill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ remaining_pills: med.totalPills }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setMsg(err.detail || 'Could not record the refill.');
+        return;
+      }
+      familyHubStore.setMedications(
+        medications.map((m) =>
+          m.id === med.id
+            ? {
+                ...m,
+                remainingPills: med.totalPills,
+                daysLeft: m.pillsPerDay > 0
+                  ? Math.floor(med.totalPills / m.pillsPerDay)
+                  : null,
+                needsRefill: false,
+                outOfStock: false,
+              }
+            : m,
+        ),
+      );
+    } catch {
+      setMsg('Network error recording the refill.');
+    } finally {
+      setRefilling('');
+    }
+  };
+
   const handleAddMedication = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!medicineName.trim() || !dosage.trim()) {
@@ -51,14 +94,17 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
       });
 
       const data = await res.json();
-      if (res.ok && (data.status === 'created' || data.medication)) {
+      if (res.ok && data.status === 'created' && data.medication?.id) {
         const newMed = {
-          id: data.medication.id || `m-${Date.now()}`,
+          id: data.medication.id,
           medicineName: data.medication.medicine_name || medicineName,
           dosage: data.medication.dosage || dosage,
-          totalPills: data.medication.total_pills || Number(totalPills),
-          remainingPills: data.medication.remaining_pills || Number(remainingPills),
-          pillsPerDay: data.medication.pills_per_day || Number(pillsPerDay),
+          totalPills: data.medication.total_pills ?? Number(totalPills),
+          remainingPills: data.medication.remaining_pills ?? Number(remainingPills),
+          pillsPerDay: data.medication.pills_per_day ?? Number(pillsPerDay),
+          daysLeft: data.medication.days_left,
+          needsRefill: data.medication.needs_refill,
+          outOfStock: data.medication.out_of_stock,
         };
         familyHubStore.setMedications([...medications, newMed]);
         setShowAddModal(false);
@@ -81,19 +127,19 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
     <div
       style={{
         background: 'white',
-        borderRadius: 20,
+        borderRadius: 14,
         border: '1px solid #e2e8f0',
-        padding: 24,
-        boxShadow: '0 10px 30px -5px rgba(15, 23, 42, 0.05)',
+        padding: '14px 16px',
+        boxShadow: '0 4px 14px -6px rgba(15, 23, 42, 0.08)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Pill style={{ width: 18, height: 18, color: '#7c3aed' }} />
+          <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Pill style={{ width: 15, height: 15, color: '#7c3aed' }} />
             {t.smartMedicineCabinet}
           </h3>
-          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+          <p style={{ margin: '2px 0 0 0', fontSize: '0.76rem', color: '#64748b' }}>
             {t.medicineCabinetSubtitle}
           </p>
         </div>
@@ -101,20 +147,20 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
         <button
           onClick={() => setShowAddModal(true)}
           style={{
-            padding: '8px 16px',
-            borderRadius: 10,
+            padding: '6px 12px',
+            borderRadius: 8,
             border: 'none',
             background: '#7c3aed',
             color: '#fff',
             fontWeight: 700,
-            fontSize: '0.82rem',
+            fontSize: '0.76rem',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 5,
           }}
         >
-          <Plus style={{ width: 14, height: 14 }} /> {t.addMedication}
+          <Plus style={{ width: 13, height: 13 }} /> {t.addMedication}
         </button>
       </div>
 
@@ -236,48 +282,60 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
       )}
 
       {medications.length === 0 ? (
-        <div style={{ padding: '24px', background: '#f8fafc', borderRadius: 14, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
-          <Pill style={{ width: 32, height: 32, color: '#94a3b8', margin: '0 auto 8px' }} />
-          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#334155', marginBottom: 4 }}>{t.noMedicationsTitle}</div>
-          <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+        <div style={{ padding: '14px', background: '#f8fafc', borderRadius: 10, border: '1px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
+          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#334155' }}>{t.noMedicationsTitle}</div>
+          <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: 2 }}>
             {t.noMedicationsBody}
           </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
           {medications.map((med) => {
-            const daysLeft = Math.max(0, Math.floor(med.remainingPills / med.pillsPerDay));
-            const percentRemaining = Math.min(100, Math.round((med.remainingPills / med.totalPills) * 100));
-            const isLow = daysLeft <= 5;
+            // Prefer the server's projection. The local fallback divides the
+            // stored count by the daily dose, which is exactly the figure that
+            // stayed frozen at "5 days" for months because nothing decremented
+            // it -- it is only used when the API predates the projection.
+            const daysLeft = med.daysLeft ?? (
+              med.pillsPerDay > 0
+                ? Math.max(0, Math.floor(med.remainingPills / med.pillsPerDay))
+                : 0
+            );
+            const percentRemaining = med.totalPills > 0
+              ? Math.min(100, Math.round((med.remainingPills / med.totalPills) * 100))
+              : 0;
+            const isLow = med.needsRefill ?? daysLeft <= 5;
 
             return (
               <div
                 key={med.id}
                 style={{
-                  background: isLow ? '#fffbeb' : '#f8fafc',
-                  borderRadius: 14,
-                  border: isLow ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
-                  padding: 16,
+                  background: med.outOfStock ? '#fef2f2' : isLow ? '#fffbeb' : '#f8fafc',
+                  borderRadius: 10,
+                  border: med.outOfStock
+                    ? '1.5px solid #ef4444'
+                    : isLow ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+                  padding: 11,
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>{med.medicineName}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 3, gap: 6 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.84rem', color: '#0f172a' }}>{med.medicineName}</div>
                     {isLow && (
-                      <span style={{ backgroundColor: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <AlertTriangle style={{ width: 12, height: 12 }} /> {t.refillNeeded}
+                      <span style={{ backgroundColor: med.outOfStock ? '#fee2e2' : '#fef3c7', color: med.outOfStock ? '#b91c1c' : '#b45309', padding: '1px 7px', borderRadius: 8, fontSize: '0.64rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+                        <AlertTriangle style={{ width: 11, height: 11 }} />
+                        {med.outOfStock ? 'Out of stock' : t.refillNeeded}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: 12 }}>{med.dosage}</div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 8 }}>{med.dosage}</div>
                 </div>
 
                 <div>
                   {/* Horizontal Progress Bar */}
-                  <div style={{ background: '#e2e8f0', height: 6, borderRadius: 999, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ background: '#e2e8f0', height: 5, borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
                     <div
                       style={{
                         width: `${percentRemaining}%`,
@@ -289,27 +347,31 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
                     />
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#475569', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 600 }}>
                       <strong style={{ color: '#0f172a' }}>{med.remainingPills}</strong>/{med.totalPills} ({daysLeft} {t.daysSupplyRemaining})
                     </span>
 
                     <button
+                      onClick={() => handleRefill(med)}
+                      disabled={refilling === med.id}
                       style={{
-                        padding: '4px 12px',
-                        borderRadius: 8,
+                        padding: '3px 10px',
+                        borderRadius: 7,
                         border: 'none',
-                        background: '#7c3aed',
+                        background: refilling === med.id ? '#a78bfa' : '#7c3aed',
                         color: '#fff',
-                        fontSize: '0.75rem',
+                        fontSize: '0.7rem',
                         fontWeight: 700,
-                        cursor: 'pointer',
+                        cursor: refilling === med.id ? 'wait' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      <RotateCcw style={{ width: 12, height: 12 }} /> {t.refillNeeded}
+                      <RotateCcw style={{ width: 11, height: 11 }} />
+                      {refilling === med.id ? 'Saving…' : 'Mark refilled'}
                     </button>
                   </div>
                 </div>

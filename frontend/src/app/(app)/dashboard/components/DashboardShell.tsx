@@ -20,6 +20,15 @@ export type DashRole =
   | "processing_center" | "dietitian" | "physiotherapist"
   | "dentist";
 
+/* Desk-bound roles get the frosted treatment. The field roles deliberately do
+ * not: foundation.css's no-glass rule exists for a collector outdoors at 05:15
+ * on a cheap Android in direct sun, and a patient who may be elderly and
+ * reading Telugu — a blur helps neither. A doctor, a centre administrator and
+ * a lab technician all read their screen indoors at a desk.
+ *
+ * Adding a dashboard to the treatment is one entry here. */
+const GLASS_ROLES = new Set(["doctor", "organization", "processing_center"]);
+
 export default function DashboardShell({
   role, title, subtitle, aside, tabs, activeTab, onTabChange, children,
 }: {
@@ -33,7 +42,8 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="cm-dash" data-role={role}>
+    <div className="cm-dash" data-role={role}
+         data-surface={GLASS_ROLES.has(role) ? "glass" : undefined}>
       <PageHeader title={title} subtitle={subtitle} actions={aside} />
       <Tabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange}
             label={`${title} sections`} />

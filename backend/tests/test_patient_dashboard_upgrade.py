@@ -9,6 +9,7 @@ Verifies:
 """
 import uuid
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -124,12 +125,25 @@ async def test_trigger_emergency_sos():
     payload = patient_sos.SOSTriggerPayload(lat=12.9716, lng=77.5946, notes="Test SOS alert")
     
     result = await patient_sos.trigger_emergency_sos(payload=payload, user=user)
-    
-    assert result["status"] == "dispatched"
+
     assert "alert_id" in result
     assert result["location"]["lat"] == 12.9716
     assert result["location"]["lng"] == 77.5946
-    assert result["contacts_notified"] >= 1
+
+    # This used to assert status == "dispatched" and contacts_notified >= 1,
+    # which only ever passed because the endpoint invented a contact
+    # (+919876543210, "Primary Emergency Contact") when the patient had none
+    # and counted it as notified. In an emergency that told the patient help
+    # had been reached when nobody had been called. The contract now is that
+    # the two agree: "dispatched" iff something was actually delivered.
+    assert result["status"] in ("dispatched", "not_delivered")
+    assert result["contacts_notified"] <= result["contacts_total"]
+    if result["status"] == "dispatched":
+        assert result["contacts_notified"] >= 1
+    else:
+        assert result["contacts_notified"] == 0
+        # And the patient is told to call an ambulance directly.
+        assert "108" in result["message"]
 
 
 # ── 5. Medications Endpoints Test ─────────────────────────────────────────
@@ -158,9 +172,12 @@ async def test_add_patient_medication():
         refill_date="2026-09-01"
     )
     
-    result = await patient_sos.add_patient_medication(payload=payload, user=user)
-    
-    assert result["status"] == "created"
-    med = result["medication"]
-    assert med["medicine_name"] == "Aspirin 75mg"
-    assert med["patient_id"] == user["sub"]
+    # _mock_user() mints a random uuid that is not in `users`, so the FK on
+    # patient_medications.patient_id rejects this insert. That is correct
+    # behaviour and the endpoint must now SAY so: it used to swallow the
+    # error and return status "created" with the un-inserted payload, telling
+    # the patient their prescription was saved when the row never existed.
+    with pytest.raises(HTTPException) as exc:
+        await patient_sos.add_patient_medication(payload=payload, user=user)
+    assert exc.value.status_code == 503
+    assert "retry" in str(exc.value.detail).lower()

@@ -36,7 +36,7 @@ def retry_dispatch_creation(
     provider_type: str = "phlebotomist",
     service_subtype: str = "blood_collection",
     notes: str = "",
-    search_radius_km: float = 10.0,
+    search_radius_km: float = None,
     processing_center_id: str = None,
 ):
     """Retry creating a dispatch request for a confirmed booking.

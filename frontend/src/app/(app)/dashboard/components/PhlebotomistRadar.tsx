@@ -1,23 +1,55 @@
 'use client';
 
 import React from 'react';
-import { Compass, Thermometer, ShieldCheck, Key } from 'lucide-react';
+import { Compass, ShieldCheck, Search } from 'lucide-react';
 
-interface Props {
-  phleboName?: string;
-  etaMinutes?: number;
-  temperatureCelsius?: number;
-  otpPin?: string;
-  speedKmh?: number;
+/**
+ * Live collection tracking for the patient.
+ *
+ * Everything rendered here comes from the dispatch tracking payload. This
+ * component used to carry defaults — "Ravi Kumar (Certified Phlebotomist)",
+ * 8 minutes away, 24 km/h, a 4.2°C cold-chain reading and an "NMC Biometric
+ * Verified" badge — and the patient dashboard rendered it with only the OTP
+ * supplied, so every patient watched the same invented collector approach.
+ * There is no cold-chain sensor anywhere in the platform, so no temperature
+ * is shown at all.
+ */
+interface Candidate {
+  first_name?: string;
+  distance_km?: number | null;
+  eta_minutes?: number | null;
+  rating?: number | null;
+  rating_count?: number;
 }
 
+interface Props {
+  /** searching | provider_notified | provider_accepted | en_route | arrived | in_progress */
+  status?: string;
+  phleboName?: string | null;
+  etaMinutes?: number | null;
+  distanceKm?: number | null;
+  otpPin?: string;
+  speedKmh?: number | null;
+  /** Collectors holding a live offer, while nobody has accepted yet. */
+  candidates?: Candidate[];
+  /** "live" GPS fix vs "base" registered address. */
+  locationSource?: string;
+}
+
+const SEARCHING = new Set(['searching', 'provider_notified']);
+
 export const PhlebotomistRadar: React.FC<Props> = ({
-  phleboName = 'Ravi Kumar (Certified Phlebotomist)',
-  etaMinutes = 8,
-  temperatureCelsius = 4.2,
+  status = 'searching',
+  phleboName,
+  etaMinutes,
+  distanceKm,
   otpPin,
-  speedKmh = 24,
+  speedKmh,
+  candidates = [],
+  locationSource,
 }) => {
+  const searching = SEARCHING.has(status);
+
   return (
     <div
       style={{
@@ -31,37 +63,82 @@ export const PhlebotomistRadar: React.FC<Props> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#166534', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Compass style={{ width: 18, height: 18, color: '#15803d' }} />
-            Live Phlebotomist Arrival Tracking
+            {searching
+              ? <Search style={{ width: 18, height: 18, color: '#15803d' }} />
+              : <Compass style={{ width: 18, height: 18, color: '#15803d' }} />}
+            {searching ? 'Finding a collector near you' : 'Live collection tracking'}
           </h3>
           <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#15803d' }}>
-            Real-time GPS telemetry & cold-chain container monitoring.
+            {searching
+              ? 'Your request has gone out to verified collectors in your area.'
+              : 'Real-time location from your collector’s device.'}
           </p>
         </div>
 
-        <div style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '6px 16px', borderRadius: 20, fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' }}>
-          Arriving in ~{etaMinutes} Mins
-        </div>
+        {!searching && typeof etaMinutes === 'number' && (
+          <div style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '6px 16px', borderRadius: 20, fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase' }}>
+            Arriving in ~{etaMinutes} Mins
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, alignItems: 'center' }}>
-        {/* Phlebo Profile Details */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, alignItems: 'stretch' }}>
         <div style={{ background: '#fff', padding: 18, borderRadius: 14, border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>{phleboName}</div>
-              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: 2 }}>Transit Speed: {speedKmh} km/h</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#047857', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Thermometer style={{ width: 14, height: 14 }} /> Cold Chain: {temperatureCelsius}°C (Optimal)
-            </span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <ShieldCheck style={{ width: 14, height: 14 }} /> NMC Biometric Verified
-            </span>
-          </div>
+          {searching ? (
+            candidates.length > 0 ? (
+              <>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
+                  {candidates.length} collector{candidates.length === 1 ? '' : 's'} notified
+                </div>
+                {candidates.slice(0, 4).map((c, i) => (
+                  <div
+                    key={`${c.first_name ?? 'collector'}-${i}`}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      fontSize: '0.82rem', color: '#334155', paddingTop: 6,
+                      borderTop: i === 0 ? 'none' : '1px solid #f1f5f9',
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>
+                      {c.first_name || 'Collector'}
+                      {typeof c.rating === 'number' && (
+                        <span style={{ color: '#64748b', fontWeight: 500 }}> · {c.rating.toFixed(1)}★</span>
+                      )}
+                    </span>
+                    <span style={{ color: '#64748b' }}>
+                      {typeof c.distance_km === 'number' ? `${c.distance_km.toFixed(1)} km` : '—'}
+                      {typeof c.eta_minutes === 'number' ? ` · ~${c.eta_minutes} min` : ''}
+                    </span>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div style={{ fontSize: '0.85rem', color: '#334155' }}>
+                Still searching for an available collector. We will notify you the
+                moment someone accepts.
+              </div>
+            )
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>
+                {phleboName || 'Your collector'}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                {typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)} km away` : 'Location updating…'}
+                {typeof speedKmh === 'number' && speedKmh > 0 ? ` · ${Math.round(speedKmh)} km/h` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', paddingTop: 6, borderTop: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <ShieldCheck style={{ width: 14, height: 14 }} /> Verified by CallMedex
+                </span>
+                {locationSource === 'base' && (
+                  <span style={{ fontSize: '0.75rem', color: '#b45309' }}>
+                    Live GPS unavailable — showing last known area
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Doorstep OTP Pin Box */}
@@ -73,12 +150,12 @@ export const PhlebotomistRadar: React.FC<Props> = ({
             {/* No invented PIN. Until the collector marks themselves arrived
                 the backend does not release one, and printing a placeholder
                 that looks like a code is worse than showing none. */}
-            {otpPin || "••••"}
+            {otpPin || '••••'}
           </div>
           <div style={{ fontSize: '0.68rem', color: '#e0f2fe', marginTop: 6 }}>
             {otpPin
-              ? "Share only upon phlebotomist arrival"
-              : "Your OTP appears here once the collector arrives"}
+              ? 'Share only upon phlebotomist arrival'
+              : 'Your OTP appears here once the collector arrives'}
           </div>
         </div>
       </div>

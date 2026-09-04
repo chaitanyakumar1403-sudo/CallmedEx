@@ -13,6 +13,7 @@ type LabField = "labHubName" | "barcodes" | "notes";
  */
 export function LabHandoverModal({
   open, onClose, labHubName, barcodes, notes, onChange, onSubmit, loading,
+  centreAssigned = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -22,6 +23,9 @@ export function LabHandoverModal({
   onChange: (field: LabField, value: string) => void;
   onSubmit: () => void;
   loading: boolean;
+  /** True once the collector's processing centre resolved — the destination
+   *  is then a fact about their posting, not something to retype each run. */
+  centreAssigned?: boolean;
 }) {
   return (
     <Modal
@@ -41,8 +45,16 @@ export function LabHandoverModal({
         Record the diagnostic hub details and sample container barcodes before dropping off tubes.
       </p>
 
-      <Field label="Diagnostic lab hub name" id="lab-hub-name">
-        <TextInput value={labHubName} onChange={(e) => onChange("labHubName", e.target.value)} />
+      <Field
+        label={centreAssigned ? "Your processing centre" : "Diagnostic lab hub name"}
+        id="lab-hub-name"
+        hint={centreAssigned ? "Assigned by your centre admin" : undefined}
+      >
+        <TextInput
+          value={labHubName}
+          readOnly={centreAssigned}
+          onChange={(e) => onChange("labHubName", e.target.value)}
+        />
       </Field>
 
       <Field label="Sample barcode IDs / tube numbers" id="lab-barcodes">

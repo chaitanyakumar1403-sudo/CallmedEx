@@ -119,7 +119,20 @@ async def queue_summary(staff: dict = Depends(get_current_pc_staff)):
     ) if supabase else []
 
     # 10 Laboratory Workflow Widgets (100% DB-driven)
-    pending_receipt = len([s for s in all_samples if s.get("status") in ("pending_collection", "in_transit", "handover_requested")])
+    # `collected` was missing here, so a tube the collector had already
+    # barcoded at the patient's door counted in no tile at all — the centre
+    # could not see that a run existed until someone scanned it at intake.
+    pending_receipt = len([
+        s for s in all_samples
+        if s.get("status") in
+        ("pending_collection", "collected", "in_transit", "handover_requested")
+    ])
+    # Split out so the dashboard can distinguish "not collected yet" from
+    # "collected and on its way to us".
+    in_hand_of_collector = len([s for s in all_samples if s.get("status") == "collected"])
+    in_transit_to_centre = len([
+        s for s in all_samples if s.get("status") in ("in_transit", "handover_requested")
+    ])
     received_cnt = len([s for s in all_samples if s.get("status") == "received"])
     verification_queue = received_cnt
     verified_cnt = len([s for s in all_samples if s.get("status") in ("verified", "batched", "sent_to_lab")])
@@ -168,6 +181,8 @@ async def queue_summary(staff: dict = Depends(get_current_pc_staff)):
         "total_samples": len(all_samples),
         # 10 Canonical Laboratory Workflow Widgets
         "pending_receipt": pending_receipt,
+        "collected_awaiting_submission": in_hand_of_collector,
+        "in_transit_to_centre": in_transit_to_centre,
         "received": received_cnt,
         "verification_queue": verification_queue,
         "verified": verified_cnt,

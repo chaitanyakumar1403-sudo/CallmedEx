@@ -45,6 +45,12 @@ OFFER_EXPIRY_SECONDS = DEFAULT_OFFER_WINDOW_MINUTES * 60  # kept for callers
 
 MAX_SEARCH_ROUNDS = 3      # Number of rounds to search for providers
 
+# The service radius the platform actually operates on. Callers used to pass an
+# ad-hoc 10.0 while the operating model (and the phlebotomist MOU) is 15 km, so
+# collectors 12 km from the patient were silently never offered the job.
+# Read from platform_settings so ops can widen a city without a deploy.
+DEFAULT_SEARCH_RADIUS_KM = 15.0
+
 # Urgent work is sped up by casting a WIDER net, not by shortening the accept
 # window. Cutting a provider's deadline below the agreed 10 minutes would
 # breach the signed MOU; notifying more providers over a larger radius gets the
@@ -81,6 +87,31 @@ def _cleanup_local_dispatches():
     ]
     if before != len(_local_dispatches):
         logger.debug(f"Cleaned up {before - len(_local_dispatches)} stale local dispatches")
+
+
+def _platform_number(key: str, field: str, default: float) -> float:
+    """Read one numeric knob out of platform_settings, falling back to `default`."""
+    if not supabase:
+        return default
+    try:
+        rows = (
+            supabase.table("platform_settings")
+            .select("value").eq("key", key).limit(1).execute()
+        ).data or []
+        if rows and isinstance(rows[0], dict):
+            value = rows[0].get("value")
+            if isinstance(value, dict):
+                num = value.get(field)
+                if isinstance(num, (int, float)) and num > 0:
+                    return float(num)
+    except Exception:
+        pass
+    return default
+
+
+def search_radius_km_setting() -> float:
+    """Patient service radius in km, from platform_settings, defaulting to 15."""
+    return _platform_number("dispatch_search_radius_km", "km", DEFAULT_SEARCH_RADIUS_KM)
 
 
 def offer_window_minutes() -> int:
@@ -151,7 +182,7 @@ class UniversalDispatchEngine:
         patient_lat: float,
         patient_lng: float,
         provider_type: str,
-        radius_km: float = 10.0,
+        radius_km: Optional[float] = None,
         limit: Optional[int] = 5,
         exclude_ids: List[str] = None,
         processing_center_id: Optional[str] = None,
@@ -183,6 +214,8 @@ class UniversalDispatchEngine:
         if not supabase:
             return []
 
+        if radius_km is None:
+            radius_km = search_radius_km_setting()
         exclude_ids = exclude_ids or []
 
         # ── MERGE candidates from both tables ─────────────────────────
@@ -224,12 +257,31 @@ class UniversalDispatchEngine:
             # Deduplicate by user_id — prefer the provider_locations entry
             # (Path A) since it likely has fresher coordinates, but always
             # include any provider that only exists in the legacy table.
-            seen = {p.get("user_id") or p.get("users", {}).get("id") for p in providers}
+            #
+            # "Prefer Path A" only holds while Path A actually has a position.
+            # A provider_locations row written by the duty toggle carries
+            # is_online with NULL coordinates until the first GPS ping lands;
+            # keeping that row over the legacy one discarded the base location
+            # that would have made the collector dispatchable.
+            by_uid = {}
+            for p in providers:
+                uid = p.get("user_id") or p.get("users", {}).get("id")
+                if uid:
+                    by_uid[uid] = p
             for p in result_b:
                 uid = p.get("user_id") or p.get("users", {}).get("id")
-                if uid and uid not in seen:
+                if not uid:
+                    continue
+                existing = by_uid.get(uid)
+                if existing is None:
+                    by_uid[uid] = p
                     providers.append(p)
-                    seen.add(uid)
+                elif existing.get("current_lat") is None and existing.get("current_lng") is None:
+                    # Path A knows nothing about where they are; merge the
+                    # legacy row's coordinates in rather than dropping them.
+                    for key in ("current_lat", "current_lng", "base_lat", "base_lng"):
+                        if p.get(key) is not None:
+                            existing[key] = p[key]
         except Exception:
             pass
 
@@ -291,8 +343,18 @@ class UniversalDispatchEngine:
                 )
                 continue
 
+            # Live GPS is the truth when we have it. When we do not — the fix
+            # has not landed yet, or the device cannot produce one — the
+            # provider's registered base location is used instead, so being on
+            # duty is enough to be offered work. `location_source` is carried
+            # through so the ETA and the patient-facing map can say which it is.
             p_lat = p.get("current_lat")
             p_lng = p.get("current_lng")
+            location_source = "live"
+            if p_lat is None or p_lng is None:
+                p_lat = p.get("base_lat")
+                p_lng = p.get("base_lng")
+                location_source = "base"
             if p_lat is None or p_lng is None:
                 continue
 
@@ -310,6 +372,7 @@ class UniversalDispatchEngine:
                     "eta_minutes": UniversalDispatchEngine.estimate_eta_minutes(dist, provider_type),
                     "lat": float(p_lat),
                     "lng": float(p_lng),
+                    "location_source": location_source,
                     "provider_type": provider_type,
                 })
 
@@ -353,13 +416,22 @@ class UniversalDispatchEngine:
 
         try:
             if provider_type == "phlebotomist":
+                # Deliberately NOT filtered on a non-null current_lat: a
+                # collector who is on duty but whose browser/phone has not
+                # produced a GPS fix yet (permission prompt still open, indoor
+                # cold start, a laptop with no GPS at all) was excluded here
+                # AND from provider_locations, so they sat "on duty" all day
+                # receiving nothing. base_lat/base_lng — their registered
+                # working location — is the fallback the candidate loop
+                # coalesces to.
                 result = (
                     supabase.table(table)
-                    .select("*, users!phlebotomists_user_id_fkey!inner(id, full_name, mobile, email)")
+                    .select(
+                        "*, users!phlebotomists_user_id_fkey!inner("
+                        "id, full_name, mobile, email)"
+                    )
                     .eq("on_duty", True)
                     .eq("verification_status", "verified")
-                    .not_.is_("current_lat", "null")
-                    .not_.is_("current_lng", "null")
                     .execute()
                 )
             elif provider_type == "nurse":
@@ -541,7 +613,7 @@ class UniversalDispatchEngine:
         notes: str = "",
         booking_id: str = None,
         address_details: dict = None,
-        search_radius_km: float = 10.0,
+        search_radius_km: Optional[float] = None,
         processing_center_id: str = None,
         priority: str = "normal",
     ) -> dict:
@@ -570,9 +642,18 @@ class UniversalDispatchEngine:
         # Urgent home collection fans out to EVERY on-duty phlebo of the
         # booking's centre. Widening the radius is not enough when the
         # constraint is the centre, not the distance.
+        if search_radius_km is None:
+            search_radius_km = search_radius_km_setting()
         home_collection = provider_type == "phlebotomist" and processing_center_id
         urgent_home_collection = bool(urgent and home_collection)
-        ignore_radius = bool(home_collection)
+        # Centre membership used to switch distance off for ALL home
+        # collection, urgent or not, which is how a collector on the far edge
+        # of a centre's district got offered a routine doorstep visit they had
+        # no chance of reaching on time. Routine work now respects the service
+        # radius; an URGENT centre fan-out still deliberately ignores it,
+        # because reaching every on-duty collector of the centre is the whole
+        # point of that escape hatch.
+        ignore_radius = urgent_home_collection
         effective_radius = (
             search_radius_km * URGENT_RADIUS_MULTIPLIER
             if urgent and not home_collection
@@ -1451,6 +1532,86 @@ class UniversalDispatchEngine:
     # ──────────────────────────────────────────────────────────────────
 
     @staticmethod
+    def _ensure_base_location(
+        user_id: str,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
+    ) -> None:
+        """Give a phlebotomist a base location if they have none. Never raises.
+
+        Order of preference: the live fix they just supplied, then their
+        registered address geocoded once, then the coordinates of the
+        processing centre they are attached to. Written once and left alone —
+        a collector who moves house is re-based by ops, not by a stray ping.
+        """
+        try:
+            rows = (
+                supabase.table("phlebotomists")
+                .select("base_lat, base_lng, processing_center_id")
+                .eq("user_id", user_id).limit(1).execute()
+            ).data or []
+            if not rows:
+                return
+            row = rows[0]
+            if row.get("base_lat") is not None and row.get("base_lng") is not None:
+                return
+
+            base_lat, base_lng = lat, lng
+
+            if base_lat is None or base_lng is None:
+                user_rows = (
+                    supabase.table("users")
+                    .select("address, city, district, state, pincode")
+                    .eq("id", user_id).limit(1).execute()
+                ).data or []
+                if user_rows:
+                    u = user_rows[0]
+                    address = ", ".join(
+                        str(part) for part in
+                        (u.get("address"), u.get("pincode"), u.get("district"))
+                        if part
+                    )
+                    if address or u.get("city"):
+                        from app.services.geocoding import geocode_address, GeocodingError
+                        try:
+                            base_lat, base_lng = geocode_address(
+                                address=address,
+                                city=u.get("city") or "",
+                                state=u.get("state") or "",
+                            )
+                        except GeocodingError as e:
+                            logger.info(
+                                f"Base location geocode failed for phlebotomist "
+                                f"{user_id}: {e}"
+                            )
+
+            if (base_lat is None or base_lng is None) and row.get("processing_center_id"):
+                centre = (
+                    supabase.table("processing_centers")
+                    .select("lat, lng")
+                    .eq("id", row["processing_center_id"]).limit(1).execute()
+                ).data or []
+                if centre and centre[0].get("lat") is not None:
+                    base_lat, base_lng = centre[0]["lat"], centre[0]["lng"]
+
+            if base_lat is None or base_lng is None:
+                logger.warning(
+                    f"Phlebotomist {user_id} went on duty with no resolvable base "
+                    f"location; they are reachable only once live GPS lands."
+                )
+                return
+
+            supabase.table("phlebotomists").update({
+                "base_lat": float(base_lat), "base_lng": float(base_lng),
+            }).eq("user_id", user_id).execute()
+            logger.info(
+                f"Backfilled base location ({base_lat}, {base_lng}) for "
+                f"phlebotomist {user_id}"
+            )
+        except Exception as e:
+            logger.warning(f"Base location backfill failed for {user_id}: {e}")
+
+    @staticmethod
     async def toggle_online(
         user_id: str,
         provider_type: str,
@@ -1463,6 +1624,16 @@ class UniversalDispatchEngine:
 
         if not supabase:
             return {"success": True, "is_online": is_online}
+
+        # A phlebotomist's base location is what dispatch and the advance
+        # roster fall back to when there is no live GPS fix — but nothing in
+        # signup or centre assignment ever wrote it, so both treated every
+        # collector as location-unknown. Resolve it once, here, the first time
+        # they come on duty.
+        if is_online and provider_type == "phlebotomist":
+            await asyncio.to_thread(
+                UniversalDispatchEngine._ensure_base_location, user_id, lat, lng
+            )
 
         location_data = {
             "user_id": user_id,
@@ -1571,6 +1742,56 @@ class UniversalDispatchEngine:
                         dist, dispatch.get("provider_type", "nurse")
                     )
 
+        # While nobody has accepted yet, the patient stares at a spinner with
+        # no idea whether anyone was even asked. These are the collectors who
+        # actually hold a live offer for THIS job — not a fresh proximity
+        # sweep — so the count and the distances are the real ones. Identity
+        # is deliberately reduced to a first name: they have not accepted, and
+        # a patient must not be handed the contact details of someone who may
+        # decline.
+        searching_candidates = []
+        if dispatch["status"] in ("searching", "provider_notified") and supabase:
+            try:
+                offers = (
+                    supabase.table("dispatch_offers")
+                    .select("provider_id, distance_km, status, expires_at")
+                    .eq("dispatch_request_id", dispatch_id)
+                    .eq("status", "pending")
+                    .execute()
+                ).data or []
+                names = {}
+                provider_ids = [o["provider_id"] for o in offers if o.get("provider_id")]
+                if provider_ids:
+                    rows = (
+                        supabase.table("users").select("id, full_name")
+                        .in_("id", provider_ids).execute()
+                    ).data or []
+                    names = {r["id"]: (r.get("full_name") or "") for r in rows}
+                from app.services import ratings as _ratings
+                summaries = _ratings.get_summaries(provider_ids, db=supabase)
+                for o in offers:
+                    pid = o.get("provider_id")
+                    full_name = names.get(pid, "")
+                    summary = summaries.get(pid or "") or {}
+                    searching_candidates.append({
+                        "first_name": (full_name.split(" ")[0] if full_name else "Collector"),
+                        "distance_km": o.get("distance_km"),
+                        "eta_minutes": (
+                            UniversalDispatchEngine.estimate_eta_minutes(
+                                float(o["distance_km"]),
+                                dispatch.get("provider_type", "phlebotomist"),
+                            ) if o.get("distance_km") is not None else None
+                        ),
+                        "rating": summary.get("average_stars"),
+                        "rating_count": summary.get("rating_count", 0),
+                        "expires_at": o.get("expires_at"),
+                    })
+                searching_candidates.sort(
+                    key=lambda c: (c["distance_km"] is None, c["distance_km"] or 0)
+                )
+            except Exception as e:
+                logger.warning(f"Could not load searching candidates for {dispatch_id}: {e}")
+
         return {
             "dispatch_id": dispatch_id,
             "booking_id": dispatch.get("booking_id"),
@@ -1578,6 +1799,8 @@ class UniversalDispatchEngine:
             "service_subtype": dispatch.get("service_subtype"),
             "status": dispatch["status"],
             "provider": provider_location,
+            "searching_candidates": searching_candidates,
+            "searching_count": len(searching_candidates),
             "patient_address": dispatch.get("patient_address"),
             "created_at": dispatch.get("created_at"),
             "assigned_at": dispatch.get("assigned_at"),

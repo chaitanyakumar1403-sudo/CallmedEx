@@ -921,6 +921,40 @@ async def create_booking(
                 except Exception as p_mail_err:
                     logger.warning(f"Patient booking confirmation email failed for {booking_id}: {p_mail_err}")
 
+            # 2b. In-app + push to the patient. Email and SMS were the only
+            # confirmations, so the notification bell on the patient dashboard
+            # — which reads the in_app channel — stayed empty after a booking,
+            # and nothing reached the phone at all.
+            if _is_confirmed:
+                try:
+                    from app.services.notification_engine import NotificationEngine
+                    from app.services.push import CHANNEL_APPOINTMENTS
+
+                    _slot = booking_data.get("slot_start", "")
+                    _svc = (booking_data.get("service_type") or "your appointment").replace("_", " ")
+                    await NotificationEngine.send_multi(
+                        user_id=current_user["sub"],
+                        channels=["in_app", "push"],
+                        title="Booking confirmed",
+                        body=(
+                            f"{_svc.capitalize()} is confirmed"
+                            + (f" for {_slot[:16].replace('T', ' ')}." if _slot else ".")
+                            + (
+                                " We are finding a collector near you."
+                                if is_home_collection else ""
+                            )
+                        ),
+                        data={
+                            "booking_id": booking_id,
+                            "type": "booking_confirmed",
+                            "channel_id": CHANNEL_APPOINTMENTS,
+                        },
+                    )
+                except Exception as p_note_err:
+                    logger.warning(
+                        f"Patient booking notification failed for {booking_id}: {p_note_err}"
+                    )
+
             # 3. Alert the Assigned Healthcare Provider (Doctor/Nurse/Dietitian/Physio)
             target_prov_id = resolved_provider_id or booking.provider_id
             if target_prov_id:
@@ -1922,7 +1956,43 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
                     logger.warning(f"Failed to notify provider {provider_id} of booking {booking_id} cancellation: {notify_err}")
         except Exception as e:
             logger.warning(f"Failed to cancel dispatch request: {e}")
-        
+
+        # Cancel the tubes too. The cascade stopped at dispatch_requests, so
+        # the booking's samples stayed pending_collection for ever: they kept
+        # showing on the patient's status rail as a live collection, kept
+        # counting toward the processing centre's expected intake, and stayed
+        # scannable at the doorstep. Only UNCOLLECTED tubes are voided -- a
+        # tube already drawn is a physical specimen in someone's hand and an
+        # app cancellation does not make it disappear.
+        try:
+            uncollected = _rows(
+                supabase.table("samples")
+                .select("id")
+                .eq("booking_id", booking_id)
+                .eq("status", "pending_collection")
+                .execute()
+            )
+            for row in uncollected:
+                supabase.table("samples").update({"status": "cancelled"})                     .eq("id", row["id"]).eq("status", "pending_collection").execute()
+                try:
+                    supabase.table("sample_events").insert({
+                        "id": str(uuid.uuid4()),
+                        "sample_id": row["id"],
+                        "event": "cancelled",
+                        "actor_id": user_id,
+                        "actor_role": current_user.get("role", "patient"),
+                        "notes": "Booking cancelled by the patient.",
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }).execute()
+                except Exception as ev_err:
+                    logger.warning(f"Cancel custody event failed for {row['id']}: {ev_err}")
+            if uncollected:
+                logger.info(
+                    f"Cancelled {len(uncollected)} uncollected sample(s) for booking {booking_id}"
+                )
+        except Exception as e:
+            logger.error(f"Failed to cancel samples for booking {booking_id}: {e}")
+
         _record_booking_history(booking_id, current_status, "cancelled", changed_by=user_id, notes=notes)
         
         return APIResponse(

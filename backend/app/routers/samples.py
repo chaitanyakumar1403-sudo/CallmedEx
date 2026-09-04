@@ -196,10 +196,52 @@ async def submit_handover(
 
 @router.get("/my-lab")
 async def get_my_lab(current_user: dict = Depends(get_current_user)):
-    """The diagnostic centre this collector hands samples to by default."""
+    """Where this collector submits their tubes — processing centre or centre org."""
     if current_user.get("role") not in COLLECTOR_ROLES:
         raise HTTPException(403, "Only field collectors have a linked lab")
     return {"success": True, **SampleService.get_home_lab(current_user["sub"])}
+
+
+class SubmitRunRequest(BaseModel):
+    """Empty sample_ids means 'everything currently in my kit'."""
+    sample_ids: Optional[List[str]] = None
+    notes: str = ""
+
+
+@router.post("/submit-run")
+async def submit_run_to_centre(
+    body: SubmitRunRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    """End-of-run handover: mark collected tubes in transit to the centre.
+
+    Nothing previously moved a tube out of `collected`, so a centre had no
+    advance signal that a run was on its way — the tubes simply appeared at
+    the intake desk. The centre's incoming-barcode scan already accepts
+    `in_transit`, so intake is unchanged.
+    """
+    if current_user.get("role") not in COLLECTOR_ROLES:
+        raise HTTPException(403, "Only field collectors can submit a run")
+
+    result = SampleService.submit_run_to_centre(
+        phlebotomist_user_id=current_user["sub"],
+        sample_ids=body.sample_ids,
+        notes=body.notes,
+    )
+    if not result.get("success"):
+        raise HTTPException(400, result.get("message", "Could not submit the run"))
+
+    AuditService.log_from_request(
+        action="sample.run_submitted", entity_type="processing_center",
+        entity_id=result.get("processing_center_id"), actor_id=current_user["sub"],
+        details={
+            "sample_count": result.get("submitted_count"),
+            "sample_ids": result.get("submitted_sample_ids"),
+        },
+        request=request,
+    )
+    return result
 
 
 @router.get("/wallet")

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFamilyHubStore } from '@/store/useFamilyHubStore';
 import { AlertTriangle, ShieldAlert, X, MapPin } from 'lucide-react';
 
@@ -24,48 +24,80 @@ export const EmergencySOSWidget: React.FC<EmergencySOSWidgetProps> = ({ lang = '
     return () => clearInterval(timer);
   }, [sosActive, sosCountdownSeconds, decrementSOSCountdown]);
 
+  const [result, setResult] = useState<string>('');
+
+  /** Three defects lived in this one call:
+   *   - a RELATIVE '/api/...' url, which hits the Next.js origin, not the
+   *     FastAPI backend, so every trigger 404'd;
+   *   - hardcoded Bengaluru coordinates (12.9716, 77.5946) instead of the
+   *     patient's own position, so a working call would have sent help to the
+   *     wrong city;
+   *   - no Authorization header, so the endpoint would have rejected it anyway.
+   */
   const handleDispatchNow = async () => {
+    setResult('');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    let lat: number | null = null;
+    let lng: number | null = null;
     try {
-      await fetch('/api/v1/patient/sos/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: 12.9716, lng: 77.5946, notes: 'Direct emergency trigger from patient dashboard' }),
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true, timeout: 8000, maximumAge: 60000,
+        });
       });
-    } catch (err) {
-      console.error('Failed to trigger emergency SOS backend endpoint:', err);
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch {
+      // Send anyway — contacts still need to know, and the backend labels the
+      // location as unavailable rather than inventing one.
+    }
+
+    try {
+      const res = await fetch(`${apiBase}/api/v1/patient/sos/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ lat, lng, notes: 'Emergency trigger from patient dashboard' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setResult(
+        res.ok
+          ? data.message || 'SOS raised.'
+          : data.detail || 'Could not raise the SOS. Call 108 now.',
+      );
+    } catch {
+      setResult('Could not reach CallMedex. Call 108 for an ambulance now.');
     }
   };
 
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)',
-        borderRadius: 16,
-        borderLeft: '4px solid #dc2626',
-        borderTop: '1px solid #fca5a5',
-        borderRight: '1px solid #fca5a5',
-        borderBottom: '1px solid #fca5a5',
-        padding: '16px 20px',
+        background: '#fff5f5',
+        borderRadius: 10,
+        border: '1px solid #fca5a5',
+        borderLeft: '3px solid #dc2626',
+        padding: '8px 12px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: 12,
+        gap: 8,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <AlertTriangle style={{ width: 20, height: 20 }} />
-        </div>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <AlertTriangle style={{ width: 15, height: 15, color: '#dc2626', flexShrink: 0 }} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {t.emergencySOSTriage}
-            <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '1px 8px', borderRadius: 10, fontSize: '0.7rem', fontWeight: 700 }}>
+            <span style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '0 6px', borderRadius: 8, fontSize: '0.63rem', fontWeight: 700 }}>
               {t.twentyFourSevenActive}
             </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#7f1d1d', marginTop: 2 }}>
-            {t.sosAlertDesc(emergencyContacts.length)}
+          <div style={{ fontSize: '0.71rem', color: '#7f1d1d' }}>
+            {result || t.sosAlertDesc(emergencyContacts.length)}
           </div>
         </div>
       </div>
@@ -77,21 +109,21 @@ export const EmergencySOSWidget: React.FC<EmergencySOSWidgetProps> = ({ lang = '
             handleDispatchNow();
           }}
           style={{
-            padding: '8px 18px',
-            borderRadius: 10,
+            padding: '6px 13px',
+            borderRadius: 8,
             border: 'none',
             backgroundColor: '#dc2626',
             color: 'white',
             fontWeight: 700,
-            fontSize: '0.82rem',
+            fontSize: '0.75rem',
             cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(220, 38, 38, 0.3)',
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 5,
+            whiteSpace: 'nowrap',
           }}
         >
-          <ShieldAlert style={{ width: 16, height: 16 }} />
+          <ShieldAlert style={{ width: 14, height: 14 }} />
           {t.triggerEmergencySOS}
         </button>
       ) : (

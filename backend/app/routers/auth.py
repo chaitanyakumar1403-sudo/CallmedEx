@@ -219,9 +219,10 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
         }
 
     elif user.role == UserRole.PHLEBOTOMIST:
+        phleb_type = user.phleb_type.value if user.phleb_type else "full_time"
         return {
             **base,
-            "phleb_type": user.phleb_type.value if user.phleb_type else "full_time",
+            "phleb_type": phleb_type,
             "qualification": user.qualification or "",
             "specialization": user.specialization or "",
             "years_of_experience": user.years_of_experience or 0,
@@ -229,6 +230,13 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "on_duty": False,
             "current_lat": None,
             "current_lng": None,
+            # Full-time collectors are salaried: incentives only, no
+            # per-collection accrual. This was left to the column DEFAULT of
+            # 150.00 (database/phase1_sample_lifecycle.sql:143) and the
+            # one-time UPDATE beside it only zeroed the rows that existed when
+            # that migration ran — so every full-time phlebotomist who signed
+            # up afterwards was quietly earning Rs150 a tube on top of salary.
+            "per_collection_rate": 0.00 if phleb_type == "full_time" else 150.00,
             "verification_status": "pending",
         }
 
@@ -735,6 +743,24 @@ async def get_me(current_user: dict = Depends(get_current_user)):
                     .limit(1)
                     .execute()
                 )
+                if user.get("role") == "phlebotomist":
+                    # Employment type decides whether a wallet exists at all:
+                    # full-time collectors are salaried (incentives only), so
+                    # showing them a per-collection earnings ledger is wrong.
+                    try:
+                        pt_res = (
+                            supabase.table("phlebotomists")
+                            .select("phleb_type, per_collection_rate")
+                            .eq("user_id", current_user["sub"])
+                            .limit(1)
+                            .execute()
+                        )
+                        if pt_res.data:
+                            user["phleb_type"] = pt_res.data[0].get("phleb_type") or "full_time"
+                            user["per_collection_rate"] = pt_res.data[0].get("per_collection_rate")
+                    except Exception as pt_err:
+                        logger.warning(f"Could not read phleb_type: {pt_err}")
+
                 if prov_res.data and prov_res.data[0].get("is_online") is not None:
                     user["is_online"] = bool(prov_res.data[0].get("is_online"))
                 else:

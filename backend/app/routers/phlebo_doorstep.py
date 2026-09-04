@@ -11,7 +11,7 @@ Both feed the existing `booking_tests` / `samples` schema from Spec 1.
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -1018,3 +1018,136 @@ confirm_collection = confirm_sample_collection
 
 
 
+
+
+# ─── Collection kit requirements (dashboard widget) ───────────────────────
+
+@router.get("/kit-requirements/{booking_id}")
+async def get_kit_requirements(
+    booking_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """What the collector must physically carry for this booking.
+
+    Grouped by container, each with its cap colour, additive, draw volume and
+    the tests riding in it, plus the per-collection consumables. This is the
+    dashboard widget: a collector who has just been offered "Complete Blood
+    Count" needs to know it is one 3 ml lavender EDTA, not go and look it up.
+
+    Deliberately carries NO patient identity — the widget renders on an offer
+    the collector has not accepted yet, and identity is released only after
+    the doorstep OTP.
+    """
+    _require_phlebo(user)
+
+    samples = _rows(
+        supabase.table("samples")
+        .select("id, expected_tube_type_code, status")
+        .eq("booking_id", booking_id)
+        .execute()
+    )
+    if not samples:
+        return {
+            "booking_id": booking_id,
+            "tubes": [],
+            "consumables": [],
+            "total_tubes": 0,
+            "note": "No tubes provisioned for this booking yet.",
+        }
+
+    tube_map = {
+        t["code"]: t for t in _rows(
+            supabase.table("tube_types")
+            .select("code, name, cap_colour, additive, typical_volume_ml")
+            .execute()
+        )
+    }
+
+    # sample -> test names, so the collector can tie a tube to what it is for.
+    sample_ids = [s["id"] for s in samples]
+    tests_by_sample: Dict[str, List[str]] = {}
+    st_rows = _rows(
+        supabase.table("sample_tests")
+        .select("sample_id, booking_test_id")
+        .in_("sample_id", sample_ids)
+        .execute()
+    )
+    bt_ids = list({r["booking_test_id"] for r in st_rows if r.get("booking_test_id")})
+    if bt_ids:
+        booking_tests = _rows(
+            supabase.table("booking_tests")
+            .select("id, home_service_id")
+            .in_("id", bt_ids)
+            .execute()
+        )
+        hs_ids = list({b["home_service_id"] for b in booking_tests
+                       if b.get("home_service_id")})
+        hs_map = {}
+        if hs_ids:
+            hs_map = {
+                h["id"]: h for h in _rows(
+                    supabase.table("home_services")
+                    .select("id, name, fasting_required, fasting_hours")
+                    .in_("id", hs_ids).execute()
+                )
+            }
+        bt_to_service = {
+            b["id"]: hs_map.get(b.get("home_service_id", ""), {})
+            for b in booking_tests
+        }
+        for r in st_rows:
+            svc = bt_to_service.get(r.get("booking_test_id", ""), {})
+            if svc.get("name"):
+                tests_by_sample.setdefault(r["sample_id"], []).append(svc["name"])
+
+    # Group the physical tubes by type.
+    grouped: Dict[str, dict] = {}
+    for s in samples:
+        code = s.get("expected_tube_type_code") or ""
+        if not code:
+            continue
+        info = tube_map.get(code, {})
+        entry = grouped.setdefault(code, {
+            "tube_type_code": code,
+            "name": info.get("name", code),
+            "cap_colour": info.get("cap_colour", ""),
+            "additive": info.get("additive", ""),
+            "volume_ml": info.get("typical_volume_ml"),
+            "count": 0,
+            "tests": [],
+            "collected": 0,
+        })
+        entry["count"] += 1
+        if s.get("status") not in ("pending_collection", "cancelled"):
+            entry["collected"] += 1
+        for name in tests_by_sample.get(s["id"], []):
+            if name not in entry["tests"]:
+                entry["tests"].append(name)
+
+    tubes = sorted(grouped.values(), key=lambda t: (-t["count"], t["name"]))
+
+    # Consumables are per-collection, not per-tube, and come from the same kit
+    # catalogue the stock counter decrements against — so the widget can never
+    # list an item the collector has no stock line for.
+    consumables = _rows(
+        supabase.table("kit_items")
+        .select("code, name, category")
+        .eq("category", "consumable")
+        .eq("is_active", True)
+        .execute()
+    )
+
+    untubed = [s["id"] for s in samples if not s.get("expected_tube_type_code")]
+
+    return {
+        "booking_id": booking_id,
+        "tubes": tubes,
+        "total_tubes": sum(t["count"] for t in tubes),
+        "consumables": [
+            {"code": c["code"], "name": c["name"]} for c in consumables
+        ],
+        # Surfaced rather than hidden: a sample with no tube type means the
+        # test has no home_service_tubes row, and the collector needs to know
+        # to call the centre instead of guessing an additive.
+        "unmapped_sample_count": len(untubed),
+    }

@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.middleware.auth import get_current_user
 from app.services.dispatch import DispatchService
-from app.services.dispatch_engine import UniversalDispatchEngine
+from app.services.dispatch_engine import UniversalDispatchEngine, search_radius_km_setting
 from app.services.otp import OTPService
 from app.services.magic_link import MagicLinkService
 from app.database import supabase
@@ -136,7 +136,8 @@ class UniversalDispatchRequest(BaseModel):
     patient_address_details: Optional[dict] = None  # {house_number, landmark, floor}
     notes: str = ""
     booking_id: Optional[str] = None
-    search_radius_km: float = 10.0
+    # None = the platform's configured service radius (15 km default).
+    search_radius_km: Optional[float] = None
 
 
 class OnlineToggle(BaseModel):
@@ -311,27 +312,47 @@ async def get_dispatch_for_booking(
     return {"success": True, "dispatch_id": active[0]["id"] if active else None}
 
 
+# What a patient may see about a provider who has not accepted their job yet.
+# The full candidate record carries mobile, email and an exact live GPS fix;
+# returning it let any signed-in account enumerate every collector's phone
+# number and track them around the city by sweeping lat/lng.
+def _public_candidate(c: dict) -> dict:
+    return {
+        "name": c.get("name") or "Collector",
+        "distance_km": c.get("distance_km"),
+        "eta_minutes": c.get("eta_minutes"),
+        "rating": c.get("rating"),
+        "rating_count": c.get("rating_count", 0),
+        "provider_type": c.get("provider_type"),
+        # "live" vs "base" — the map must not draw a stale base location as
+        # though it were a moving dot.
+        "location_source": c.get("location_source", "live"),
+    }
+
+
 @router.get("/nearby")
 async def find_nearby_providers(
     lat: float,
     lng: float,
     provider_type: str = "phlebotomist",
-    radius_km: float = 10.0,
+    radius_km: Optional[float] = None,
     current_user: dict = Depends(get_current_user),
 ):
-    """Find available providers near a location (preview before booking)."""
+    """Available providers near a location (the pre-booking / searching radar)."""
     candidates = await UniversalDispatchEngine.find_nearby_providers(
         patient_lat=lat,
         patient_lng=lng,
         provider_type=provider_type,
         radius_km=radius_km,
+        limit=None if current_user.get("role") in ("admin", "organization") else 10,
     )
+    privileged = current_user.get("role") in ("admin", "organization")
     return {
         "success": True,
         "count": len(candidates),
-        "providers": candidates,
+        "providers": candidates if privileged else [_public_candidate(c) for c in candidates],
         "provider_type": provider_type,
-        "search_radius_km": radius_km,
+        "search_radius_km": radius_km if radius_km is not None else search_radius_km_setting(),
     }
 
 
@@ -438,7 +459,7 @@ async def get_pending_offers(
     try:
         result = (
             supabase.table("dispatch_offers")
-            .select("*, dispatch_requests!inner(patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority, notes)")
+            .select("*, dispatch_requests!inner(booking_id, patient_address, service_subtype, provider_type, patient_lat, patient_lng, priority, notes)")
             .eq("provider_id", current_user["sub"])
             .eq("status", "pending")
             .order("offered_at", desc=True)
@@ -450,6 +471,11 @@ async def get_pending_offers(
             offers.append({
                 "offer_id": o["id"],
                 "dispatch_request_id": o["dispatch_request_id"],
+                # Carries the collection-kit lookup. Without it the collector
+                # could only see which tubes to carry AFTER accepting, which
+                # is backwards: the kit is part of deciding whether you can
+                # take the job at all.
+                "booking_id": dr.get("booking_id"),
                 "patient_address": dr.get("patient_address", ""),
                 "service_subtype": dr.get("service_subtype", ""),
                 "provider_type": dr.get("provider_type", ""),

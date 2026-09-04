@@ -28,28 +28,37 @@ def _rows(result) -> List[dict]:
 
 def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict]:
     """Rostered-available phlebos of this centre, with a usable base location."""
+    # Absence of a roster row means "nobody said otherwise", not "unavailable"
+    # — the table's own column DEFAULT is 'available'. Requiring an explicit
+    # row meant a centre that never opened the roster page had zero available
+    # collectors every night, so the advance pass assigned nothing and every
+    # next-day booking fell through to the same-day 90-minute trigger. Only an
+    # explicit 'unavailable'/'leave' row now takes someone out.
     roster = _rows(
         supabase.table("phlebotomist_roster")
         .select("phlebotomist_user_id, status, max_jobs")
         .eq("processing_center_id", processing_center_id)
         .eq("roster_date", roster_date)
-        .eq("status", "available")
         .execute()
     )
-    if not roster:
-        return []
-    wanted = {r["phlebotomist_user_id"] for r in roster}
+    excluded = {
+        r["phlebotomist_user_id"] for r in roster
+        if r.get("status") in ("unavailable", "leave")
+    }
 
-    # P2.5: Also fetch phlebo_type for full-time preference in reassignment
+    # P2.5: Also fetch phleb_type for full-time preference in reassignment.
+    # The column is `phleb_type` (schema.sql:82, complete_supabase_schema.sql:89).
+    # Selecting the misspelt `phlebo_type` made PostgREST reject the whole
+    # query, so every nightly advance-roster pass raised and assigned nobody.
     people = _rows(
         supabase.table("phlebotomists")
-        .select("user_id, processing_center_id, base_lat, base_lng, phlebo_type")
+        .select("user_id, processing_center_id, base_lat, base_lng, phleb_type")
         .eq("processing_center_id", processing_center_id)
         .execute()
     )
     return [
         p for p in people
-        if p.get("user_id") in wanted
+        if p.get("user_id") not in excluded
         and p.get("base_lat") is not None
         and p.get("base_lng") is not None
     ]
@@ -109,7 +118,7 @@ def _pick(candidates: List[dict], booking: dict, load: dict,
     # Pass 1: prefer full-time candidates
     full_time = [
         v for v in viable
-        if (v[3].get("phlebo_type") or "full_time").lower() in ("full_time", "full-time", "ft")
+        if (v[3].get("phleb_type") or "full_time").lower() in ("full_time", "full-time", "ft")
     ]
     if full_time:
         full_time.sort(key=lambda v: (v[0], v[1], v[2]))
