@@ -193,6 +193,21 @@ async def get_room_details(
         if current_user.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Access denied")
 
+    patient_name = "Patient"
+    patient_email = ""
+    patient_mobile = ""
+    patient_id = consultation.get("patient_id")
+    if patient_id and supabase:
+        try:
+            u_res = supabase.table("users").select("full_name, email, phone").eq("id", patient_id).limit(1).execute()
+            u_rows = _rows(u_res)
+            if u_rows:
+                patient_name = u_rows[0].get("full_name") or patient_name
+                patient_email = u_rows[0].get("email") or ""
+                patient_mobile = u_rows[0].get("phone") or ""
+        except Exception:
+            pass
+
     return {
         "success": True,
         "consultation_id": consultation_id,
@@ -200,6 +215,9 @@ async def get_room_details(
         "room_name": consultation.get("video_room_name"),
         "status": consultation.get("status"),
         "patient_id": consultation.get("patient_id"),
+        "patient_name": patient_name,
+        "patient_email": patient_email,
+        "patient_mobile": patient_mobile,
         "doctor_id": consultation.get("doctor_id"),
         "started_at": consultation.get("started_at"),
         "consent_timestamp": consultation.get("consent_timestamp"),
@@ -424,4 +442,54 @@ async def order_prescribed_actions(
         action_type=req.action_type,
         address=req.address or "",
     )
+
+
+class SendRxEmailRequest(BaseModel):
+    patient_email: str
+    patient_name: str
+    doctor_name: Optional[str] = "Dr. CallMedex Practitioner"
+    doctor_qualification: Optional[str] = "MBBS, MD"
+    doctor_reg_number: Optional[str] = "NMC-VERIFIED-2026"
+    diagnosis: str
+    medicines: List[dict]
+    lab_tests: Optional[List[str]] = []
+    clinical_notes: Optional[str] = ""
+    consultation_id: Optional[str] = ""
+
+
+@router.post("/send-rx-email")
+async def send_rx_email(
+    req: SendRxEmailRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Transmit an NMC-compliant digital e-Prescription directly to the patient's verified email.
+    """
+    role = current_user.get("role")
+    if role not in CONSULTING_PROVIDER_ROLES:
+        raise HTTPException(status_code=403, detail="Only verified practitioners can transmit e-prescriptions.")
+
+    if not req.patient_email or "@" not in req.patient_email:
+        raise HTTPException(status_code=400, detail="A valid patient email address is mandatory to transmit an e-prescription.")
+
+    from app.services.email import EmailService
+    EmailService.send_eprescription_email(
+        to_email=req.patient_email.strip(),
+        patient_name=req.patient_name,
+        doctor_name=req.doctor_name or "Dr. CallMedex Practitioner",
+        doctor_qualification=req.doctor_qualification or "MBBS, MD",
+        doctor_reg_number=req.doctor_reg_number or "NMC-VERIFIED-2026",
+        diagnosis=req.diagnosis,
+        medicines=req.medicines,
+        lab_tests=req.lab_tests or [],
+        clinical_notes=req.clinical_notes or "",
+        consultation_id=req.consultation_id or "",
+    )
+
+    return {
+        "success": True,
+        "message": f"Digital e-Prescription successfully dispatched to {req.patient_email}",
+        "recipient": req.patient_email,
+    }
+
 

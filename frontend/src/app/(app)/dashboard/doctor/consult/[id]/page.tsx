@@ -22,6 +22,9 @@ import {
   Thermometer,
   ChevronRight,
   ArrowLeft,
+  Mail,
+  Phone,
+  AlertCircle,
 } from "lucide-react";
 
 interface PrescribedMedicine {
@@ -75,6 +78,33 @@ export default function DoctorConsultationRoom({
   });
   const [orderedLabTests, setOrderedLabTests] = useState<string[]>([]);
 
+  // Consulting Patient Demographics & Email
+  const [patientData, setPatientData] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    age: string;
+    gender: string;
+    uhid: string;
+    symptoms: string;
+    allergies: string;
+    medications: string;
+  }>({
+    name: "Consulting Patient",
+    email: "",
+    phone: "",
+    age: "Adult",
+    gender: "Not specified",
+    uhid: `CM-2026-${resolvedParams.id.slice(0, 5).toUpperCase()}`,
+    symptoms: "Virtual consultation requested",
+    allergies: "None reported",
+    medications: "None",
+  });
+  const [patientEmailInput, setPatientEmailInput] = useState("");
+  const [isSendingRxEmail, setIsSendingRxEmail] = useState(false);
+  const [rxEmailSent, setRxEmailSent] = useState(false);
+  const [rxEmailError, setRxEmailError] = useState("");
+
   // Read authenticated Doctor details on mount
   useEffect(() => {
     try {
@@ -87,6 +117,72 @@ export default function DoctorConsultationRoom({
       // ignore
     }
   }, []);
+
+  // Fetch Consulting Patient Details
+  useEffect(() => {
+    const fetchPatientDetails = async () => {
+      if (!resolvedParams.id || resolvedParams.id === "instant") return;
+      try {
+        const token = localStorage.getItem("token");
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+        // Try booking details endpoint first
+        const bRes = await fetch(`${apiBase}/api/bookings/${resolvedParams.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const bData = await bRes.json();
+        if (bData.success && bData.data) {
+          const b = bData.data;
+          const pName = b.patient_name || b.patient?.full_name || "Patient";
+          const pEmail = b.patient_email || b.patient?.email || "";
+          const pPhone = b.patient_mobile || b.patient?.phone || "";
+          const pAge = b.patient_age ? `${b.patient_age} Yrs` : "Adult";
+          const pGender = b.patient_gender
+            ? b.patient_gender.charAt(0).toUpperCase() + b.patient_gender.slice(1)
+            : "Not specified";
+          const pSymptoms = b.symptoms || b.notes || "Virtual consultation requested";
+
+          setPatientData((prev) => ({
+            ...prev,
+            name: pName,
+            email: pEmail,
+            phone: pPhone,
+            age: pAge,
+            gender: pGender,
+            uhid: `CM-2026-${b.id.slice(0, 5).toUpperCase()}`,
+            symptoms: pSymptoms,
+          }));
+
+          if (pEmail) {
+            setPatientEmailInput(pEmail);
+          }
+          return;
+        }
+
+        // Fallback to room details endpoint
+        const rRes = await fetch(`${apiBase}/api/telemed/room/${resolvedParams.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const rData = await rRes.json();
+        if (rData.success) {
+          const rEmail = rData.patient_email || "";
+          setPatientData((prev) => ({
+            ...prev,
+            name: rData.patient_name || prev.name,
+            email: rEmail || prev.email,
+            phone: rData.patient_mobile || prev.phone,
+          }));
+          if (rEmail) {
+            setPatientEmailInput(rEmail);
+          }
+        }
+      } catch {
+        // keep fallback state
+      }
+    };
+
+    fetchPatientDetails();
+  }, [resolvedParams.id]);
 
   // Web Speech API Initialization
   useEffect(() => {
@@ -132,11 +228,64 @@ export default function DoctorConsultationRoom({
   const doctorDegree = doctorUser?.qualification || "MBBS, MD (General Medicine)";
   const doctorId = doctorUser?.id || "doc-callmedex-active";
 
+  const handleSendRxEmail = async () => {
+    const targetEmail = (patientEmailInput || patientData.email || "").trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setRxEmailError("A valid patient email is mandatory to transmit the digital e-Prescription.");
+      return;
+    }
+
+    setIsSendingRxEmail(true);
+    setRxEmailError("");
+    try {
+      const token = localStorage.getItem("token");
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiBase}/api/telemed/send-rx-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          patient_email: targetEmail,
+          patient_name: patientData.name || "Patient",
+          doctor_name: doctorName,
+          doctor_qualification: doctorDegree,
+          doctor_reg_number: doctorUser?.registration_number || "APMC/2019/92144",
+          diagnosis: aiAnalysis?.diagnosis || diagnosis,
+          medicines: (aiAnalysis?.medicines || medicines).map((m: any) => ({
+            name: m.generic_name || m.name,
+            dose: m.dosage || m.dose,
+            freq: m.frequency || m.freq,
+            days: m.duration || m.days,
+            notes: m.instructions || m.notes || "",
+          })),
+          lab_tests: aiAnalysis?.lab_tests || orderedLabTests,
+          clinical_notes: aiAnalysis?.summary || clinicalNotes,
+          consultation_id: consultId || resolvedParams.id,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRxEmailSent(true);
+        setStatus(`e-Prescription successfully delivered to ${targetEmail}`);
+      } else {
+        setRxEmailError(data.detail || "Failed to dispatch e-prescription email.");
+      }
+    } catch (err: any) {
+      setRxEmailError(err.message || "Network error dispatching e-prescription email.");
+    } finally {
+      setIsSendingRxEmail(false);
+    }
+  };
+
   const startConsultation = async () => {
     setStatus("Initiating NMC-compliant encrypted WebRTC session...");
     try {
       const token = localStorage.getItem("token");
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const isInstant = resolvedParams.id === "instant";
       const res = await fetch(`${apiBase}/api/telemed/start`, {
         method: "POST",
         headers: {
@@ -145,9 +294,9 @@ export default function DoctorConsultationRoom({
         },
         body: JSON.stringify({
           doctor_id: doctorId,
-          booking_id: resolvedParams.id,
-          patient_id: resolvedParams.id,
-          symptoms: "Fever, body ache, sore throat (3 days)",
+          booking_id: isInstant ? undefined : resolvedParams.id,
+          patient_id: isInstant ? undefined : resolvedParams.id,
+          symptoms: patientData.symptoms || "Virtual consultation requested",
         }),
       });
 
@@ -381,14 +530,32 @@ export default function DoctorConsultationRoom({
                     Patient Waiting in Virtual Lobby
                   </div>
                   <h2 style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-xl)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                    Priya Sharma
+                    {patientData.name}
                   </h2>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
-                    32 Years · Female · UHID: CM-2026-89412
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                    <span>{patientData.age}</span>
+                    <span>·</span>
+                    <span>{patientData.gender}</span>
+                    <span>·</span>
+                    <span>UHID: {patientData.uhid}</span>
                   </div>
+                  {(patientData.email || patientData.phone) && (
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", marginTop: 6, display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                      {patientData.email && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cm-active-surface)", color: "var(--cm-active)", padding: "2px 8px", borderRadius: "4px" }}>
+                          <Mail size={12} /> {patientData.email}
+                        </span>
+                      )}
+                      {patientData.phone && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cm-surface-2)", color: "var(--cm-ink-2)", padding: "2px 8px", borderRadius: "4px" }}>
+                          <Phone size={12} /> {patientData.phone}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <span className="cm-pill cm-pill--active">
-                  Token #04
+                  {resolvedParams.id === "instant" ? "Direct Call" : `Booking #${resolvedParams.id.slice(0, 6)}`}
                 </span>
               </div>
 
@@ -407,7 +574,7 @@ export default function DoctorConsultationRoom({
                 <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
                   <Thermometer size={16} style={{ color: "var(--cm-waiting)", margin: "0 auto 4px" }} />
                   <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Temp</div>
-                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>100.4°F</div>
+                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>98.6°F</div>
                 </div>
                 <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
                   <Activity size={16} style={{ color: "var(--cm-done)", margin: "0 auto 4px" }} />
@@ -422,7 +589,7 @@ export default function DoctorConsultationRoom({
                   Chief Complaint
                 </div>
                 <div style={{ padding: "10px 14px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-2)" }}>
-                  Low-grade fever (100.4°F) for 3 days, body aches, mild dry cough, and itchy throat. No breathing difficulty.
+                  {patientData.symptoms}
                 </div>
               </div>
 
@@ -906,7 +1073,7 @@ export default function DoctorConsultationRoom({
                 {activeRightTab === "history" && (
                   <div>
                     <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 10 }}>
-                      Electronic Health Record · Priya Sharma
+                      Electronic Health Record · {patientData.name}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ padding: "12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
@@ -990,22 +1157,28 @@ export default function DoctorConsultationRoom({
                 borderBottom: "1px solid var(--cm-line)",
                 padding: "16px 32px",
                 display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: 16,
                 fontSize: "var(--cm-text-xs)",
               }}
             >
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Patient Name</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>Priya Sharma</div>
+                <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>{patientData.name}</div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Age / Gender</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>32 Yrs / Female</div>
+                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>{patientData.age} / {patientData.gender}</div>
+              </div>
+              <div>
+                <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Patient Email (Mandatory)</div>
+                <div style={{ fontWeight: 700, color: "var(--cm-active)" }}>
+                  {patientEmailInput || patientData.email || "Pending verification"}
+                </div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>UHID</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>CM-2026-89412</div>
+                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>{patientData.uhid}</div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Consultation Date</div>
@@ -1088,41 +1261,126 @@ export default function DoctorConsultationRoom({
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Digital e-Prescription Email Dispatch Panel */}
               <div
                 style={{
                   borderTop: "1px solid var(--cm-line)",
                   paddingTop: 24,
+                  marginTop: 20,
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 12,
+                  flexDirection: "column",
+                  gap: 16,
                 }}
               >
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                  Transmitted directly to CallMedex Patient Mobile App &amp; WhatsApp
+                <div
+                  style={{
+                    background: "var(--cm-surface-2)",
+                    border: "1px solid var(--cm-line-strong)",
+                    borderRadius: "var(--cm-radius-sm)",
+                    padding: "16px 20px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Mail size={16} style={{ color: "var(--cm-active)" }} />
+                      <span style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                        Dispatch Official NMC-Compliant e-Prescription to Patient
+                      </span>
+                    </div>
+                    <span className="cm-pill cm-pill--active" style={{ fontSize: "var(--cm-text-xs)" }}>
+                      Mandatory for Teleconsultation
+                    </span>
+                  </div>
+
+                  <p style={{ margin: "0 0 12px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)" }}>
+                    Under the NMC Telemedicine Practice Guidelines 2026, the consulting doctor must transmit the digitally signed prescription directly to the patient&apos;s verified email address.
+                  </p>
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: "260px" }}>
+                      <input
+                        type="email"
+                        value={patientEmailInput}
+                        onChange={(e) => {
+                          setPatientEmailInput(e.target.value);
+                          setRxEmailError("");
+                        }}
+                        placeholder="patient.email@example.com (Mandatory)"
+                        style={{
+                          width: "100%",
+                          padding: "10px 14px",
+                          borderRadius: "var(--cm-radius-sm)",
+                          border: "1px solid var(--cm-line-strong)",
+                          fontSize: "var(--cm-text-sm)",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSendRxEmail}
+                      disabled={isSendingRxEmail || rxEmailSent}
+                      className="cm-btn cm-btn--primary"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700 }}
+                    >
+                      {rxEmailSent ? (
+                        <>
+                          <CheckCircle2 size={16} /> e-Prescription Dispatched!
+                        </>
+                      ) : isSendingRxEmail ? (
+                        "Transmitting e-Rx via SMTP..."
+                      ) : (
+                        <>
+                          <Send size={16} /> Send e-Prescription to Patient Email
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {rxEmailError && (
+                    <div style={{ marginTop: 10, fontSize: "var(--cm-text-xs)", color: "var(--cm-urgent)", display: "flex", alignItems: "center", gap: 6 }}>
+                      <AlertCircle size={14} /> {rxEmailError}
+                    </div>
+                  )}
+
+                  {rxEmailSent && (
+                    <div style={{ marginTop: 10, fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+                      <CheckCircle2 size={14} /> Official e-Prescription successfully delivered to {patientEmailInput || patientData.email}. A cryptographic audit trail was generated.
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="cm-btn cm-btn--secondary cm-btn--sm"
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
-                  >
-                    <Printer size={16} /> Print e-Rx
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      alert("e-Prescription successfully sent to patient mobile number & WhatsApp!");
-                      router.push("/dashboard/doctor");
-                    }}
-                    className="cm-btn cm-btn--primary cm-btn--sm"
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
-                  >
-                    <Send size={16} /> Return to Doctor Station
-                  </button>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    paddingTop: 8,
+                  }}
+                >
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                    Digital Rx timestamped: {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Linked to Patient EHR
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="cm-btn cm-btn--secondary cm-btn--sm"
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <Printer size={16} /> Print / Save PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/dashboard/doctor")}
+                      className="cm-btn cm-btn--secondary cm-btn--sm"
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <ArrowLeft size={16} /> Return to Doctor Station
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

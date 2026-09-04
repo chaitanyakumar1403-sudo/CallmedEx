@@ -3,18 +3,12 @@
 /**
  * ProviderSchedulePanel — a consulting provider's bookable schedule.
  *
- * Physiotherapists, dietitians and nurses sell three distinct things and each
- * needs its own hours:
- *
- *   Walk-in centre (in_person) — the clinic they sit at, with a name and
- *                                address the patient has to travel to
- *   Online (online)            — teleconsultation windows
- *   Home visit (home_visit)    — the windows they will travel to a patient in
- *
- * Until now none of these providers could publish a single slot: the
- * availability, fee and blocked-date endpoints were all gated to `doctor`.
- * The patient-facing slot picker reads exactly what is set here, filtered by
- * mode, so a walk-in booking can never be offered a teleconsult slot.
+ * Supports:
+ *   - 🌅 🌆 Shift-Based Availability (Morning & Evening Shifts) matching clinical standards
+ *   - ⏱️ Minimum Slot Duration starting from 10 minutes (10, 15, 20, 30, 45, 60, 90)
+ *   - 📅 De-congested Grouped Weekly Availability by Day & Shift with compact badges
+ *   - ⚡ 1-Click CallMedex Standard MOU Tariffs Application (Walk-in ₹500, Online ₹400, Home Visit ₹800)
+ *   - 📍 Walk-in Centre, Online Video, and Doorstep Home Visit modes
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -26,36 +20,37 @@ const getToken = () =>
   typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
 const DAYS = [
-  { value: 0, label: "Sunday", short: "Sun" },
   { value: 1, label: "Monday", short: "Mon" },
   { value: 2, label: "Tuesday", short: "Tue" },
   { value: 3, label: "Wednesday", short: "Wed" },
   { value: 4, label: "Thursday", short: "Thu" },
   { value: 5, label: "Friday", short: "Fri" },
   { value: 6, label: "Saturday", short: "Sat" },
+  { value: 0, label: "Sunday", short: "Sun" },
 ];
 
-// Must match doctor_availability.consultation_mode and consultation_fees.fee_type.
 const MODES = [
   {
     value: "in_person",
     label: "Walk-in centre",
-    hint: "Patients travel to your clinic — needs a centre name and address",
+    hint: "Patients travel to your clinic or hospital OPD",
     needsLocation: true,
   },
   {
     value: "online",
     label: "Online consultation",
-    hint: "Video teleconsultation from wherever you are",
+    hint: "1-on-1 HD Video teleconsultation from anywhere",
     needsLocation: false,
   },
   {
     value: "home_visit",
     label: "Home visit",
-    hint: "You travel to the patient — these hours drive doorstep requests",
+    hint: "Doorstep bedside clinical evaluation",
     needsLocation: false,
   },
 ];
+
+const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60, 90];
 
 interface Availability {
   id: string;
@@ -84,20 +79,40 @@ export default function ProviderSchedulePanel({
   const [fees, setFees] = useState<Fee[]>([]);
   const [blockedDates, setBlockedDates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingShift, setSavingShift] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [builderTab, setBuilderTab] = useState<"shift" | "custom">("shift");
 
+  // Reference-matched Morning & Evening Shift Configurator
+  const [shiftForm, setShiftForm] = useState({
+    consultation_mode: "in_person",
+    slot_duration_minutes: 10, // Default starts from 10 minutes
+    selected_days: [1, 2, 3, 4, 5, 6], // Mon-Sat default
+    morning_shift_enabled: true,
+    morning_start: "09:00",
+    morning_end: "12:00",
+    evening_shift_enabled: true,
+    evening_start: "17:00",
+    evening_end: "19:00",
+    location_name: "",
+    location_address: "",
+    replace_existing: true,
+  });
+
+  // Custom Single-Block Form
   const [form, setForm] = useState({
     day_of_week: 1,
     start_time: "09:00",
     end_time: "13:00",
-    slot_duration_minutes: 30,
+    slot_duration_minutes: 10,
     consultation_mode: "in_person",
     location_name: "",
     location_address: "",
     apply_to_all_days: false,
     replace_existing: false,
   });
+
   const [feeForm, setFeeForm] = useState({ fee_type: "in_person", amount: "" });
   const [blockDate, setBlockDate] = useState("");
   const [blockReason, setBlockReason] = useState("");
@@ -138,18 +153,97 @@ export default function ProviderSchedulePanel({
     load();
   }, [load]);
 
-  const selectedMode = MODES.find((m) => m.value === form.consultation_mode);
+  const selectedMode = MODES.find((m) => m.value === (builderTab === "shift" ? shiftForm.consultation_mode : form.consultation_mode));
 
+  // Dynamic slot calculation preview for shift builder
+  const calcShiftSlots = () => {
+    let mSlots = 0;
+    let eSlots = 0;
+    const dur = shiftForm.slot_duration_minutes || 10;
+
+    if (shiftForm.morning_shift_enabled && shiftForm.morning_start < shiftForm.morning_end) {
+      const [sh, sm] = shiftForm.morning_start.split(":").map(Number);
+      const [eh, em] = shiftForm.morning_end.split(":").map(Number);
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      mSlots = Math.max(0, Math.floor(mins / dur));
+    }
+    if (shiftForm.evening_shift_enabled && shiftForm.evening_start < shiftForm.evening_end) {
+      const [sh, sm] = shiftForm.evening_start.split(":").map(Number);
+      const [eh, em] = shiftForm.evening_end.split(":").map(Number);
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      eSlots = Math.max(0, Math.floor(mins / dur));
+    }
+    const daily = mSlots + eSlots;
+    const weekly = daily * shiftForm.selected_days.length;
+    return { mSlots, eSlots, daily, weekly };
+  };
+
+  const shiftStats = calcShiftSlots();
+
+  const handleToggleDay = (dayVal: number) => {
+    if (shiftForm.selected_days.includes(dayVal)) {
+      setShiftForm({
+        ...shiftForm,
+        selected_days: shiftForm.selected_days.filter((d) => d !== dayVal),
+      });
+    } else {
+      setShiftForm({
+        ...shiftForm,
+        selected_days: [...shiftForm.selected_days, dayVal].sort(),
+      });
+    }
+  };
+
+  // Submit Shift Schedule
+  const handlePublishShifts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shiftForm.morning_shift_enabled && !shiftForm.evening_shift_enabled) {
+      setMsg({ text: "Enable at least Morning or Evening shift.", ok: false });
+      return;
+    }
+    if (shiftForm.selected_days.length === 0) {
+      setMsg({ text: "Select at least one day of the week.", ok: false });
+      return;
+    }
+    if (shiftForm.consultation_mode === "in_person" && !shiftForm.location_name.trim()) {
+      setMsg({ text: "Please enter your clinic or branch name.", ok: false });
+      return;
+    }
+
+    setSavingShift(true);
+    try {
+      const res = await fetch(`${apiBase}/api/providers/availability/shifts`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(shiftForm),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMsg({
+          text: `✓ Shifts published: ${data.created_records_count} blocks created across ${data.days_count} day(s) (${data.total_slots_week} total slots/week).`,
+          ok: true,
+        });
+        setShowForm(false);
+        load();
+      } else {
+        setMsg({ text: data.detail || data.message || "Failed to publish shifts.", ok: false });
+      }
+    } catch {
+      setMsg({ text: "Network error while publishing shifts.", ok: false });
+    } finally {
+      setSavingShift(false);
+    }
+  };
+
+  // Custom Single Block Submission
   const addAvailability = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.start_time >= form.end_time) {
       setMsg({ text: "Start time must be before end time.", ok: false });
       return;
     }
-    // A walk-in block with no centre name is unbookable — the patient has
-    // nowhere to go. Refuse it here rather than publishing a dead slot.
-    if (selectedMode?.needsLocation && !form.location_name.trim()) {
-      setMsg({ text: "Give your walk-in centre a name so patients know where to come.", ok: false });
+    if (form.consultation_mode === "in_person" && !form.location_name.trim()) {
+      setMsg({ text: "Give your walk-in centre a name.", ok: false });
       return;
     }
     try {
@@ -212,6 +306,24 @@ export default function ProviderSchedulePanel({
     }
   };
 
+  const applyStandardMOUFees = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/providers/fees/apply-standard`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMsg({ text: "✓ CallMedex Standard MOU Tariffs applied: Walk-in (₹500), Online (₹400), Home Visit (₹800).", ok: true });
+        load();
+      } else {
+        setMsg({ text: data.detail || "Failed to apply standard fees.", ok: false });
+      }
+    } catch {
+      setMsg({ text: "Network error — standard fees not applied.", ok: false });
+    }
+  };
+
   const addBlockedDate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!blockDate) return;
@@ -244,15 +356,14 @@ export default function ProviderSchedulePanel({
     }
   };
 
-  const byMode = (mode: string) => availability.filter((a) => a.consultation_mode === mode);
   const feeFor = (type: string) => fees.find((f) => f.fee_type === type);
 
   if (loading) {
-    return <div className="card" style={{ padding: 24, color: "#64748b" }}>Loading your schedule…</div>;
+    return <div className="card" style={{ padding: 24, color: "#64748b" }}>Loading clinical schedule cockpit…</div>;
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {msg && (
         <div
           role="status"
@@ -260,261 +371,577 @@ export default function ProviderSchedulePanel({
             padding: "12px 16px",
             borderRadius: 10,
             fontSize: "0.88rem",
-            fontWeight: 600,
-            backgroundColor: msg.ok ? "#f0fdf4" : "#fef2f2",
-            color: msg.ok ? "#166534" : "#b91c1c",
-            border: `1px solid ${msg.ok ? "#86efac" : "#fca5a5"}`,
+            fontWeight: 700,
+            backgroundColor: msg.ok ? "var(--cm-done-surface, #f0fdf4)" : "var(--cm-urgent-surface, #fef2f2)",
+            color: msg.ok ? "var(--cm-done, #166534)" : "var(--cm-urgent, #b91c1c)",
+            border: `1px solid ${msg.ok ? "var(--cm-done-line, #86efac)" : "var(--cm-urgent-line, #fca5a5)"}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          {msg.text}
+          <span>{msg.text}</span>
+          <button
+            type="button"
+            onClick={() => setMsg(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontWeight: "bold" }}
+          >
+            ×
+          </button>
         </div>
       )}
 
-      {/* ── Fees per mode ─────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 24 }}>
-        <h3 style={{ margin: "0 0 4px", fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
-          Your fees
-        </h3>
-        <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
-          Set your consultation and visit fees for patient bookings.
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
+      {/* ── Consultation Tariffs & 1-Click CallMedex Standard ────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+          <div>
+            <h3 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)" }}>
+              Practice Fees &amp; Tariff Management
+            </h3>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
+              Configure your consultation rates or instantly apply official CallMedex MOU standard benchmarks.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={applyStandardMOUFees}
+            className="cm-btn cm-btn--secondary cm-btn--sm"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, borderColor: "var(--cm-navy, #1e3a8a)" }}
+          >
+            ⚡ Set to CallMedex Standard Prices
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginBottom: 18 }}>
           {MODES.map((m) => {
             const fee = feeFor(m.value);
+            const standardBenchmark = m.value === "online" ? 400 : m.value === "in_person" ? 500 : 800;
             return (
-              <div key={m.value} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 14 }}>
-                <div style={{ fontSize: "0.78rem", textTransform: "uppercase", fontWeight: 700, color: "#64748b" }}>
-                  {m.label}
+              <div
+                key={m.value}
+                style={{
+                  border: "1px solid var(--cm-line, #e2e8f0)",
+                  borderRadius: 10,
+                  padding: 14,
+                  background: fee ? "var(--cm-surface, #ffffff)" : "var(--cm-surface-2, #f8fafc)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", textTransform: "uppercase", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
+                    {m.label}
+                  </span>
+                  <span style={{ fontSize: "0.72rem", color: "var(--cm-active, #0284c7)", fontWeight: 600 }}>
+                    Benchmark: ₹{standardBenchmark}
+                  </span>
                 </div>
-                <div style={{ fontSize: "1.3rem", fontWeight: 800, color: fee ? "#0f172a" : "#94a3b8", marginTop: 4 }}>
+                <div style={{ fontSize: "1.35rem", fontWeight: 800, color: fee ? "var(--cm-ink, #0f172a)" : "#94a3b8", marginTop: 4 }}>
                   {fee ? `₹${fee.amount}` : "Not set"}
                 </div>
                 {fee && (
-                  <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: 2 }}>
-                    Estimated net: ₹{Math.round(fee.amount * 0.8)}
+                  <div style={{ fontSize: "0.75rem", color: "var(--cm-done, #16a34a)", marginTop: 4, fontWeight: 600 }}>
+                    Estimated 80% Net Payout: ₹{Math.round(fee.amount * 0.8)}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
-        <form onSubmit={saveFee} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-            Mode
+
+        {/* Custom Fee Set Form */}
+        <form onSubmit={saveFee} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", borderTop: "1px dashed var(--cm-line, #e2e8f0)", paddingTop: 14 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
+            Service Mode
             <select
               value={feeForm.fee_type}
               onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-              style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", minWidth: 170 }}
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", minWidth: 170, fontSize: "0.85rem" }}
             >
               {MODES.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-            Fee (₹)
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
+            Custom Fee (₹)
             <input
               type="number"
               min={1}
               value={feeForm.amount}
               onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-              placeholder="e.g. 600"
-              style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", width: 140 }}
+              placeholder="e.g. 500"
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", width: 140, fontSize: "0.85rem" }}
             />
           </label>
-          <Button type="submit" variant="primary">Save fee</Button>
+          <Button type="submit" variant="primary">Save Custom Fee</Button>
         </form>
       </div>
 
-      {/* ── Weekly availability ───────────────────────────────────────── */}
-      <div className="card" style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
-          <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
-            Weekly availability
-          </h3>
-          <Button variant="secondary" onClick={() => setShowForm((s) => !s)}>
+      {/* ── Weekly Availability & Shift Scheduler ─────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)" }}>
+              Weekly Availability &amp; Shift Management
+            </h3>
+            <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
+              Define morning and evening shifts, choose days of practice, and control slot length.
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
             <Icon as={Plus} size={16} />
-            {showForm ? "Cancel" : "Add hours"}
+            {showForm ? "Close Builder" : "Configure Shifts / Add Hours"}
           </Button>
         </div>
-        <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
-          These are the exact slots patients can book across your {roleLabel}.
-        </p>
 
+        {/* Shift Builder Form (Matching User Reference Image 1) */}
         {showForm && (
-          <form onSubmit={addAvailability} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, marginBottom: 18, background: "#f8fafc" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                How you see the patient
-                <select
-                  value={form.consultation_mode}
-                  onChange={(e) => setForm({ ...form, consultation_mode: e.target.value })}
-                  style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                >
-                  {MODES.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                Day
-                <select
-                  value={form.day_of_week}
-                  onChange={(e) => setForm({ ...form, day_of_week: Number(e.target.value) })}
-                  disabled={form.apply_to_all_days}
-                  style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                >
-                  {DAYS.map((d) => (
-                    <option key={d.value} value={d.value}>{d.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                From
-                <input
-                  type="time"
-                  value={form.start_time}
-                  onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                  style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                />
-              </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                To
-                <input
-                  type="time"
-                  value={form.end_time}
-                  onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                  style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                />
-              </label>
-              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                Appointment length
-                <select
-                  value={form.slot_duration_minutes}
-                  onChange={(e) => setForm({ ...form, slot_duration_minutes: Number(e.target.value) })}
-                  style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                >
-                  {[15, 20, 30, 45, 60, 90].map((d) => (
-                    <option key={d} value={d}>{d} minutes</option>
-                  ))}
-                </select>
-              </label>
+          <div style={{ border: "1px solid var(--cm-line-strong, #cbd5e1)", borderRadius: 12, padding: 20, margin: "16px 0", background: "var(--cm-surface-2, #f8fafc)" }}>
+            <div style={{ display: "flex", gap: 10, borderBottom: "1px solid var(--cm-line, #e2e8f0)", paddingBottom: 10, marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => setBuilderTab("shift")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  fontWeight: 800,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  background: builderTab === "shift" ? "var(--cm-navy, #1e3a8a)" : "transparent",
+                  color: builderTab === "shift" ? "#ffffff" : "var(--cm-ink-2, #334155)",
+                }}
+              >
+                🌅 🌆 Morning &amp; Evening Shift Builder (Recommended)
+              </button>
+              <button
+                type="button"
+                onClick={() => setBuilderTab("custom")}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  fontWeight: 800,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  background: builderTab === "custom" ? "var(--cm-navy, #1e3a8a)" : "transparent",
+                  color: builderTab === "custom" ? "#ffffff" : "var(--cm-ink-2, #334155)",
+                }}
+              >
+                Single Custom Block
+              </button>
             </div>
 
-            {selectedMode?.needsLocation && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 12 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                  Centre name
-                  <input
-                    value={form.location_name}
-                    onChange={(e) => setForm({ ...form, location_name: e.target.value })}
-                    placeholder="e.g. Gajuwaka Physio Centre"
-                    style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                  />
-                </label>
-                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                  Centre address
-                  <input
-                    value={form.location_address}
-                    onChange={(e) => setForm({ ...form, location_address: e.target.value })}
-                    placeholder="Street, area, city"
-                    style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
-                  />
-                </label>
-              </div>
+            {builderTab === "shift" ? (
+              <form onSubmit={handlePublishShifts}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
+                    Practice Mode
+                    <select
+                      value={shiftForm.consultation_mode}
+                      onChange={(e) => setShiftForm({ ...shiftForm, consultation_mode: e.target.value })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", fontSize: "0.85rem" }}
+                    >
+                      {MODES.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {/* Slot Duration starting from 10 min */}
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
+                    Slot Duration (Min: 10 minutes)
+                    <select
+                      value={shiftForm.slot_duration_minutes}
+                      onChange={(e) => setShiftForm({ ...shiftForm, slot_duration_minutes: Number(e.target.value) })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", fontSize: "0.85rem", fontWeight: 700 }}
+                    >
+                      {SLOT_DURATIONS.map((d) => (
+                        <option key={d} value={d}>{d} min</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* Morning Shift */}
+                <div style={{ background: "var(--cm-surface, #ffffff)", border: "1px solid var(--cm-line, #e2e8f0)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={shiftForm.morning_shift_enabled}
+                      onChange={(e) => setShiftForm({ ...shiftForm, morning_shift_enabled: e.target.checked })}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    🌅 Enable Morning Shift
+                  </label>
+
+                  {shiftForm.morning_shift_enabled && (
+                    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
+                        MORNING START
+                        <input
+                          type="time"
+                          value={shiftForm.morning_start}
+                          onChange={(e) => setShiftForm({ ...shiftForm, morning_start: e.target.value })}
+                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                        />
+                      </label>
+                      <span style={{ marginTop: 20, color: "#94a3b8" }}>to</span>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
+                        MORNING END
+                        <input
+                          type="time"
+                          value={shiftForm.morning_end}
+                          onChange={(e) => setShiftForm({ ...shiftForm, morning_end: e.target.value })}
+                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                        />
+                      </label>
+                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 600, marginTop: 18 }}>
+                        ({shiftStats.mSlots} morning slots per day)
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Evening Shift */}
+                <div style={{ background: "var(--cm-surface, #ffffff)", border: "1px solid var(--cm-line, #e2e8f0)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={shiftForm.evening_shift_enabled}
+                      onChange={(e) => setShiftForm({ ...shiftForm, evening_shift_enabled: e.target.checked })}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    🌆 Enable Evening Shift
+                  </label>
+
+                  {shiftForm.evening_shift_enabled && (
+                    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
+                        EVENING START
+                        <input
+                          type="time"
+                          value={shiftForm.evening_start}
+                          onChange={(e) => setShiftForm({ ...shiftForm, evening_start: e.target.value })}
+                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                        />
+                      </label>
+                      <span style={{ marginTop: 20, color: "#94a3b8" }}>to</span>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
+                        EVENING END
+                        <input
+                          type="time"
+                          value={shiftForm.evening_end}
+                          onChange={(e) => setShiftForm({ ...shiftForm, evening_end: e.target.value })}
+                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                        />
+                      </label>
+                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 600, marginTop: 18 }}>
+                        ({shiftStats.eSlots} evening slots per day)
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Available Days Checkboxes (matching reference) */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "var(--cm-ink-2, #334155)", textTransform: "uppercase", marginBottom: 8 }}>
+                    Available Days
+                  </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {DAYS.map((d) => {
+                      const isSelected = shiftForm.selected_days.includes(d.value);
+                      return (
+                        <label
+                          key={d.value}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "6px 12px",
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                            border: `1px solid ${isSelected ? "var(--cm-active, #0284c7)" : "#cbd5e1"}`,
+                            background: isSelected ? "var(--cm-surface, #ffffff)" : "transparent",
+                            color: isSelected ? "var(--cm-navy, #1e3a8a)" : "#64748b",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleDay(d.value)}
+                            style={{ width: 16, height: 16 }}
+                          />
+                          {d.short.toUpperCase()}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Location Fields for Walk-in centre */}
+                {shiftForm.consultation_mode === "in_person" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
+                      Clinic / Centre Name
+                      <input
+                        value={shiftForm.location_name}
+                        onChange={(e) => setShiftForm({ ...shiftForm, location_name: e.target.value })}
+                        placeholder="e.g. Visakha Multispeciality Clinics"
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
+                      Branch Address
+                      <input
+                        value={shiftForm.location_address}
+                        onChange={(e) => setShiftForm({ ...shiftForm, location_address: e.target.value })}
+                        placeholder="Street, area, city (e.g. Chandrampalem, Visakhapatnam)"
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Live Slot Calculation Summary */}
+                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "0.85rem", fontWeight: 700, marginBottom: 16 }}>
+                  → Generates {shiftStats.mSlots} morning + {shiftStats.eSlots} evening slots ({shiftStats.daily} slots/day × {shiftForm.selected_days.length} days = {shiftStats.weekly} bookable slots per week)
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#475569" }}>
+                    <input
+                      type="checkbox"
+                      checked={shiftForm.replace_existing}
+                      onChange={(e) => setShiftForm({ ...shiftForm, replace_existing: e.target.checked })}
+                    />
+                    Replace existing hours on those selected days
+                  </label>
+                  <Button type="submit" variant="primary" disabled={savingShift}>
+                    {savingShift ? "Publishing Shifts..." : "Publish Shift Schedule"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              /* Custom Single Block Form */
+              <form onSubmit={addAvailability}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                    How you see the patient
+                    <select
+                      value={form.consultation_mode}
+                      onChange={(e) => setForm({ ...form, consultation_mode: e.target.value })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                    >
+                      {MODES.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                    Day
+                    <select
+                      value={form.day_of_week}
+                      onChange={(e) => setForm({ ...form, day_of_week: Number(e.target.value) })}
+                      disabled={form.apply_to_all_days}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                    >
+                      {DAYS.map((d) => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                    From
+                    <input
+                      type="time"
+                      value={form.start_time}
+                      onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                    />
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                    To
+                    <input
+                      type="time"
+                      value={form.end_time}
+                      onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                    />
+                  </label>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                    Appointment length
+                    <select
+                      value={form.slot_duration_minutes}
+                      onChange={(e) => setForm({ ...form, slot_duration_minutes: Number(e.target.value) })}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                    >
+                      {SLOT_DURATIONS.map((d) => (
+                        <option key={d} value={d}>{d} minutes</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {form.consultation_mode === "in_person" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                      Centre name
+                      <input
+                        value={form.location_name}
+                        onChange={(e) => setForm({ ...form, location_name: e.target.value })}
+                        placeholder="e.g. Visakha Multispeciality Clinics"
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
+                      Centre address
+                      <input
+                        value={form.location_address}
+                        onChange={(e) => setForm({ ...form, location_address: e.target.value })}
+                        placeholder="Street, area, city"
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "#334155" }}>
+                      <input
+                        type="checkbox"
+                        checked={form.apply_to_all_days}
+                        onChange={(e) => setForm({ ...form, apply_to_all_days: e.target.checked })}
+                      />
+                      Same hours every day
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "#334155" }}>
+                      <input
+                        type="checkbox"
+                        checked={form.replace_existing}
+                        onChange={(e) => setForm({ ...form, replace_existing: e.target.checked })}
+                      />
+                      Replace existing hours
+                    </label>
+                  </div>
+                  <Button type="submit" variant="primary">Publish Block</Button>
+                </div>
+              </form>
             )}
-
-            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 14, fontSize: "0.83rem", color: "#334155" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={form.apply_to_all_days}
-                  onChange={(e) => setForm({ ...form, apply_to_all_days: e.target.checked })}
-                />
-                Same hours every day
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input
-                  type="checkbox"
-                  checked={form.replace_existing}
-                  onChange={(e) => setForm({ ...form, replace_existing: e.target.checked })}
-                />
-                Replace existing hours on those days
-              </label>
-            </div>
-
-            <div style={{ marginTop: 8, fontSize: "0.78rem", color: "#64748b" }}>
-              {selectedMode?.hint}
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <Button type="submit" variant="primary">Publish these hours</Button>
-            </div>
-          </form>
+          </div>
         )}
 
+        {/* ── De-Congested Grouped Weekly Schedule Display ─────────────── */}
         {MODES.map((m) => {
-          const rows = byMode(m.value);
+          const modeRows = availability.filter((a) => a.consultation_mode === m.value);
           return (
-            <div key={m.value} style={{ marginBottom: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div key={m.value} style={{ marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <Icon as={m.value === "in_person" ? MapPin : m.value === "online" ? Calendar : Clock} size={16} />
-                <span style={{ fontSize: "0.82rem", fontWeight: 800, textTransform: "uppercase", color: "#475569" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: 800, textTransform: "uppercase", color: "#334155" }}>
                   {m.label}
                 </span>
-                <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
-                  ({rows.length} block{rows.length === 1 ? "" : "s"})
+                <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
+                  ({modeRows.length} active block{modeRows.length === 1 ? "" : "s"})
                 </span>
               </div>
-              {rows.length === 0 ? (
-                <div style={{ fontSize: "0.83rem", color: "#94a3b8", paddingLeft: 23 }}>
-                  No hours published — patients cannot book this yet.
+
+              {modeRows.length === 0 ? (
+                <div style={{ fontSize: "0.83rem", color: "#94a3b8", padding: "12px 16px", background: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1" }}>
+                  No hours published for {m.label.toLowerCase()} yet. Click &quot;Configure Shifts / Add Hours&quot; above to publish your schedule.
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {rows
-                    .slice()
-                    .sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time))
-                    .map((a) => (
+                /* Group by Day */
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+                  {DAYS.map((dayObj) => {
+                    const dayBlocks = modeRows
+                      .filter((r) => r.day_of_week === dayObj.value)
+                      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+                    if (dayBlocks.length === 0) return null;
+
+                    // Detect location if any
+                    const primaryLocation = dayBlocks.find((b) => b.location_name)?.location_name;
+                    const primaryAddress = dayBlocks.find((b) => b.location_address)?.location_address;
+
+                    return (
                       <div
-                        key={a.id}
+                        key={dayObj.value}
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 12,
-                          border: "1px solid #e2e8f0",
-                          borderRadius: 8,
-                          padding: "10px 14px",
+                          border: "1px solid var(--cm-line, #e2e8f0)",
+                          borderRadius: 10,
+                          padding: 14,
+                          background: "var(--cm-surface, #ffffff)",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                         }}
                       >
-                        <div>
-                          <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {DAYS.find((d) => d.value === a.day_of_week)?.short}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
+                          <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink, #0f172a)" }}>
+                            {dayObj.label}
                           </span>
-                          <span style={{ marginLeft: 10, color: "#334155" }}>
-                            {a.start_time?.slice(0, 5)} – {a.end_time?.slice(0, 5)}
+                          <span style={{ fontSize: "0.72rem", background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                            {dayBlocks.length} shift{dayBlocks.length === 1 ? "" : "s"}
                           </span>
-                          <span style={{ marginLeft: 10, fontSize: "0.78rem", color: "#64748b" }}>
-                            {a.slot_duration_minutes} min slots
-                          </span>
-                          {a.location_name && (
-                            <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>
-                              {a.location_name}
-                              {a.location_address ? ` • ${a.location_address}` : ""}
-                            </div>
-                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeAvailability(a.id)}
-                          aria-label="Remove this availability block"
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626" }}
-                        >
-                          <Icon as={Trash2} size={16} />
-                        </button>
+
+                        {/* Shift rows */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: primaryLocation ? 10 : 0 }}>
+                          {dayBlocks.map((blk) => {
+                            const isMorning = blk.start_time < "13:00";
+                            const isEvening = blk.start_time >= "16:00";
+                            const shiftIcon = isMorning ? "🌅" : isEvening ? "🌆" : "☀️";
+                            return (
+                              <div
+                                key={blk.id}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "6px 10px",
+                                  background: "#f8fafc",
+                                  borderRadius: 6,
+                                  border: "1px solid #e2e8f0",
+                                }}
+                              >
+                                <div>
+                                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>
+                                    {shiftIcon} {blk.start_time.slice(0, 5)} – {blk.end_time.slice(0, 5)}
+                                  </span>
+                                  <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#0284c7", fontWeight: 600 }}>
+                                    {blk.slot_duration_minutes} min slots
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAvailability(blk.id)}
+                                  aria-label="Remove this shift"
+                                  title="Remove this shift"
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: 2 }}
+                                >
+                                  <Icon as={Trash2} size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Location Badge (Shown once per day to prevent repetitive clutter) */}
+                        {primaryLocation && (
+                          <div style={{ fontSize: "0.74rem", color: "#64748b", borderTop: "1px dashed #e2e8f0", paddingTop: 8, display: "flex", alignItems: "flex-start", gap: 4 }}>
+                            <span style={{ marginTop: 2, flexShrink: 0, color: "#0284c7", display: "inline-flex" }}>
+                              <Icon as={MapPin} size={14} />
+                            </span>
+                            <span>
+                              <strong style={{ color: "#334155" }}>{primaryLocation}</strong>
+                              {primaryAddress ? ` • ${primaryAddress}` : ""}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -522,13 +949,13 @@ export default function ProviderSchedulePanel({
         })}
       </div>
 
-      {/* ── Leave / blocked dates ─────────────────────────────────────── */}
-      <div className="card" style={{ padding: 24 }}>
+      {/* ── Blocked Dates / Leave ─────────────────────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
         <h3 style={{ margin: "0 0 4px", fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
-          Leave &amp; blocked dates
+          Leave &amp; Blocked Dates
         </h3>
         <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
-          A blocked date removes every slot that day, across all three modes.
+          Marking a date as unavailable suspends all consultation slots for that day.
         </p>
         <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 16 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
@@ -545,7 +972,7 @@ export default function ProviderSchedulePanel({
             <input
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="Conference, leave…"
+              placeholder="Conference, leave, holiday…"
               style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", minWidth: 200 }}
             />
           </label>

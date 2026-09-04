@@ -1374,6 +1374,49 @@ async def complete_booking(
     raise HTTPException(status_code=404, detail="Booking not found")
 
 
+@router.get("/{booking_id}", response_model=APIResponse)
+async def get_booking_details(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Fetch details of a specific booking with patient demographics."""
+    if not supabase:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    try:
+        res = supabase.table("bookings").select("*").eq("id", booking_id).limit(1).execute()
+        rows = _rows(res)
+        if not rows:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        b = rows[0]
+
+        # Attach patient details
+        patient_id = b.get("patient_id")
+        if patient_id:
+            u_res = (
+                supabase.table("users")
+                .select("id, full_name, email, phone, age, gender")
+                .eq("id", patient_id)
+                .limit(1)
+                .execute()
+            )
+            u_rows = _rows(u_res)
+            if u_rows:
+                u = u_rows[0]
+                b["patient_name"] = u.get("full_name") or b.get("patient_name") or "Patient"
+                b["patient_email"] = u.get("email") or ""
+                b["patient_mobile"] = u.get("phone") or ""
+                b["patient_age"] = u.get("age")
+                b["patient_gender"] = u.get("gender")
+
+        return APIResponse(success=True, message="Booking details retrieved", data=b)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch booking {booking_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Booking History (Audit Trail) ────────────────────────────────────────
 
 @router.get("/{booking_id}/history", response_model=APIResponse)
@@ -1570,7 +1613,7 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
         try:
             people = _rows(
                 supabase.table("users")
-                .select("id, full_name, gender, date_of_birth, mobile")
+                .select("id, full_name, gender, date_of_birth, mobile, email")
                 .in_("id", list(set(patient_ids)))
                 .execute()
             )
@@ -1580,11 +1623,15 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
                 b["patient_name"] = person.get("full_name") or "Patient"
                 b["patient_gender"] = person.get("gender")
                 b["patient_date_of_birth"] = person.get("date_of_birth")
+                b["patient_mobile"] = person.get("mobile") or ""
+                b["patient_email"] = person.get("email") or ""
         except Exception as e:
             # A missing name must not cost the provider their whole schedule.
             logger.warning(f"Could not attach patient names to today's bookings: {e}")
             for b in bookings:
                 b.setdefault("patient_name", "Patient")
+                b.setdefault("patient_mobile", "")
+                b.setdefault("patient_email", "")
 
     return APIResponse(
         success=True,

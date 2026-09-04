@@ -47,9 +47,27 @@ class AvailabilityCreate(BaseModel):
     # it can later be edited or removed as a unit. Doctors keep the same clinic
     # hours most days; entering them seven times is pure friction.
     apply_to_all_days: bool = False
-    # With apply_to_all_days, replace any existing blocks on the days covered
+    # Explicit list of days [0..6] to apply hours to (e.g. Mon-Sat without Sun)
+    days: Optional[List[int]] = None
+    # With apply_to_all_days or days, replace any existing blocks on the days covered
     # instead of stacking a second one on top.
     replace_existing: bool = False
+
+
+class ShiftScheduleCreate(BaseModel):
+    consultation_mode: str = Field("in_person", description="'in_person', 'online', or 'home_visit'")
+    slot_duration_minutes: int = Field(30, ge=10, le=120)
+    selected_days: List[int] = Field(default=[1, 2, 3, 4, 5, 6], description="0=Sun, 6=Sat")
+    morning_shift_enabled: bool = True
+    morning_start: str = Field("09:00", description="HH:MM format")
+    morning_end: str = Field("12:00", description="HH:MM format")
+    evening_shift_enabled: bool = True
+    evening_start: str = Field("17:00", description="HH:MM format")
+    evening_end: str = Field("19:00", description="HH:MM format")
+    location_name: Optional[str] = ""
+    location_address: Optional[str] = ""
+    replace_existing: bool = True
+
 
 
 class AvailabilityUpdate(BaseModel):
@@ -167,8 +185,16 @@ async def create_availability(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    days = list(range(7)) if body.apply_to_all_days else [body.day_of_week]
-    group_id = str(uuid.uuid4()) if body.apply_to_all_days else None
+    if body.days:
+        days = [int(d) for d in body.days if 0 <= int(d) <= 6]
+        if not days:
+            days = [body.day_of_week]
+    elif body.apply_to_all_days:
+        days = list(range(7))
+    else:
+        days = [body.day_of_week]
+
+    group_id = str(uuid.uuid4()) if (body.apply_to_all_days or (body.days and len(days) > 1)) else None
 
     try:
         existing = (
@@ -182,17 +208,21 @@ async def create_availability(
         logger.error(f"Error reading existing availability: {e}")
         existing = []
 
-    if body.replace_existing and body.apply_to_all_days:
-        # Wholesale reset of the week. Without this, "apply to all days" on a
-        # doctor who already has hours would stack a second block on every day
-        # and silently double their slot capacity.
+    if body.replace_existing and (body.apply_to_all_days or body.days):
         try:
-            supabase.table("doctor_availability").delete().eq(
-                "doctor_id", current_user["sub"]
-            ).execute()
+            if body.apply_to_all_days:
+                supabase.table("doctor_availability").delete().eq(
+                    "doctor_id", current_user["sub"]
+                ).execute()
+                existing = []
+            elif body.days:
+                for d in days:
+                    supabase.table("doctor_availability").delete().eq(
+                        "doctor_id", current_user["sub"]
+                    ).eq("day_of_week", d).execute()
+                existing = [row for row in existing if row.get("day_of_week") not in days]
         except Exception as e:
             logger.error(f"Error clearing availability: {e}")
-        existing = []
 
     def overlaps(day: int) -> bool:
         """Two blocks on the same day overlap if each starts before the other ends."""
@@ -240,6 +270,121 @@ async def create_availability(
         "skipped_days": skipped,
         "template_group_id": group_id,
         "availability": records,
+    }
+
+
+@router.post("/availability/shifts")
+async def create_shift_availability(
+    body: ShiftScheduleCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Publish shift-based availability (Morning & Evening Shifts) across selected days
+    with custom slot durations (starting from 10 minutes).
+    Matches enterprise clinical workstation standards.
+    """
+    if current_user.get("role") not in SCHEDULING_PROVIDER_ROLES:
+        raise HTTPException(403, "This account type cannot publish availability shifts")
+
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    if not body.morning_shift_enabled and not body.evening_shift_enabled:
+        raise HTTPException(400, "At least one shift (Morning or Evening) must be enabled.")
+
+    selected_days = [int(d) for d in body.selected_days if 0 <= int(d) <= 6]
+    if not selected_days:
+        raise HTTPException(400, "Please select at least one day of the week.")
+
+    # Validate shift times
+    shifts_to_create = []
+    if body.morning_shift_enabled:
+        try:
+            m_start = datetime.strptime(body.morning_start, "%H:%M").time()
+            m_end = datetime.strptime(body.morning_end, "%H:%M").time()
+            if m_start >= m_end:
+                raise HTTPException(400, "Morning shift start time must be before end time")
+            shifts_to_create.append({"name": "Morning Shift", "start": body.morning_start, "end": body.morning_end})
+        except ValueError:
+            raise HTTPException(400, "Invalid morning shift time format (use HH:MM)")
+
+    if body.evening_shift_enabled:
+        try:
+            e_start = datetime.strptime(body.evening_start, "%H:%M").time()
+            e_end = datetime.strptime(body.evening_end, "%H:%M").time()
+            if e_start >= e_end:
+                raise HTTPException(400, "Evening shift start time must be before end time")
+            shifts_to_create.append({"name": "Evening Shift", "start": body.evening_start, "end": body.evening_end})
+        except ValueError:
+            raise HTTPException(400, "Invalid evening shift time format (use HH:MM)")
+
+    # Overlap check between morning and evening if both enabled
+    if body.morning_shift_enabled and body.evening_shift_enabled:
+        if body.morning_end > body.evening_start:
+            raise HTTPException(400, "Morning shift cannot overlap with evening shift")
+
+    # If replace_existing is requested, wipe existing availability for those days & mode
+    if body.replace_existing:
+        try:
+            for day in selected_days:
+                supabase.table("doctor_availability").delete().eq(
+                    "doctor_id", current_user["sub"]
+                ).eq("day_of_week", day).eq("consultation_mode", body.consultation_mode).execute()
+        except Exception as e:
+            logger.error(f"Error resetting existing shifts: {e}")
+
+    # Build shift records
+    records = []
+    group_id = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for day in selected_days:
+        for s in shifts_to_create:
+            records.append({
+                "id": str(uuid.uuid4()),
+                "doctor_id": current_user["sub"],
+                "day_of_week": day,
+                "start_time": s["start"],
+                "end_time": s["end"],
+                "slot_duration_minutes": body.slot_duration_minutes,
+                "consultation_mode": body.consultation_mode,
+                "max_patients_per_slot": 1,
+                "location_name": body.location_name or "",
+                "location_address": body.location_address or "",
+                "is_active": True,
+                "template_group_id": group_id,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            })
+
+    if not records:
+        raise HTTPException(400, "No shift records to publish")
+
+    try:
+        supabase.table("doctor_availability").insert(records).execute()
+    except Exception as e:
+        logger.error(f"Error inserting shifts: {e}")
+        raise HTTPException(500, "Failed to publish shift availability")
+
+    # Calculate estimated slots per day and week
+    total_daily_mins = 0
+    for s in shifts_to_create:
+        st = datetime.strptime(s["start"], "%H:%M")
+        et = datetime.strptime(s["end"], "%H:%M")
+        total_daily_mins += int((et - st).total_seconds() / 60)
+
+    slots_per_day = total_daily_mins // body.slot_duration_minutes
+    total_slots_week = slots_per_day * len(selected_days)
+
+    return {
+        "success": True,
+        "message": f"Successfully published {len(records)} shift block(s) across {len(selected_days)} day(s).",
+        "days_count": len(selected_days),
+        "shifts_per_day": len(shifts_to_create),
+        "slots_per_day": slots_per_day,
+        "total_slots_week": total_slots_week,
+        "template_group_id": group_id,
+        "created_records_count": len(records),
     }
 
 
@@ -524,6 +669,69 @@ async def set_fee(
     except Exception as e:
         logger.error(f"Error setting fee: {e}")
         raise HTTPException(500, "Failed to set fee")
+
+
+@router.post("/fees/apply-standard")
+async def apply_standard_tariffs(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Apply official CallMedex MOU benchmark prices in 1-click:
+    - In-Person Clinic Consultation: ₹500 (Doctor net: ₹400)
+    - Online Teleconsultation: ₹400 (Doctor net: ₹320)
+    - Doorstep Home Clinical Visit: ₹800 (Doctor net: ₹640)
+    """
+    if current_user.get("role") not in SCHEDULING_PROVIDER_ROLES:
+        raise HTTPException(403, "This account type cannot set consultation fees")
+
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    standard_tariffs = [
+        {"fee_type": "in_person", "amount": 500},
+        {"fee_type": "online", "amount": 400},
+        {"fee_type": "home_visit", "amount": 800},
+    ]
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    saved = []
+
+    for t in standard_tariffs:
+        try:
+            existing = (
+                supabase.table("consultation_fees")
+                .select("id")
+                .eq("doctor_id", current_user["sub"])
+                .eq("fee_type", t["fee_type"])
+                .execute()
+            )
+            if existing.data:
+                supabase.table("consultation_fees").update({
+                    "amount": t["amount"],
+                    "updated_at": now_iso,
+                }).eq("id", existing.data[0]["id"]).execute()
+            else:
+                supabase.table("consultation_fees").insert({
+                    "id": str(uuid.uuid4()),
+                    "doctor_id": current_user["sub"],
+                    "fee_type": t["fee_type"],
+                    "amount": t["amount"],
+                    "currency": "INR",
+                    "is_active": True,
+                    "set_by": "mou_standard",
+                    "created_at": now_iso,
+                    "updated_at": now_iso,
+                }).execute()
+            saved.append(t)
+        except Exception as e:
+            logger.error(f"Error applying standard fee for {t['fee_type']}: {e}")
+
+    return {
+        "success": True,
+        "message": "CallMedex official MOU standard tariffs successfully applied.",
+        "fees": saved,
+    }
+
 
 
 # ─── Generate Bookable Slots for a Date ───────────────────────────────────

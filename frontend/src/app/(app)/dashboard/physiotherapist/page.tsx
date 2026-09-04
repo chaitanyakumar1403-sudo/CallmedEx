@@ -270,9 +270,9 @@ export default function PhysiotherapistDashboard() {
         <div className="cm-metric-strip">
           <div className="cm-metric-card">
             <div className="cm-metric-card__label">Today&apos;s Therapy Sessions</div>
-            <div className="cm-metric-card__value">3 Active</div>
+            <div className="cm-metric-card__value">{sessions.length} Scheduled</div>
             <div className="cm-metric-card__meta" style={{ color: "var(--cm-done)" }}>
-              <CheckCircle2 size={13} /> 2 Bedside Visits + 1 Tele-Rehab
+              <CheckCircle2 size={13} /> {sessions.filter(s => s.status === "confirmed").length} Confirmed
             </div>
           </div>
           <div className="cm-metric-card">
