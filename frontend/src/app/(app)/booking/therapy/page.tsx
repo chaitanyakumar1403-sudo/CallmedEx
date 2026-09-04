@@ -35,6 +35,7 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
+import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -297,30 +298,54 @@ function TherapyBookingInner() {
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", padding: 20 }}>
       <div style={{ maxWidth: 860, margin: "0 auto" }}>
-        <div style={{ background: "linear-gradient(135deg, var(--cm-navy), var(--cm-active))", borderRadius: 16, padding: "26px 32px", color: "white", marginBottom: 22 }}>
-          <h1 style={{ margin: 0, fontSize: "1.45rem" }}>Consult a {roleMeta.label}</h1>
-          <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: "0.9rem" }}>
-            Online, at your home, or at their centre — verified specialists only.
-          </p>
+        <div style={{
+          background: "linear-gradient(135deg, var(--cm-navy) 0%, #0f4c81 50%, var(--cm-active) 100%)",
+          borderRadius: 16,
+          padding: "28px 32px",
+          color: "#ffffff",
+          marginBottom: 22,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          boxShadow: "0 12px 30px -10px rgba(15, 76, 129, 0.35)",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{ position: "relative", zIndex: 2 }}>
+            <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.02em" }}>
+              Consult a {roleMeta.label}
+            </h1>
+            <p style={{ margin: "8px 0 0", color: "rgba(255, 255, 255, 0.9)", fontSize: "0.92rem", fontWeight: 500 }}>
+              Online, at your home, or at their centre — verified specialists only.
+            </p>
+          </div>
+          <div style={{ position: "relative", zIndex: 2, background: "rgba(255, 255, 255, 0.12)", padding: 12, borderRadius: 16, border: "1px solid rgba(255, 255, 255, 0.25)", backdropFilter: "blur(8px)" }}>
+            <Clinical3DIcon name={role === "physiotherapist" ? "physio" : "dietitian"} size={44} glow />
+          </div>
         </div>
 
         {/* Role + mode */}
-        <div style={{ background: "white", borderRadius: 12, padding: 20, marginBottom: 18 }}>
+        <div style={{ background: "white", borderRadius: 12, padding: 20, marginBottom: 18, boxShadow: "0 2px 8px rgba(15, 23, 42, 0.05)" }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
             {ROLES.map((r) => (
               <button
                 key={r.value}
                 onClick={() => setRole(r.value)}
                 style={{
-                  padding: "9px 18px",
+                  padding: "10px 20px",
                   borderRadius: 999,
                   border: role === r.value ? "2px solid #0f4c81" : "1px solid #cbd5e1",
                   background: role === r.value ? "#eff6ff" : "white",
                   fontWeight: 700,
                   color: "#0f172a",
                   cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  transition: "all 0.15s ease",
                 }}
               >
+                <Clinical3DIcon name={r.value === "physiotherapist" ? "physio" : "dietitian"} size="sm" />
                 {r.label}
               </button>
             ))}
@@ -328,27 +353,28 @@ function TherapyBookingInner() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
             {MODES.map((m) => {
-              const IconComp = m.Icon;
               const isSelected = mode === m.value;
+              const iconName = m.value === "online" ? "video" : m.value === "home_visit" ? "nurse" : "hospital";
               return (
                 <button
                   key={m.value}
                   onClick={() => setMode(m.value)}
                   style={{
                     textAlign: "left",
-                    padding: 16,
-                    borderRadius: 10,
+                    padding: 18,
+                    borderRadius: 12,
                     border: isSelected ? "2px solid #2563eb" : "1px solid #e2e8f0",
                     background: isSelected ? "#eff6ff" : "white",
                     cursor: "pointer",
                     transition: "all 0.15s ease",
+                    boxShadow: isSelected ? "0 4px 12px rgba(37, 99, 235, 0.1)" : undefined,
                   }}
                 >
-                  <div style={{ color: isSelected ? "#2563eb" : "#64748b", marginBottom: 8 }}>
-                    <IconComp size={24} />
+                  <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                    <Clinical3DIcon name={iconName} size={32} glow={isSelected} />
                   </div>
-                  <div style={{ fontWeight: 700, color: "#0f172a", marginTop: 4 }}>{m.label}</div>
-                  <div style={{ fontSize: "0.78rem", color: "#64748b" }}>{m.blurb}</div>
+                  <div style={{ fontWeight: 700, color: "#0f172a", marginTop: 4, fontSize: "0.95rem" }}>{m.label}</div>
+                  <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>{m.blurb}</div>
                 </button>
               );
             })}

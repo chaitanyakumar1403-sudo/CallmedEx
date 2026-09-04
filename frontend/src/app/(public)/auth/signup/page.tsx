@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Camera,
 } from "lucide-react";
+import Clinical3DIcon, { Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
 
 // ─── Validation helpers ─────────────────────────────────────────────────────
 
@@ -60,16 +61,16 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   return { score, ...levels[Math.min(score, 4)] };
 }
 
-const ROLES = [
-  { value: "patient", label: "Patient", Icon: User },
-  { value: "doctor", label: "Doctor", Icon: Stethoscope },
-  { value: "dietitian", label: "Dietitian", Icon: Apple },
-  { value: "physiotherapist", label: "Physiotherapist", Icon: Activity },
-  { value: "nurse", label: "Nurse", Icon: HeartHandshake },
-  { value: "phlebotomist", label: "Phlebotomist", Icon: Syringe },
-  { value: "organization", label: "Organization", Icon: Building2 },
-  { value: "staff", label: "Staff", Icon: Users },
-  { value: "pharmacy", label: "Pharmacy", Icon: Pill },
+const ROLES: { value: string; label: string; c3dName: Clinical3DIconName }[] = [
+  { value: "patient", label: "Patient", c3dName: "patient" },
+  { value: "doctor", label: "Doctor", c3dName: "stethoscope" },
+  { value: "dietitian", label: "Dietitian", c3dName: "dietitian" },
+  { value: "physiotherapist", label: "Physiotherapist", c3dName: "physio" },
+  { value: "nurse", label: "Nurse", c3dName: "nurse" },
+  { value: "phlebotomist", label: "Phlebotomist", c3dName: "phlebo" },
+  { value: "organization", label: "Organization", c3dName: "hospital" },
+  { value: "staff", label: "Staff", c3dName: "staff" },
+  { value: "pharmacy", label: "Pharmacy", c3dName: "pharmacy" },
 ];
 
 const MEDICAL_CONDITIONS = ["BP", "Sugar", "Thyroid", "Anemia", "Asthma", "Heart Disease", "None", "Other"];
@@ -409,8 +410,8 @@ export default function SignupPage() {
         <div className="role-selector">
           {ROLES.map((r) => (
             <div key={r.value} className={`role-option ${role === r.value ? "selected" : ""}`} onClick={() => setRole(r.value)}>
-              <div className="role-option__icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 28 }}>
-                <r.Icon size={22} />
+              <div className="role-option__icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 38, marginBottom: 4 }}>
+                <Clinical3DIcon name={r.c3dName} size={32} glow={role === r.value} />
               </div>
               <div className="role-option__label">{r.label}</div>
             </div>

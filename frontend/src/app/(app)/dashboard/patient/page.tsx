@@ -18,6 +18,7 @@ import { EmergencySOSWidget } from "../components/EmergencySOSWidget";
 import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
+import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import {
   Mic,
   Shield,
@@ -723,19 +724,37 @@ export default function PatientDashboard() {
           <button
             type="button"
             className="cm-action-chip"
-            style={{ borderColor: "var(--cm-active-line)", color: "var(--cm-active)", fontWeight: 700 }}
+            style={{
+              borderColor: "var(--cm-active-line)",
+              color: "var(--cm-active)",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.08)"
+            }}
             onClick={() => setShowVoiceModal(true)}
           >
-            <Mic size={16} />
+            <Clinical3DIcon name="mic" size={22} glow />
             {t.actionChips.aiVoice}
           </button>
           <button
             type="button"
             className="cm-action-chip"
-            style={{ borderColor: "var(--cm-done-line)", color: "var(--cm-done)", fontWeight: 700 }}
+            style={{
+              borderColor: "var(--cm-done-line)",
+              color: "var(--cm-done)",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              boxShadow: "0 2px 8px rgba(5, 150, 105, 0.08)"
+            }}
             onClick={() => setShowDrugShieldModal(true)}
           >
-            <Shield size={16} />
+            <Clinical3DIcon name="shield" size={22} glow />
             {t.actionChips.drugShield}
           </button>
           {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
@@ -746,11 +765,15 @@ export default function PatientDashboard() {
                 borderColor: showLiveTracker ? "var(--cm-active)" : "var(--cm-line-strong)",
                 background: showLiveTracker ? "var(--cm-active-surface)" : "var(--cm-surface)",
                 color: showLiveTracker ? "var(--cm-active)" : "var(--cm-ink)",
-                fontWeight: 700
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px"
               }}
               onClick={() => setShowLiveTracker(!showLiveTracker)}
             >
-              <Bike size={16} />
+              <Clinical3DIcon name="delivery" size={22} glow={showLiveTracker} />
               {showLiveTracker ? t.actionChips.phleboHide : t.actionChips.phleboDemo}
             </button>
           )}
@@ -758,10 +781,18 @@ export default function PatientDashboard() {
             <button
               type="button"
               className="cm-action-chip"
-              style={{ borderColor: "var(--cm-line-strong)", color: "var(--cm-ink)", fontWeight: 700 }}
+              style={{
+                borderColor: "var(--cm-line-strong)",
+                color: "var(--cm-ink)",
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px"
+              }}
               onClick={() => setShowBriefingModal(true)}
             >
-              <FileText size={16} />
+              <Clinical3DIcon name="fileText" size={22} />
               {t.actionChips.doctorBriefing}
             </button>
           )}
@@ -1069,8 +1100,8 @@ export default function PatientDashboard() {
               <div className="cm-kpi-card__value">{upcomingCount}</div>
               <div className="cm-kpi-card__subtitle">{t.kpi.upcomingSub}</div>
             </div>
-            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
-              <Calendar size={22} />
+            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+              <Clinical3DIcon name="calendar" size={36} glow />
             </div>
           </div>
 
@@ -1081,8 +1112,8 @@ export default function PatientDashboard() {
               <div className="cm-kpi-card__value">{completedCount}</div>
               <div className="cm-kpi-card__subtitle">{t.kpi.completedSub}</div>
             </div>
-            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
-              <CheckCircle2 size={22} />
+            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+              <Clinical3DIcon name="check" size={36} glow />
             </div>
           </div>
 
@@ -1093,8 +1124,8 @@ export default function PatientDashboard() {
               <div className="cm-kpi-card__value">0</div>
               <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
             </div>
-            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
-              <Pill size={22} />
+            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+              <Clinical3DIcon name="pill" size={36} glow />
             </div>
           </div>
 
@@ -1105,8 +1136,8 @@ export default function PatientDashboard() {
               <div className="cm-kpi-card__value">0</div>
               <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
             </div>
-            <div className="cm-kpi-card__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
-              <BarChart3 size={22} />
+            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+              <Clinical3DIcon name="chart" size={36} glow />
             </div>
           </div>
         </div>
@@ -1200,8 +1231,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
-                <Droplet size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="droplet" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "phlebotomist" ? t.quickActions.requesting : t.quickActions.urgentHomeCollection}
@@ -1224,8 +1255,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
-                <Stethoscope size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="stethoscope" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "doctor" ? t.quickActions.requesting : t.quickActions.urgentHomeDoctor}
@@ -1248,8 +1279,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-urgent)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)" }}>
-                <HeartHandshake size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="nurse" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "nurse" ? t.quickActions.requesting : t.quickActions.urgentHomeNurse}
@@ -1272,8 +1303,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-waiting)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
-                <Truck size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="delivery" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "pharmacy_delivery" ? t.quickActions.requesting : t.quickActions.urgentPharmacy}
@@ -1296,8 +1327,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
-                <Apple size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="dietitian" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "dietitian" ? t.quickActions.requesting : t.quickActions.homeDietitian}
@@ -1320,8 +1351,8 @@ export default function PatientDashboard() {
           >
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
-                <Activity size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="physio" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">
                 {requestingDispatch === "physiotherapist" ? t.quickActions.requesting : t.quickActions.homePhysio}
@@ -1339,8 +1370,8 @@ export default function PatientDashboard() {
           <a href="/booking?type=video_consult" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-navy)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-surface-2)", color: "var(--cm-navy)" }}>
-                <Video size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="video" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.videoConsult}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1356,8 +1387,8 @@ export default function PatientDashboard() {
           <a href="/dashboard/patient/pmjay" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
-                <Building2 size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="hospital" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.pmjay}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1373,8 +1404,8 @@ export default function PatientDashboard() {
           <a href="/dashboard/patient/reports" className="cm-quick-card">
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
-                <Sparkles size={24} />
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="sparkles" size={42} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
               <p className="cm-quick-card__subtitle">

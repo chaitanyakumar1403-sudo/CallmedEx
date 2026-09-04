@@ -17,3 +17,5 @@ export type { DashTab } from "./Tabs";
 export { ClinicalSection } from "./ClinicalSection";
 export { Timeline } from "./Timeline";
 export type { TimelineStep } from "./Timeline";
+export { default as Clinical3DIcon } from "./Clinical3DIcon";
+export type { Clinical3DIconName, Clinical3DIconProps } from "./Clinical3DIcon";

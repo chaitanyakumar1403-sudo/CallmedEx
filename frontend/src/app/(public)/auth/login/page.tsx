@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Lock,
 } from "lucide-react";
+import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -142,10 +143,10 @@ export default function LoginPage() {
           </p>
 
           {/* Feature Badges */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center" }}>
-                <Zap size={18} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
+                <Clinical3DIcon name="video" size={36} glow />
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Instant Telemedicine Consultations</div>
@@ -153,9 +154,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center" }}>
-                <MapPin size={18} />
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
+                <Clinical3DIcon name="delivery" size={36} glow />
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Doorstep Dispatch Radar</div>
@@ -163,9 +164,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center" }}>
-                <CheckCircle2 size={18} />
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
+                <Clinical3DIcon name="check" size={36} glow />
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>80% Provider Remuneration Standard</div>
@@ -175,50 +176,50 @@ export default function LoginPage() {
           </div>
 
           {/* Quick Demo Fillers for testing */}
-          <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 16 }}>
-            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 10 }}>
+          <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 18 }}>
+            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 12 }}>
               Quick Demo Accounts
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               <button
                 type="button"
                 onClick={() => setDemoAccount("doctor@callmedex.in")}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
               >
-                <Stethoscope size={13} /> Doctor
+                <Clinical3DIcon name="stethoscope" size={20} /> Doctor
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("patient@callmedex.in")}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
               >
-                <User size={13} /> Patient
+                <Clinical3DIcon name="patient" size={20} /> Patient
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("nurse@callmedex.in")}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
               >
-                <HeartHandshake size={13} /> Nurse
+                <Clinical3DIcon name="nurse" size={20} /> Nurse
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("dietitian@callmedex.in")}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
               >
-                <Apple size={13} /> Dietitian
+                <Clinical3DIcon name="dietitian" size={20} /> Dietitian
               </button>
               <button
                 type="button"
                 onClick={() => setDemoAccount("physio@callmedex.in")}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
               >
-                <Activity size={13} /> Physio
+                <Clinical3DIcon name="physio" size={20} /> Physio
               </button>
             </div>
           </div>

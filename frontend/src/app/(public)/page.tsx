@@ -15,6 +15,7 @@ import {
   Clock,
   Award,
 } from "lucide-react";
+import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 
 export default function HomePage() {
   return (
@@ -64,9 +65,9 @@ export default function HomePage() {
           {/* Hero Visual Card: Clinical Status Preview */}
           <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.06)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid var(--cm-line)", paddingBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center" }}>
-                  <HeartPulse size={22} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
+                  <Clinical3DIcon name="activity" size={36} glow />
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Live Clinical Dispatch</div>
@@ -80,8 +81,8 @@ export default function HomePage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
               <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Microscope size={18} style={{ color: "var(--cm-active)" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Clinical3DIcon name="droplet" size={28} glow />
                   <div>
                     <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>Complete Blood Count (CBC)</div>
                     <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Home Collection · Phlebotomist En Route</div>
@@ -91,8 +92,8 @@ export default function HomePage() {
               </div>
 
               <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Video size={18} style={{ color: "var(--cm-done)" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Clinical3DIcon name="video" size={28} glow />
                   <div>
                     <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>General Physician Teleconsult</div>
                     <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>HD WebRTC Exam Room · Scribe Active</div>
@@ -102,8 +103,8 @@ export default function HomePage() {
               </div>
 
               <div style={{ padding: 12, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Pill size={18} style={{ color: "var(--cm-navy)" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Clinical3DIcon name="pill" size={28} glow />
                   <div>
                     <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}>Prescription Dispensation</div>
                     <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Licensed Jan Aushadhi Partner Pharmacy</div>
@@ -115,7 +116,7 @@ export default function HomePage() {
 
             <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--cm-line)", paddingTop: 14 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Zero Data Leakage Guarantee
+                <Clinical3DIcon name="shield" size={18} /> Zero Data Leakage Guarantee
               </span>
               <span style={{ fontWeight: 700, color: "var(--cm-ink)" }}>NMC 2026 Compliant</span>
             </div>
