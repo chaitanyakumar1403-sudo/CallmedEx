@@ -2,7 +2,7 @@
 Pydantic schemas for all CallMedex roles and entities.
 Next-Gen: Universal provider support, legal document workflow, nurse role.
 """
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import datetime, date, time
 from enum import Enum
@@ -176,8 +176,8 @@ class AddressInfo(BaseModel):
 
 class UserBase(BaseModel):
     full_name: str
-    gender: Gender
-    date_of_birth: date
+    gender: Optional[Gender] = None
+    date_of_birth: Optional[date] = None
     email: EmailStr
     mobile: str
     role: UserRole
@@ -274,6 +274,40 @@ class UserSignup(UserBase):
     # Registrant info (non-patient roles) — who is filling out this form
     registrant_role: Optional[str] = None  # front_desk_manager, general_manager, admin_staff, owner, other
     owner_email: Optional[str] = None  # Owner's email for MOU delivery (if different from registrant)
+    official_email: Optional[EmailStr] = None
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def clean_gender(cls, v):
+        if v == "" or v is None or v == "null":
+            return None
+        return v
+
+    @field_validator("date_of_birth", mode="before")
+    @classmethod
+    def clean_dob(cls, v):
+        if v == "" or v is None or v == "null":
+            return None
+        return v
+
+    @model_validator(mode="after")
+    def validate_role_demographics(self):
+        # Individual practitioners & patients require gender and date_of_birth
+        individual_roles = {
+            UserRole.PATIENT,
+            UserRole.DOCTOR,
+            UserRole.NURSE,
+            UserRole.PHLEBOTOMIST,
+            UserRole.DIETITIAN,
+            UserRole.PHYSIOTHERAPIST,
+            UserRole.DENTIST,
+        }
+        if self.role in individual_roles:
+            if not self.gender:
+                raise ValueError("gender is required for individual practitioner and patient registrations")
+            if not self.date_of_birth:
+                raise ValueError("date_of_birth is required for individual practitioner and patient registrations")
+        return self
 
 
 class ScopeOfServiceItem(BaseModel):
@@ -311,13 +345,13 @@ class VerifyResetOTPRequest(BaseModel):
     email: EmailStr
     otp_code: str = Field(min_length=6, max_length=6)
     new_password: str = Field(min_length=8)
-    confirm_password: str
+    confirm_password: Optional[str] = None
 
 
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8)
-    confirm_password: str
+    confirm_password: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -384,8 +418,8 @@ class UserResponse(BaseModel):
     email: str
     mobile: str
     role: UserRole
-    gender: Gender
-    date_of_birth: date
+    gender: Optional[Gender] = None
+    date_of_birth: Optional[date] = None
     city: str = ""
     state: str = ""
     created_at: Optional[datetime] = None

@@ -59,13 +59,14 @@ function ResetPasswordContent() {
           setLoading(false);
           return;
         }
-        const res = await fetch("/api/auth/reset-password-otp", {
+        const res = await fetch("/api/auth/verify-reset-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: email.trim().toLowerCase(),
             otp_code: otpCode.trim(),
             new_password: newPassword,
+            confirm_password: confirmPassword,
           }),
         });
         const data = await res.json();
@@ -85,6 +86,7 @@ function ResetPasswordContent() {
           body: JSON.stringify({
             token: resetToken,
             new_password: newPassword,
+            confirm_password: confirmPassword,
           }),
         });
         const data = await res.json();

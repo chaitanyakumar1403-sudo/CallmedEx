@@ -159,8 +159,8 @@ def _build_user_data(user: UserSignup, user_id: str, registration_status: str = 
         "mobile": user.mobile,
         "password_hash": hash_password(user.password),
         "role": user.role.value,
-        "gender": user.gender.value,
-        "date_of_birth": user.date_of_birth.isoformat(),
+        "gender": user.gender.value if user.gender else None,
+        "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
         "address": user.address_info.address,
         "city": user.address_info.city,
         "district": user.address_info.district,
@@ -177,6 +177,8 @@ def _build_user_data(user: UserSignup, user_id: str, registration_status: str = 
         data["registrant_role"] = user.registrant_role
     if user.owner_email:
         data["owner_email"] = user.owner_email
+    if getattr(user, "official_email", None):
+        data["official_email"] = user.official_email
     return data
 
 
@@ -245,6 +247,7 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "operating_hours": user.operating_hours or "",
             "alternate_phone": user.alternate_phone or "",
             "emergency_phone": user.emergency_phone or "",
+            "official_email": getattr(user, "official_email", None) or user.email,
             "verification_status": "pending",
         }
 
@@ -974,17 +977,22 @@ async def forgot_password(req: ForgotPasswordRequest):
     return APIResponse(
         success=True,
         message="If an account with that email exists, a password reset code has been sent.",
-        data={}
+        data={
+            "email": email,
+            "user_name": user_name,
+        }
     )
 
 
+@router.post("/reset-password-otp", response_model=APIResponse)
 @router.post("/verify-reset-otp", response_model=APIResponse)
 async def verify_reset_otp(req: VerifyResetOTPRequest):
     """
     Verify the 6-digit OTP code and reset the password.
     This is the form-based OTP entry method.
     """
-    if req.new_password != req.confirm_password:
+    confirm = req.confirm_password if req.confirm_password is not None else req.new_password
+    if req.new_password != confirm:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
     if pw_error := validate_password_strength(req.new_password):
@@ -1072,7 +1080,8 @@ async def reset_password_via_token(req: ResetPasswordRequest):
     Reset password using the magic link JWT token from email.
     This is the one-click magic link method.
     """
-    if req.new_password != req.confirm_password:
+    confirm = req.confirm_password if req.confirm_password is not None else req.new_password
+    if req.new_password != confirm:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
     if pw_error := validate_password_strength(req.new_password):

@@ -726,16 +726,7 @@ def is_allowed_diagnostic_center_service(name: str, service_type: str = "") -> b
 
     norm_name = clean_name.replace(" ", "").replace("-", "").replace("_", "").replace("&", "and")
 
-    # Check Blood tests restriction: strictly CBC and CULTURES only
-    if service_type == "lab_test" or "blood" in service_type or "test" in clean_name:
-        allowed_blood = {"cbc", "cultures", "complete blood count", "blood culture", "culture & sensitivity", "culture"}
-        if any(ab in clean_name for ab in allowed_blood):
-            return True
-        # If it's a lab test not in allowed blood, reject
-        if service_type == "lab_test":
-            return False
-
-    # Check against all allowed categories in DIAGNOSTIC_CENTER_SCOPE
+    # Check against all allowed scan categories in DIAGNOSTIC_CENTER_SCOPE
     for cat, items in DIAGNOSTIC_CENTER_SCOPE.items():
         for it in items:
             it_name = it["name"].lower()
@@ -749,6 +740,14 @@ def is_allowed_diagnostic_center_service(name: str, service_type: str = "") -> b
                     return True
                 if ("xray" in norm_name or "x-ray" in clean_name) and "xray" in it_norm:
                     return True
+            if cat in ("mri", "ct"):
+                if clean_name.startswith(cat) and any(w in it_name for w in clean_name.split()[1:]):
+                    return True
+
+    # Check Blood tests restriction: strictly CBC and CULTURES only
+    allowed_blood = {"cbc", "cultures", "complete blood count", "blood culture", "culture & sensitivity", "culture"}
+    if any(ab in clean_name for ab in allowed_blood):
+        return True
 
     return False
 

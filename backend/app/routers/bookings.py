@@ -962,6 +962,7 @@ async def create_booking(
                                     or "Appointment booked via CallMedex"
                                 ),
                                 "amount": booking_data.get("total_price") or booking_data.get("final_amount") or 0,
+                                "provider_role": prov_row[0].get("role") or "doctor",
                             }
                         )
 

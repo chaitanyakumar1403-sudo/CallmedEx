@@ -59,7 +59,8 @@ def _seed_catalog(fake, name, slug, synonyms, category="lab_test", turnaround=6)
 
 
 def _seed_org_and_user(fake, provider_user_id=None, name="DiagnoCentre",
-                       city="Visakhapatnam", discount=0.0, verified=True):
+                       city="Visakhapatnam", discount=0.0, verified=True,
+                       org_type="hospital"):
     """Seed the minimal tables needed for org_add_service to work:
     provider_directory, provider_settings, and (crucially) organizations
     + users so the function can resolve org_id from current_user.sub."""
@@ -72,12 +73,12 @@ def _seed_org_and_user(fake, provider_user_id=None, name="DiagnoCentre",
         "id": str(uuid.uuid4()),
         "user_id": pid,
         "organization_name": name,
-        "organization_type": "diagnostic_center",
+        "organization_type": org_type,
         "verification_status": "verified" if verified else "pending",
     })
     fake.db.setdefault("provider_directory", []).append({
         "provider_user_id": pid, "display_name": name, "provider_type": "organization",
-        "subtype": "diagnostic_center", "city": city, "state": "AP",
+        "subtype": org_type, "city": city, "state": "AP",
         "rating": 5.0,
         "verification_status": "verified" if verified else "pending",
         "is_listed": True, "home_service_enabled": True,

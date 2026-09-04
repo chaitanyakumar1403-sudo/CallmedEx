@@ -567,7 +567,20 @@ If you didn't request this, please ignore this email.
         if recipient_role == "provider":
             subject = f"CallMedex Alert: New {service_type} Booking ({slot_time})"
             provider_net = round(amount * 0.8) if amount else 0
-            dashboard_url = f"{settings.FRONTEND_URL}/dashboard"
+            provider_role = booking_details.get("provider_role") or "doctor"
+            role_to_path = {
+                "doctor": "doctor",
+                "dentist": "dentist",
+                "nurse": "nurse",
+                "dietitian": "dietitian",
+                "physiotherapist": "physiotherapist",
+                "organization": "organization",
+                "pharmacy": "pharmacy",
+                "phlebotomist": "phlebotomist",
+                "staff": "staff",
+            }
+            subpath = role_to_path.get(provider_role, "doctor")
+            dashboard_url = f"{settings.FRONTEND_URL}/dashboard/{subpath}"
             patient_name = booking_details.get("patient_name", "Patient")
             patient_notes = booking_details.get("notes", "General consultation")
 

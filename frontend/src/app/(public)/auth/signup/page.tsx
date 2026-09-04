@@ -256,14 +256,19 @@ export default function SignupPage() {
     }
 
     try {
+      const emailValue = (formData.get("email") as string)?.trim() || (formData.get("official_email") as string)?.trim();
+      const genderValue = formData.get("gender");
+      const dobValue = dob || formData.get("date_of_birth");
+
       const body: Record<string, unknown> = {
         full_name: formData.get("full_name"),
-        email: formData.get("email"),
+        email: emailValue,
         mobile: formData.get("mobile"),
-        gender: formData.get("gender"),
-        date_of_birth: dob || formData.get("date_of_birth"),
         password, confirm_password: confirmPassword,
         role,
+        ...(genderValue ? { gender: genderValue } : {}),
+        ...(dobValue ? { date_of_birth: dobValue } : {}),
+        ...(formData.get("official_email") ? { official_email: (formData.get("official_email") as string)?.trim() } : {}),
         ...(isOrgLike || role === "staff" ? (registrantRole ? { registrant_role: registrantRole } : {}) : {}),
         ...(isOrgLike || role === "staff" ? (ownerEmail ? { owner_email: ownerEmail } : {}) : {}),
         address_info: {
