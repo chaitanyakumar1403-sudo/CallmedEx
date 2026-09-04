@@ -2250,8 +2250,9 @@ input[type="radio"] {
 
 .cm-twin-organ-chips {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--cm-2);
-  overflow-x: auto;
   padding: var(--cm-3) var(--cm-4);
   background: var(--cm-surface);
   border-top: 1px solid var(--cm-line);

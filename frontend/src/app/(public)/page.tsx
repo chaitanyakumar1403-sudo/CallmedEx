@@ -1,9 +1,5 @@
 import Link from "next/link";
 import {
-  Microscope,
-  Video,
-  Pill,
-  Home,
   ShieldCheck,
   Languages,
   Navigation,
@@ -140,8 +136,8 @@ export default function HomePage() {
             {/* Card 1 */}
             <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 16 }}>
-                  <Microscope size={22} />
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", display: "grid", placeItems: "center", marginBottom: 16, border: "1px solid var(--cm-line)" }}>
+                  <Clinical3DIcon name="microscope" size={30} glow />
                 </div>
                 <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                   Home Diagnostics &amp; Lab Tests
@@ -158,8 +154,8 @@ export default function HomePage() {
             {/* Card 2 */}
             <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-done)", display: "grid", placeItems: "center", marginBottom: 16 }}>
-                  <Video size={22} />
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", display: "grid", placeItems: "center", marginBottom: 16, border: "1px solid var(--cm-line)" }}>
+                  <Clinical3DIcon name="video" size={30} glow />
                 </div>
                 <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                   Telemedicine Consultations
@@ -176,8 +172,8 @@ export default function HomePage() {
             {/* Card 3 */}
             <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-navy)", display: "grid", placeItems: "center", marginBottom: 16 }}>
-                  <Pill size={22} />
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", display: "grid", placeItems: "center", marginBottom: 16, border: "1px solid var(--cm-line)" }}>
+                  <Clinical3DIcon name="pharmacy" size={30} glow />
                 </div>
                 <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                   Prescription Pharmacy
@@ -194,8 +190,8 @@ export default function HomePage() {
             {/* Card 4 */}
             <div className="cm-card" style={{ padding: 24, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-waiting)", display: "grid", placeItems: "center", marginBottom: 16 }}>
-                  <Home size={22} />
+                <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", display: "grid", placeItems: "center", marginBottom: 16, border: "1px solid var(--cm-line)" }}>
+                  <Clinical3DIcon name="homecare" size={30} glow />
                 </div>
                 <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                   Doorstep Nursing &amp; Therapy

@@ -6,18 +6,11 @@ import LocationPicker from "../../../components/LocationPicker";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import labTestCatalog from "@/data/lab-test-prices.json";
 import healthPackagesCatalog from "@/data/health-packages.json";
+import Clinical3DIcon, { type Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
 import {
   Stethoscope,
-  FlaskConical,
-  Home,
-  Droplet,
-  Video,
   HeartPulse,
-  Activity,
-  Apple,
-  Truck,
   Package,
-  Pill,
   CheckCircle2,
   AlertTriangle,
   MapPin,
@@ -775,7 +768,7 @@ function BookingPageContent() {
               {[
                 {
                   key: "doctor",
-                  Icon: Stethoscope,
+                  icon: "stethoscope" as Clinical3DIconName,
                   iconColor: "#0284c7",
                   bgColor: "#f0f9ff",
                   borderColor: "#bae6fd",
@@ -785,7 +778,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "video_consult",
-                  Icon: Video,
+                  icon: "video" as Clinical3DIconName,
                   iconColor: "#7c3aed",
                   bgColor: "#f5f3ff",
                   borderColor: "#ddd6fe",
@@ -795,7 +788,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "physiotherapy",
-                  Icon: Activity,
+                  icon: "physio" as Clinical3DIconName,
                   iconColor: "#059669",
                   bgColor: "#ecfdf5",
                   borderColor: "#a7f3d0",
@@ -805,7 +798,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "dietitian",
-                  Icon: Apple,
+                  icon: "dietitian" as Clinical3DIconName,
                   iconColor: "#16a34a",
                   bgColor: "#f0fdf4",
                   borderColor: "#bbf7d0",
@@ -815,7 +808,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "nurse_visit",
-                  Icon: HeartPulse,
+                  icon: "nurse" as Clinical3DIconName,
                   iconColor: "#dc2626",
                   bgColor: "#fef2f2",
                   borderColor: "#fecaca",
@@ -825,7 +818,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "home_doctor",
-                  Icon: Home,
+                  icon: "homecare" as Clinical3DIconName,
                   iconColor: "#d97706",
                   bgColor: "#fffbeb",
                   borderColor: "#fde68a",
@@ -835,7 +828,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "lab",
-                  Icon: FlaskConical,
+                  icon: "flask" as Clinical3DIconName,
                   iconColor: "#0891b2",
                   bgColor: "#ecfeff",
                   borderColor: "#a5f3fc",
@@ -845,7 +838,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "home_collection",
-                  Icon: Droplet,
+                  icon: "droplet" as Clinical3DIconName,
                   iconColor: "#e11d48",
                   bgColor: "#fff1f2",
                   borderColor: "#fecdd3",
@@ -855,7 +848,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "packages",
-                  Icon: Package,
+                  icon: "box" as Clinical3DIconName,
                   iconColor: "#4f46e5",
                   bgColor: "#eef2ff",
                   borderColor: "#c7d2fe",
@@ -865,7 +858,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "pharmacy",
-                  Icon: Pill,
+                  icon: "pharmacy" as Clinical3DIconName,
                   iconColor: "#0d9488",
                   bgColor: "#f0fdfa",
                   borderColor: "#99f6e4",
@@ -875,7 +868,7 @@ function BookingPageContent() {
                 },
                 {
                   key: "ambulance",
-                  Icon: Truck,
+                  icon: "ambulance" as Clinical3DIconName,
                   iconColor: "#b91c1c",
                   bgColor: "#fef2f2",
                   borderColor: "#fecaca",
@@ -884,7 +877,6 @@ function BookingPageContent() {
                   route: "/ambulance",
                 },
               ].map((opt) => {
-                const IconComp = opt.Icon;
                 return (
                   <div
                     key={opt.key}
@@ -938,7 +930,7 @@ function BookingPageContent() {
                           marginBottom: 12,
                         }}
                       >
-                        <IconComp size={24} />
+                        <Clinical3DIcon name={opt.icon} size={30} glow />
                       </div>
                       <div style={{ fontWeight: 700, color: "#1a2b4a", marginBottom: 6, fontSize: "1rem" }}>{opt.label}</div>
                       <div style={{ fontSize: "0.78rem", color: "#64748b", lineHeight: 1.45 }}>{opt.desc}</div>

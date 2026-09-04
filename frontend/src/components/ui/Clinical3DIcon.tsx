@@ -36,7 +36,16 @@ export type Clinical3DIconName =
   | "fileText"
   | "briefing"
   | "pharmacy"
-  | "staff";
+  | "staff"
+  | "microscope"
+  | "diagnostics"
+  | "flask"
+  | "lab"
+  | "home"
+  | "homecare"
+  | "box"
+  | "package"
+  | "ambulance";
 
 export interface Clinical3DIconProps extends React.SVGProps<SVGSVGElement> {
   name: Clinical3DIconName;
@@ -243,6 +252,77 @@ export default function Clinical3DIcon({
           <stop offset="0%" stopColor="#60a5fa" />
           <stop offset="60%" stopColor="#2563eb" />
           <stop offset="100%" stopColor="#1e3a8a" />
+        </linearGradient>
+
+        {/* 18. Microscope Gradients */}
+        <linearGradient id="scope-body" x1="18" y1="10" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#94a3b8" />
+          <stop offset="35%" stopColor="#475569" />
+          <stop offset="100%" stopColor="#1e293b" />
+        </linearGradient>
+        <linearGradient id="scope-base" x1="10" y1="44" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#cbd5e1" />
+          <stop offset="55%" stopColor="#64748b" />
+          <stop offset="100%" stopColor="#334155" />
+        </linearGradient>
+        <linearGradient id="scope-stage" x1="16" y1="34" x2="46" y2="44" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#0369a1" />
+        </linearGradient>
+
+        {/* 19. Lab Flask Gradients */}
+        <linearGradient id="flask-glass" x1="18" y1="12" x2="46" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="55%" stopColor="#e0f2fe" stopOpacity="0.75" />
+          <stop offset="100%" stopColor="#bae6fd" stopOpacity="0.6" />
+        </linearGradient>
+        <linearGradient id="flask-fluid" x1="18" y1="34" x2="46" y2="54" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#22d3ee" />
+          <stop offset="55%" stopColor="#0891b2" />
+          <stop offset="100%" stopColor="#0e7490" />
+        </linearGradient>
+
+        {/* 20. Home Care Gradients */}
+        <linearGradient id="home-roof" x1="8" y1="6" x2="56" y2="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#fbbf24" />
+          <stop offset="55%" stopColor="#d97706" />
+          <stop offset="100%" stopColor="#92400e" />
+        </linearGradient>
+        <linearGradient id="home-wall" x1="14" y1="24" x2="50" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="60%" stopColor="#f1f5f9" />
+          <stop offset="100%" stopColor="#cbd5e1" />
+        </linearGradient>
+
+        {/* 21. Package / Health Box Gradients */}
+        <linearGradient id="box-front" x1="12" y1="26" x2="32" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#818cf8" />
+          <stop offset="100%" stopColor="#3730a3" />
+        </linearGradient>
+        <linearGradient id="box-side" x1="32" y1="26" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#312e81" />
+        </linearGradient>
+        <linearGradient id="box-lid" x1="8" y1="12" x2="56" y2="30" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#c7d2fe" />
+          <stop offset="55%" stopColor="#818cf8" />
+          <stop offset="100%" stopColor="#4f46e5" />
+        </linearGradient>
+
+        {/* 22. Ambulance Gradients */}
+        <linearGradient id="amb-body" x1="6" y1="18" x2="50" y2="48" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="55%" stopColor="#f1f5f9" />
+          <stop offset="100%" stopColor="#cbd5e1" />
+        </linearGradient>
+        <linearGradient id="amb-cab" x1="38" y1="24" x2="58" y2="44" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f8fafc" />
+          <stop offset="100%" stopColor="#94a3b8" />
+        </linearGradient>
+        <linearGradient id="amb-stripe" x1="8" y1="34" x2="50" y2="40" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f87171" />
+          <stop offset="60%" stopColor="#dc2626" />
+          <stop offset="100%" stopColor="#991b1b" />
         </linearGradient>
 
         {/* 17. Syringe Gradients */}
@@ -696,6 +776,118 @@ export default function Clinical3DIcon({
           {/* Department Bars */}
           <rect x="22" y="46" width="20" height="2.5" rx="1" fill="#cbd5e1" />
           <rect x="25" y="51" width="14" height="2" rx="1" fill="#94a3b8" />
+        </g>
+      )}
+
+      {(name === "microscope" || name === "diagnostics") && (
+        <g>
+          <ellipse cx="32" cy="57" rx="20" ry="4" fill="#334155" fillOpacity="0.2" />
+          {/* Instrument Base Plinth */}
+          <path d="M12 54C12 51.8 13.8 50 16 50H48C50.2 50 52 51.8 52 54V55C52 56.1 51.1 57 50 57H14C12.9 57 12 56.1 12 55V54Z" fill="url(#scope-base)" />
+          <path d="M18 50V46C18 44.9 18.9 44 20 44H44C45.1 44 46 44.9 46 46V50H18Z" fill="#475569" />
+          {/* Specimen Stage with Illuminated Slide */}
+          <rect x="16" y="38" width="30" height="5" rx="2" fill="url(#scope-stage)" />
+          <rect x="22" y="39" width="12" height="3" rx="1.2" fill="#ffffff" fillOpacity="0.85" />
+          {/* Support Arm */}
+          <path d="M38 16C43 20 45 26 43 33L38 31C39.6 26.4 38.6 22.4 35.2 19.4L38 16Z" fill="url(#scope-body)" />
+          <rect x="34" y="30" width="8" height="10" rx="2.5" fill="#334155" />
+          {/* Objective Lens Turret */}
+          <rect x="34" y="38" width="8" height="5" rx="1.6" fill="#0f172a" />
+          <circle cx="38" cy="43" r="2.2" fill="#38bdf8" />
+          {/* Eyepiece Tube */}
+          <path d="M24 10C24 8.34 25.34 7 27 7H33C34.66 7 36 8.34 36 10L40 18L33 22L24 12V10Z" fill="url(#scope-body)" />
+          <rect x="24.5" y="8.5" width="10" height="3" rx="1.5" fill="#ffffff" fillOpacity="0.35" />
+          {/* Focus Knob */}
+          <circle cx="26" cy="34" r="4.5" fill="#64748b" />
+          <circle cx="26" cy="34" r="2" fill="#cbd5e1" />
+        </g>
+      )}
+
+      {(name === "flask" || name === "lab") && (
+        <g>
+          <ellipse cx="32" cy="57" rx="17" ry="4" fill="#0891b2" fillOpacity="0.22" />
+          {/* Reagent Fluid Body */}
+          <path d="M26 32L14 50C12.7 52.1 14.2 54.8 16.7 54.8H47.3C49.8 54.8 51.3 52.1 50 50L38 32H26Z" fill="url(#flask-fluid)" />
+          {/* Glass Vessel Shell */}
+          <path
+            d="M27 8H37V29.5L51.6 52.4C53.3 55.1 51.4 58.6 48.2 58.6H15.8C12.6 58.6 10.7 55.1 12.4 52.4L27 29.5V8Z"
+            fill="url(#flask-glass)"
+            stroke="#7dd3fc"
+            strokeWidth="2"
+            strokeLinejoin="round"
+          />
+          {/* Neck Collar */}
+          <rect x="24" y="6" width="16" height="5" rx="2.5" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.2" />
+          {/* Specular Glass Streak */}
+          <path d="M31 12V28" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeOpacity="0.8" />
+          {/* Suspended Bubbles */}
+          <circle cx="28" cy="47" r="2.6" fill="#ffffff" fillOpacity="0.6" />
+          <circle cx="37" cy="50" r="1.8" fill="#ffffff" fillOpacity="0.5" />
+          <circle cx="33" cy="42" r="1.4" fill="#ffffff" fillOpacity="0.45" />
+        </g>
+      )}
+
+      {(name === "home" || name === "homecare") && (
+        <g>
+          <ellipse cx="32" cy="57" rx="19" ry="4" fill="#b45309" fillOpacity="0.2" />
+          {/* Residence Body */}
+          <path d="M15 28H49V50C49 52.2 47.2 54 45 54H19C16.8 54 15 52.2 15 50V28Z" fill="url(#home-wall)" />
+          <path d="M17 30H47V50C47 51.1 46.1 52 45 52H19C17.9 52 17 51.1 17 50V30Z" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.2" />
+          {/* Pitched Roof */}
+          <path d="M32 7L57 28H50L32 13.5L14 28H7L32 7Z" fill="url(#home-roof)" />
+          <path d="M32 11L52 28H12L32 11Z" fill="#f59e0b" fillOpacity="0.45" />
+          {/* Care Cross Emblem */}
+          <circle cx="32" cy="34" r="8" fill="#e11d48" />
+          <rect x="30" y="29.5" width="4" height="9" rx="1.6" fill="#ffffff" />
+          <rect x="27.5" y="32" width="9" height="4" rx="1.6" fill="#ffffff" />
+          {/* Entrance Door */}
+          <path d="M27 54V46C27 44.3 28.3 43 30 43H34C35.7 43 37 44.3 37 46V54H27Z" fill="#0f766e" />
+          <circle cx="34.4" cy="49" r="1" fill="#fbbf24" />
+        </g>
+      )}
+
+      {(name === "box" || name === "package") && (
+        <g>
+          <ellipse cx="32" cy="57" rx="19" ry="4" fill="#3730a3" fillOpacity="0.2" />
+          {/* Carton Front Face */}
+          <path d="M10 24L32 31V56L10 48V24Z" fill="url(#box-front)" />
+          {/* Carton Side Face */}
+          <path d="M54 24L32 31V56L54 48V24Z" fill="url(#box-side)" />
+          {/* Carton Lid Plane */}
+          <path d="M32 8L54 24L32 31L10 24L32 8Z" fill="url(#box-lid)" />
+          {/* Bevel Highlight */}
+          <path d="M32 11.5L49.5 24.2L32 29.6L14.5 24.2L32 11.5Z" fill="#ffffff" fillOpacity="0.22" />
+          {/* Health Cross Seal */}
+          <rect x="29.5" y="34" width="5" height="15" rx="2" fill="#ffffff" fillOpacity="0.9" />
+          <rect x="25" y="38.5" width="14" height="5" rx="2" fill="#ffffff" fillOpacity="0.9" />
+          {/* Edge Definition */}
+          <path d="M32 31V56" stroke="#1e1b4b" strokeWidth="1.2" strokeOpacity="0.5" />
+        </g>
+      )}
+
+      {(name === "ambulance") && (
+        <g>
+          <ellipse cx="32" cy="57" rx="24" ry="4" fill="#991b1b" fillOpacity="0.2" />
+          {/* Patient Compartment */}
+          <path d="M4 24C4 21.8 5.8 20 8 20H34V46H8C5.8 46 4 44.2 4 42V24Z" fill="url(#amb-body)" />
+          {/* Driver Cab */}
+          <path d="M34 26H45L58 36V42C58 44.2 56.2 46 54 46H34V26Z" fill="url(#amb-cab)" />
+          {/* Windshield */}
+          <path d="M37 29H44L52 35.5H37V29Z" fill="#38bdf8" />
+          <path d="M38 30H43.4L48.5 34.4H38V30Z" fill="#7dd3fc" fillOpacity="0.7" />
+          {/* Emergency Livery Stripe */}
+          <rect x="4" y="33" width="30" height="6" fill="url(#amb-stripe)" />
+          {/* Star of Life Cross */}
+          <rect x="16" y="22" width="5" height="9" rx="1.6" fill="#dc2626" />
+          <rect x="14" y="24.5" width="9" height="4" rx="1.6" fill="#dc2626" />
+          {/* Roof Beacon */}
+          <rect x="14" y="16" width="12" height="4.5" rx="2.2" fill="#dc2626" />
+          <rect x="15.5" y="17" width="4" height="2.5" rx="1.2" fill="#fca5a5" />
+          {/* Wheels */}
+          <circle cx="17" cy="47" r="6" fill="#0f172a" />
+          <circle cx="17" cy="47" r="2.6" fill="#94a3b8" />
+          <circle cx="47" cy="47" r="6" fill="#0f172a" />
+          <circle cx="47" cy="47" r="2.6" fill="#94a3b8" />
         </g>
       )}
     </svg>

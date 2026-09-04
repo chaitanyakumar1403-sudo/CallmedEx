@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   RotateCw,
   ZoomIn,
@@ -172,7 +173,8 @@ export default function AnatomicalTwin3D({
     // Scene & Clean Clinical Lighting
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(0xfbfcfd);
+    // Transparent so the viewport's CSS studio backdrop shows through.
+    scene.background = null;
 
     // Perspective Camera
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
@@ -184,25 +186,40 @@ export default function AnatomicalTwin3D({
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.05;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
     container.replaceChildren(renderer.domElement);
 
+    // Studio image-based lighting — gives every surface real environment
+    // reflections instead of flat directional shading.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    scene.environment = envRT.texture;
+
     // Multi-Point Clinical Lighting System
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
     scene.add(ambientLight);
 
-    const mainKeyLight = new THREE.DirectionalLight(0x0284c7, 0.65);
-    mainKeyLight.position.set(4, 8, 6);
+    // Key: crisp white from front-upper-right, sculpts the torso volume.
+    const mainKeyLight = new THREE.DirectionalLight(0xffffff, 1.35);
+    mainKeyLight.position.set(4, 7, 6);
     scene.add(mainKeyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
-    rimLight.position.set(-5, 6, -5);
+    // Rim: cyan from behind, separates the silhouette from the backdrop.
+    const rimLight = new THREE.DirectionalLight(0x7dd3fc, 1.15);
+    rimLight.position.set(-5, 4, -6);
     scene.add(rimLight);
 
-    const fillLight = new THREE.DirectionalLight(0x1a2b4a, 0.35);
-    fillLight.position.set(0, -6, 4);
+    // Bounce: cool floor fill so undersides never go dead black.
+    const fillLight = new THREE.DirectionalLight(0xbfdbfe, 0.5);
+    fillLight.position.set(-3, -5, 3);
     scene.add(fillLight);
+
+    // Warm practical near the thorax to make the organ cluster glow.
+    const organAccent = new THREE.PointLight(0xfda4af, 1.6, 6, 2);
+    organAccent.position.set(0.4, 1.3, 1.5);
+    scene.add(organAccent);
 
     // Root Group for Full Anatomical Body
     const humanBodyRoot = new THREE.Group();
@@ -214,22 +231,31 @@ export default function AnatomicalTwin3D({
     const humanSilhouetteGroup = new THREE.Group();
     humanBodyRoot.add(humanSilhouetteGroup);
 
-    // Medical Hologram Shell Material
-    const holographicSkinMat = new THREE.MeshStandardMaterial({
-      color: 0x93c5fd,
-      roughness: 0.25,
-      metalness: 0.15,
+    // Translucent clinical tissue shell — clearcoat + IBL reads as polished
+    // medical acrylic rather than flat plastic.
+    const holographicSkinMat = new THREE.MeshPhysicalMaterial({
+      color: 0xbfdcf7,
+      roughness: 0.14,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.34,
       depthWrite: false,
+      envMapIntensity: 1.5,
+      side: THREE.DoubleSide,
     });
 
-    // Anatomical Tomography Wireframe Outline
-    const wireframeOverlayMat = new THREE.MeshStandardMaterial({
-      color: 0x3b82f6,
-      wireframe: true,
+    // Fresnel-style rim shell: a slightly inflated back-faced copy reads as a
+    // glowing contour edge. Replaces the old wireframe, which made the body
+    // look faceted rather than anatomical.
+    const rimShellMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.13,
+      side: THREE.BackSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
 
     const addAnatomicalPart = (geom: THREE.BufferGeometry, pos: [number, number, number], rot?: [number, number, number], scale?: [number, number, number]) => {
@@ -239,85 +265,109 @@ export default function AnatomicalTwin3D({
       if (scale) solidMesh.scale.set(...scale);
       humanSilhouetteGroup.add(solidMesh);
 
-      const wireMesh = new THREE.Mesh(geom, wireframeOverlayMat);
-      wireMesh.position.set(...pos);
-      if (rot) wireMesh.rotation.set(...rot);
-      if (scale) wireMesh.scale.set(...scale);
-      humanSilhouetteGroup.add(wireMesh);
+      const rimMesh = new THREE.Mesh(geom, rimShellMat);
+      rimMesh.position.set(...pos);
+      if (rot) rimMesh.rotation.set(...rot);
+      const [sx, sy, sz] = scale ?? [1, 1, 1];
+      rimMesh.scale.set(sx * 1.035, sy * 1.02, sz * 1.035);
+      humanSilhouetteGroup.add(rimMesh);
     };
 
-    // Cranium & Head
-    const craniumGeom = new THREE.SphereGeometry(0.36, 32, 32);
-    addAnatomicalPart(craniumGeom, [0, 2.18, 0], undefined, [1.0, 1.15, 1.05]);
+    // Displace vertices along their radius with a cheap sinusoidal field so
+    // organs read as soft tissue instead of naked primitives.
+    // ponytail: sin-field pseudo-noise, swap for simplex if it ever looks banded.
+    const roughenGeometry = (geom: THREE.BufferGeometry, amount: number, freq: number) => {
+      const pos = geom.attributes.position as THREE.BufferAttribute;
+      const v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        const n =
+          Math.sin(v.x * freq) * Math.sin(v.y * freq * 1.31) * Math.sin(v.z * freq * 0.83);
+        const k = 1 + n * amount;
+        pos.setXYZ(i, v.x * k, v.y * k, v.z * k);
+      }
+      pos.needsUpdate = true;
+      geom.computeVertexNormals();
+      return geom;
+    };
 
-    // Facial Contour & Mandible Jawline
-    const jawGeom = new THREE.CylinderGeometry(0.32, 0.18, 0.28, 24);
-    addAnatomicalPart(jawGeom, [0, 1.95, 0.05], undefined, [1.0, 1.0, 1.1]);
+    // Cranium: an ovoid skull rather than a bare sphere.
+    const craniumGeom = new THREE.SphereGeometry(0.34, 48, 48);
+    addAnatomicalPart(craniumGeom, [0, 2.18, 0], undefined, [0.94, 1.14, 1.02]);
+
+    // Mandible & facial mass — a second ovoid blended under the cranium reads
+    // as a jawline; the old truncated cone gave the twin a robotic chin.
+    const mandibleGeom = new THREE.SphereGeometry(0.26, 40, 40);
+    addAnatomicalPart(mandibleGeom, [0, 1.96, 0.035], undefined, [0.95, 0.78, 1.0]);
 
     // Cervical Neck
-    const neckGeom = new THREE.CylinderGeometry(0.17, 0.21, 0.32, 20);
-    addAnatomicalPart(neckGeom, [0, 1.74, 0.01]);
+    const neckGeom = new THREE.CapsuleGeometry(0.155, 0.2, 12, 28);
+    addAnatomicalPart(neckGeom, [0, 1.76, 0.01], undefined, [1.0, 1.0, 0.95]);
+
+    // Torso: one continuous lathed surface from pelvis to clavicle. Replaces the
+    // three stacked cylinders whose seams read as a barrel, not a ribcage.
+    const torsoProfile = [
+      [0.03, -0.30], [0.28, -0.28], [0.40, -0.20], [0.45, -0.06],
+      [0.46, 0.10], [0.45, 0.26], [0.43, 0.44], [0.42, 0.60],
+      [0.44, 0.78], [0.48, 0.96], [0.53, 1.14], [0.56, 1.30],
+      [0.55, 1.44], [0.50, 1.55], [0.38, 1.63], [0.22, 1.68], [0.04, 1.70],
+    ].map(([r, y]) => new THREE.Vector2(r, y));
+    const torsoGeom = new THREE.LatheGeometry(torsoProfile, 56);
+    addAnatomicalPart(torsoGeom, [0, 0, 0], undefined, [1.0, 1.0, 0.72]);
 
     // Clavicle & Shoulder Span
-    const shoulderGeom = new THREE.CylinderGeometry(0.24, 0.24, 1.5, 24);
-    addAnatomicalPart(shoulderGeom, [0, 1.56, 0], [0, 0, Math.PI / 2], [0.8, 1.0, 0.85]);
+    const shoulderGeom = new THREE.CapsuleGeometry(0.2, 0.98, 14, 32);
+    addAnatomicalPart(shoulderGeom, [0, 1.52, 0], [0, 0, Math.PI / 2], [1.0, 1.0, 0.85]);
 
     // Deltoid Caps
-    const deltoidGeom = new THREE.SphereGeometry(0.18, 20, 20);
-    addAnatomicalPart(deltoidGeom, [-0.75, 1.52, 0]);
-    addAnatomicalPart(deltoidGeom, [0.75, 1.52, 0]);
-
-    // Thoracic Chest & Pectorals
-    const chestGeom = new THREE.CylinderGeometry(0.56, 0.44, 0.75, 28);
-    addAnatomicalPart(chestGeom, [0, 1.22, 0], undefined, [1.0, 1.0, 0.72]);
-
-    // Waist & Upper Abdomen
-    const waistGeom = new THREE.CylinderGeometry(0.43, 0.46, 0.65, 24);
-    addAnatomicalPart(waistGeom, [0, 0.58, 0], undefined, [1.0, 1.0, 0.75]);
-
-    // Pelvic Basin & Hips
-    const pelvisGeom = new THREE.CylinderGeometry(0.46, 0.44, 0.55, 24);
-    addAnatomicalPart(pelvisGeom, [0, 0.02, 0], undefined, [1.05, 1.0, 0.8]);
+    const deltoidGeom = new THREE.SphereGeometry(0.19, 32, 32);
+    addAnatomicalPart(deltoidGeom, [-0.74, 1.5, 0], undefined, [1.0, 1.05, 0.95]);
+    addAnatomicalPart(deltoidGeom, [0.74, 1.5, 0], undefined, [1.0, 1.05, 0.95]);
 
     // Upper Arms (Biceps / Triceps)
-    const upperArmGeom = new THREE.CylinderGeometry(0.11, 0.09, 0.72, 16);
+    const upperArmGeom = new THREE.CapsuleGeometry(0.1, 0.52, 12, 24);
     addAnatomicalPart(upperArmGeom, [-0.74, 1.12, 0], [0, 0, -0.08]);
     addAnatomicalPart(upperArmGeom, [0.74, 1.12, 0], [0, 0, 0.08]);
 
     // Elbow Nodes
-    const elbowGeom = new THREE.SphereGeometry(0.09, 16, 16);
+    const elbowGeom = new THREE.SphereGeometry(0.088, 24, 24);
     addAnatomicalPart(elbowGeom, [-0.78, 0.72, 0]);
     addAnatomicalPart(elbowGeom, [0.78, 0.72, 0]);
 
     // Forearms
-    const forearmGeom = new THREE.CylinderGeometry(0.09, 0.07, 0.7, 16);
+    const forearmGeom = new THREE.CapsuleGeometry(0.085, 0.5, 12, 24);
     addAnatomicalPart(forearmGeom, [-0.80, 0.35, 0], [0, 0, -0.06]);
     addAnatomicalPart(forearmGeom, [0.80, 0.35, 0], [0, 0, 0.06]);
 
-    // Hands
-    const handGeom = new THREE.BoxGeometry(0.08, 0.22, 0.12);
-    addAnatomicalPart(handGeom, [-0.82, -0.05, 0]);
-    addAnatomicalPart(handGeom, [0.82, -0.05, 0]);
+    // Hands — flattened capsules, not boxes.
+    const handGeom = new THREE.CapsuleGeometry(0.062, 0.12, 10, 20);
+    addAnatomicalPart(handGeom, [-0.82, -0.05, 0], undefined, [1.0, 1.0, 0.55]);
+    addAnatomicalPart(handGeom, [0.82, -0.05, 0], undefined, [1.0, 1.0, 0.55]);
 
     // Thighs (Quadriceps)
-    const thighGeom = new THREE.CylinderGeometry(0.21, 0.14, 1.05, 20);
+    const thighGeom = new THREE.CapsuleGeometry(0.185, 0.7, 14, 28);
     addAnatomicalPart(thighGeom, [-0.25, -0.72, 0], [0, 0, -0.03], [1.0, 1.0, 0.95]);
     addAnatomicalPart(thighGeom, [0.25, -0.72, 0], [0, 0, 0.03], [1.0, 1.0, 0.95]);
 
     // Patella Knees
-    const kneeGeom = new THREE.SphereGeometry(0.13, 18, 18);
+    const kneeGeom = new THREE.SphereGeometry(0.125, 26, 26);
     addAnatomicalPart(kneeGeom, [-0.26, -1.30, 0.03]);
     addAnatomicalPart(kneeGeom, [0.26, -1.30, 0.03]);
 
     // Calves & Shin
-    const calfGeom = new THREE.CylinderGeometry(0.13, 0.10, 0.95, 18);
-    addAnatomicalPart(calfGeom, [-0.26, -1.82, 0], [0, 0, -0.02]);
-    addAnatomicalPart(calfGeom, [0.26, -1.82, 0], [0, 0, 0.02]);
+    const calfGeom = new THREE.CapsuleGeometry(0.125, 0.72, 12, 24);
+    addAnatomicalPart(calfGeom, [-0.26, -1.82, 0], [0, 0, -0.02], [1.0, 1.0, 0.92]);
+    addAnatomicalPart(calfGeom, [0.26, -1.82, 0], [0, 0, 0.02], [1.0, 1.0, 0.92]);
 
-    // Feet
-    const footGeom = new THREE.BoxGeometry(0.13, 0.09, 0.32);
-    addAnatomicalPart(footGeom, [-0.26, -2.32, 0.07]);
-    addAnatomicalPart(footGeom, [0.26, -2.32, 0.07]);
+    // Ankles
+    const ankleGeom = new THREE.SphereGeometry(0.082, 20, 20);
+    addAnatomicalPart(ankleGeom, [-0.26, -2.25, 0]);
+    addAnatomicalPart(ankleGeom, [0.26, -2.25, 0]);
+
+    // Feet — capsules laid along Z so the toe end tapers naturally.
+    const footGeom = new THREE.CapsuleGeometry(0.072, 0.2, 10, 20);
+    addAnatomicalPart(footGeom, [-0.26, -2.32, 0.08], [Math.PI / 2, 0, 0], [1.0, 1.0, 0.7]);
+    addAnatomicalPart(footGeom, [0.26, -2.32, 0.08], [Math.PI / 2, 0, 0], [1.0, 1.0, 0.7]);
 
     // ==========================================
     // 2. VASCULAR SYSTEM (Arteries & Veins)
@@ -375,30 +425,38 @@ export default function AnatomicalTwin3D({
     createVesselTube([
       new THREE.Vector3(-0.03, 1.35, 0.10),
       new THREE.Vector3(-0.45, 1.48, 0.04),
-      new THREE.Vector3(-0.72, 1.15, 0.02),
-      new THREE.Vector3(-0.76, 0.45, 0.02),
+      new THREE.Vector3(-0.66, 1.40, 0.03),
+      new THREE.Vector3(-0.73, 1.15, 0.02),
+      new THREE.Vector3(-0.77, 0.74, 0.02),
+      new THREE.Vector3(-0.79, 0.45, 0.02),
     ], 0.014, arteryMat);
 
     createVesselTube([
       new THREE.Vector3(0.03, 1.35, 0.10),
       new THREE.Vector3(0.45, 1.48, 0.04),
-      new THREE.Vector3(0.72, 1.15, 0.02),
-      new THREE.Vector3(0.76, 0.45, 0.02),
+      new THREE.Vector3(0.66, 1.40, 0.03),
+      new THREE.Vector3(0.73, 1.15, 0.02),
+      new THREE.Vector3(0.77, 0.74, 0.02),
+      new THREE.Vector3(0.79, 0.45, 0.02),
     ], 0.014, arteryMat);
 
     // Femoral Arteries (Legs)
     createVesselTube([
       new THREE.Vector3(0, -0.15, 0.05),
       new THREE.Vector3(-0.16, -0.45, 0.06),
-      new THREE.Vector3(-0.24, -1.25, 0.04),
-      new THREE.Vector3(-0.25, -2.1, 0.02),
+      new THREE.Vector3(-0.23, -0.90, 0.05),
+      new THREE.Vector3(-0.26, -1.30, 0.04),
+      new THREE.Vector3(-0.26, -1.75, 0.03),
+      new THREE.Vector3(-0.26, -2.1, 0.02),
     ], 0.016, arteryMat);
 
     createVesselTube([
       new THREE.Vector3(0, -0.15, 0.05),
       new THREE.Vector3(0.16, -0.45, 0.06),
-      new THREE.Vector3(0.24, -1.25, 0.04),
-      new THREE.Vector3(0.25, -2.1, 0.02),
+      new THREE.Vector3(0.23, -0.90, 0.05),
+      new THREE.Vector3(0.26, -1.30, 0.04),
+      new THREE.Vector3(0.26, -1.75, 0.03),
+      new THREE.Vector3(0.26, -2.1, 0.02),
     ], 0.016, arteryMat);
 
     // Vena Cava & Main Venous Axis
@@ -482,31 +540,38 @@ export default function AnatomicalTwin3D({
 
     // --- A. BRAIN (Cerebral Cortex Dual Hemispheres) ---
     const brainGroup = new THREE.Group();
-    brainGroup.position.set(0, 2.16, 0.02);
+    brainGroup.position.set(0, 2.2, 0.01);
     brainGroup.userData = { organId: "head" };
 
-    const brainHemisphereMat = new THREE.MeshStandardMaterial({
-      color: 0x4338ca,
+    const brainHemisphereMat = new THREE.MeshPhysicalMaterial({
+      color: 0x6366f1,
       emissive: 0x312e81,
-      emissiveIntensity: 0.55,
-      roughness: 0.35,
-      metalness: 0.1,
+      emissiveIntensity: 0.4,
+      roughness: 0.42,
+      metalness: 0.0,
+      clearcoat: 0.65,
+      clearcoatRoughness: 0.35,
+      envMapIntensity: 1.1,
     });
 
-    const leftHemi = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 20), brainHemisphereMat);
-    leftHemi.position.set(-0.09, 0, 0);
-    leftHemi.scale.set(0.9, 1.1, 1.2);
+    // Gyri/sulci: the cortex is a displaced sphere, so it folds like tissue.
+    const hemisphereGeom = roughenGeometry(new THREE.SphereGeometry(0.19, 64, 64), 0.085, 42);
+    const cerebellumGeom = roughenGeometry(new THREE.SphereGeometry(0.12, 48, 48), 0.07, 58);
+
+    const leftHemi = new THREE.Mesh(hemisphereGeom, brainHemisphereMat);
+    leftHemi.position.set(-0.082, 0, 0);
+    leftHemi.scale.set(0.82, 1.0, 1.08);
     leftHemi.userData = { organId: "head" };
     brainGroup.add(leftHemi);
 
-    const rightHemi = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 20), brainHemisphereMat);
-    rightHemi.position.set(0.09, 0, 0);
-    rightHemi.scale.set(0.9, 1.1, 1.2);
+    const rightHemi = new THREE.Mesh(hemisphereGeom, brainHemisphereMat);
+    rightHemi.position.set(0.082, 0, 0);
+    rightHemi.scale.set(0.82, 1.0, 1.08);
     rightHemi.userData = { organId: "head" };
     brainGroup.add(rightHemi);
 
     // Cerebellum
-    const cerebellum = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), brainHemisphereMat);
+    const cerebellum = new THREE.Mesh(cerebellumGeom, brainHemisphereMat);
     cerebellum.position.set(0, -0.14, -0.1);
     cerebellum.userData = { organId: "head" };
     brainGroup.add(cerebellum);
@@ -520,22 +585,28 @@ export default function AnatomicalTwin3D({
     heartGroup.userData = { organId: "heart" };
     heartMeshRef.current = heartGroup;
 
-    const heartMat = new THREE.MeshStandardMaterial({
+    const heartMat = new THREE.MeshPhysicalMaterial({
       color: 0xd92020,
-      emissive: 0xb91c1c,
-      emissiveIntensity: 0.75,
-      roughness: 0.25,
-      metalness: 0.15,
+      emissive: 0x991b1b,
+      emissiveIntensity: 0.5,
+      roughness: 0.22,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.12,
+      sheen: 0.6,
+      sheenColor: new THREE.Color(0xfda4af),
+      envMapIntensity: 1.3,
     });
 
-    // Left & Right Ventricle mass
-    const lVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.14, 20, 20), heartMat);
+    // Left & Right Ventricle mass — lightly displaced so the myocardium is not
+    // a pair of billiard balls.
+    const lVentricle = new THREE.Mesh(roughenGeometry(new THREE.SphereGeometry(0.14, 40, 40), 0.035, 26), heartMat);
     lVentricle.position.set(-0.03, -0.04, 0);
     lVentricle.scale.set(0.9, 1.15, 0.85);
     lVentricle.userData = { organId: "heart" };
     heartGroup.add(lVentricle);
 
-    const rVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 20), heartMat);
+    const rVentricle = new THREE.Mesh(roughenGeometry(new THREE.SphereGeometry(0.12, 40, 40), 0.035, 30), heartMat);
     rVentricle.position.set(0.06, 0.02, 0.02);
     rVentricle.scale.set(0.9, 1.0, 0.8);
     rVentricle.userData = { organId: "heart" };
@@ -554,6 +625,23 @@ export default function AnatomicalTwin3D({
     aorticRoot.userData = { organId: "heart" };
     heartGroup.add(aorticRoot);
 
+    // Cardiac apex — the pointed inferior tip that makes a heart read as a heart.
+    const cardiacApex = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.16, 28), heartMat);
+    cardiacApex.position.set(-0.045, -0.17, 0);
+    cardiacApex.rotation.set(0, 0, Math.PI + 0.22);
+    cardiacApex.userData = { organId: "heart" };
+    heartGroup.add(cardiacApex);
+
+    // Pulmonary trunk + superior vena cava
+    const pulmonaryTrunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.026, 0.03, 0.16, 16),
+      new THREE.MeshPhysicalMaterial({ color: 0x60a5fa, emissive: 0x1d4ed8, emissiveIntensity: 0.45, roughness: 0.3, clearcoat: 0.8 })
+    );
+    pulmonaryTrunk.position.set(0.09, 0.14, 0.01);
+    pulmonaryTrunk.rotation.z = 0.3;
+    pulmonaryTrunk.userData = { organId: "heart" };
+    heartGroup.add(pulmonaryTrunk);
+
     organsGroup.add(heartGroup);
 
     // --- C. LUNGS (Bilateral Aerodynamic Pulmonary Lobes) ---
@@ -561,18 +649,21 @@ export default function AnatomicalTwin3D({
     lungsGroupRef.current = lungsGroup;
     lungsGroup.userData = { organId: "lungs" };
 
-    const lungMat = new THREE.MeshStandardMaterial({
-      color: 0x0284c7,
-      emissive: 0x0369a1,
-      emissiveIntensity: 0.45,
-      roughness: 0.4,
-      metalness: 0.05,
+    const lungMat = new THREE.MeshPhysicalMaterial({
+      color: 0x38bdf8,
+      emissive: 0x075985,
+      emissiveIntensity: 0.35,
+      roughness: 0.45,
+      metalness: 0.0,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.4,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.82,
+      envMapIntensity: 1.1,
     });
 
-    // Right Lung (3 lobes composite)
-    const rightLung = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.38, 12, 18), lungMat);
+    // Right Lung (3 lobes composite) — spongy alveolar surface.
+    const rightLung = new THREE.Mesh(roughenGeometry(new THREE.CapsuleGeometry(0.16, 0.38, 20, 40), 0.045, 34), lungMat);
     rightLung.position.set(0.24, 1.15, 0.08);
     rightLung.rotation.z = -0.1;
     rightLung.scale.set(1.0, 1.0, 0.75);
@@ -580,12 +671,29 @@ export default function AnatomicalTwin3D({
     lungsGroup.add(rightLung);
 
     // Left Lung (2 lobes with cardiac notch)
-    const leftLung = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.36, 12, 18), lungMat);
+    const leftLung = new THREE.Mesh(roughenGeometry(new THREE.CapsuleGeometry(0.14, 0.36, 20, 40), 0.045, 38), lungMat);
     leftLung.position.set(-0.25, 1.18, 0.08);
     leftLung.rotation.z = 0.12;
     leftLung.scale.set(0.9, 1.0, 0.72);
     leftLung.userData = { organId: "lungs" };
     lungsGroup.add(leftLung);
+
+    // Trachea and primary bronchi feeding both hila.
+    const airwayMat = new THREE.MeshPhysicalMaterial({
+      color: 0xe0f2fe, emissive: 0x0ea5e9, emissiveIntensity: 0.3, roughness: 0.3, clearcoat: 0.9,
+    });
+    const trachea = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.34, 20), airwayMat);
+    trachea.position.set(0, 1.52, 0.06);
+    trachea.userData = { organId: "lungs" };
+    lungsGroup.add(trachea);
+
+    ([[-1, -0.2], [1, 0.2]] as [number, number][]).forEach(([dir, tilt]) => {
+      const bronchus = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.028, 0.24, 14), airwayMat);
+      bronchus.position.set(dir * 0.11, 1.32, 0.06);
+      bronchus.rotation.z = tilt * 3.2;
+      bronchus.userData = { organId: "lungs" };
+      lungsGroup.add(bronchus);
+    });
 
     organsGroup.add(lungsGroup);
 
@@ -597,16 +705,16 @@ export default function AnatomicalTwin3D({
     const liverMat = new THREE.MeshStandardMaterial({
       color: 0x15803d,
       emissive: 0x166534,
-      emissiveIntensity: 0.55,
-      roughness: 0.35,
-      metalness: 0.1,
+      emissiveIntensity: 0.3,
+      roughness: 0.42,
+      metalness: 0.05,
     });
 
     // Anatomical Hepatic Wedge (Right Hypochondrium)
-    const liverMesh = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.34, 16), liverMat);
-    liverMesh.position.set(0.15, 0.12, 0.02);
-    liverMesh.rotation.set(0.2, 0, -1.2);
-    liverMesh.scale.set(1.1, 1.0, 0.75);
+    const liverMesh = new THREE.Mesh(roughenGeometry(new THREE.ConeGeometry(0.17, 0.3, 40, 8), 0.05, 26), liverMat);
+    liverMesh.position.set(0.13, 0.11, 0.0);
+    liverMesh.rotation.set(0.18, 0, -1.42);
+    liverMesh.scale.set(1.05, 1.0, 0.68);
     liverMesh.userData = { organId: "abdomen" };
     abdomenGroup.add(liverMesh);
 
@@ -614,11 +722,11 @@ export default function AnatomicalTwin3D({
     const stomachMat = new THREE.MeshStandardMaterial({
       color: 0x22c55e,
       emissive: 0x15803d,
-      emissiveIntensity: 0.45,
-      roughness: 0.3,
+      emissiveIntensity: 0.28,
+      roughness: 0.38,
     });
-    const stomachMesh = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.055, 12, 20, Math.PI), stomachMat);
-    stomachMesh.position.set(-0.13, 0.14, 0.02);
+    const stomachMesh = new THREE.Mesh(roughenGeometry(new THREE.TorusGeometry(0.11, 0.055, 24, 40, Math.PI), 0.03, 30), stomachMat);
+    stomachMesh.position.set(-0.14, 0.12, 0.0);
     stomachMesh.rotation.set(0.2, 0.4, 0.8);
     stomachMesh.userData = { organId: "abdomen" };
     abdomenGroup.add(stomachMesh);
@@ -642,7 +750,7 @@ export default function AnatomicalTwin3D({
 
     // --- E. EYES & OPTIC SYSTEM ---
     const eyesGroup = new THREE.Group();
-    eyesGroup.position.set(0, 2.15, 0.36);
+    eyesGroup.position.set(0, 2.13, 0.27);
     eyesGroup.userData = { organId: "eyes" };
 
     const eyeMat = new THREE.MeshStandardMaterial({
@@ -652,13 +760,13 @@ export default function AnatomicalTwin3D({
       roughness: 0.1,
     });
 
-    const lEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), eyeMat);
-    lEye.position.set(-0.10, 0, 0);
+    const lEye = new THREE.Mesh(new THREE.SphereGeometry(0.038, 24, 24), eyeMat);
+    lEye.position.set(-0.11, 0, 0);
     lEye.userData = { organId: "eyes" };
     eyesGroup.add(lEye);
 
-    const rEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), eyeMat);
-    rEye.position.set(0.10, 0, 0);
+    const rEye = new THREE.Mesh(new THREE.SphereGeometry(0.038, 24, 24), eyeMat);
+    rEye.position.set(0.11, 0, 0);
     rEye.userData = { organId: "eyes" };
     eyesGroup.add(rEye);
 
@@ -699,14 +807,14 @@ export default function AnatomicalTwin3D({
       roughness: 0.3,
     });
 
-    const lEar = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.02, 10, 16, Math.PI * 1.3), entMat);
-    lEar.position.set(-0.38, 0, 0);
+    const lEar = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.016, 16, 28, Math.PI * 1.35), entMat);
+    lEar.position.set(-0.295, 0, 0);
     lEar.rotation.y = Math.PI / 2;
     lEar.userData = { organId: "ent" };
     entGroup.add(lEar);
 
-    const rEar = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.02, 10, 16, Math.PI * 1.3), entMat);
-    rEar.position.set(0.38, 0, 0);
+    const rEar = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.016, 16, 28, Math.PI * 1.35), entMat);
+    rEar.position.set(0.295, 0, 0);
     rEar.rotation.y = -Math.PI / 2;
     rEar.userData = { organId: "ent" };
     entGroup.add(rEar);
@@ -906,6 +1014,17 @@ export default function AnatomicalTwin3D({
       renderer.domElement.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      scene.environment = null;
+      envRT.dispose();
+      pmrem.dispose();
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const mat = mesh.material;
+        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+        else mat?.dispose();
+      });
       renderer.dispose();
       container.replaceChildren();
     };

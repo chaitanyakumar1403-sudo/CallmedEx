@@ -160,17 +160,28 @@ const ORGANS: Record<string, OrganInfo> = {
   },
 };
 
-const HOTSPOTS: { id: string; cx: number; cy: number; r: number; heart?: boolean }[] = [
-  { id: "skin", cx: 65, cy: 165, r: 13 },
-  { id: "eyes", cx: 92, cy: 45, r: 10 },
-  { id: "dental", cx: 108, cy: 58, r: 10 },
-  { id: "ent", cx: 122, cy: 45, r: 10 },
-  { id: "head", cx: 100, cy: 34, r: 14 },
-  { id: "lungs", cx: 100, cy: 125, r: 18 },
-  { id: "heart", cx: 114, cy: 140, r: 15, heart: true },
-  { id: "abdomen", cx: 100, cy: 190, r: 20 },
-  { id: "joints", cx: 112, cy: 260, r: 14 },
+// Callout geometry for the 2D anatomy plate (viewBox 0 0 240 460).
+// cx/cy = callout node position outside the body; ax/ay = the anatomical site it points at.
+const HOTSPOTS: { id: string; cx: number; cy: number; ax: number; ay: number }[] = [
+  { id: "head", cx: 38, cy: 30, ax: 120, ay: 34 },
+  { id: "eyes", cx: 34, cy: 72, ax: 111, ay: 55 },
+  { id: "ent", cx: 202, cy: 30, ax: 143, ay: 52 },
+  { id: "dental", cx: 206, cy: 72, ax: 128, ay: 67 },
+  { id: "lungs", cx: 30, cy: 140, ax: 98, ay: 154 },
+  { id: "heart", cx: 210, cy: 134, ax: 134, ay: 143 },
+  { id: "abdomen", cx: 208, cy: 194, ax: 136, ay: 184 },
+  { id: "skin", cx: 30, cy: 210, ax: 72, ay: 210 },
+  { id: "joints", cx: 44, cy: 324, ax: 102, ay: 324 },
 ];
+
+// Static plate geometry — hoisted so the SVG stays declarative.
+const VERTEBRAE = [96, 107, 118, 129, 140, 151, 162, 173, 184, 195, 206, 217, 228];
+const RIB_LEVELS = [118, 132, 146, 160];
+const JOINT_NODES: [number, number][] = [
+  [86, 112], [154, 112], [75, 180], [165, 180],
+  [102, 324], [138, 324], [100, 386], [140, 386],
+];
+const DENTITION: [number, number][] = [[112, 0], [116, 1.0], [120, 1.4], [124, 1.0], [128, 0]];
 
 export default function InteractiveBodyMap() {
   const router = useRouter();
@@ -286,72 +297,309 @@ export default function InteractiveBodyMap() {
             boxShadow: "var(--cm-shadow-1)",
           }}>
             <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--cm-line)", paddingBottom: 8, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-              <span style={{ fontWeight: 700, color: "var(--cm-navy)" }}>2D Clinical Contour</span>
-              <span>Coordinates: Sagittal Plan</span>
+              <span style={{ fontWeight: 700, color: "var(--cm-navy)" }}>2D Clinical Anatomy Plate</span>
+              <span>Projection: Anterior Coronal</span>
             </div>
 
-            {/* Clean SVG Vector Body Silhouette on White Canvas */}
-            <div style={{ width: "100%", maxWidth: 260, margin: "var(--cm-4) 0", textAlign: "center" }}>
-              <svg viewBox="0 0 200 420" style={{ width: "100%", maxHeight: 380 }}>
-                {/* Anatomical Human Contour Silhouette */}
-                <path
-                  d="M100 22 C118 22 132 36 132 54 C132 68 123 78 114 84 L142 104 L162 176 L144 186 L134 128 L134 225 L148 376 L124 376 L110 258 L90 258 L76 376 L52 376 L66 225 L66 128 L56 186 L38 176 L58 104 L86 84 C77 78 68 68 68 54 C68 36 82 22 100 22 Z"
-                  fill="var(--cm-surface-2)"
-                  stroke="var(--cm-line-strong)"
-                  strokeWidth="1.8"
-                />
+            {/* Studio Anatomical Plate — layered systems with anatomical leader callouts */}
+            <div style={{ width: "100%", maxWidth: 360, margin: "var(--cm-4) 0" }}>
+              <svg viewBox="0 0 240 424" style={{ width: "100%", maxHeight: 420, display: "block" }} role="img" aria-label="Interactive 2D anatomy map">
+                <defs>
+                  {/* Clinical plate backdrop */}
+                  <linearGradient id="bm-plate" x1="0" y1="0" x2="0" y2="424" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fbfdff" />
+                    <stop offset="100%" stopColor="#eaf0f7" />
+                  </linearGradient>
+                  <pattern id="bm-grid" width="15" height="15" patternUnits="userSpaceOnUse">
+                    <path d="M15 0H0V15" fill="none" stroke="#0f172a" strokeOpacity="0.05" strokeWidth="0.7" />
+                  </pattern>
+                  <radialGradient id="bm-vignette" cx="120" cy="196" r="205" gradientUnits="userSpaceOnUse">
+                    <stop offset="52%" stopColor="#ffffff" stopOpacity="0" />
+                    <stop offset="100%" stopColor="#0f172a" stopOpacity="0.08" />
+                  </radialGradient>
 
-                {/* Medical Axis Guides */}
-                <line x1="78" y1="125" x2="122" y2="125" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
-                <line x1="82" y1="190" x2="118" y2="190" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
-                <line x1="88" y1="260" x2="112" y2="260" stroke="var(--cm-line)" strokeWidth="1" strokeDasharray="3,3" />
+                  {/* Dermal / soft-tissue shell */}
+                  <linearGradient id="bm-skin" x1="70" y1="16" x2="180" y2="410" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#eaf2fb" />
+                    <stop offset="45%" stopColor="#d5e4f3" />
+                    <stop offset="100%" stopColor="#b3cae1" />
+                  </linearGradient>
+                  <linearGradient id="bm-limb" x1="55" y1="90" x2="190" y2="410" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#e3edf8" />
+                    <stop offset="100%" stopColor="#b0c7de" />
+                  </linearGradient>
 
-                {/* Interactive Organ Hotspots */}
+                  {/* Organ system palettes */}
+                  <linearGradient id="bm-brain" x1="100" y1="20" x2="142" y2="52" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#a5b4fc" />
+                    <stop offset="60%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#3730a3" />
+                  </linearGradient>
+                  <linearGradient id="bm-lung" x1="88" y1="112" x2="154" y2="186" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#a5dff9" />
+                    <stop offset="55%" stopColor="#38bdf8" />
+                    <stop offset="100%" stopColor="#0369a1" />
+                  </linearGradient>
+                  <linearGradient id="bm-heart" x1="112" y1="130" x2="142" y2="160" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fb7185" />
+                    <stop offset="55%" stopColor="#e11d48" />
+                    <stop offset="100%" stopColor="#881337" />
+                  </linearGradient>
+                  <linearGradient id="bm-liver" x1="86" y1="164" x2="122" y2="196" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#a78bfa" />
+                    <stop offset="60%" stopColor="#7c3aed" />
+                    <stop offset="100%" stopColor="#4c1d95" />
+                  </linearGradient>
+                  <linearGradient id="bm-gut" x1="94" y1="196" x2="150" y2="238" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fcd34d" />
+                    <stop offset="100%" stopColor="#c2751a" />
+                  </linearGradient>
+                  <linearGradient id="bm-bone" x1="84" y1="90" x2="160" y2="400" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="100%" stopColor="#a9b7c6" />
+                  </linearGradient>
+                  <linearGradient id="bm-derm" x1="58" y1="194" x2="88" y2="226" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#fbcfe8" />
+                    <stop offset="100%" stopColor="#be185d" />
+                  </linearGradient>
+
+                  {/* Depth + focus filters */}
+                  <filter id="bm-soft" x="-40%" y="-40%" width="180%" height="180%">
+                    <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#0f172a" floodOpacity="0.16" />
+                  </filter>
+                  <filter id="bm-focus" x="-70%" y="-70%" width="240%" height="240%">
+                    <feGaussianBlur stdDeviation="3" result="bmBlur" />
+                    <feMerge>
+                      <feMergeNode in="bmBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                {/* ── Plate backdrop ── */}
+                <rect x="0" y="0" width="240" height="424" rx="16" fill="url(#bm-plate)" />
+                <rect x="0" y="0" width="240" height="424" rx="16" fill="url(#bm-grid)" />
+                <rect x="0" y="0" width="240" height="424" rx="16" fill="url(#bm-vignette)" />
+                <rect x="0.6" y="0.6" width="238.8" height="422.8" rx="16" fill="none" stroke="var(--cm-line)" strokeWidth="1.2" />
+
+                {/* ── Layer 1: soft-tissue body shell ── */}
+                <g filter="url(#bm-soft)">
+                  {/* Limbs as tapered round-capped strokes */}
+                  <g stroke="#9db4cc" strokeOpacity="0.55" strokeLinecap="round" fill="none">
+                    <path d="M86 112L75 180" strokeWidth="22" />
+                    <path d="M154 112L165 180" strokeWidth="22" />
+                    <path d="M75 180L69 238" strokeWidth="18" />
+                    <path d="M165 180L171 238" strokeWidth="18" />
+                    <path d="M69 238L67 257" strokeWidth="15" />
+                    <path d="M171 238L173 257" strokeWidth="15" />
+                    <path d="M106 256L102 324" strokeWidth="31" />
+                    <path d="M134 256L138 324" strokeWidth="31" />
+                    <path d="M102 324L100 386" strokeWidth="22" />
+                    <path d="M138 324L140 386" strokeWidth="22" />
+                  </g>
+                  <g stroke="url(#bm-limb)" strokeLinecap="round" fill="none">
+                    <path d="M86 112L75 180" strokeWidth="20" />
+                    <path d="M154 112L165 180" strokeWidth="20" />
+                    <path d="M75 180L69 238" strokeWidth="16" />
+                    <path d="M165 180L171 238" strokeWidth="16" />
+                    <path d="M69 238L67 257" strokeWidth="13" />
+                    <path d="M171 238L173 257" strokeWidth="13" />
+                    <path d="M106 256L102 324" strokeWidth="29" />
+                    <path d="M134 256L138 324" strokeWidth="29" />
+                    <path d="M102 324L100 386" strokeWidth="20" />
+                    <path d="M138 324L140 386" strokeWidth="20" />
+                  </g>
+                  {/* Feet */}
+                  <path d="M91 394C91 389 95 386 100 386C105 386 109 389 109 394L111 403C111 407 107 409 101 409H94C90 409 88 406 89 402L91 394Z" fill="url(#bm-limb)" />
+                  <path d="M149 394C149 389 145 386 140 386C135 386 131 389 131 394L129 403C129 407 133 409 139 409H146C150 409 152 406 151 402L149 394Z" fill="url(#bm-limb)" />
+
+                  {/* Torso: sloped trapezius, tapered ribcage, defined waist */}
+                  <path
+                    d="M104 88C90 92 82 101 80 115C78 131 82 150 88 168C92 180 92 190 90 200C88 213 88 227 92 241C94 250 96 255 98 259H142C144 255 146 250 148 241C152 227 152 213 150 200C148 190 148 180 152 168C158 150 162 131 160 115C158 101 150 92 136 88H104Z"
+                    fill="url(#bm-skin)"
+                    stroke="#9db4cc"
+                    strokeOpacity="0.55"
+                    strokeWidth="1.2"
+                  />
+                  {/* Neck */}
+                  <path d="M110 70H130V88C130 91 126 93 120 93C114 93 110 91 110 88V70Z" fill="url(#bm-skin)" />
+                  {/* Cranium + mandible */}
+                  <path d="M120 16C136 16 146 27 146 43C146 53 142 62 135 70C131 75 126 78 120 78C114 78 109 75 105 70C98 62 94 53 94 43C94 27 104 16 120 16Z" fill="url(#bm-skin)" stroke="#9db4cc" strokeOpacity="0.55" strokeWidth="1.2" />
+                </g>
+
+                {/* Anatomical midline + transverse reference planes */}
+                <g stroke="#0f172a" strokeOpacity="0.14" strokeWidth="0.9" strokeDasharray="4 5">
+                  <path d="M120 96V250" />
+                  <path d="M80 145H160" />
+                  <path d="M88 196H152" />
+                  <path d="M92 248H148" />
+                </g>
+
+                {/* ── Layer 2: skeletal frame ── */}
+                <g opacity={selectedOrgan === "joints" ? 1 : 0.42} filter={selectedOrgan === "joints" ? "url(#bm-focus)" : undefined}>
+                  {/* Costal arches, drawn before the column so the spine reads on top */}
+                  {RIB_LEVELS.map((y, i) => (
+                    <g key={"rib-" + y} fill="none" stroke="url(#bm-bone)" strokeWidth={3 - i * 0.25} strokeLinecap="round" opacity="0.95">
+                      <path d={"M115 " + y + "C105 " + (y + 3) + " 96 " + (y + 10) + " 93 " + (y + 20)} />
+                      <path d={"M125 " + y + "C135 " + (y + 3) + " 144 " + (y + 10) + " 147 " + (y + 20)} />
+                    </g>
+                  ))}
+                  {/* Vertebral column */}
+                  {VERTEBRAE.map((y) => (
+                    <rect key={"vert-" + y} x="116" y={y} width="8" height="7" rx="2.6" fill="url(#bm-bone)" stroke="#8fa1b4" strokeOpacity="0.5" strokeWidth="0.6" />
+                  ))}
+                  {/* Pelvic girdle — outline weight only, a filled basin read as clothing */}
+                  <path d="M94 232C94 246 101 256 112 257L120 244L128 257C139 256 146 246 146 232C138 228 128 226 120 226C112 226 102 228 94 232Z" fill="url(#bm-bone)" fillOpacity="0.4" stroke="#9aa9b8" strokeWidth="0.9" />
+                  {/* Long bones of the appendicular skeleton */}
+                  <g stroke="#8ea3b8" strokeLinecap="round" fill="none" opacity="0.5">
+                    <path d="M86 114L76 178" strokeWidth="6" />
+                    <path d="M154 114L164 178" strokeWidth="6" />
+                    <path d="M76 182L70 236" strokeWidth="4.6" />
+                    <path d="M164 182L170 236" strokeWidth="4.6" />
+                    <path d="M104 258L102 320" strokeWidth="8" />
+                    <path d="M136 258L138 320" strokeWidth="8" />
+                    <path d="M102 328L100 382" strokeWidth="6" />
+                    <path d="M138 328L140 382" strokeWidth="6" />
+                  </g>
+                  {/* Articular joint capsules */}
+                  {JOINT_NODES.map(([cx, cy]) => (
+                    <circle key={"joint-" + cx + "-" + cy} cx={cx} cy={cy} r="5" fill="#ffffff" fillOpacity="0.9" stroke="#7c8da0" strokeWidth="1.3" />
+                  ))}
+                </g>
+
+                {/* ── Layer 3: respiratory system ── */}
+                <g opacity={selectedOrgan === "lungs" ? 1 : 0.6} filter={selectedOrgan === "lungs" ? "url(#bm-focus)" : undefined}>
+                  {/* Trachea + primary bronchi */}
+                  <path d="M120 93V114" stroke="#0369a1" strokeWidth="4.6" strokeLinecap="round" />
+                  <path d="M120 114L108 124M120 114L132 124" stroke="#0369a1" strokeWidth="3.2" strokeLinecap="round" />
+                  {/* Right lung, three lobes (patient right = viewer left) */}
+                  <path d="M112 121C98 124 88 140 88 160C88 177 95 188 105 188C111 188 114 181 114 170L112 121Z" fill="url(#bm-lung)" />
+                  {/* Left lung, two lobes with a cardiac notch on the medial border */}
+                  <path d="M128 121C142 124 152 140 152 160C152 177 145 188 135 188C129 188 126 181 126 170L131 156L126 141L128 121Z" fill="url(#bm-lung)" />
+                  {/* Segmental bronchial tree */}
+                  <g stroke="#eff9ff" strokeOpacity="0.7" strokeWidth="1.2" fill="none" strokeLinecap="round">
+                    <path d="M108 126L102 143M108 126L105 156M102 143L96 156" />
+                    <path d="M132 126L138 143M132 126L135 156M138 143L144 156" />
+                  </g>
+                </g>
+
+                {/* ── Layer 4: cardiovascular system ── */}
+                <g opacity={selectedOrgan === "heart" ? 1 : 0.78} filter={selectedOrgan === "heart" ? "url(#bm-focus)" : undefined}>
+                  {/* Aortic arch + superior vena cava */}
+                  <path d="M128 122C134 125 137 130 136 136" stroke="#dc2626" strokeWidth="2.8" fill="none" strokeLinecap="round" />
+                  <path d="M120 122C116 125 114 129 115 135" stroke="#2563eb" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+                  {/* Myocardium — seated left of midline, apex pointing down-left */}
+                  <path d="M131 137C135 132 141 134 141 140C141 147 136 154 128 160C126.5 161 125.5 161 124 160C117 154 112 147 112 140C112 134 118 132 122 137L126.5 140L131 137Z" fill="url(#bm-heart)" />
+                  <path d="M119 143C121 146 123 148 126 150" stroke="#ffffff" strokeOpacity="0.4" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                  {/* Interventricular groove */}
+                  <path d="M126.5 141V158" stroke="#7f1d1d" strokeOpacity="0.45" strokeWidth="1.2" />
+                </g>
+
+                {/* ── Layer 5: digestive / abdominal system ── */}
+                <g opacity={selectedOrgan === "abdomen" ? 1 : 0.58} filter={selectedOrgan === "abdomen" ? "url(#bm-focus)" : undefined}>
+                  {/* Hepatic wedge — right upper quadrant (patient right, viewer left) */}
+                  <path d="M119 172C104 169 91 173 88 182C85 191 93 198 106 198C114 198 119 194 119 187V172Z" fill="url(#bm-liver)" />
+                  <path d="M117 175C109 174 100 176 94 181" stroke="#ffffff" strokeOpacity="0.26" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+                  {/* Gastric body — left upper quadrant (patient left, viewer right) */}
+                  <path d="M124 173C133 174 140 180 139 188C138 195 131 199 126 195C122 192 123 187 122 182C121.4 179 122 176 124 173Z" fill="#f472b6" />
+                  {/* Colonic frame + small-bowel coil */}
+                  <path d="M102 203C102 198 138 198 138 205C138 212 102 211 102 218C102 225 138 224 138 231" stroke="url(#bm-gut)" strokeWidth="6" fill="none" strokeLinecap="round" strokeOpacity="0.78" />
+                </g>
+
+                {/* ── Layer 6: cranial & sensory systems ──
+                    Drawn as clinical annotation (vault, orbits, occlusal chart,
+                    auricles) rather than facial features, which read cartoonish. */}
+                <g opacity={selectedOrgan === "head" ? 1 : 0.7} filter={selectedOrgan === "head" ? "url(#bm-focus)" : undefined}>
+                  <path d="M120 21C132 21 139 29 139 38C139 43 137 46 134 48H106C103 46 101 43 101 38C101 29 108 21 120 21Z" fill="url(#bm-brain)" />
+                  <g stroke="#e0e7ff" strokeOpacity="0.72" strokeWidth="1.3" fill="none" strokeLinecap="round">
+                    <path d="M108 30C112 27 115 31 112 34C109 37 113 40 116 38" />
+                    <path d="M131 29C127 32 130 36 133 33" />
+                    <path d="M120 22V47" strokeOpacity="0.4" />
+                  </g>
+                </g>
+
+                {selectedOrgan === "eyes" && (
+                  <g filter="url(#bm-focus)">
+                    <ellipse cx="111" cy="55" rx="5.6" ry="4.6" fill="#ffffff" fillOpacity="0.75" stroke="#0369a1" strokeWidth="1.3" />
+                    <ellipse cx="129" cy="55" rx="5.6" ry="4.6" fill="#ffffff" fillOpacity="0.75" stroke="#0369a1" strokeWidth="1.3" />
+                    <circle cx="111" cy="55" r="2" fill="none" stroke="#0369a1" strokeWidth="1.1" />
+                    <circle cx="129" cy="55" r="2" fill="none" stroke="#0369a1" strokeWidth="1.1" />
+                  </g>
+                )}
+
+                {selectedOrgan === "dental" && (
+                  <g filter="url(#bm-focus)">
+                    <path d="M110 66.5C113 70.5 127 70.5 130 66.5" stroke="#0d9488" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+                    {DENTITION.map(([x, dy]) => (
+                      <rect key={"tooth-" + x} x={x - 1.4} y={63 + dy} width="2.8" height="3.2" rx="1" fill="#ffffff" stroke="#0d9488" strokeWidth="0.8" />
+                    ))}
+                  </g>
+                )}
+
+                {selectedOrgan === "ent" && (
+                  <g filter="url(#bm-focus)">
+                    {/* Auricles overlapping the temporal contour, not floating beside it */}
+                    <path d="M100 46C96 47 95 53 97 58C98 60 100 60 101 58" fill="#fde9c8" stroke="#b45309" strokeWidth="1.4" strokeLinejoin="round" />
+                    <path d="M140 46C144 47 145 53 143 58C142 60 140 60 139 58" fill="#fde9c8" stroke="#b45309" strokeWidth="1.4" strokeLinejoin="round" />
+                    {/* Nasal airway and pharynx */}
+                    <path d="M120 56V62" stroke="#b45309" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M120 74V92" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.6" />
+                  </g>
+                )}
+
+                {/* ── Layer 7: integumentary sample field ── */}
+                <g opacity={selectedOrgan === "skin" ? 1 : 0.62} filter={selectedOrgan === "skin" ? "url(#bm-focus)" : undefined}>
+                  <circle cx="72" cy="210" r="10" fill="url(#bm-derm)" fillOpacity="0.5" stroke="#be185d" strokeWidth="1.3" />
+                  <circle cx="72" cy="210" r="4.6" fill="none" stroke="#fce7f3" strokeWidth="1.1" />
+                </g>
+
+                {/* ── Layer 8: interactive clinical callouts ── */}
                 {HOTSPOTS.map((spot) => {
                   const isSelected = spot.id === selectedOrgan;
                   const org = ORGANS[spot.id];
                   const SpotIcon = org.Icon;
                   const spotColor = org.color;
-                  const iconSize = spot.r * 1.1;
+                  const r = isSelected ? 14.5 : 12.5;
 
                   return (
                     <g
                       key={spot.id}
                       onClick={() => { setSelectedOrgan(spot.id); setConsultMode(null); }}
                       style={{ cursor: "pointer" }}
+                      role="button"
+                      aria-label={org.name}
                     >
-                      {/* Active Ring */}
-                      {isSelected && (
-                        <circle
-                          cx={spot.cx}
-                          cy={spot.cy}
-                          r={spot.r * 1.5}
-                          fill="none"
-                          stroke={spotColor}
-                          strokeWidth="2"
-                        />
-                      )}
+                      {/* Leader line back to the anatomical site */}
+                      <path
+                        d={"M" + spot.cx + " " + spot.cy + "L" + spot.ax + " " + spot.ay}
+                        stroke={isSelected ? spotColor : "#94a3b8"}
+                        strokeWidth={isSelected ? 1.5 : 0.9}
+                        strokeDasharray={isSelected ? undefined : "3 4"}
+                        strokeOpacity={isSelected ? 0.85 : 0.5}
+                      />
+                      <circle cx={spot.ax} cy={spot.ay} r={isSelected ? 3.4 : 2.2} fill={isSelected ? spotColor : "#94a3b8"} />
+                      {isSelected && <circle cx={spot.ax} cy={spot.ay} r="8" fill="none" stroke={spotColor} strokeWidth="1.3" strokeOpacity="0.5" />}
 
-                      {/* Node Circle */}
+                      {/* Callout node */}
+                      {isSelected && <circle cx={spot.cx} cy={spot.cy} r={r + 6} fill={spotColor} fillOpacity="0.12" />}
                       <circle
                         cx={spot.cx}
                         cy={spot.cy}
-                        r={spot.r}
-                        fill={isSelected ? "var(--cm-navy)" : "var(--cm-surface)"}
-                        stroke={isSelected ? "var(--cm-navy)" : "var(--cm-line-strong)"}
-                        strokeWidth={isSelected ? 2 : 1.5}
+                        r={r}
+                        fill={isSelected ? spotColor : "#ffffff"}
+                        stroke={isSelected ? spotColor : "var(--cm-line-strong)"}
+                        strokeWidth={isSelected ? 2 : 1.3}
+                        filter="url(#bm-soft)"
                       />
-
-                      {/* Node Icon */}
                       <svg
-                        x={spot.cx - iconSize / 2}
-                        y={spot.cy - iconSize / 2}
-                        width={iconSize}
-                        height={iconSize}
+                        x={spot.cx - r * 0.56}
+                        y={spot.cy - r * 0.56}
+                        width={r * 1.12}
+                        height={r * 1.12}
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke={isSelected ? "#ffffff" : "var(--cm-ink-2)"}
-                        strokeWidth={2.4}
+                        strokeWidth={2.2}
                         pointerEvents="none"
                       >
                         <SpotIcon width={24} height={24} />
