@@ -14,6 +14,10 @@ from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
 from app.utils.db_helpers import _rows
+from app.services.scope_catalogs import (
+    is_allowed_diagnostic_center_service,
+    get_diagnostic_center_scope,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
@@ -25,11 +29,8 @@ DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "
 
 
 # Roles that publish a bookable schedule of their own (as opposed to
-# organizations, which publish opening hours). Physiotherapists, dietitians and
-# nurses were excluded from every one of these gates, so although the platform
-# sells their online / home-visit / walk-in services they could not publish a
-# single slot or set a single fee.
-SCHEDULING_PROVIDER_ROLES = ("doctor", "physiotherapist", "dietitian", "nurse", "admin")
+# organizations, which publish opening hours).
+SCHEDULING_PROVIDER_ROLES = ("doctor", "physiotherapist", "dietitian", "nurse", "dentist", "admin")
 
 
 class AvailabilityCreate(BaseModel):
@@ -833,7 +834,7 @@ async def org_add_service(
     try:
         org_result = (
             supabase.table("organizations")
-            .select("id")
+            .select("id, organization_type")
             .eq("user_id", current_user["sub"])
             .execute()
         )
@@ -841,6 +842,20 @@ async def org_add_service(
             raise HTTPException(404, "Organization not found")
 
         org_id = org_result.data[0]["id"]
+        org_type = org_result.data[0].get("organization_type")
+
+        # Strict Diagnostic Center Scope Enforcement
+        if org_type == "diagnostic_center":
+            if body.service_type == "health_package":
+                raise HTTPException(
+                    403,
+                    "Diagnostic centers cannot offer health packages. Packages are managed centrally by CallMedex.",
+                )
+            if not is_allowed_diagnostic_center_service(body.name, body.service_type):
+                raise HTTPException(
+                    400,
+                    f"Service '{body.name}' is outside Diagnostic Center Scope. Diagnostic centers can strictly only provide MRI, CT Scans, specialized scans, and CBC/Cultures. Arbitrary blood tests and health packages are prohibited.",
+                )
 
         record = {
             "id": str(uuid.uuid4()),
@@ -994,6 +1009,15 @@ async def org_remove_service(
         raise HTTPException(500, "Failed to remove service")
 
 
+@router.get("/org/diagnostic-scope")
+async def get_org_diagnostic_scope():
+    """Returns the canonical Diagnostic Center Scope (MRI, CT, Scans, CBC, Cultures) with benchmark MRPs."""
+    return {
+        "success": True,
+        "scope": get_diagnostic_center_scope(),
+    }
+
+
 @router.put("/org/services/{service_id}")
 async def update_org_service(
     service_id: str,
@@ -1005,9 +1029,22 @@ async def update_org_service(
         raise HTTPException(500, "Database not configured")
 
     try:
-        org_result = supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).execute()
+        org_result = supabase.table("organizations").select("id, organization_type").eq("user_id", current_user["sub"]).execute()
         if not org_result.data:
             raise HTTPException(404, "Organization not found")
+
+        org_type = org_result.data[0].get("organization_type")
+        if org_type == "diagnostic_center":
+            if body.service_type == "health_package":
+                raise HTTPException(
+                    403,
+                    "Diagnostic centers cannot offer health packages. Packages are managed centrally by CallMedex.",
+                )
+            if not is_allowed_diagnostic_center_service(body.name, body.service_type):
+                raise HTTPException(
+                    400,
+                    f"Service '{body.name}' is outside Diagnostic Center Scope. Diagnostic centers can strictly only provide MRI, CT Scans, specialized scans, and CBC/Cultures.",
+                )
 
         update_data = {
             "name": body.name,
@@ -1037,9 +1074,16 @@ async def add_org_package(
         raise HTTPException(500, "Database not configured")
 
     try:
-        org_result = supabase.table("organizations").select("id, organization_name").eq("user_id", current_user["sub"]).execute()
+        org_result = supabase.table("organizations").select("id, organization_name, organization_type").eq("user_id", current_user["sub"]).execute()
         if not org_result.data:
             raise HTTPException(404, "Organization not found")
+
+        org_type = org_result.data[0].get("organization_type")
+        if org_type == "diagnostic_center":
+            raise HTTPException(
+                403,
+                "Diagnostic centers cannot create health packages. Health packages are managed centrally by CallMedex.",
+            )
 
         package_record = {
             "id": str(uuid.uuid4()),

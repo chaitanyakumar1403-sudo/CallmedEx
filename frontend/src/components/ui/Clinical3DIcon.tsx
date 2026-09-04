@@ -45,7 +45,9 @@ export type Clinical3DIconName =
   | "homecare"
   | "box"
   | "package"
-  | "ambulance";
+  | "ambulance"
+  | "dental"
+  | "tooth";
 
 export interface Clinical3DIconProps extends React.SVGProps<SVGSVGElement> {
   name: Clinical3DIconName;
@@ -330,6 +332,24 @@ export default function Clinical3DIcon({
           <stop offset="0%" stopColor="#a7f3d0" />
           <stop offset="60%" stopColor="#10b981" />
           <stop offset="100%" stopColor="#047857" />
+        </linearGradient>
+
+        {/* 16. Dental / Tooth Gradients */}
+        <linearGradient id="tooth-body" x1="14" y1="12" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="35%" stopColor="#f0f9ff" />
+          <stop offset="70%" stopColor="#bae6fd" />
+          <stop offset="100%" stopColor="#38bdf8" />
+        </linearGradient>
+        <radialGradient id="tooth-spec" cx="24" cy="18" r="14" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="50%" stopColor="#ffffff" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="tooth-root" x1="20" y1="36" x2="44" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#e0f2fe" />
+          <stop offset="60%" stopColor="#7dd3fc" />
+          <stop offset="100%" stopColor="#0284c7" />
         </linearGradient>
       </defs>
 
@@ -888,6 +908,45 @@ export default function Clinical3DIcon({
           <circle cx="17" cy="47" r="2.6" fill="#94a3b8" />
           <circle cx="47" cy="47" r="6" fill="#0f172a" />
           <circle cx="47" cy="47" r="2.6" fill="#94a3b8" />
+        </g>
+      )}
+
+      {(name === "dental" || name === "tooth") && (
+        <g>
+          {/* Ambient Ground Shadow */}
+          <ellipse cx="32" cy="57" rx="18" ry="4" fill="#0284c7" fillOpacity="0.25" />
+          {/* Anatomical Tooth Body (Crown + Dual Root System) */}
+          <path
+            d="M20 12C14 12 11 18 11 25C11 33 16 38 20 44C22 47 23 55 25 56C26 56.5 27.5 54 28.5 48C29.5 42 30.5 39 32 39C33.5 39 34.5 42 35.5 48C36.5 54 38 56.5 39 56C41 55 42 47 44 44C48 38 53 33 53 25C53 18 50 12 44 12C39 12 35 15 32 17C29 15 25 12 20 12Z"
+            fill="url(#tooth-body)"
+            stroke="#0284c7"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+          />
+          {/* Inner Shading & Root Contours */}
+          <path
+            d="M28.5 48C29.5 42 30.5 39 32 39C33.5 39 34.5 42 35.5 48C36.5 54 38 56.5 39 56C38 56 36.5 52 35.5 47C34 40 33 38 32 38C31 38 30 40 28.5 47C27.5 52 26 56 25 56C26 56.5 27.5 54 28.5 48Z"
+            fill="url(#tooth-root)"
+            fillOpacity="0.75"
+          />
+          {/* Glossy Crown Enamel Highlight */}
+          <ellipse cx="23" cy="20" rx="8" ry="5" fill="url(#tooth-spec)" transform="rotate(-15 23 20)" />
+          {/* Lingual Cusp Refraction Line */}
+          <path
+            d="M41 18C44 20 45 24 45 28C45 32 43 35 41 38"
+            stroke="#ffffff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeOpacity="0.8"
+          />
+          {/* Clinical Sparkle Star */}
+          <path
+            d="M45 10L46.5 14L50.5 15.5L46.5 17L45 21L43.5 17L39.5 15.5L43.5 14L45 10Z"
+            fill="#38bdf8"
+            stroke="#ffffff"
+            strokeWidth="0.8"
+          />
+          <circle cx="45" cy="15.5" r="1" fill="#ffffff" />
         </g>
       )}
     </svg>

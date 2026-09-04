@@ -206,99 +206,8 @@ class PricingService:
         }
 
 
-CANONICAL_RADIOLOGY_SERVICES = [
-    {
-        "id": "cat-xray-single",
-        "name": "X-Ray (Single View)",
-        "slug": "x-ray-single",
-        "category": "imaging",
-        "sub_category": "xray",
-        "synonyms": ["X-Ray Single", "X-Ray (Single)", "Plain Radiography 1 View", "Chest X-Ray Single View", "Digital X-Ray Single"],
-        "typical_turnaround_hours": 4,
-        "mrp": 450.0,
-        "is_active": True,
-        "preparation": "Remove metallic jewelry, body piercings, and belts prior to examination.",
-        "description": "High-resolution digital radiography single projection for bone, joint, or pulmonary diagnosis.",
-    },
-    {
-        "id": "cat-xray-double",
-        "name": "X-Ray (Double View)",
-        "slug": "x-ray-double",
-        "category": "imaging",
-        "sub_category": "xray",
-        "synonyms": ["X-Ray Double", "X-Ray (Double)", "X-Ray 2 Views", "AP and Lateral View", "Chest X-Ray PA and Lateral", "Dual Projection Radiograph"],
-        "typical_turnaround_hours": 4,
-        "mrp": 750.0,
-        "is_active": True,
-        "preparation": "Remove metallic jewelry, body piercings, and belts prior to examination.",
-        "description": "Two orthogonal digital projections (Anteroposterior and Lateral) for anatomical alignment and fracture evaluation.",
-    },
-    {
-        "id": "cat-spine-xray-single",
-        "name": "Spine X-Ray (Single View)",
-        "slug": "spine-x-ray-single",
-        "category": "imaging",
-        "sub_category": "xray",
-        "synonyms": ["Spine X-Ray Single", "Spine X-Ray (Single)", "Cervical Spine X-Ray", "Lumbar Spine X-Ray Single", "Thoracic Spine X-Ray"],
-        "typical_turnaround_hours": 4,
-        "mrp": 550.0,
-        "is_active": True,
-        "preparation": "Wear loose, comfortable cotton clothing without metal zippers.",
-        "description": "Targeted digital spinal radiography evaluating vertebral alignment, disc heights, and curvature.",
-    },
-    {
-        "id": "cat-spine-xray-double",
-        "name": "Spine X-Ray (Double View)",
-        "slug": "spine-x-ray-double",
-        "category": "imaging",
-        "sub_category": "xray",
-        "synonyms": ["Spine X-Ray Double", "Spine X-Ray (Double)", "Spine AP and Lateral", "Lumbosacral Spine 2 Views", "Cervical Spine AP Lat"],
-        "typical_turnaround_hours": 4,
-        "mrp": 950.0,
-        "is_active": True,
-        "preparation": "Wear loose, comfortable cotton clothing without metal zippers.",
-        "description": "Dual-view AP and Lateral spinal imaging diagnosing spondylosis, scoliosis, and degenerative disc diseases.",
-    },
-    {
-        "id": "cat-ecg-12lead",
-        "name": "ECG (12-Lead Resting)",
-        "slug": "ecg-12-lead",
-        "category": "imaging",
-        "sub_category": "ecg_echo",
-        "synonyms": ["ECG", "Electrocardiogram", "12 Lead ECG", "Resting ECG", "Cardiogram"],
-        "typical_turnaround_hours": 2,
-        "mrp": 350.0,
-        "is_active": True,
-        "preparation": "Avoid strenuous exercise and caffeinated beverages 30 minutes before testing.",
-        "description": "Certified 12-lead electrocardiographic tracing evaluating cardiac electrical conduction and rhythm.",
-    },
-    {
-        "id": "cat-pft-spirometry",
-        "name": "Pulmonary Function Test (PFT)",
-        "slug": "pft-spirometry",
-        "category": "imaging",
-        "sub_category": "pft",
-        "synonyms": ["PFT", "Pulmonary Function Test", "Spirometry", "Lung Function Test", "FVC Spirometry"],
-        "typical_turnaround_hours": 4,
-        "mrp": 850.0,
-        "is_active": True,
-        "preparation": "Do not take short-acting bronchodilator inhalers for 4 hours before test unless advised by doctor.",
-        "description": "Comprehensive spirometric evaluation of forced vital capacity (FVC), FEV1, and airway resistance.",
-    },
-    {
-        "id": "cat-audiometry",
-        "name": "Audiometry (Hearing Evaluation)",
-        "slug": "audiometry-hearing-test",
-        "category": "imaging",
-        "sub_category": "audiometry",
-        "synonyms": ["Audiometry", "PTA", "Pure Tone Audiometry", "Hearing Test", "Audiogram", "Air and Bone Conduction"],
-        "typical_turnaround_hours": 3,
-        "mrp": 700.0,
-        "is_active": True,
-        "preparation": "Avoid exposure to loud environments or headphones for 14 hours prior to evaluation.",
-        "description": "Certified pure-tone audiometric threshold testing assessing air and bone conduction hearing profiles.",
-    },
-]
+from app.services.diagnostic_canonical_list import CANONICAL_RADIOLOGY_SERVICES
+
 
 
 class MarketplaceService:
@@ -1200,3 +1109,200 @@ class MarketplaceService:
             })
 
         return result
+
+    @staticmethod
+    def dental_services_with_offers(city: Optional[str] = None) -> List[dict]:
+        """
+        Returns canonical dental procedures (19 items from CALL MEDEX - DENTAL PROCEDURE.xlsx)
+        along with verified dental clinics and dentists offering each procedure,
+        their practice addresses, and transparent walk-in pricing.
+        """
+        from app.services.scope_catalogs import DENTAL_MASTER_CATALOG
+        from app.routers.auth import _local_profiles, _local_users
+
+        city_filter = (city or "").strip().lower()
+
+        # 1. Fetch verified dentists from DB
+        dentists_by_id: dict = {}
+        if supabase:
+            try:
+                for d in _rows(
+                    supabase.table("dentists")
+                    .select("*, users!inner(id, full_name, address, city, district, state, mobile)")
+                    .eq("verification_status", "verified")
+                    .execute()
+                ):
+                    dentists_by_id[d["id"]] = d
+            except Exception as e:
+                logger.error(f"dental: dentists read failed: {e}")
+
+        # Local fallback dentists
+        for d in _local_profiles.get("dentists", []):
+            uid = d.get("user_id")
+            u = _local_users.get(uid) or {}
+            if uid and d.get("id") not in dentists_by_id:
+                dentists_by_id[d.get("id") or uid] = {**d, "users": u}
+
+        # 2. Fetch verified dental clinics from organizations table
+        dental_orgs: dict = {}
+        if supabase:
+            try:
+                for o in _rows(
+                    supabase.table("organizations")
+                    .select("*, users!inner(id, full_name, address, city, district, state, mobile)")
+                    .eq("organization_type", "dental_clinic")
+                    .eq("verification_status", "verified")
+                    .execute()
+                ):
+                    dental_orgs[o["id"]] = o
+            except Exception as e:
+                logger.error(f"dental: dental organizations read failed: {e}")
+
+        # Index provider settings for commercial discounts
+        index_ids = set()
+        for d in dentists_by_id.values():
+            uid = (d.get("users") or {}).get("id") or d.get("user_id")
+            if uid:
+                index_ids.add(uid)
+        for o in dental_orgs.values():
+            uid = (o.get("users") or {}).get("id") or o.get("user_id")
+            if uid:
+                index_ids.add(uid)
+
+        provider_index = MarketplaceService._provider_index(list(index_ids))
+        from app.services import ratings as _ratings
+        rating_summaries = _ratings.get_summaries(list(index_ids), db=supabase) if index_ids else {}
+
+        result: List[dict] = []
+
+        for proc in DENTAL_MASTER_CATALOG:
+            proc_id = proc["id"]
+            proc_name = proc["service_name"].lower()
+            offers: List[dict] = []
+            seen_providers: set = set()
+
+            # Check individual Dentists
+            for d in dentists_by_id.values():
+                u = d.get("users") or {}
+                uid = u.get("id") or d.get("user_id")
+                if not uid or uid in seen_providers:
+                    continue
+
+                d_city = (u.get("city") or "").lower()
+                d_dist = (u.get("district") or "").lower()
+                if city_filter and city_filter not in f"{d_city} {d_dist}".lower():
+                    continue
+
+                # Check if dentist selected this procedure
+                scope = d.get("scope_of_services") or []
+                matched_item = None
+                if scope:
+                    for it in scope:
+                        if it.get("id") == proc_id or it.get("service_name", "").lower() == proc_name:
+                            matched_item = it
+                            break
+                else:
+                    # If empty scope, default to master procedures
+                    matched_item = proc
+
+                if not matched_item or matched_item.get("is_active") is False:
+                    continue
+
+                seen_providers.add(uid)
+                list_price = _num(matched_item.get("custom_price", proc["benchmark_price"]))
+                settings = provider_index.get(uid) or {}
+                pricing = PricingService.quote(list_price, _num(settings.get("partner_discount_pct")))
+                summary = rating_summaries.get(uid) or {}
+
+                clinic_title = (
+                    d.get("clinic_name")
+                    or d.get("clinic_center_name")
+                    or f"Dr. {u.get('full_name', 'Dentist')} Dental Care"
+                )
+
+                offers.append({
+                    "provider_id": uid,
+                    "provider_kind": "dentist",
+                    "center_name": clinic_title,
+                    "doctor_name": u.get("full_name") or "Verified Dental Surgeon",
+                    "qualification": d.get("qualification") or "BDS / MDS Dental Surgery",
+                    "dental_license_number": d.get("dental_license_number") or "",
+                    "address": u.get("address") or "",
+                    "city": u.get("city") or "",
+                    "state": u.get("state") or "",
+                    "rating": summary.get("average_stars"),
+                    "reviews_count": summary.get("rating_count", 0),
+                    "turnaround_hours": 1,
+                    "mrp": pricing["mrp"],
+                    "callmedex_price": pricing["price"],
+                    "savings": pricing["savings"],
+                    "discount_pct": pricing["discount_pct"],
+                    "modality": "clinic",  # Strictly Walk-In Only
+                    "duration": proc.get("duration", "45 Mins (In-Clinic)"),
+                    "verified": True,
+                    "is_live": True,
+                })
+
+            # Check Dental Clinic Organizations
+            for o in dental_orgs.values():
+                u = o.get("users") or {}
+                uid = u.get("id") or o.get("user_id")
+                if not uid or uid in seen_providers:
+                    continue
+
+                o_city = (u.get("city") or "").lower()
+                o_dist = (u.get("district") or "").lower()
+                if city_filter and city_filter not in f"{o_city} {o_dist}".lower():
+                    continue
+
+                seen_providers.add(uid)
+                list_price = proc["benchmark_price"]
+                settings = provider_index.get(uid) or {}
+                pricing = PricingService.quote(list_price, _num(settings.get("partner_discount_pct")))
+                summary = rating_summaries.get(uid) or {}
+
+                offers.append({
+                    "provider_id": uid,
+                    "provider_kind": "dental_clinic",
+                    "center_name": o.get("organization_name") or "CallMedex Dental Partner Clinic",
+                    "doctor_name": o.get("head_of_institution") or "Lead Dental Surgeon",
+                    "qualification": "Certified Dental Practice",
+                    "dental_license_number": o.get("license_number") or "",
+                    "address": u.get("address") or "",
+                    "city": u.get("city") or "",
+                    "state": u.get("state") or "",
+                    "rating": summary.get("average_stars"),
+                    "reviews_count": summary.get("rating_count", 0),
+                    "turnaround_hours": 1,
+                    "mrp": pricing["mrp"],
+                    "callmedex_price": pricing["price"],
+                    "savings": pricing["savings"],
+                    "discount_pct": pricing["discount_pct"],
+                    "modality": "clinic",
+                    "duration": proc.get("duration", "45 Mins (In-Clinic)"),
+                    "verified": True,
+                    "is_live": True,
+                })
+
+            offers.sort(key=lambda x: (x["callmedex_price"], -(x["rating"] or 0.0)))
+
+            result.append({
+                "id": proc["id"],
+                "slug": proc["id"].replace("_", "-"),
+                "name": proc["service_name"],
+                "category": "dental",
+                "sub_category": proc["category"],
+                "billing_class": proc["category"],
+                "duration": proc["duration"],
+                "benchmark_mrp": float(proc["benchmark_price"]),
+                "min_price": min((o["callmedex_price"] for o in offers), default=None),
+                "max_savings": max((o["savings"] for o in offers), default=0.0),
+                "description": proc.get("description", ""),
+                "preparation": "Brush teeth normally prior to your appointment. Avoid chewing tobacco or hard food 1 hour prior.",
+                "modality": "clinic",  # Strictly In-Clinic Walk-In Only
+                "offers_count": len(offers),
+                "offers": offers,
+            })
+
+        return result
+

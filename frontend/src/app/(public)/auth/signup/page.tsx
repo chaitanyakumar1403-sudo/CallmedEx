@@ -64,6 +64,7 @@ function getPasswordStrength(password: string): { score: number; label: string; 
 const ROLES: { value: string; label: string; c3dName: Clinical3DIconName }[] = [
   { value: "patient", label: "Patient", c3dName: "patient" },
   { value: "doctor", label: "Doctor", c3dName: "stethoscope" },
+  { value: "dentist", label: "Dentist", c3dName: "dental" },
   { value: "dietitian", label: "Dietitian", c3dName: "dietitian" },
   { value: "physiotherapist", label: "Physiotherapist", c3dName: "physio" },
   { value: "nurse", label: "Nurse", c3dName: "nurse" },
@@ -113,6 +114,40 @@ const PHYSIO_SPECIALIZATIONS = [
   "Ergonomic Pain Management",
 ];
 
+const DENTAL_SPECIALIZATIONS = [
+  "General Dental Surgery (BDS)",
+  "Endodontics & Conservative Dentistry (MDS)",
+  "Prosthodontics & Crown/Bridge (MDS)",
+  "Orthodontics & Dentofacial Orthopedics (MDS)",
+  "Periodontics & Implantology (MDS)",
+  "Oral & Maxillofacial Surgery (MDS)",
+  "Pediatric & Preventive Dentistry (MDS)",
+  "Cosmetic & Aesthetic Dentistry",
+];
+
+// Canonical 19 Dental Procedures from CALL MEDEX - DENTAL PROCEDURE.xlsx (100% In-Clinic Walk-in)
+const DENTAL_PROCEDURES_LIST = [
+  { id: "dent_routine_cleanings", name: "Routine Cleanings (Prophylaxis)", category: "Diagnostic", price: 800, duration: "45 Mins" },
+  { id: "dent_comprehensive_exams", name: "Comprehensive Exams", category: "Diagnostic", price: 400, duration: "30 Mins" },
+  { id: "dent_dental_xrays", name: "Dental X-Rays", category: "Diagnostic", price: 350, duration: "15 Mins" },
+  { id: "dent_fluoride_treatments", name: "Fluoride Treatments", category: "Preventive", price: 600, duration: "15 Mins" },
+  { id: "dent_dental_sealants", name: "Dental Sealants", category: "Preventive", price: 750, duration: "30 Mins" },
+  { id: "dent_dental_fillings", name: "Dental Fillings", category: "Restorative", price: 1200, duration: "45 Mins" },
+  { id: "dent_root_canal_therapy", name: "Root Canal Therapy", category: "Endodontic", price: 3500, duration: "90 Mins" },
+  { id: "dent_crowns_caps", name: "Dental Crowns (Caps)", category: "Prosthodontic", price: 4500, duration: "60 Mins" },
+  { id: "dent_bridges", name: "Bridges", category: "Prosthodontic", price: 8000, duration: "90 Mins" },
+  { id: "dent_dentures", name: "Dentures", category: "Prosthodontic", price: 12000, duration: "60 Mins" },
+  { id: "dent_dental_implants", name: "Dental Implants", category: "Surgical-Restorative", price: 25000, duration: "120 Mins" },
+  { id: "dent_teeth_whitening", name: "Teeth Whitening", category: "Cosmetic", price: 5000, duration: "60 Mins" },
+  { id: "dent_dental_veneers", name: "Dental Veneers", category: "Cosmetic", price: 7500, duration: "90 Mins" },
+  { id: "dent_cosmetic_bonding", name: "Cosmetic Bonding", category: "Cosmetic", price: 2000, duration: "45 Mins" },
+  { id: "dent_scaling_root_planing", name: "Scaling and Root Planing", category: "Periodontal", price: 1800, duration: "75 Mins" },
+  { id: "dent_gum_grafting", name: "Gum Grafting", category: "Periodontal-Surgical", price: 9000, duration: "90 Mins" },
+  { id: "dent_tooth_extractions", name: "Tooth Extractions", category: "Oral Surgery", price: 1000, duration: "45 Mins" },
+  { id: "dent_wisdom_teeth_removal", name: "Wisdom Teeth Removal", category: "Oral Surgery", price: 4000, duration: "90 Mins" },
+  { id: "dent_emergency_dental_care", name: "Emergency Dental Care", category: "Emergency", price: 1500, duration: "45 Mins" },
+];
+
 export default function SignupPage() {
   const [role, setRole] = useState("patient");
   // Facility registrations are made BY a person ON BEHALF of an organization, so
@@ -129,6 +164,13 @@ export default function SignupPage() {
     "Orthopedic & Musculoskeletal Rehab",
     "Spine, Sciatica & Posture Correction",
   ]);
+  const [dentalSpecs, setDentalSpecs] = useState<string[]>([
+    "General Dental Surgery (BDS)",
+    "Endodontics & Conservative Dentistry (MDS)",
+  ]);
+  const [selectedDentalProcedures, setSelectedDentalProcedures] = useState<string[]>(
+    DENTAL_PROCEDURES_LIST.map((p) => p.id)
+  );
   const [orgType, setOrgType] = useState("hospital");
   const [isIndependent, setIsIndependent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -167,6 +209,26 @@ export default function SignupPage() {
     setPhysioSpecs((prev) =>
       prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
     );
+  };
+
+  const toggleDentalSpec = (spec: string) => {
+    setDentalSpecs((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
+  };
+
+  const toggleDentalProcedure = (procId: string) => {
+    setSelectedDentalProcedures((prev) =>
+      prev.includes(procId) ? prev.filter((p) => p !== procId) : [...prev, procId]
+    );
+  };
+
+  const selectAllDentalProcedures = () => {
+    if (selectedDentalProcedures.length === DENTAL_PROCEDURES_LIST.length) {
+      setSelectedDentalProcedures([]);
+    } else {
+      setSelectedDentalProcedures(DENTAL_PROCEDURES_LIST.map((p) => p.id));
+    }
   };
 
   const handleSimulateAIVerification = (docType: string) => {
@@ -262,6 +324,26 @@ export default function SignupPage() {
         body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
         body.hospital_clinic_name = formData.get("hospital_clinic_name");
         body.physio_specializations = physioSpecs;
+      }
+      if (role === "dentist") {
+        body.dental_license_number = formData.get("dental_license_number");
+        body.qualification = formData.get("qualification");
+        body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
+        body.clinic_name = formData.get("clinic_name");
+        body.consultation_fee = Number(formData.get("consultation_fee")) || 400;
+        body.dental_specializations = dentalSpecs;
+        body.scope_of_services = DENTAL_PROCEDURES_LIST.filter((p) =>
+          selectedDentalProcedures.includes(p.id)
+        ).map((p) => ({
+          procedure_id: p.id,
+          name: p.name,
+          category: p.category,
+          benchmark_price: p.price,
+          agreed_price: p.price,
+          duration: p.duration,
+          modality: "clinic",
+          is_active: true,
+        }));
       }
       if (role === "phlebotomist") {
         body.phleb_type = formData.get("phleb_type");
@@ -1125,6 +1207,186 @@ export default function SignupPage() {
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
                   * All therapy session rates are fully customizable post-registration in your Studio.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Dentist / Dental Practice Fields ─── */}
+          {role === "dentist" && (
+            <div className="card-section">
+              <h4>Dental Surgery &amp; Practice Credentials</h4>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">State Dental Council / DCI Reg. Number *</label>
+                  <input name="dental_license_number" className="form-input" placeholder="e.g. SDC-DENT-2024-5501 / DCI-8821" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Degree / Dental Qualification *</label>
+                  <input name="qualification" className="form-input" placeholder="e.g. BDS, MDS (Conservative &amp; Endodontics)" required />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Dental Clinic / Practice Name *</label>
+                  <input name="clinic_name" className="form-input" placeholder="e.g. SmileCare Dental Clinic &amp; Implant Center" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Years of Dental Experience</label>
+                  <input name="years_of_experience" type="number" className="form-input" placeholder="e.g. 5" defaultValue="1" min="0" />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Walk-In Clinical Consultation Fee (₹) *</label>
+                  <input name="consultation_fee" type="number" className="form-input" placeholder="e.g. 400" defaultValue="400" min="100" required />
+                  <div style={{ fontSize: "0.75rem", color: "var(--color-gray-500)", marginTop: 4 }}>
+                    Standard benchmark is ₹400 (Net ₹320 to dentist / ₹80 platform fee).
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Delivery Modality</label>
+                  <div style={{ padding: "10px 14px", borderRadius: 8, background: "#f8fafc", border: "1px solid #cbd5e1", fontSize: "0.85rem", color: "#0f172a", fontWeight: 600 }}>
+                    Strictly 100% In-Clinic Walk-In (Operatory &amp; Sterilization Protocol)
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Dental Specializations (Select all that apply)</label>
+                <div className="chip-group">
+                  {DENTAL_SPECIALIZATIONS.map((s) => (
+                    <span
+                      key={s}
+                      className={`chip ${dentalSpecs.includes(s) ? "active" : ""}`}
+                      onClick={() => toggleDentalSpec(s)}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Canonical 19 Dental Procedures Selector */}
+              <div style={{
+                marginTop: 24,
+                padding: "20px",
+                borderRadius: 12,
+                background: "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
+                border: "1px solid #bbf7d0",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ padding: 6, borderRadius: 8, background: "#0284c7", color: "#fff", display: "flex" }}>
+                      <CheckCircle2 size={18} />
+                    </div>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: "0.98rem", color: "#0f172a", display: "block" }}>
+                        CallMedex Dental Procedure Scope (19 Canonical Procedures)
+                      </span>
+                      <span style={{ fontSize: "0.78rem", color: "#475569" }}>
+                        Selected procedures will automatically populate in your Workstation &amp; walk-in booking directory.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={selectAllDentalProcedures}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 999,
+                      background: "#0284c7",
+                      color: "#fff",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    {selectedDentalProcedures.length === DENTAL_PROCEDURES_LIST.length ? "Deselect All" : "Select All (19)"}
+                  </button>
+                </div>
+
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                  gap: 10,
+                  maxHeight: "360px",
+                  overflowY: "auto",
+                  paddingRight: 4,
+                  marginBottom: 14,
+                }}>
+                  {DENTAL_PROCEDURES_LIST.map((proc) => {
+                    const isSelected = selectedDentalProcedures.includes(proc.id);
+                    const netPayout = Math.round(proc.price * 0.8);
+                    return (
+                      <div
+                        key={proc.id}
+                        onClick={() => toggleDentalProcedure(proc.id)}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: 10,
+                          background: isSelected ? "#ffffff" : "#f8fafc",
+                          border: isSelected ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          transition: "all 0.15s ease",
+                          boxShadow: isSelected ? "0 2px 8px rgba(2, 132, 199, 0.12)" : "none",
+                        }}
+                      >
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              style={{ accentColor: "#0284c7", cursor: "pointer" }}
+                            />
+                            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>
+                              {proc.name}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 20 }}>
+                            <span style={{ fontSize: "0.7rem", padding: "1px 6px", borderRadius: 4, background: "#e0f2fe", color: "#0369a1", fontWeight: 600 }}>
+                              {proc.category}
+                            </span>
+                            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                              {proc.duration}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0284c7" }}>
+                            ₹{proc.price}
+                          </div>
+                          <div style={{ fontSize: "0.68rem", color: "#16a34a", fontWeight: 700 }}>
+                            Net: ₹{netPayout}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* CallMedex Dental Partner Terms MOU Info Banner */}
+                <div style={{
+                  padding: "12px 14px",
+                  borderRadius: 8,
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                }}>
+                  <ShieldCheck size={20} color="#0284c7" style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ fontSize: "0.78rem", color: "#1e3a8a", lineHeight: 1.5 }}>
+                    <strong>Automated Partner MOU Dispatch:</strong> Upon registration, the CallMedex Dental Partner Terms Agreement (80% net dentist payout / 20% platform fee, 100% walk-in delivery protocol, autoclaving standards) will be automatically generated and emailed to you. You can adjust your tariffs and availability anytime in the Dentist Workstation.
+                  </div>
                 </div>
               </div>
             </div>

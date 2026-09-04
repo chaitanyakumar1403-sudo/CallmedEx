@@ -442,12 +442,324 @@ NURSE_MASTER_CATALOG: List[Dict[str, Any]] = [
     },
 ]
 
+# ─── 5. Dental Practice Master Scope (CALL MEDEX - DENTAL PROCEDURE.xlsx) ───
+# Canonical 19 Dental Procedures. 100% In-Clinic Walk-In Only.
+DENTAL_MASTER_CATALOG: List[Dict[str, Any]] = [
+    {
+        "id": "dent_routine_cleanings",
+        "category": "Diagnostic",
+        "service_name": "Routine Cleanings (Prophylaxis)",
+        "modality": "clinic",
+        "duration": "45 Mins (In-Clinic)",
+        "benchmark_price": 800.0,
+        "description": "Removal of plaque and tartar buildup to prevent periodontal disease.",
+    },
+    {
+        "id": "dent_comprehensive_exams",
+        "category": "Diagnostic",
+        "service_name": "Comprehensive Exams",
+        "modality": "clinic",
+        "duration": "30 Mins (In-Clinic)",
+        "benchmark_price": 400.0,
+        "description": "Thorough physical evaluation of teeth, soft tissues, and oral cavity structure.",
+    },
+    {
+        "id": "dent_dental_xrays",
+        "category": "Diagnostic",
+        "service_name": "Dental X-Rays",
+        "modality": "clinic",
+        "duration": "15 Mins (In-Clinic)",
+        "benchmark_price": 350.0,
+        "description": "Diagnostic imaging (bitewing/panoramic) to identify deep decay or bone loss.",
+    },
+    {
+        "id": "dent_fluoride_treatments",
+        "category": "Preventive",
+        "service_name": "Fluoride Treatments",
+        "modality": "clinic",
+        "duration": "15 Mins (In-Clinic)",
+        "benchmark_price": 600.0,
+        "description": "Highly concentrated topical application to reinforce enamel against acid attack.",
+    },
+    {
+        "id": "dent_dental_sealants",
+        "category": "Preventive",
+        "service_name": "Dental Sealants",
+        "modality": "clinic",
+        "duration": "30 Mins (In-Clinic)",
+        "benchmark_price": 750.0,
+        "description": "Protective thin composite barrier applied to deep pits/fissures of molars.",
+    },
+    {
+        "id": "dent_dental_fillings",
+        "category": "Restorative",
+        "service_name": "Dental Fillings",
+        "modality": "clinic",
+        "duration": "45 Mins (In-Clinic)",
+        "benchmark_price": 1200.0,
+        "description": "Excavation of decay followed by restoration using tooth-colored composite resin.",
+    },
+    {
+        "id": "dent_root_canal_therapy",
+        "category": "Endodontic",
+        "service_name": "Root Canal Therapy",
+        "modality": "clinic",
+        "duration": "90 Mins (In-Clinic)",
+        "benchmark_price": 3500.0,
+        "description": "Extirpation of infected or necrotic pulp tissue from root canals to salvage tooth.",
+    },
+    {
+        "id": "dent_crowns_caps",
+        "category": "Prosthodontic",
+        "service_name": "Dental Crowns (Caps)",
+        "modality": "clinic",
+        "duration": "60 Mins (In-Clinic)",
+        "benchmark_price": 4500.0,
+        "description": "Full-coverage custom-fabricated ceramic or porcelain prosthesis to protect weak teeth.",
+    },
+    {
+        "id": "dent_bridges",
+        "category": "Prosthodontic",
+        "service_name": "Bridges",
+        "modality": "clinic",
+        "duration": "90 Mins (In-Clinic)",
+        "benchmark_price": 8000.0,
+        "description": "Fixed multi-unit prosthetic appliance replacing missing teeth anchored to adjacent abutments.",
+    },
+    {
+        "id": "dent_dentures",
+        "category": "Prosthodontic",
+        "service_name": "Dentures",
+        "modality": "clinic",
+        "duration": "60 Mins (In-Clinic)",
+        "benchmark_price": 12000.0,
+        "description": "Removable tissue-supported complete or partial appliance to replace missing arches.",
+    },
+    {
+        "id": "dent_dental_implants",
+        "category": "Surgical-Restorative",
+        "service_name": "Dental Implants",
+        "modality": "clinic",
+        "duration": "120 Mins (In-Clinic)",
+        "benchmark_price": 25000.0,
+        "description": "Surgical placement of titanium endosteal fixture serving as an artificial tooth root.",
+    },
+    {
+        "id": "dent_teeth_whitening",
+        "category": "Cosmetic",
+        "service_name": "Teeth Whitening",
+        "modality": "clinic",
+        "duration": "60 Mins (In-Clinic)",
+        "benchmark_price": 5000.0,
+        "description": "In-office chemically activated or light-assisted bleaching process to lift internal stains.",
+    },
+    {
+        "id": "dent_dental_veneers",
+        "category": "Cosmetic",
+        "service_name": "Dental Veneers",
+        "modality": "clinic",
+        "duration": "90 Mins (In-Clinic)",
+        "benchmark_price": 7500.0,
+        "description": "Ultra-thin custom porcelain facings bonded permanently to anterior teeth surfaces.",
+    },
+    {
+        "id": "dent_cosmetic_bonding",
+        "category": "Cosmetic",
+        "service_name": "Cosmetic Bonding",
+        "modality": "clinic",
+        "duration": "45 Mins (In-Clinic)",
+        "benchmark_price": 2000.0,
+        "description": "Direct application of composite materials to repair minor micro-fractures or structural diastemas.",
+    },
+    {
+        "id": "dent_scaling_root_planing",
+        "category": "Periodontal",
+        "service_name": "Scaling and Root Planing",
+        "modality": "clinic",
+        "duration": "75 Mins (In-Clinic)",
+        "benchmark_price": 1800.0,
+        "description": "Therapeutic deep instrumentation below the gumline to clear calculus and smooth roots.",
+    },
+    {
+        "id": "dent_gum_grafting",
+        "category": "Periodontal-Surgical",
+        "service_name": "Gum Grafting",
+        "modality": "clinic",
+        "duration": "90 Mins (In-Clinic)",
+        "benchmark_price": 9000.0,
+        "description": "Surgical tissue transplantation to restore severe areas of gingival recession.",
+    },
+    {
+        "id": "dent_tooth_extractions",
+        "category": "Oral Surgery",
+        "service_name": "Tooth Extractions",
+        "modality": "clinic",
+        "duration": "45 Mins (In-Clinic)",
+        "benchmark_price": 1000.0,
+        "description": "Surgical or non-surgical removal of non-restorable or heavily fractured teeth.",
+    },
+    {
+        "id": "dent_wisdom_teeth_removal",
+        "category": "Oral Surgery",
+        "service_name": "Wisdom Teeth Removal",
+        "modality": "clinic",
+        "duration": "90 Mins (In-Clinic)",
+        "benchmark_price": 4000.0,
+        "description": "Surgical extraction of impacted, malposed, or symptomatic third molars.",
+    },
+    {
+        "id": "dent_emergency_dental_care",
+        "category": "Emergency",
+        "service_name": "Emergency Dental Care",
+        "modality": "clinic",
+        "duration": "45 Mins (In-Clinic)",
+        "benchmark_price": 1500.0,
+        "description": "Immediate triage and palliative or corrective treatment for acute abscesses or trauma.",
+    },
+]
+
+# ─── 6. Diagnostic Center Scope (DIAGNOSTIC CENTER SCOPE.xls) ───────────────
+# Strictly MRI (33), CT Scans (31), Scans (11), Blood Tests (CBC & CULTURES only).
+# No other blood tests or lab health packages can be provided by diagnostic centers.
+DIAGNOSTIC_CENTER_SCOPE: Dict[str, List[Dict[str, Any]]] = {
+    "mri": [
+        {"id": "mri_brain_plain", "name": "MRI BRAIN PLAIN", "benchmark_price": 5000.0, "category": "mri"},
+        {"id": "mri_brain_plain_contrast", "name": "MRI BRAIN PLAIN WITH CONTRAST", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_spine_single", "name": "MRI SPINE SINGLE REGION", "benchmark_price": 5000.0, "category": "mri"},
+        {"id": "mri_dl_spine", "name": "MRI DL SPINE", "benchmark_price": 6000.0, "category": "mri"},
+        {"id": "mri_cspine_cv_junction", "name": "MRI CSPINE WITH CV JUNCTION", "benchmark_price": 6500.0, "category": "mri"},
+        {"id": "mri_cervical_brachial_plexus", "name": "CERVICAL SPINE WITH BRACHIAL PLEXUS", "benchmark_price": 9500.0, "category": "mri"},
+        {"id": "mri_abdomen", "name": "MRI ABDOMEN", "benchmark_price": 7000.0, "category": "mri"},
+        {"id": "mri_pelvis", "name": "MRI PELVIS", "benchmark_price": 7000.0, "category": "mri"},
+        {"id": "mri_brain_angio", "name": "MRI BRAIN ANGIOGRAM", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_venogram_brain", "name": "MRI VENOGRAM - Brain", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_any_joint", "name": "MRI ANY JOINT", "benchmark_price": 6000.0, "category": "mri"},
+        {"id": "mri_contrast_charges", "name": "ONLY CONTRAST CHARGES", "benchmark_price": 3000.0, "category": "mri"},
+        {"id": "mri_neck", "name": "MRI NECK", "benchmark_price": 6000.0, "category": "mri"},
+        {"id": "mri_renal_angio", "name": "MRI RENAL ANGIO", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_brain_neck_angio", "name": "MRI BRAIN AND NECK ANGIOGRAM", "benchmark_price": 9000.0, "category": "mri"},
+        {"id": "mri_fistulogram", "name": "MRI FISTULOGRAM", "benchmark_price": 6000.0, "category": "mri"},
+        {"id": "mri_orbits", "name": "MRI ORBITS", "benchmark_price": 5000.0, "category": "mri"},
+        {"id": "mri_pns", "name": "MRI PNS", "benchmark_price": 6000.0, "category": "mri"},
+        {"id": "mri_peripheral_lower_limb_angio", "name": "MRI PERIPHERAL LOWER LIMB ANGIOGRAM", "benchmark_price": 11000.0, "category": "mri"},
+        {"id": "mri_brain_orbits", "name": "MRI BRAIN WITH ORBITS", "benchmark_price": 7000.0, "category": "mri"},
+        {"id": "mri_breast", "name": "MRI BREAST", "benchmark_price": 9000.0, "category": "mri"},
+        {"id": "mri_breast_screening", "name": "ABREVATION BREAST MRI FOR SCREENING", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_breast_contrast", "name": "MRI BREAST WITH CONTRAST", "benchmark_price": 9000.0, "category": "mri"},
+        {"id": "mri_cardiac", "name": "MRI CARDIAC", "benchmark_price": 15000.0, "category": "mri"},
+        {"id": "mri_stroke_protocol", "name": "MRI STROKE PROTOCOL", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_sella_contrast", "name": "MRI SELLA WITH CONTRAST", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_mrcp", "name": "MRCP", "benchmark_price": 7000.0, "category": "mri"},
+        {"id": "mri_urogram", "name": "MRI UROGRAM", "benchmark_price": 7000.0, "category": "mri"},
+        {"id": "mri_prostate", "name": "MRI PROSTATE", "benchmark_price": 9000.0, "category": "mri"},
+        {"id": "mri_epilepsy_protocol", "name": "MRI EPILEPSY PROTOCOL", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_dementia_protocol", "name": "MRI DEMENTIA PROTOCOL", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_headache_protocol", "name": "MRI HEADACHE PROTOCOL", "benchmark_price": 8000.0, "category": "mri"},
+        {"id": "mri_defecography", "name": "MRI DEFECOGRAPHY", "benchmark_price": 10000.0, "category": "mri"},
+    ],
+    "ct_scans": [
+        {"id": "ct_3d_any_region", "name": "3 D CT ANY REGION", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_3d_skull", "name": "3D CT SKULL", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_abdomen_plain", "name": "CT ABDOMEN PLAIN", "benchmark_price": 4000.0, "category": "ct"},
+        {"id": "ct_abdomen_contrast", "name": "CT ABDOMEN PLAIN WITH CONTRAST", "benchmark_price": 6500.0, "category": "ct"},
+        {"id": "ct_aortogram", "name": "CT AORTOGRAM", "benchmark_price": 8500.0, "category": "ct"},
+        {"id": "ct_biopsy", "name": "CT BIOPSY", "benchmark_price": 9000.0, "category": "ct"},
+        {"id": "ct_brain_plain", "name": "CT BRAIN PLAIN", "benchmark_price": 2500.0, "category": "ct"},
+        {"id": "ct_chest_plain", "name": "CT CHEST PLAIN", "benchmark_price": 4000.0, "category": "ct"},
+        {"id": "ct_chest_contrast", "name": "CT CHEST PLAIN WITH CONTRAST", "benchmark_price": 6500.0, "category": "ct"},
+        {"id": "ct_entroclysis", "name": "CT ENTROCLYSIS", "benchmark_price": 7000.0, "category": "ct"},
+        {"id": "ct_facial_bones", "name": "CT Facial Bones", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_fnac", "name": "CT FNAC", "benchmark_price": 8000.0, "category": "ct"},
+        {"id": "ct_guided_pigtail", "name": "CT GUIDED PIGTAIL CATHETER", "benchmark_price": 8600.0, "category": "ct"},
+        {"id": "ct_kub", "name": "CT KUB", "benchmark_price": 4000.0, "category": "ct"},
+        {"id": "ct_mastoids", "name": "CT MASTOIDS", "benchmark_price": 4000.0, "category": "ct"},
+        {"id": "ct_neck", "name": "CT NECK", "benchmark_price": 4500.0, "category": "ct"},
+        {"id": "ct_neck_contrast", "name": "CT NECK PLAIN WITH CONTRAST", "benchmark_price": 5500.0, "category": "ct"},
+        {"id": "ct_neck_vessel_angio", "name": "CT NECK VESSEL ANGIO", "benchmark_price": 6500.0, "category": "ct"},
+        {"id": "ct_orbits", "name": "CT ORBITS", "benchmark_price": 3700.0, "category": "ct"},
+        {"id": "ct_pcnl", "name": "CT PCNL", "benchmark_price": 8500.0, "category": "ct"},
+        {"id": "ct_pelvis_hip_joints", "name": "CT PELVIS WITH HIP JOINTS", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_pns_single", "name": "CT PNS (Single film)", "benchmark_price": 3000.0, "category": "ct"},
+        {"id": "ct_pns_two", "name": "CT PNS (Two films)", "benchmark_price": 3500.0, "category": "ct"},
+        {"id": "ct_pns_three", "name": "CT PNS (Three films)", "benchmark_price": 3500.0, "category": "ct"},
+        {"id": "ct_temporal_bones", "name": "CT TEMPORAL BONES", "benchmark_price": 4000.0, "category": "ct"},
+        {"id": "ct_pulmonary_angio", "name": "CT PULMONARY ANGIO", "benchmark_price": 6500.0, "category": "ct"},
+        {"id": "ct_renal_angio", "name": "CT RENAL ANGIOGRAM", "benchmark_price": 8000.0, "category": "ct"},
+        {"id": "ct_spine_any_region", "name": "CT SPINE ANY REGION", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_limb_angio", "name": "CT UPPER / LOWER LIMB ANGIORAM", "benchmark_price": 8000.0, "category": "ct"},
+        {"id": "ct_urogram", "name": "CT UROGRAM", "benchmark_price": 5000.0, "category": "ct"},
+        {"id": "ct_enterography", "name": "CT ENTEROGRAPHY", "benchmark_price": 8000.0, "category": "ct"},
+    ],
+    "scans": [
+        {"id": "scan_ultrasound", "name": "ULTRA SOUND SCANS", "benchmark_price": 1200.0, "category": "imaging"},
+        {"id": "scan_doppler", "name": "DOPPLER", "benchmark_price": 2500.0, "category": "imaging"},
+        {"id": "scan_tiffa", "name": "TIFFA", "benchmark_price": 3000.0, "category": "imaging"},
+        {"id": "scan_antenatal", "name": "ANTENATAL SCAN", "benchmark_price": 1800.0, "category": "imaging"},
+        {"id": "scan_2d_echo", "name": "2D ECHO", "benchmark_price": 2200.0, "category": "imaging"},
+        {"id": "scan_xray_single", "name": "X RAY (SINGLE)", "benchmark_price": 500.0, "category": "imaging"},
+        {"id": "scan_xray_double", "name": "X RAY (DOUBLE)", "benchmark_price": 800.0, "category": "imaging"},
+        {"id": "scan_tmt", "name": "TMT", "benchmark_price": 2000.0, "category": "imaging"},
+        {"id": "scan_bmd", "name": "BMD", "benchmark_price": 2500.0, "category": "imaging"},
+        {"id": "scan_mammogram", "name": "MAMMOGRAM", "benchmark_price": 2500.0, "category": "imaging"},
+        {"id": "scan_hsg", "name": "HSG", "benchmark_price": 3500.0, "category": "imaging"},
+    ],
+    "blood_tests": [
+        {"id": "blood_cbc", "name": "CBC", "benchmark_price": 400.0, "category": "lab_test"},
+        {"id": "blood_cultures", "name": "CULTURES", "benchmark_price": 900.0, "category": "lab_test"},
+    ],
+}
+
+
+def get_diagnostic_center_scope() -> Dict[str, List[Dict[str, Any]]]:
+    """Returns the locked scope of services for diagnostic centers with benchmark MRPs."""
+    return DIAGNOSTIC_CENTER_SCOPE
+
+
+def is_allowed_diagnostic_center_service(name: str, service_type: str = "") -> bool:
+    """
+    Validation gate: Diagnostic centers can ONLY offer MRI, CT Scans, General Scans,
+    and strictly CBC and CULTURES for blood tests. All other blood tests or packages are barred.
+    """
+    clean_name = (name or "").strip().lower()
+    if not clean_name:
+        return False
+
+    norm_name = clean_name.replace(" ", "").replace("-", "").replace("_", "").replace("&", "and")
+
+    # Check Blood tests restriction: strictly CBC and CULTURES only
+    if service_type == "lab_test" or "blood" in service_type or "test" in clean_name:
+        allowed_blood = {"cbc", "cultures", "complete blood count", "blood culture", "culture & sensitivity", "culture"}
+        if any(ab in clean_name for ab in allowed_blood):
+            return True
+        # If it's a lab test not in allowed blood, reject
+        if service_type == "lab_test":
+            return False
+
+    # Check against all allowed categories in DIAGNOSTIC_CENTER_SCOPE
+    for cat, items in DIAGNOSTIC_CENTER_SCOPE.items():
+        for it in items:
+            it_name = it["name"].lower()
+            it_norm = it_name.replace(" ", "").replace("-", "").replace("_", "").replace("&", "and")
+            if (clean_name == it_name or clean_name in it_name or it_name in clean_name
+                or norm_name == it_norm or norm_name in it_norm or it_norm in norm_name):
+                return True
+            # Handle ultrasound/USG and radiography clinical variants
+            if cat == "scans":
+                if ("ultrasound" in norm_name or "usg" in clean_name.split()) and ("ultrasound" in it_norm or "sound" in it_norm):
+                    return True
+                if ("xray" in norm_name or "x-ray" in clean_name) and "xray" in it_norm:
+                    return True
+
+    return False
+
+
 # ─── Master Lookup Map ───────────────────────────────────────────────────────
 ROLE_CATALOG_MAP = {
     "doctor": DOCTOR_MASTER_CATALOG,
     "dietitian": DIETITIAN_MASTER_CATALOG,
     "physiotherapist": PHYSIOTHERAPIST_MASTER_CATALOG,
     "nurse": NURSE_MASTER_CATALOG,
+    "dentist": DENTAL_MASTER_CATALOG,
 }
 
 

@@ -23,8 +23,11 @@ import {
   XCircle,
   Activity,
   Plus,
-  Building2
+  Building2,
+  Check,
+  Search
 } from "lucide-react";
+import { DIAGNOSTIC_CENTER_SCOPE_ITEMS, DIAGNOSTIC_SCOPE_CATEGORIES } from "@/data/diagnosticCenterScope";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -60,6 +63,7 @@ export default function OrganizationDashboard() {
   // Scope of Services Dialog
   const [showScopeDialog, setShowScopeDialog] = useState(false);
   const [scopeSearchQuery, setScopeSearchQuery] = useState("");
+  const [scopeCategoryFilter, setScopeCategoryFilter] = useState<string>("all");
   const [selectedScopeServices, setSelectedScopeServices] = useState<Record<string, number>>({});
   const [bulkAdding, setBulkAdding] = useState(false);
 
@@ -420,7 +424,7 @@ export default function OrganizationDashboard() {
   // clinic has neither packages nor a sample workflow. Each type therefore gets
   // its own tab set and its own vocabulary.
   const TAB_MATRIX: Record<string, string[]> = {
-    diagnostic_center: ["overview", "intake", "collectors", "pending", "services", "packages", "timings", "bookings", "profile"],
+    diagnostic_center: ["overview", "intake", "collectors", "pending", "services", "timings", "bookings", "profile"],
     hospital:          ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
     polyclinic:        ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
     clinic:            ["overview", "pending", "doctors", "services", "timings", "bookings", "profile"],
@@ -493,7 +497,8 @@ export default function OrganizationDashboard() {
     setBulkAdding(true);
     try {
       const token = getToken();
-      const servicesToAdd = predefinedServices.filter(s => selectedIds.includes(s.id));
+      const scopeSource = isDiagnosticCentre ? DIAGNOSTIC_CENTER_SCOPE_ITEMS : predefinedServices;
+      const servicesToAdd = scopeSource.filter(s => selectedIds.includes(s.id));
 
       // Add sequentially to avoid overwhelming if many
       for (const svc of servicesToAdd) {
@@ -516,6 +521,7 @@ export default function OrganizationDashboard() {
       setShowScopeDialog(false);
       setSelectedScopeServices({});
       setScopeSearchQuery("");
+      setScopeCategoryFilter("all");
     } catch (e) {
       setStatusMsg("❌ Failed to add some services.");
     } finally {
@@ -908,6 +914,12 @@ export default function OrganizationDashboard() {
                   </button>
                 </div>
                 <form onSubmit={handleAddService}>
+                  {isDiagnosticCentre && (
+                    <div style={{ padding: "10px 14px", borderRadius: 8, backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: 16, fontSize: "0.82rem", color: "#1e40af", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Sparkles size={16} />
+                      <span>Diagnostic Centers operate under canonical scope (33 MRI, 31 CT, 11 Scans, CBC &amp; Cultures). Use <strong>Select Scope of Services</strong> for 1-click provisioning at benchmark tariffs.</span>
+                    </div>
+                  )}
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>Service Type</label>
                     <select
@@ -915,11 +927,11 @@ export default function OrganizationDashboard() {
                       onChange={e => setAddSvcForm({ ...addSvcForm, service_type: e.target.value })}
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
                     >
-                      <option value="lab_test">Lab Test</option>
-                      <option value="health_package">Health Package</option>
-                      <option value="imaging">Radiology & Imaging</option>
-                      <option value="procedure">Clinical Procedure</option>
-                      <option value="consultation">Consultation</option>
+                      <option value="imaging">Radiology &amp; Imaging</option>
+                      <option value="lab_test">Lab Test {isDiagnosticCentre ? "(CBC / Cultures Only)" : ""}</option>
+                      {!isDiagnosticCentre && <option value="health_package">Health Package</option>}
+                      {!isDiagnosticCentre && <option value="procedure">Clinical Procedure</option>}
+                      {!isDiagnosticCentre && <option value="consultation">Consultation</option>}
                     </select>
                   </div>
                   <div style={{ marginBottom: 14 }}>
@@ -1035,96 +1047,200 @@ export default function OrganizationDashboard() {
             {/* Scope of Services Dialog */}
             {showScopeDialog && (
               <div style={{
-                position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)",
-                display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000
+                position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)",
+                display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+                padding: "20px"
               }}>
-                <div style={{ backgroundColor: "white", borderRadius: 12, padding: 32, width: "100%", maxWidth: 650, maxHeight: "80vh", overflowY: "auto" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <h2 style={{ margin: 0, fontSize: "1.3rem", color: "#1e293b" }}>Scope of Services</h2>
-                    <button onClick={() => setShowScopeDialog(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#94a3b8" }}>✕</button>
-                  </div>
-                  <p style={{ color: "#64748b", fontSize: "0.9rem", marginBottom: 16 }}>
-                    Quickly add standard services to your catalog by selecting them from the list below. You can adjust the price before adding.
-                  </p>
-
-                  {/* Search Bar */}
-                  <div style={{ marginBottom: 20 }}>
-                    <input
-                      type="text"
-                      placeholder="Search for a service (e.g. Blood Test, X-Ray, ECG, Spine)"
-                      value={scopeSearchQuery}
-                      onChange={(e) => setScopeSearchQuery(e.target.value)}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.9rem" }}
-                    />
+                <div style={{ backgroundColor: "white", borderRadius: 14, padding: 28, width: "100%", maxWidth: 740, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#eff6ff", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Sparkles size={20} />
+                      </div>
+                      <div>
+                        <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#0f172a", fontWeight: 800 }}>
+                          {isDiagnosticCentre ? "Diagnostic Center Canonical Scope" : "Scope of Services"}
+                        </h2>
+                        <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                          {isDiagnosticCentre ? "Standardized Radiology & Diagnostic Test Catalog (CallMedex Protocol)" : "Quickly configure catalog offerings"}
+                        </span>
+                      </div>
+                    </div>
+                    <button onClick={() => setShowScopeDialog(false)} style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#94a3b8" }}>✕</button>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-                    {predefinedServices.filter(svc =>
-                      svc.name.toLowerCase().includes(scopeSearchQuery.toLowerCase()) ||
-                      svcTypeLabel[svc.type].toLowerCase().includes(scopeSearchQuery.toLowerCase())
-                    ).map(svc => {
-                      const isSelected = svc.id in selectedScopeServices;
-                      const customPrice = selectedScopeServices[svc.id] ?? svc.price;
+                  {isDiagnosticCentre && (
+                    <div style={{ padding: "10px 14px", borderRadius: 8, backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: 14, fontSize: "0.82rem", color: "#1e40af", display: "flex", alignItems: "center", gap: 8 }}>
+                      <Activity size={16} style={{ flexShrink: 0 }} />
+                      <span>
+                        <strong>Lockdown Active:</strong> Permitted scope is strictly 33 MRI Scans, 31 CT Scans, 11 Scans &amp; Ultrasound, and Core Blood Tests (CBC &amp; Cultures). Select studies and configure your center-specific list price.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Category Pills (For Diagnostic Centers) */}
+                  {isDiagnosticCentre && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                      {DIAGNOSTIC_SCOPE_CATEGORIES.map((cat) => {
+                        const active = scopeCategoryFilter === cat.key;
+                        return (
+                          <button
+                            key={cat.key}
+                            type="button"
+                            onClick={() => setScopeCategoryFilter(cat.key)}
+                            style={{
+                              padding: "5px 12px",
+                              borderRadius: 9999,
+                              border: active ? "1px solid #0284c7" : "1px solid #e2e8f0",
+                              background: active ? "#0284c7" : "#f8fafc",
+                              color: active ? "#ffffff" : "#475569",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Search Bar and Quick Actions */}
+                  <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center" }}>
+                    <div style={{ position: "relative", flex: 1 }}>
+                      <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                      <input
+                        type="text"
+                        placeholder="Search procedures (e.g. Brain, Spine, Knee, Contrast, CBC)..."
+                        value={scopeSearchQuery}
+                        onChange={(e) => setScopeSearchQuery(e.target.value)}
+                        style={{ width: "100%", padding: "9px 12px 9px 36px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem" }}
+                      />
+                    </div>
+                    {isDiagnosticCentre && (() => {
+                      const currentPool = DIAGNOSTIC_CENTER_SCOPE_ITEMS.filter(svc => {
+                        const matchesCat = scopeCategoryFilter === "all" || svc.category_key === scopeCategoryFilter;
+                        const matchesQuery = svc.name.toLowerCase().includes(scopeSearchQuery.toLowerCase()) ||
+                          svc.category.toLowerCase().includes(scopeSearchQuery.toLowerCase());
+                        return matchesCat && matchesQuery;
+                      });
+                      const allSelected = currentPool.length > 0 && currentPool.every(s => s.id in selectedScopeServices);
                       return (
-                        <div key={svc.id} style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12,
-                          backgroundColor: isSelected ? "#f0f9ff" : "white", border: isSelected ? "1px solid #bae6fd" : "1px solid #e2e8f0",
-                          borderRadius: 8, transition: "all 0.2s"
-                        }}>
-                          <label style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", flex: 1 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedScopeServices({ ...selectedScopeServices, [svc.id]: svc.price });
-                                } else {
-                                  const newSel = { ...selectedScopeServices };
-                                  delete newSel[svc.id];
-                                  setSelectedScopeServices(newSel);
-                                }
-                              }}
-                              style={{ marginTop: 4 }}
-                            />
-                            <div>
-                              <div style={{ fontWeight: 600, color: "#0f172a" }}>{svc.name}</div>
-                              <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                                {svcTypeLabel[svc.type]} • Suggested Price: ₹{svc.price}
-                              </div>
-                            </div>
-                          </label>
-
-                          {/* Inline Price Editor */}
-                          {isSelected && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "white", padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1" }}>
-                              <span style={{ color: "#64748b", fontSize: "0.9rem", fontWeight: 600 }}>₹</span>
-                              <input
-                                type="number"
-                                min={0}
-                                value={customPrice}
-                                onChange={(e) => setSelectedScopeServices({ ...selectedScopeServices, [svc.id]: Number(e.target.value) })}
-                                style={{ width: 60, border: "none", outline: "none", fontSize: "0.9rem", fontWeight: 600, color: "#0f172a" }}
-                              />
-                            </div>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSel = { ...selectedScopeServices };
+                            if (allSelected) {
+                              currentPool.forEach(s => delete newSel[s.id]);
+                            } else {
+                              currentPool.forEach(s => { newSel[s.id] = s.price; });
+                            }
+                            setSelectedScopeServices(newSel);
+                          }}
+                          style={{
+                            padding: "9px 14px", borderRadius: 8, border: "1px solid #cbd5e1",
+                            background: "#f8fafc", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer",
+                            whiteSpace: "nowrap", color: "#334155"
+                          }}
+                        >
+                          {allSelected ? "Deselect Filtered" : `Select All (${currentPool.length})`}
+                        </button>
                       );
-                    })}
+                    })()}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                    <button onClick={() => setShowScopeDialog(false)} style={{
-                      padding: "10px 20px", backgroundColor: "#f1f5f9", color: "#475569",
-                      border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer"
-                    }}>
-                      Cancel
-                    </button>
-                    <button onClick={handleBulkAddServices} disabled={bulkAdding || Object.keys(selectedScopeServices).length === 0} style={{
-                      padding: "10px 20px", backgroundColor: "#0284c7", color: "white",
-                      border: "none", borderRadius: 8, fontWeight: 600, cursor: (bulkAdding || Object.keys(selectedScopeServices).length === 0) ? "not-allowed" : "pointer",
-                      opacity: (bulkAdding || Object.keys(selectedScopeServices).length === 0) ? 0.7 : 1
-                    }}>
-                      {bulkAdding ? "Adding..." : `Add Selected (${Object.keys(selectedScopeServices).length})`}
-                    </button>
+
+                  {/* Service Items Scroll List */}
+                  <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingRight: 4, marginBottom: 18 }}>
+                    {(() => {
+                      const sourceList = isDiagnosticCentre ? DIAGNOSTIC_CENTER_SCOPE_ITEMS : predefinedServices;
+                      const filtered = sourceList.filter(svc => {
+                        const matchesCat = !isDiagnosticCentre || scopeCategoryFilter === "all" || (svc as any).category_key === scopeCategoryFilter;
+                        const matchesQuery = svc.name.toLowerCase().includes(scopeSearchQuery.toLowerCase()) ||
+                          (svcTypeLabel[svc.type] || "").toLowerCase().includes(scopeSearchQuery.toLowerCase()) ||
+                          ((svc as any).category || "").toLowerCase().includes(scopeSearchQuery.toLowerCase());
+                        return matchesCat && matchesQuery;
+                      });
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div style={{ textAlign: "center", padding: "30px 0", color: "#94a3b8", fontSize: "0.9rem" }}>
+                            No procedures match your filter.
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(svc => {
+                        const isSelected = svc.id in selectedScopeServices;
+                        const customPrice = selectedScopeServices[svc.id] ?? svc.price;
+                        return (
+                          <div key={svc.id} style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 14px",
+                            backgroundColor: isSelected ? "#f0f9ff" : "#ffffff", border: isSelected ? "1px solid #bae6fd" : "1px solid #e2e8f0",
+                            borderRadius: 8, transition: "all 0.15s ease"
+                          }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", flex: 1 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedScopeServices({ ...selectedScopeServices, [svc.id]: svc.price });
+                                  } else {
+                                    const newSel = { ...selectedScopeServices };
+                                    delete newSel[svc.id];
+                                    setSelectedScopeServices(newSel);
+                                  }
+                                }}
+                              />
+                              <div>
+                                <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.9rem" }}>{svc.name}</div>
+                                <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2 }}>
+                                  {(svc as any).category ? `${(svc as any).category} • ` : ""}{svcTypeLabel[svc.type] || svc.type} • Benchmark: ₹{svc.price}
+                                </div>
+                              </div>
+                            </label>
+
+                            {/* Inline Price Editor */}
+                            {isSelected && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "white", padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1" }}>
+                                <span style={{ color: "#64748b", fontSize: "0.85rem", fontWeight: 700 }}>₹</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={customPrice}
+                                  onChange={(e) => setSelectedScopeServices({ ...selectedScopeServices, [svc.id]: Number(e.target.value) })}
+                                  style={{ width: 70, border: "none", outline: "none", fontSize: "0.88rem", fontWeight: 700, color: "#0f172a" }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", paddingTop: 14 }}>
+                    <div style={{ fontSize: "0.85rem", color: "#475569", fontWeight: 600 }}>
+                      Selected: <strong style={{ color: "#0284c7" }}>{Object.keys(selectedScopeServices).length}</strong> procedures
+                    </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <button onClick={() => setShowScopeDialog(false)} style={{
+                        padding: "8px 18px", backgroundColor: "#f1f5f9", color: "#475569",
+                        border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: "0.85rem"
+                      }}>
+                        Cancel
+                      </button>
+                      <button onClick={handleBulkAddServices} disabled={bulkAdding || Object.keys(selectedScopeServices).length === 0} style={{
+                        padding: "8px 20px", backgroundColor: "#0284c7", color: "white",
+                        border: "none", borderRadius: 8, fontWeight: 700, cursor: (bulkAdding || Object.keys(selectedScopeServices).length === 0) ? "not-allowed" : "pointer",
+                        opacity: (bulkAdding || Object.keys(selectedScopeServices).length === 0) ? 0.6 : 1, fontSize: "0.85rem",
+                        display: "flex", alignItems: "center", gap: 6
+                      }}>
+                        {bulkAdding ? "Provisioning..." : `Provision Selected (${Object.keys(selectedScopeServices).length})`}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

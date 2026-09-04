@@ -93,6 +93,7 @@ MOU_REQUIRED_ROLES = {
     # fallback text; only this set was short.
     UserRole.DIETITIAN,
     UserRole.PHYSIOTHERAPIST,
+    UserRole.DENTIST,
 }
 
 # ─── Role-to-table and profile builder mapping ────────────────────────────
@@ -106,6 +107,7 @@ ROLE_TABLE_MAP = {
     UserRole.NURSE: "nurses",
     UserRole.DIETITIAN: "dietitians",
     UserRole.PHYSIOTHERAPIST: "physiotherapists",
+    UserRole.DENTIST: "dentists",
 }
 
 
@@ -132,10 +134,14 @@ def _create_user(user_data: dict) -> dict:
 
 
 def _create_role_profile(table: str, profile_data: dict) -> dict:
-    """Insert role-specific profile data."""
+    """Insert role-specific profile data with robust fallback."""
     if supabase:
-        result = supabase.table(table).insert(profile_data).execute()
-        return result.data[0]
+        try:
+            result = supabase.table(table).insert(profile_data).execute()
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+        except Exception as e:
+            logger.warning(f"Failed to insert into {table} in Supabase: {e}, falling back to local store")
     _local_users_cleanup()
     if table not in _local_profiles:
         _local_profiles[table] = []
@@ -322,6 +328,22 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "current_lat": None,
             "current_lng": None,
             "service_radius_km": 15.0,
+            "scope_of_services": getattr(user, "scope_of_services", None) or [],
+            "verification_status": "pending",
+        }
+
+    elif user.role == UserRole.DENTIST:
+        return {
+            **base,
+            "dental_license_number": getattr(user, "dental_license_number", None) or "",
+            "qualification": user.qualification or "",
+            "specializations": getattr(user, "dental_specializations", None) or [],
+            "years_of_experience": user.years_of_experience or 0,
+            "clinic_name": getattr(user, "clinic_name", None) or getattr(user, "hospital_clinic_name", None) or "",
+            "consultation_fee": getattr(user, "consultation_fee", 400.0) or 400.0,
+            "consultation_mode": "clinic",  # Dental is strictly In-Clinic Walk-in
+            "available_for_online": False,  # Dental is walk-in only
+            "available_for_home_visit": False,  # Dental is walk-in only
             "scope_of_services": getattr(user, "scope_of_services", None) or [],
             "verification_status": "pending",
         }

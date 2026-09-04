@@ -20,6 +20,7 @@ class UserRole(str, Enum):
     NURSE = "nurse"
     DIETITIAN = "dietitian"
     PHYSIOTHERAPIST = "physiotherapist"
+    DENTIST = "dentist"
     AMBULANCE = "ambulance"
     ADMIN = "admin"
 
@@ -258,6 +259,11 @@ class UserSignup(UserBase):
     # Physiotherapist-specific
     physio_license_number: Optional[str] = None
     physio_specializations: Optional[List[str]] = None
+
+    # Dentist-specific
+    dental_license_number: Optional[str] = None
+    dental_specializations: Optional[List[str]] = None
+    clinic_name: Optional[str] = None
 
     # Selected Scope of Services & Custom Tariffs
     scope_of_services: Optional[List[dict]] = None

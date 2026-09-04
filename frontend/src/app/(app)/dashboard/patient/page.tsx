@@ -20,6 +20,7 @@ import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import RadiologyCentersSection from "@/app/components/RadiologyCentersSection";
+import DentalWalkInDirectory from "@/app/components/DentalWalkInDirectory";
 import {
   Mic,
   Shield,
@@ -1461,10 +1462,39 @@ export default function PatientDashboard() {
               {t.quickActions.aiReportsTag}
             </span>
           </a>
+
+          {/* Dental Clinic (100% Walk-In Only) */}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById("dental-directory-section");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="cm-quick-card"
+          >
+            <div className="cm-quick-card__stripe" style={{ background: "#0ea5e9" }} />
+            <div>
+              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 44, height: 44, padding: 0 }}>
+                <Clinical3DIcon name="dental" size={42} glow />
+              </div>
+              <h4 className="cm-quick-card__title">Dental Walk-In Care</h4>
+              <p className="cm-quick-card__subtitle">
+                19 Canonical procedures: RCT, scaling, crowns &amp; oral surgery.
+              </p>
+            </div>
+            <span className="cm-quick-card__tag" style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd" }}>
+              100% Walk-In Only
+            </span>
+          </button>
         </div>
 
-        {/* Radiology & Diagnostic Imaging Centers (X-Ray, ECG, PFT, Audiometry) */}
+        {/* Radiology & Diagnostic Imaging Centers (MRI, CT, Scans, CBC) */}
         <RadiologyCentersSection onBookingCreated={refreshBookings} lang={lang} />
+
+        {/* Dental Practice & Oral Care Walk-In Directory (19 Canonical Procedures) */}
+        <div id="dental-directory-section">
+          <DentalWalkInDirectory onBookingCreated={refreshBookings} lang={lang} />
+        </div>
 
         {/* Family Members */}
         <FamilyMembersPanel />

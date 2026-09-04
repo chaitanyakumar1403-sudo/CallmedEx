@@ -25,6 +25,7 @@ ROLE_TABLE_MAP = {
     "dietitian": "dietitians",
     "physiotherapist": "physiotherapists",
     "nurse": "nurses",
+    "dentist": "dentists",
 }
 
 
@@ -191,7 +192,7 @@ async def search_providers(
 
         res = query.execute()
         clinic_only_ids = None
-        if modality == "clinic":
+        if modality == "clinic" and role == "doctor":
             clinic_only_ids = _providers_with_walkin_availability(
                 [r.get("user_id") for r in (res.data or []) if r.get("user_id")]
             )
@@ -242,7 +243,7 @@ async def search_providers(
                 "state": u.get("state") or "",
                 "available_for_online": row.get("available_for_online", False),
                 "available_for_home_visit": row.get("available_for_home_visit", False),
-                "clinic_center_name": row.get("clinic_center_name") or "",
+                "clinic_center_name": row.get("clinic_name") or row.get("clinic_center_name") or "",
                 "scope_of_services": row.get("scope_of_services", []),
             })
     except Exception as e:

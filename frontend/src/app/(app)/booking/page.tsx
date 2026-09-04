@@ -225,6 +225,10 @@ function BookingPageContent() {
 
   // Pre-select booking type & organization from URL params
   useEffect(() => {
+    if (typeParam === "dental") {
+      router.push("/dashboard/patient#dental-directory-section");
+      return;
+    }
     const targetType = typeParam || (orgParam ? "lab" : serviceParam ? "lab" : packageParam ? "lab" : "");
     if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];
@@ -242,7 +246,7 @@ function BookingPageContent() {
         }
       }
     }
-  }, [typeParam, orgParam, serviceParam, packageParam, bookingType]);
+  }, [typeParam, orgParam, serviceParam, packageParam, bookingType, router]);
 
   // Auto-add package and any 30% discounted add-ons to selectedTests when arriving from /packages page
   useEffect(() => {

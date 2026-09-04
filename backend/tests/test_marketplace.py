@@ -511,11 +511,13 @@ def test_radiology_returns_every_canonical_service(fake_db):
     """The catalogue is fixed; what varies is who offers each study."""
     services = MarketplaceService.radiology_services_with_offers(city="Visakhapatnam")
 
-    assert {s["slug"] for s in services} == {
+    slugs = {s["slug"] for s in services}
+    assert {
         "x-ray-single", "x-ray-double", "spine-x-ray-single",
         "spine-x-ray-double", "ecg-12-lead", "pft-spirometry",
         "audiometry-hearing-test",
-    }
+    }.issubset(slugs)
+    assert len(services) >= 80
 
 
 def test_a_service_nobody_offers_advertises_no_price(fake_db):

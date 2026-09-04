@@ -132,8 +132,8 @@ async def urgent_pricing(base_price: float = Query(0, ge=0)):
 @router.get("/radiology/services")
 async def get_radiology_services(city: Optional[str] = Query(None, description="Patient's city")):
     """
-    Returns canonical radiology & diagnostic imaging services (X-Ray, Spine X-Ray,
-    ECG, PFT, Audiometry) with diagnostic centers offering each test and their respective prices.
+    Returns canonical radiology & diagnostic imaging services (MRI, CT Scans,
+    Ultrasound, Doppler, X-Ray, etc.) with diagnostic centers offering each study and their transparent quotes.
     """
     services = MarketplaceService.radiology_services_with_offers(city=city)
     return {
@@ -142,4 +142,20 @@ async def get_radiology_services(city: Optional[str] = Query(None, description="
         "city": city or "All Locations",
         "services": services,
     }
+
+
+@router.get("/dental/services")
+async def get_dental_services(city: Optional[str] = Query(None, description="Patient's city")):
+    """
+    Returns canonical dental procedures (19 procedures from CALL MEDEX - DENTAL PROCEDURE.xlsx)
+    with verified dental clinics and dentists offering them, transparent walk-in fees, and savings.
+    """
+    services = MarketplaceService.dental_services_with_offers(city=city)
+    return {
+        "success": True,
+        "total": len(services),
+        "city": city or "All Locations",
+        "services": services,
+    }
+
 

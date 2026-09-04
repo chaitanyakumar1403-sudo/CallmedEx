@@ -20,6 +20,7 @@ ROLE_MOU_MAP = {
     "nurse": "mou_nurse",
     "dietitian": "mou_dietitian",
     "physiotherapist": "mou_physiotherapist",
+    "dentist": "mou_dentist",
     "staff": "mou_staff",
     "ambulance": "mou_ambulance",
 }
@@ -133,6 +134,29 @@ FALLBACK_MOU = {
             "4. NON-SOLICITATION & OFF-PLATFORM BAR\n"
             "Off-platform dealings or diverting CallMedex patients directly is strictly prohibited and results in immediate forfeiture of pending wallet balances and account revocation.\n\n"
             "ACCEPTANCE: By digitally accepting, you legally agree to these terms, operational guidelines, and the 80/20 commercial split."
+        ),
+    },
+    "dentist": {
+        "title": "Dental Practice Agreement & Terms of Onboarding — CallMedex",
+        "content": (
+            "TERMS AND CONDITIONS FOR DENTAL PRACTICE & PROCEDURAL SERVICES\n"
+            "IN-CLINIC WALK-IN APPOINTMENTS & PROCEDURES — CALLMEDEX\n\n"
+            "1. SERVICE DELIVERY MODEL: 100% IN-CLINIC WALK-IN ONLY\n"
+            "• Dental clinical care, invasive and non-invasive procedures require certified operatory infrastructure, dental chairs, high-vacuum suction, and sterile instruments.\n"
+            "• Dental services are exclusively offered as In-Clinic Walk-In appointments. Home visit dental treatments and unassisted tele-procedures are strictly barred for clinical safety.\n\n"
+            "2. 80/20 COMMERCIAL SPLIT & TARIFF SCHEDULE\n"
+            "• Platform Fee: CallMedex retains a 20% technology and administrative fee from gross procedure billing for patient routing, appointment slotting, automated reminder workflows, and digital infrastructure.\n"
+            "• Provider Share: 80% of gross patient billing constitutes the net professional remuneration credited to the Dentist's practice account for periodic settlement.\n"
+            "• Procedure Pricing Autonomy: The Dentist has complete freedom to adopt CallMedex benchmark tariffs or configure custom procedure tariffs on their workstation dashboard.\n\n"
+            "3. SCOPE OF APPROVED DENTAL PROCEDURES\n"
+            "• Only procedures registered from the canonical CallMedex Dental Master Scope (Diagnostic, Preventive, Restorative, Endodontic, Prosthodontic, Cosmetic, Periodontal, Oral Surgery, Emergency) shall be performed under platform booking.\n"
+            "• Valid State Dental Council / Dental Council of India (DCI) registration is mandatory and must be kept active at all times.\n\n"
+            "4. STERILIZATION, INFECTION CONTROL & DPDP COMPLIANCE\n"
+            "• Autoclave & Sterilization: The practice must adhere to Class-B autoclaving, surface disinfection, and strict biomedical waste disposal guidelines.\n"
+            "• Digital Records: Patient digital records, dental radiographs (IOPA/OPG), and consent forms must be maintained securely per the DPDP Act 2023.\n\n"
+            "5. ZERO OFF-PLATFORM TRANSACTIONS\n"
+            "Direct private solicitation of CallMedex booked patients outside the platform is strictly prohibited.\n\n"
+            "ACCEPTANCE: By clicking 'I Agree', you legally bind yourself to these terms, clinical guidelines, and the 80/20 commercial split."
         ),
     },
     "staff": {

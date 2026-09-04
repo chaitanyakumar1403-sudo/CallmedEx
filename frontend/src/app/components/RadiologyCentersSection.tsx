@@ -67,6 +67,8 @@ export default function RadiologyCentersSection({
 }: RadiologyCentersSectionProps) {
   const [services, setServices] = useState<RadiologyService[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [cityFilter, setCityFilter] = useState<string>("");
@@ -112,9 +114,47 @@ export default function RadiologyCentersSection({
     loadRadiologyServices();
   }, [apiBase, cityFilter]);
 
+  const RADIOLOGY_CATEGORY_TABS = [
+    { key: "all", label: "All Studies" },
+    { key: "mri", label: "MRI Scans" },
+    { key: "ct_scans", label: "CT Scans" },
+    { key: "scans", label: "Ultrasound & Scans" },
+    { key: "blood_tests", label: "Core Blood Tests" },
+    { key: "radiography", label: "General Radiography" },
+  ] as const;
+
+  const filteredServices = useMemo(() => {
+    return services.filter((svc) => {
+      let catMatch = true;
+      if (selectedCategory === "radiography") {
+        catMatch = ["xray", "ecg", "spirometry", "audiometry"].includes(svc.sub_category) ||
+          svc.name.toLowerCase().includes("x-ray") ||
+          svc.name.toLowerCase().includes("ecg");
+      } else if (selectedCategory !== "all") {
+        catMatch = svc.sub_category === selectedCategory;
+      }
+
+      const q = searchQuery.trim().toLowerCase();
+      const searchMatch = !q ||
+        svc.name.toLowerCase().includes(q) ||
+        (svc.description || "").toLowerCase().includes(q) ||
+        (svc.sub_category || "").toLowerCase().includes(q);
+
+      return catMatch && searchMatch;
+    });
+  }, [services, selectedCategory, searchQuery]);
+
+  useEffect(() => {
+    if (filteredServices.length > 0) {
+      if (!filteredServices.some((s) => s.id === selectedServiceId)) {
+        setSelectedServiceId(filteredServices[0].id);
+      }
+    }
+  }, [filteredServices, selectedServiceId]);
+
   const activeService = useMemo(() => {
-    return services.find((s) => s.id === selectedServiceId) || services[0] || null;
-  }, [services, selectedServiceId]);
+    return filteredServices.find((s) => s.id === selectedServiceId) || filteredServices[0] || null;
+  }, [filteredServices, selectedServiceId]);
 
   const sortedOffers = useMemo(() => {
     if (!activeService) return [];
@@ -248,8 +288,34 @@ export default function RadiologyCentersSection({
           </p>
         </div>
 
-        {/* Filters / Sort */}
+        {/* Filters / Sort / Search */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <Search size={14} style={{ position: "absolute", left: 10, color: "var(--cm-ink-3)" }} />
+            <input
+              type="text"
+              placeholder="Search scans (Brain, Spine, Knee, CBC)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                padding: "6px 12px 6px 30px",
+                borderRadius: "8px",
+                border: "1px solid var(--cm-line)",
+                background: "var(--cm-surface-2)",
+                fontSize: "0.8rem",
+                color: "var(--cm-ink)",
+                outline: "none",
+                width: "220px",
+              }}
+            />
+          </div>
+
           <div
             style={{
               display: "flex",
@@ -309,69 +375,139 @@ export default function RadiologyCentersSection({
         </div>
       ) : (
         <>
-          {/* Service Tabs Rail */}
+          {/* Category Pills Navigation */}
           <div
             style={{
               display: "flex",
-              gap: "8px",
+              gap: "6px",
               overflowX: "auto",
-              paddingBottom: "12px",
-              marginBottom: "16px",
-              scrollbarWidth: "thin",
+              paddingBottom: "10px",
+              marginBottom: "10px",
+              scrollbarWidth: "none",
             }}
           >
-            {services.map((svc) => {
-              const isSelected = svc.id === selectedServiceId;
+            {RADIOLOGY_CATEGORY_TABS.map((cat) => {
+              const isCatActive = selectedCategory === cat.key;
+              const count = services.filter((s) => {
+                if (cat.key === "all") return true;
+                if (cat.key === "radiography") {
+                  return ["xray", "ecg", "spirometry", "audiometry"].includes(s.sub_category) ||
+                    s.name.toLowerCase().includes("x-ray") ||
+                    s.name.toLowerCase().includes("ecg");
+                }
+                return s.sub_category === cat.key;
+              }).length;
+
               return (
                 <button
-                  key={svc.id}
+                  key={cat.key}
                   type="button"
-                  onClick={() => setSelectedServiceId(svc.id)}
+                  onClick={() => setSelectedCategory(cat.key)}
                   style={{
-                    padding: "8px 16px",
+                    padding: "5px 14px",
                     borderRadius: "9999px",
-                    border: isSelected
+                    border: isCatActive
                       ? "1px solid var(--cm-navy)"
                       : "1px solid var(--cm-line)",
-                    background: isSelected ? "var(--cm-navy)" : "var(--cm-surface-2)",
-                    color: isSelected ? "#ffffff" : "var(--cm-ink-2)",
+                    background: isCatActive ? "var(--cm-navy)" : "var(--cm-surface)",
+                    color: isCatActive ? "#ffffff" : "var(--cm-ink-2)",
                     fontWeight: 700,
-                    fontSize: "0.82rem",
+                    fontSize: "0.78rem",
                     cursor: "pointer",
                     whiteSpace: "nowrap",
                     display: "flex",
                     alignItems: "center",
-                    gap: "8px",
+                    gap: "6px",
                     transition: "all 0.15s ease",
                   }}
                 >
-                  <span>{svc.name}</span>
+                  <span>{cat.label}</span>
                   <span
                     style={{
-                      fontSize: "0.75rem",
-                      padding: "2px 8px",
+                      fontSize: "0.7rem",
+                      padding: "1px 6px",
                       borderRadius: "9999px",
-                      background: isSelected
-                        ? "rgba(255, 255, 255, 0.2)"
-                        : svc.offers_count > 0
-                        ? "var(--cm-done-surface)"
-                        : "var(--cm-surface-3)",
-                      color: isSelected
-                        ? "#ffffff"
-                        : svc.offers_count > 0
-                        ? "var(--cm-done)"
-                        : "var(--cm-ink-3)",
+                      background: isCatActive ? "rgba(255, 255, 255, 0.25)" : "var(--cm-surface-3)",
+                      color: isCatActive ? "#ffffff" : "var(--cm-ink-3)",
                       fontWeight: 800,
                     }}
                   >
-                    {svc.offers_count > 0
-                      ? `${svc.offers_count} Center${svc.offers_count > 1 ? "s" : ""} · ₹${svc.min_price}`
-                      : "No centre yet"}
+                    {count}
                   </span>
                 </button>
               );
             })}
           </div>
+
+          {/* Service Tabs Rail */}
+          {filteredServices.length === 0 ? (
+            <div style={{ padding: "24px", textAlign: "center", color: "var(--cm-ink-3)", fontSize: "0.88rem" }}>
+              No diagnostic studies match "{searchQuery}" in this category.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                overflowX: "auto",
+                paddingBottom: "12px",
+                marginBottom: "16px",
+                scrollbarWidth: "thin",
+              }}
+            >
+              {filteredServices.map((svc) => {
+                const isSelected = svc.id === selectedServiceId;
+                return (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    onClick={() => setSelectedServiceId(svc.id)}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: "9999px",
+                      border: isSelected
+                        ? "1px solid var(--cm-navy)"
+                        : "1px solid var(--cm-line)",
+                      background: isSelected ? "var(--cm-navy)" : "var(--cm-surface-2)",
+                      color: isSelected ? "#ffffff" : "var(--cm-ink-2)",
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span>{svc.name}</span>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "2px 8px",
+                        borderRadius: "9999px",
+                        background: isSelected
+                          ? "rgba(255, 255, 255, 0.2)"
+                          : svc.offers_count > 0
+                          ? "var(--cm-done-surface)"
+                          : "var(--cm-surface-3)",
+                        color: isSelected
+                          ? "#ffffff"
+                          : svc.offers_count > 0
+                          ? "var(--cm-done)"
+                          : "var(--cm-ink-3)",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {svc.offers_count > 0
+                        ? `${svc.offers_count} Center${svc.offers_count > 1 ? "s" : ""} · ₹${svc.min_price}`
+                        : "No centre yet"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Active Service Summary Bar */}
           {activeService && (
