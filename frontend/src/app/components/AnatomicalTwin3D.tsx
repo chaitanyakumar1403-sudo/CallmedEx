@@ -2,27 +2,125 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { RotateCw, ZoomIn, ZoomOut, Maximize2, Sparkles, Activity } from "lucide-react";
+import {
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Brain,
+  Eye,
+  Smile,
+  Ear,
+  Wind,
+  Heart,
+  Droplet,
+  Bone,
+  Sparkles,
+} from "lucide-react";
 
 export interface OrganNode {
   id: string;
   name: string;
-  y: number; // Vertical position in 3D space
+  shortName: string;
+  icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+  y: number; // Vertical anchor in 3D coordinate system
+  xOffset?: number;
   zOffset?: number;
   color: string;
   focusDistance: number;
 }
 
 export const ORGAN_3D_TARGETS: Record<string, OrganNode> = {
-  head: { id: "head", name: "Brain & Nervous System", y: 2.1, color: "#4338ca", focusDistance: 2.8 },
-  eyes: { id: "eyes", name: "Eyes & Vision", y: 2.05, zOffset: 0.35, color: "#0284c7", focusDistance: 2.6 },
-  dental: { id: "dental", name: "Teeth & Oral Care", y: 1.85, zOffset: 0.35, color: "#0d9488", focusDistance: 2.5 },
-  ent: { id: "ent", name: "Ears, Nose & Throat", y: 1.95, color: "#d97706", focusDistance: 2.5 },
-  lungs: { id: "lungs", name: "Lungs & Respiratory", y: 1.1, color: "#0369a1", focusDistance: 3.2 },
-  heart: { id: "heart", name: "Heart & Cardiovascular", y: 1.05, zOffset: 0.25, color: "#d92020", focusDistance: 2.9 },
-  abdomen: { id: "abdomen", name: "Liver, Gut & Metabolism", y: 0.35, zOffset: 0.2, color: "#15803d", focusDistance: 3.4 },
-  joints: { id: "joints", name: "Bones, Spine & Joints", y: -0.6, color: "#b45309", focusDistance: 3.8 },
-  skin: { id: "skin", name: "Skin & Dermatology", y: 0.8, zOffset: 0.5, color: "#db2777", focusDistance: 3.5 },
+  head: {
+    id: "head",
+    name: "Brain & Nervous System",
+    shortName: "Brain",
+    icon: Brain,
+    y: 2.15,
+    color: "#4338ca",
+    focusDistance: 2.7,
+  },
+  eyes: {
+    id: "eyes",
+    name: "Eyes & Vision",
+    shortName: "Eyes",
+    icon: Eye,
+    y: 2.15,
+    zOffset: 0.36,
+    color: "#0284c7",
+    focusDistance: 2.5,
+  },
+  dental: {
+    id: "dental",
+    name: "Teeth & Oral Care",
+    shortName: "Teeth",
+    icon: Smile,
+    y: 1.88,
+    zOffset: 0.35,
+    color: "#0d9488",
+    focusDistance: 2.5,
+  },
+  ent: {
+    id: "ent",
+    name: "Ears, Nose & Throat",
+    shortName: "Ears/ENT",
+    icon: Ear,
+    y: 2.05,
+    xOffset: 0.38,
+    color: "#d97706",
+    focusDistance: 2.6,
+  },
+  lungs: {
+    id: "lungs",
+    name: "Lungs & Respiratory",
+    shortName: "Lungs",
+    icon: Wind,
+    y: 1.15,
+    color: "#0284c7",
+    focusDistance: 3.1,
+  },
+  heart: {
+    id: "heart",
+    name: "Heart & Cardiovascular",
+    shortName: "Heart",
+    icon: Heart,
+    y: 1.1,
+    xOffset: -0.12,
+    zOffset: 0.2,
+    color: "#d92020",
+    focusDistance: 2.8,
+  },
+  abdomen: {
+    id: "abdomen",
+    name: "Liver, Gut & Metabolism",
+    shortName: "Abdomen",
+    icon: Droplet,
+    y: 0.38,
+    xOffset: 0.12,
+    zOffset: 0.16,
+    color: "#15803d",
+    focusDistance: 3.2,
+  },
+  joints: {
+    id: "joints",
+    name: "Bones, Spine & Joints",
+    shortName: "Spine/Joints",
+    icon: Bone,
+    y: -0.4,
+    color: "#b45309",
+    focusDistance: 3.6,
+  },
+  skin: {
+    id: "skin",
+    name: "Skin & Dermatology",
+    shortName: "Skin",
+    icon: Sparkles,
+    y: 0.75,
+    xOffset: -0.65,
+    zOffset: 0.18,
+    color: "#db2777",
+    focusDistance: 3.3,
+  },
 };
 
 interface AnatomicalTwin3DProps {
@@ -39,20 +137,23 @@ export default function AnatomicalTwin3D({
   const mountRef = useRef<HTMLDivElement>(null);
   const [webGLSupported, setWebGLSupported] = useState<boolean>(true);
   const [rotationActive, setRotationActive] = useState<boolean>(true);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const nodesGroupRef = useRef<THREE.Group | null>(null);
+  const organsGroupRef = useRef<THREE.Group | null>(null);
+  const heartMeshRef = useRef<THREE.Group | null>(null);
+  const lungsGroupRef = useRef<THREE.Group | null>(null);
+  const selectedPulseRef = useRef<THREE.Mesh | null>(null);
   const targetLookAtRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0.6, 0));
   const currentLookAtRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0.6, 0));
 
-  // Initialize Three.js Scene
+  // Initialize High-Fidelity Anatomical Three.js Scene
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    // Check WebGL support
     try {
       const canvas = document.createElement("canvas");
       const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
@@ -65,144 +166,639 @@ export default function AnatomicalTwin3D({
       return;
     }
 
-    const width = container.clientWidth || 400;
+    const width = container.clientWidth || 420;
     const height = container.clientHeight || 480;
 
-    // Scene
+    // Scene & Clean Clinical Lighting
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(0xfcfdfd);
+    scene.background = new THREE.Color(0xfbfcfd);
 
-    // Camera
+    // Perspective Camera
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0.8, 5.2);
+    camera.position.set(0, 0.75, 5.0);
     cameraRef.current = camera;
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
     rendererRef.current = renderer;
     container.replaceChildren(renderer.domElement);
 
-    // Ambient & Directional Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    // Multi-Point Clinical Lighting System
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
     scene.add(ambientLight);
 
-    const dirLight1 = new THREE.DirectionalLight(0x0284c7, 0.4);
-    dirLight1.position.set(5, 10, 7);
-    scene.add(dirLight1);
+    const mainKeyLight = new THREE.DirectionalLight(0x0284c7, 0.65);
+    mainKeyLight.position.set(4, 8, 6);
+    scene.add(mainKeyLight);
 
-    const dirLight2 = new THREE.DirectionalLight(0x1a2b4a, 0.3);
-    dirLight2.position.set(-5, -5, -5);
-    scene.add(dirLight2);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+    rimLight.position.set(-5, 6, -5);
+    scene.add(rimLight);
 
-    // Create Anatomical Wireframe / Human Silhouette Form
-    const bodyGroup = new THREE.Group();
-    scene.add(bodyGroup);
+    const fillLight = new THREE.DirectionalLight(0x1a2b4a, 0.35);
+    fillLight.position.set(0, -6, 4);
+    scene.add(fillLight);
 
-    // Clinical Material
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe2e8f0,
-      roughness: 0.3,
-      metalness: 0.1,
+    // Root Group for Full Anatomical Body
+    const humanBodyRoot = new THREE.Group();
+    scene.add(humanBodyRoot);
+
+    // ==========================================
+    // 1. ANATOMICAL HUMAN SILHOUETTE MESH
+    // ==========================================
+    const humanSilhouetteGroup = new THREE.Group();
+    humanBodyRoot.add(humanSilhouetteGroup);
+
+    // Medical Hologram Shell Material
+    const holographicSkinMat = new THREE.MeshStandardMaterial({
+      color: 0x93c5fd,
+      roughness: 0.25,
+      metalness: 0.15,
       transparent: true,
-      opacity: 0.6,
-      wireframe: true,
+      opacity: 0.28,
+      depthWrite: false,
     });
 
-    const bodySolidMaterial = new THREE.MeshStandardMaterial({
-      color: 0xf8fafc,
-      roughness: 0.6,
+    // Anatomical Tomography Wireframe Outline
+    const wireframeOverlayMat = new THREE.MeshStandardMaterial({
+      color: 0x3b82f6,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.16,
+    });
+
+    const addAnatomicalPart = (geom: THREE.BufferGeometry, pos: [number, number, number], rot?: [number, number, number], scale?: [number, number, number]) => {
+      const solidMesh = new THREE.Mesh(geom, holographicSkinMat);
+      solidMesh.position.set(...pos);
+      if (rot) solidMesh.rotation.set(...rot);
+      if (scale) solidMesh.scale.set(...scale);
+      humanSilhouetteGroup.add(solidMesh);
+
+      const wireMesh = new THREE.Mesh(geom, wireframeOverlayMat);
+      wireMesh.position.set(...pos);
+      if (rot) wireMesh.rotation.set(...rot);
+      if (scale) wireMesh.scale.set(...scale);
+      humanSilhouetteGroup.add(wireMesh);
+    };
+
+    // Cranium & Head
+    const craniumGeom = new THREE.SphereGeometry(0.36, 32, 32);
+    addAnatomicalPart(craniumGeom, [0, 2.18, 0], undefined, [1.0, 1.15, 1.05]);
+
+    // Facial Contour & Mandible Jawline
+    const jawGeom = new THREE.CylinderGeometry(0.32, 0.18, 0.28, 24);
+    addAnatomicalPart(jawGeom, [0, 1.95, 0.05], undefined, [1.0, 1.0, 1.1]);
+
+    // Cervical Neck
+    const neckGeom = new THREE.CylinderGeometry(0.17, 0.21, 0.32, 20);
+    addAnatomicalPart(neckGeom, [0, 1.74, 0.01]);
+
+    // Clavicle & Shoulder Span
+    const shoulderGeom = new THREE.CylinderGeometry(0.24, 0.24, 1.5, 24);
+    addAnatomicalPart(shoulderGeom, [0, 1.56, 0], [0, 0, Math.PI / 2], [0.8, 1.0, 0.85]);
+
+    // Deltoid Caps
+    const deltoidGeom = new THREE.SphereGeometry(0.18, 20, 20);
+    addAnatomicalPart(deltoidGeom, [-0.75, 1.52, 0]);
+    addAnatomicalPart(deltoidGeom, [0.75, 1.52, 0]);
+
+    // Thoracic Chest & Pectorals
+    const chestGeom = new THREE.CylinderGeometry(0.56, 0.44, 0.75, 28);
+    addAnatomicalPart(chestGeom, [0, 1.22, 0], undefined, [1.0, 1.0, 0.72]);
+
+    // Waist & Upper Abdomen
+    const waistGeom = new THREE.CylinderGeometry(0.43, 0.46, 0.65, 24);
+    addAnatomicalPart(waistGeom, [0, 0.58, 0], undefined, [1.0, 1.0, 0.75]);
+
+    // Pelvic Basin & Hips
+    const pelvisGeom = new THREE.CylinderGeometry(0.46, 0.44, 0.55, 24);
+    addAnatomicalPart(pelvisGeom, [0, 0.02, 0], undefined, [1.05, 1.0, 0.8]);
+
+    // Upper Arms (Biceps / Triceps)
+    const upperArmGeom = new THREE.CylinderGeometry(0.11, 0.09, 0.72, 16);
+    addAnatomicalPart(upperArmGeom, [-0.74, 1.12, 0], [0, 0, -0.08]);
+    addAnatomicalPart(upperArmGeom, [0.74, 1.12, 0], [0, 0, 0.08]);
+
+    // Elbow Nodes
+    const elbowGeom = new THREE.SphereGeometry(0.09, 16, 16);
+    addAnatomicalPart(elbowGeom, [-0.78, 0.72, 0]);
+    addAnatomicalPart(elbowGeom, [0.78, 0.72, 0]);
+
+    // Forearms
+    const forearmGeom = new THREE.CylinderGeometry(0.09, 0.07, 0.7, 16);
+    addAnatomicalPart(forearmGeom, [-0.80, 0.35, 0], [0, 0, -0.06]);
+    addAnatomicalPart(forearmGeom, [0.80, 0.35, 0], [0, 0, 0.06]);
+
+    // Hands
+    const handGeom = new THREE.BoxGeometry(0.08, 0.22, 0.12);
+    addAnatomicalPart(handGeom, [-0.82, -0.05, 0]);
+    addAnatomicalPart(handGeom, [0.82, -0.05, 0]);
+
+    // Thighs (Quadriceps)
+    const thighGeom = new THREE.CylinderGeometry(0.21, 0.14, 1.05, 20);
+    addAnatomicalPart(thighGeom, [-0.25, -0.72, 0], [0, 0, -0.03], [1.0, 1.0, 0.95]);
+    addAnatomicalPart(thighGeom, [0.25, -0.72, 0], [0, 0, 0.03], [1.0, 1.0, 0.95]);
+
+    // Patella Knees
+    const kneeGeom = new THREE.SphereGeometry(0.13, 18, 18);
+    addAnatomicalPart(kneeGeom, [-0.26, -1.30, 0.03]);
+    addAnatomicalPart(kneeGeom, [0.26, -1.30, 0.03]);
+
+    // Calves & Shin
+    const calfGeom = new THREE.CylinderGeometry(0.13, 0.10, 0.95, 18);
+    addAnatomicalPart(calfGeom, [-0.26, -1.82, 0], [0, 0, -0.02]);
+    addAnatomicalPart(calfGeom, [0.26, -1.82, 0], [0, 0, 0.02]);
+
+    // Feet
+    const footGeom = new THREE.BoxGeometry(0.13, 0.09, 0.32);
+    addAnatomicalPart(footGeom, [-0.26, -2.32, 0.07]);
+    addAnatomicalPart(footGeom, [0.26, -2.32, 0.07]);
+
+    // ==========================================
+    // 2. VASCULAR SYSTEM (Arteries & Veins)
+    // ==========================================
+    const vascularGroup = new THREE.Group();
+    humanBodyRoot.add(vascularGroup);
+
+    const arteryMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xdc2626,
+      emissiveIntensity: 0.7,
+      roughness: 0.2,
+      metalness: 0.1,
+    });
+
+    const veinMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.65,
+      roughness: 0.2,
+      metalness: 0.1,
+    });
+
+    const createVesselTube = (points: THREE.Vector3[], radius: number, mat: THREE.Material) => {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubeGeom = new THREE.TubeGeometry(curve, 28, radius, 8, false);
+      const mesh = new THREE.Mesh(tubeGeom, mat);
+      vascularGroup.add(mesh);
+      return mesh;
+    };
+
+    // Aortic Arch & Main Arterial Axis
+    createVesselTube([
+      new THREE.Vector3(-0.08, 1.1, 0.18),
+      new THREE.Vector3(0, 1.35, 0.10),
+      new THREE.Vector3(0.04, 1.1, 0.06),
+      new THREE.Vector3(0.03, 0.4, 0.07),
+      new THREE.Vector3(0, -0.15, 0.05),
+    ], 0.022, arteryMat);
+
+    // Left & Right Carotid Arteries (to Brain)
+    createVesselTube([
+      new THREE.Vector3(-0.03, 1.35, 0.10),
+      new THREE.Vector3(-0.06, 1.72, 0.06),
+      new THREE.Vector3(-0.05, 2.08, 0.04),
+    ], 0.015, arteryMat);
+
+    createVesselTube([
+      new THREE.Vector3(0.03, 1.35, 0.10),
+      new THREE.Vector3(0.06, 1.72, 0.06),
+      new THREE.Vector3(0.05, 2.08, 0.04),
+    ], 0.015, arteryMat);
+
+    // Brachial Arteries (Arms)
+    createVesselTube([
+      new THREE.Vector3(-0.03, 1.35, 0.10),
+      new THREE.Vector3(-0.45, 1.48, 0.04),
+      new THREE.Vector3(-0.72, 1.15, 0.02),
+      new THREE.Vector3(-0.76, 0.45, 0.02),
+    ], 0.014, arteryMat);
+
+    createVesselTube([
+      new THREE.Vector3(0.03, 1.35, 0.10),
+      new THREE.Vector3(0.45, 1.48, 0.04),
+      new THREE.Vector3(0.72, 1.15, 0.02),
+      new THREE.Vector3(0.76, 0.45, 0.02),
+    ], 0.014, arteryMat);
+
+    // Femoral Arteries (Legs)
+    createVesselTube([
+      new THREE.Vector3(0, -0.15, 0.05),
+      new THREE.Vector3(-0.16, -0.45, 0.06),
+      new THREE.Vector3(-0.24, -1.25, 0.04),
+      new THREE.Vector3(-0.25, -2.1, 0.02),
+    ], 0.016, arteryMat);
+
+    createVesselTube([
+      new THREE.Vector3(0, -0.15, 0.05),
+      new THREE.Vector3(0.16, -0.45, 0.06),
+      new THREE.Vector3(0.24, -1.25, 0.04),
+      new THREE.Vector3(0.25, -2.1, 0.02),
+    ], 0.016, arteryMat);
+
+    // Vena Cava & Main Venous Axis
+    createVesselTube([
+      new THREE.Vector3(0.06, 2.05, 0.04),
+      new THREE.Vector3(0.07, 1.70, 0.05),
+      new THREE.Vector3(0.06, 1.25, 0.12),
+      new THREE.Vector3(0.05, 0.35, 0.06),
+      new THREE.Vector3(0.03, -0.18, 0.05),
+    ], 0.02, veinMat);
+
+    // Jugular Vein (Left)
+    createVesselTube([
+      new THREE.Vector3(-0.06, 2.05, 0.04),
+      new THREE.Vector3(-0.07, 1.70, 0.05),
+      new THREE.Vector3(-0.02, 1.25, 0.12),
+    ], 0.014, veinMat);
+
+    // Femoral Veins (Legs)
+    createVesselTube([
+      new THREE.Vector3(0.03, -0.18, 0.05),
+      new THREE.Vector3(-0.18, -0.48, 0.04),
+      new THREE.Vector3(-0.22, -1.25, 0.03),
+      new THREE.Vector3(-0.23, -2.08, 0.02),
+    ], 0.015, veinMat);
+
+    createVesselTube([
+      new THREE.Vector3(0.03, -0.18, 0.05),
+      new THREE.Vector3(0.18, -0.48, 0.04),
+      new THREE.Vector3(0.22, -1.25, 0.03),
+      new THREE.Vector3(0.23, -2.08, 0.02),
+    ], 0.015, veinMat);
+
+    // ==========================================
+    // 3. NERVOUS SYSTEM (Spinal Axis & Neural Network)
+    // ==========================================
+    const nervousGroup = new THREE.Group();
+    humanBodyRoot.add(nervousGroup);
+
+    const nerveMat = new THREE.MeshStandardMaterial({
+      color: 0x818cf8,
+      emissive: 0x6366f1,
+      emissiveIntensity: 0.8,
+      roughness: 0.1,
+    });
+
+    // Central Spinal Cord Pathway
+    const spinalCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 2.10, -0.05),
+      new THREE.Vector3(0, 1.75, -0.06),
+      new THREE.Vector3(0, 1.20, -0.08),
+      new THREE.Vector3(0, 0.50, -0.06),
+      new THREE.Vector3(0, -0.10, -0.05),
+      new THREE.Vector3(0, -0.30, -0.03),
+    ]);
+    const spinalCordGeom = new THREE.TubeGeometry(spinalCurve, 24, 0.018, 8, false);
+    const spinalCordMesh = new THREE.Mesh(spinalCordGeom, nerveMat);
+    nervousGroup.add(spinalCordMesh);
+
+    // Vertebral Skeletal Column Ring Discs
+    const vertebraeGroup = new THREE.Group();
+    for (let yPos = -0.2; yPos <= 1.7; yPos += 0.11) {
+      const discGeom = new THREE.CylinderGeometry(0.07, 0.07, 0.04, 12);
+      const discMat = new THREE.MeshStandardMaterial({
+        color: 0xdbeafe,
+        roughness: 0.4,
+        metalness: 0.1,
+      });
+      const disc = new THREE.Mesh(discGeom, discMat);
+      disc.position.set(0, yPos, -0.07);
+      vertebraeGroup.add(disc);
+    }
+    nervousGroup.add(vertebraeGroup);
+
+    // ==========================================
+    // 4. REALISTIC 3D HUMAN ORGANS & TARGETS
+    // ==========================================
+    const organsGroup = new THREE.Group();
+    humanBodyRoot.add(organsGroup);
+    organsGroupRef.current = organsGroup;
+
+    // --- A. BRAIN (Cerebral Cortex Dual Hemispheres) ---
+    const brainGroup = new THREE.Group();
+    brainGroup.position.set(0, 2.16, 0.02);
+    brainGroup.userData = { organId: "head" };
+
+    const brainHemisphereMat = new THREE.MeshStandardMaterial({
+      color: 0x4338ca,
+      emissive: 0x312e81,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
+
+    const leftHemi = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 20), brainHemisphereMat);
+    leftHemi.position.set(-0.09, 0, 0);
+    leftHemi.scale.set(0.9, 1.1, 1.2);
+    leftHemi.userData = { organId: "head" };
+    brainGroup.add(leftHemi);
+
+    const rightHemi = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 20), brainHemisphereMat);
+    rightHemi.position.set(0.09, 0, 0);
+    rightHemi.scale.set(0.9, 1.1, 1.2);
+    rightHemi.userData = { organId: "head" };
+    brainGroup.add(rightHemi);
+
+    // Cerebellum
+    const cerebellum = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), brainHemisphereMat);
+    cerebellum.position.set(0, -0.14, -0.1);
+    cerebellum.userData = { organId: "head" };
+    brainGroup.add(cerebellum);
+
+    organsGroup.add(brainGroup);
+
+    // --- B. HEART (Anatomical Cardiac Muscle with Rhythmic Pulse) ---
+    const heartGroup = new THREE.Group();
+    heartGroup.position.set(-0.11, 1.12, 0.18);
+    heartGroup.rotation.z = -0.15;
+    heartGroup.userData = { organId: "heart" };
+    heartMeshRef.current = heartGroup;
+
+    const heartMat = new THREE.MeshStandardMaterial({
+      color: 0xd92020,
+      emissive: 0xb91c1c,
+      emissiveIntensity: 0.75,
+      roughness: 0.25,
+      metalness: 0.15,
+    });
+
+    // Left & Right Ventricle mass
+    const lVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.14, 20, 20), heartMat);
+    lVentricle.position.set(-0.03, -0.04, 0);
+    lVentricle.scale.set(0.9, 1.15, 0.85);
+    lVentricle.userData = { organId: "heart" };
+    heartGroup.add(lVentricle);
+
+    const rVentricle = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 20), heartMat);
+    rVentricle.position.set(0.06, 0.02, 0.02);
+    rVentricle.scale.set(0.9, 1.0, 0.8);
+    rVentricle.userData = { organId: "heart" };
+    heartGroup.add(rVentricle);
+
+    // Aortic Arch Root
+    const aorticArchCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0.08, 0),
+      new THREE.Vector3(-0.02, 0.19, 0.02),
+      new THREE.Vector3(0.06, 0.22, -0.02),
+    ]);
+    const aorticRoot = new THREE.Mesh(
+      new THREE.TubeGeometry(aorticArchCurve, 16, 0.032, 8, false),
+      new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0x991b1b, emissiveIntensity: 0.6 })
+    );
+    aorticRoot.userData = { organId: "heart" };
+    heartGroup.add(aorticRoot);
+
+    organsGroup.add(heartGroup);
+
+    // --- C. LUNGS (Bilateral Aerodynamic Pulmonary Lobes) ---
+    const lungsGroup = new THREE.Group();
+    lungsGroupRef.current = lungsGroup;
+    lungsGroup.userData = { organId: "lungs" };
+
+    const lungMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.45,
+      roughness: 0.4,
       metalness: 0.05,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.8,
     });
 
-    // Head
-    const headGeom = new THREE.SphereGeometry(0.42, 24, 24);
-    const headMesh = new THREE.Mesh(headGeom, bodyMaterial);
-    headMesh.position.set(0, 2.1, 0);
-    bodyGroup.add(headMesh);
+    // Right Lung (3 lobes composite)
+    const rightLung = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.38, 12, 18), lungMat);
+    rightLung.position.set(0.24, 1.15, 0.08);
+    rightLung.rotation.z = -0.1;
+    rightLung.scale.set(1.0, 1.0, 0.75);
+    rightLung.userData = { organId: "lungs" };
+    lungsGroup.add(rightLung);
 
-    const headSolid = new THREE.Mesh(headGeom, bodySolidMaterial);
-    headSolid.position.set(0, 2.1, 0);
-    bodyGroup.add(headSolid);
+    // Left Lung (2 lobes with cardiac notch)
+    const leftLung = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.36, 12, 18), lungMat);
+    leftLung.position.set(-0.25, 1.18, 0.08);
+    leftLung.rotation.z = 0.12;
+    leftLung.scale.set(0.9, 1.0, 0.72);
+    leftLung.userData = { organId: "lungs" };
+    lungsGroup.add(leftLung);
 
-    // Neck
-    const neckGeom = new THREE.CylinderGeometry(0.18, 0.22, 0.35, 16);
-    const neckMesh = new THREE.Mesh(neckGeom, bodyMaterial);
-    neckMesh.position.set(0, 1.7, 0);
-    bodyGroup.add(neckMesh);
+    organsGroup.add(lungsGroup);
 
-    // Chest & Torso
-    const torsoGeom = new THREE.CylinderGeometry(0.58, 0.42, 1.6, 24);
-    const torsoMesh = new THREE.Mesh(torsoGeom, bodyMaterial);
-    torsoMesh.position.set(0, 0.8, 0);
-    bodyGroup.add(torsoMesh);
+    // --- D. LIVER & ABDOMINAL DIGESTIVE SYSTEM ---
+    const abdomenGroup = new THREE.Group();
+    abdomenGroup.position.set(0, 0.38, 0.12);
+    abdomenGroup.userData = { organId: "abdomen" };
 
-    const torsoSolid = new THREE.Mesh(torsoGeom, bodySolidMaterial);
-    torsoSolid.position.set(0, 0.8, 0);
-    bodyGroup.add(torsoSolid);
+    const liverMat = new THREE.MeshStandardMaterial({
+      color: 0x15803d,
+      emissive: 0x166534,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      metalness: 0.1,
+    });
 
-    // Pelvis
-    const pelvisGeom = new THREE.CylinderGeometry(0.42, 0.46, 0.6, 20);
-    const pelvisMesh = new THREE.Mesh(pelvisGeom, bodyMaterial);
-    pelvisMesh.position.set(0, -0.2, 0);
-    bodyGroup.add(pelvisMesh);
+    // Anatomical Hepatic Wedge (Right Hypochondrium)
+    const liverMesh = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.34, 16), liverMat);
+    liverMesh.position.set(0.15, 0.12, 0.02);
+    liverMesh.rotation.set(0.2, 0, -1.2);
+    liverMesh.scale.set(1.1, 1.0, 0.75);
+    liverMesh.userData = { organId: "abdomen" };
+    abdomenGroup.add(liverMesh);
 
-    // Legs
-    const legGeom = new THREE.CylinderGeometry(0.18, 0.12, 1.8, 16);
-    const leftLeg = new THREE.Mesh(legGeom, bodyMaterial);
-    leftLeg.position.set(-0.26, -1.35, 0);
-    bodyGroup.add(leftLeg);
+    // Stomach / Gastric pouch (Left side)
+    const stomachMat = new THREE.MeshStandardMaterial({
+      color: 0x22c55e,
+      emissive: 0x15803d,
+      emissiveIntensity: 0.45,
+      roughness: 0.3,
+    });
+    const stomachMesh = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.055, 12, 20, Math.PI), stomachMat);
+    stomachMesh.position.set(-0.13, 0.14, 0.02);
+    stomachMesh.rotation.set(0.2, 0.4, 0.8);
+    stomachMesh.userData = { organId: "abdomen" };
+    abdomenGroup.add(stomachMesh);
 
-    const rightLeg = new THREE.Mesh(legGeom, bodyMaterial);
-    rightLeg.position.set(0.26, -1.35, 0);
-    bodyGroup.add(rightLeg);
+    // Intestinal metabolic tract curves
+    const gutCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.08, -0.08, 0.04),
+      new THREE.Vector3(0.08, -0.06, 0.06),
+      new THREE.Vector3(0.10, -0.18, 0.05),
+      new THREE.Vector3(-0.06, -0.22, 0.04),
+      new THREE.Vector3(0.04, -0.30, 0.05),
+    ]);
+    const gutMesh = new THREE.Mesh(
+      new THREE.TubeGeometry(gutCurve, 20, 0.028, 8, false),
+      new THREE.MeshStandardMaterial({ color: 0x16a34a, emissive: 0x14532d, emissiveIntensity: 0.45 })
+    );
+    gutMesh.userData = { organId: "abdomen" };
+    abdomenGroup.add(gutMesh);
+
+    organsGroup.add(abdomenGroup);
+
+    // --- E. EYES & OPTIC SYSTEM ---
+    const eyesGroup = new THREE.Group();
+    eyesGroup.position.set(0, 2.15, 0.36);
+    eyesGroup.userData = { organId: "eyes" };
+
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0x0284c7,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.75,
+      roughness: 0.1,
+    });
+
+    const lEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), eyeMat);
+    lEye.position.set(-0.10, 0, 0);
+    lEye.userData = { organId: "eyes" };
+    eyesGroup.add(lEye);
+
+    const rEye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), eyeMat);
+    rEye.position.set(0.10, 0, 0);
+    rEye.userData = { organId: "eyes" };
+    eyesGroup.add(rEye);
+
+    organsGroup.add(eyesGroup);
+
+    // --- F. DENTAL & ORAL CARE (Mandibular Arc) ---
+    const dentalGroup = new THREE.Group();
+    dentalGroup.position.set(0, 1.88, 0.34);
+    dentalGroup.userData = { organId: "dental" };
+
+    const dentalMat = new THREE.MeshStandardMaterial({
+      color: 0x0d9488,
+      emissive: 0x0f766e,
+      emissiveIntensity: 0.7,
+      roughness: 0.2,
+    });
+
+    const dentalCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.09, 0, -0.04),
+      new THREE.Vector3(0, 0, 0.02),
+      new THREE.Vector3(0.09, 0, -0.04),
+    ]);
+    const dentalMesh = new THREE.Mesh(new THREE.TubeGeometry(dentalCurve, 16, 0.03, 8, false), dentalMat);
+    dentalMesh.userData = { organId: "dental" };
+    dentalGroup.add(dentalMesh);
+
+    organsGroup.add(dentalGroup);
+
+    // --- G. ENT (Ears & Auditory System) ---
+    const entGroup = new THREE.Group();
+    entGroup.position.set(0, 2.05, 0);
+    entGroup.userData = { organId: "ent" };
+
+    const entMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.7,
+      roughness: 0.3,
+    });
+
+    const lEar = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.02, 10, 16, Math.PI * 1.3), entMat);
+    lEar.position.set(-0.38, 0, 0);
+    lEar.rotation.y = Math.PI / 2;
+    lEar.userData = { organId: "ent" };
+    entGroup.add(lEar);
+
+    const rEar = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.02, 10, 16, Math.PI * 1.3), entMat);
+    rEar.position.set(0.38, 0, 0);
+    rEar.rotation.y = -Math.PI / 2;
+    rEar.userData = { organId: "ent" };
+    entGroup.add(rEar);
+
+    organsGroup.add(entGroup);
+
+    // --- H. BONES, SPINE & ARTICULAR JOINTS ---
+    const jointsGroup = new THREE.Group();
+    jointsGroup.position.set(0, -0.4, 0);
+    jointsGroup.userData = { organId: "joints" };
+
+    const jointMat = new THREE.MeshStandardMaterial({
+      color: 0xb45309,
+      emissive: 0x92400e,
+      emissiveIntensity: 0.7,
+      roughness: 0.25,
+    });
+
+    // Articular Joint Nodes
+    const jointPositions: [number, number, number][] = [
+      [-0.75, 1.92, 0], // Left Shoulder
+      [0.75, 1.92, 0],  // Right Shoulder
+      [-0.24, -0.90, 0.03], // Left Knee
+      [0.24, -0.90, 0.03],  // Right Knee
+      [0, 0.35, -0.06],     // Lumbar Spine Centroid
+    ];
+
+    jointPositions.forEach((pos) => {
+      const capsule = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), jointMat);
+      capsule.position.set(...pos);
+      capsule.userData = { organId: "joints" };
+      jointsGroup.add(capsule);
+    });
+
+    organsGroup.add(jointsGroup);
+
+    // --- I. SKIN & DERMATOLOGY (Dermal Sensory Receptor & Halo) ---
+    const skinGroup = new THREE.Group();
+    skinGroup.position.set(-0.65, 0.75, 0.18);
+    skinGroup.userData = { organId: "skin" };
+
+    const skinMat = new THREE.MeshStandardMaterial({
+      color: 0xdb2777,
+      emissive: 0xbe185d,
+      emissiveIntensity: 0.75,
+      roughness: 0.2,
+    });
+
+    const skinNode = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 16), skinMat);
+    skinNode.userData = { organId: "skin" };
+    skinGroup.add(skinNode);
+
+    const skinHalo = new THREE.Mesh(
+      new THREE.RingGeometry(0.11, 0.14, 24),
+      new THREE.MeshBasicMaterial({ color: 0xdb2777, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })
+    );
+    skinHalo.userData = { organId: "skin" };
+    skinGroup.add(skinHalo);
+
+    organsGroup.add(skinGroup);
+
+    // Active Selection Pulsing Halo Target
+    const pulseGeom = new THREE.RingGeometry(0.24, 0.28, 32);
+    const pulseMat = new THREE.MeshBasicMaterial({
+      color: 0x0284c7,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const pulseRing = new THREE.Mesh(pulseGeom, pulseMat);
+    pulseRing.visible = false;
+    scene.add(pulseRing);
+    selectedPulseRef.current = pulseRing;
 
     // Clinical Ground Reference Rings
-    const ringGeom = new THREE.RingGeometry(1.6, 1.62, 48);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xcbd5e1, side: THREE.DoubleSide });
-    const groundRing = new THREE.Mesh(ringGeom, ringMat);
-    groundRing.rotation.x = Math.PI / 2;
-    groundRing.position.y = -2.25;
-    scene.add(groundRing);
+    const groundRing1 = new THREE.Mesh(
+      new THREE.RingGeometry(1.6, 1.62, 64),
+      new THREE.MeshBasicMaterial({ color: 0xcbd5e1, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
+    );
+    groundRing1.rotation.x = Math.PI / 2;
+    groundRing1.position.y = -2.35;
+    scene.add(groundRing1);
 
-    // Interactive Organ Nodes Group
-    const nodesGroup = new THREE.Group();
-    scene.add(nodesGroup);
-    nodesGroupRef.current = nodesGroup;
+    const groundRing2 = new THREE.Mesh(
+      new THREE.RingGeometry(1.1, 1.115, 48),
+      new THREE.MeshBasicMaterial({ color: 0x94a3b8, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+    );
+    groundRing2.rotation.x = Math.PI / 2;
+    groundRing2.position.y = -2.35;
+    scene.add(groundRing2);
 
-    // Build interactive node spheres
-    Object.values(ORGAN_3D_TARGETS).forEach((org) => {
-      const nodeGeom = new THREE.SphereGeometry(0.09, 16, 16);
-      const nodeMat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(org.color),
-        emissive: new THREE.Color(org.color),
-        emissiveIntensity: 0.4,
-        roughness: 0.2,
-      });
-
-      const nodeMesh = new THREE.Mesh(nodeGeom, nodeMat);
-      nodeMesh.position.set(0, org.y, org.zOffset || 0.1);
-      nodeMesh.userData = { organId: org.id };
-      nodesGroup.add(nodeMesh);
-
-      // Outer Pulse Ring
-      const pulseGeom = new THREE.RingGeometry(0.14, 0.16, 24);
-      const pulseMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(org.color),
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.6,
-      });
-      const pulseMesh = new THREE.Mesh(pulseGeom, pulseMat);
-      pulseMesh.position.set(0, org.y, (org.zOffset || 0.1) + 0.01);
-      nodesGroup.add(pulseMesh);
-    });
-
-    // Pointer Interactivity (Raycasting)
+    // Pointer Interactivity (Raycasting directly on 3D organs)
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -212,18 +808,21 @@ export default function AnatomicalTwin3D({
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(nodesGroup.children);
+      const intersects = raycaster.intersectObjects(organsGroup.children, true);
       if (intersects.length > 0) {
-        const hit = intersects[0].object;
-        if (hit.userData?.organId) {
-          onSelectOrgan(hit.userData.organId);
+        let hitObj: THREE.Object3D | null = intersects[0].object;
+        while (hitObj && !hitObj.userData?.organId && hitObj.parent) {
+          hitObj = hitObj.parent;
+        }
+        if (hitObj?.userData?.organId) {
+          onSelectOrgan(hitObj.userData.organId);
         }
       }
     };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
-    // Mouse drag rotation
+    // Interactive Drag Rotation
     let isDragging = false;
     let prevMouseX = 0;
 
@@ -235,8 +834,7 @@ export default function AnatomicalTwin3D({
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
       const deltaX = e.clientX - prevMouseX;
-      bodyGroup.rotation.y += deltaX * 0.008;
-      nodesGroup.rotation.y += deltaX * 0.008;
+      humanBodyRoot.rotation.y += deltaX * 0.008;
       prevMouseX = e.clientX;
     };
 
@@ -248,18 +846,38 @@ export default function AnatomicalTwin3D({
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
 
-    // Animation Loop
+    // Render & Animation Loop
     let animationFrameId: number;
+    let clock = new THREE.Clock();
+
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
+      const elapsedTime = clock.getElapsedTime();
 
-      // Auto slow rotation if enabled and not dragging
+      // Smooth auto orbit rotation when idle
       if (rotationActive && !isDragging) {
-        bodyGroup.rotation.y += 0.003;
-        nodesGroup.rotation.y += 0.003;
+        humanBodyRoot.rotation.y += 0.0025;
       }
 
-      // Smooth camera interpolation towards selected organ lookAt
+      // Rhythmic Cardiac Systolic/Diastolic Heartbeat Pulse
+      if (heartMeshRef.current) {
+        const heartScale = 1 + Math.sin(elapsedTime * 3.6) * 0.07;
+        heartMeshRef.current.scale.set(heartScale, heartScale, heartScale);
+      }
+
+      // Gentle Pulmonary Lung Expansion Cycle
+      if (lungsGroupRef.current) {
+        const lungScale = 1 + Math.sin(elapsedTime * 1.6) * 0.03;
+        lungsGroupRef.current.scale.set(lungScale, lungScale, lungScale);
+      }
+
+      // Animate Active Selection Halo Target
+      if (selectedPulseRef.current && selectedPulseRef.current.visible) {
+        const pulseScale = 1 + Math.sin(elapsedTime * 4.0) * 0.12;
+        selectedPulseRef.current.scale.set(pulseScale, pulseScale, 1);
+      }
+
+      // Smooth Camera Glide
       currentLookAtRef.current.lerp(targetLookAtRef.current, 0.05);
       camera.lookAt(currentLookAtRef.current);
 
@@ -293,27 +911,38 @@ export default function AnatomicalTwin3D({
     };
   }, [onSelectOrgan, rotationActive]);
 
-  // Update target lookAt and camera position when selectedOrgan changes
+  // Update LookAt and Active Highlight when selectedOrgan changes
   useEffect(() => {
     const target = ORGAN_3D_TARGETS[selectedOrgan];
     if (target && cameraRef.current) {
       targetLookAtRef.current.set(0, target.y, 0);
+
+      // Position glowing halo at selected organ
+      if (selectedPulseRef.current) {
+        selectedPulseRef.current.position.set(
+          target.xOffset || 0,
+          target.y,
+          (target.zOffset || 0.1) + 0.08
+        );
+        (selectedPulseRef.current.material as THREE.MeshBasicMaterial).color.set(target.color);
+        selectedPulseRef.current.visible = true;
+      }
     }
   }, [selectedOrgan]);
 
-  // Zoom Controls
+  // Viewport Zoom Handlers
   const handleZoom = useCallback((direction: "in" | "out") => {
     const camera = cameraRef.current;
     if (!camera) return;
     const factor = direction === "in" ? 0.85 : 1.15;
     camera.position.z = Math.max(2.2, Math.min(7.5, camera.position.z * factor));
-    setZoomLevel(Math.round((5.2 / camera.position.z) * 100));
+    setZoomLevel(Math.round((5.0 / camera.position.z) * 100));
   }, []);
 
   const resetView = useCallback(() => {
     const camera = cameraRef.current;
     if (!camera) return;
-    camera.position.set(0, 0.8, 5.2);
+    camera.position.set(0, 0.75, 5.0);
     targetLookAtRef.current.set(0, 0.6, 0);
     setZoomLevel(100);
   }, []);
@@ -333,105 +962,123 @@ export default function AnatomicalTwin3D({
 
   return (
     <div className={`cm-twin-container ${className}`.trim()}>
-      {/* HUD Telemetry Header */}
-      <div className="cm-twin-overlay-hud">
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              backgroundColor: "var(--cm-done)",
-              boxShadow: "0 0 6px var(--cm-done)",
-            }}
-          />
-          <span
+      {/* 3D WebGL Canvas Viewport with HUD & Isolated Controls Scoped INSIDE Viewport */}
+      <div className="cm-twin-viewport">
+        {/* Dedicated WebGL Mount Target */}
+        <div
+          ref={mountRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            cursor: "grab",
+          }}
+        />
+
+        {/* HUD Telemetry Header */}
+        <div className="cm-twin-overlay-hud">
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                backgroundColor: "var(--cm-done)",
+                boxShadow: "0 0 6px var(--cm-done)",
+              }}
+            />
+            <span
+              style={{
+                fontSize: "var(--cm-text-xs)",
+                fontWeight: 800,
+                color: "var(--cm-navy)",
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+              }}
+            >
+              Digital Anatomical Twin · 3D
+            </span>
+          </div>
+          <div
             style={{
               fontSize: "var(--cm-text-xs)",
-              fontWeight: 800,
-              color: "var(--cm-navy)",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
+              fontWeight: 700,
+              color: "var(--cm-ink-3)",
+              fontVariantNumeric: "tabular-nums",
+              background: "rgba(255, 255, 255, 0.85)",
+              padding: "2px 8px",
+              borderRadius: "var(--cm-radius-pill)",
+              border: "1px solid var(--cm-line)",
             }}
           >
-            Digital Anatomical Twin · 3D
-          </span>
+            Zoom: {zoomLevel}%
+          </div>
         </div>
-        <div
-          style={{
-            fontSize: "var(--cm-text-xs)",
-            fontWeight: 700,
-            color: "var(--cm-ink-3)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          Zoom: {zoomLevel}%
+
+        {/* Viewport Floating Controls (Strictly isolated inside canvas area) */}
+        <div className="cm-twin-controls">
+          <button
+            type="button"
+            onClick={() => setRotationActive(!rotationActive)}
+            className="cm-twin-ctrl-btn"
+            aria-label={rotationActive ? "Pause Rotation" : "Resume Rotation"}
+            title={rotationActive ? "Pause Orbit" : "Resume Orbit"}
+          >
+            <RotateCw size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleZoom("in")}
+            className="cm-twin-ctrl-btn"
+            aria-label="Zoom In"
+            title="Zoom In"
+          >
+            <ZoomIn size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleZoom("out")}
+            className="cm-twin-ctrl-btn"
+            aria-label="Zoom Out"
+            title="Zoom Out"
+          >
+            <ZoomOut size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            className="cm-twin-ctrl-btn"
+            aria-label="Reset Camera View"
+            title="Reset View"
+          >
+            <Maximize2 size={15} />
+          </button>
         </div>
       </div>
 
-      {/* 3D WebGL Canvas Mount */}
-      <div ref={mountRef} className="cm-twin-viewport" style={{ cursor: "grab" }} />
-
-      {/* Interactive Controls Overlay */}
-      <div className="cm-twin-controls">
-        <button
-          type="button"
-          onClick={() => setRotationActive(!rotationActive)}
-          className="cm-twin-ctrl-btn"
-          aria-label={rotationActive ? "Pause Rotation" : "Resume Rotation"}
-          title={rotationActive ? "Pause Orbit" : "Resume Orbit"}
-        >
-          <RotateCw size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={() => handleZoom("in")}
-          className="cm-twin-ctrl-btn"
-          aria-label="Zoom In"
-          title="Zoom In"
-        >
-          <ZoomIn size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={() => handleZoom("out")}
-          className="cm-twin-ctrl-btn"
-          aria-label="Zoom Out"
-          title="Zoom Out"
-        >
-          <ZoomOut size={16} />
-        </button>
-        <button
-          type="button"
-          onClick={resetView}
-          className="cm-twin-ctrl-btn"
-          aria-label="Reset Camera View"
-          title="Reset View"
-        >
-          <Maximize2 size={16} />
-        </button>
-      </div>
-
-      {/* Clinical Organ Selector Ribbon */}
-      <div className="cm-twin-organ-chips">
+      {/* Clinical Organ Selector Ribbon with Rich Clinical Symbols (Outside & Below Viewport) */}
+      <div className="cm-twin-organ-chips" role="tablist" aria-label="Select Anatomical System">
         {Object.values(ORGAN_3D_TARGETS).map((org) => {
+          const Icon = org.icon;
           const isSelected = org.id === selectedOrgan;
           return (
             <button
               key={org.id}
               type="button"
+              role="tab"
+              aria-selected={isSelected}
               onClick={() => onSelectOrgan(org.id)}
               className={`cm-twin-organ-chip ${isSelected ? "cm-twin-organ-chip--selected" : ""}`}
             >
-              <span
+              <Icon
+                size={14}
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  backgroundColor: org.color,
+                  color: isSelected ? "#ffffff" : org.color,
+                  flexShrink: 0,
                 }}
               />
-              {org.name.split(" ")[0]}
+              <span>{org.shortName}</span>
             </button>
           );
         })}

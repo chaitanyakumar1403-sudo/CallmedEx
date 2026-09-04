@@ -2228,8 +2228,8 @@ input[type="radio"] {
 }
 
 .cm-twin-ctrl-btn {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--cm-radius-sm);
   background: var(--cm-surface);
   border: 1px solid var(--cm-line-strong);
@@ -2256,13 +2256,16 @@ input[type="radio"] {
   background: var(--cm-surface);
   border-top: 1px solid var(--cm-line);
   scrollbar-width: none;
+  align-items: center;
+  position: relative;
+  z-index: 5;
 }
 
 .cm-twin-organ-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--cm-2);
-  padding: var(--cm-2) var(--cm-3);
+  gap: 6px;
+  padding: 6px 12px;
   border-radius: var(--cm-radius-pill);
   border: 1px solid var(--cm-line);
   background: var(--cm-surface);
@@ -2271,19 +2274,23 @@ input[type="radio"] {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--cm-fast) var(--cm-ease);
+  user-select: none;
 }
 
 .cm-twin-organ-chip:hover {
   border-color: var(--cm-line-strong);
   background: var(--cm-surface-2);
+  color: var(--cm-navy);
 }
 
 .cm-twin-organ-chip--selected {
   background: var(--cm-navy);
-  color: var(--cm-surface);
+  color: #ffffff;
   border-color: var(--cm-navy);
   font-weight: 700;
+  box-shadow: 0 2px 8px rgba(26, 43, 74, 0.22);
 }
 
 
