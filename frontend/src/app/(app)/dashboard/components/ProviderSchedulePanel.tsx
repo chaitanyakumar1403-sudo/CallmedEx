@@ -276,7 +276,7 @@ export default function ProviderSchedulePanel({
           Your fees
         </h3>
         <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
-          Set a price for each way you work. You keep 80%; CallMedex takes 20%.
+          Set your consultation and visit fees for patient bookings.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
           {MODES.map((m) => {
@@ -291,7 +291,7 @@ export default function ProviderSchedulePanel({
                 </div>
                 {fee && (
                   <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: 2 }}>
-                    You receive ₹{Math.round(fee.amount * 0.8)}
+                    Estimated net: ₹{Math.round(fee.amount * 0.8)}
                   </div>
                 )}
               </div>

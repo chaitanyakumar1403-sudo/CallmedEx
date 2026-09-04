@@ -243,9 +243,9 @@ export default function NurseDashboard() {
         <div className="cm-kpi-card cm-nurse-kpi-clickable" onClick={() => setActiveTab("procedures")}>
           <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
           <div>
-            <div className="cm-kpi-card__label">Nurse Remuneration</div>
-            <div className="cm-kpi-card__value">80%</div>
-            <div className="cm-kpi-card__subtitle">Net payout per visit</div>
+            <div className="cm-kpi-card__label">Active Procedures</div>
+            <div className="cm-kpi-card__value">{activeProcedureCodes.length}</div>
+            <div className="cm-kpi-card__subtitle">Verified clinical care</div>
           </div>
           <div className="cm-kpi-card__icon cm-nurse-kpi-icon-done">
             <ShieldCheck size={22} />
@@ -283,10 +283,10 @@ export default function NurseDashboard() {
         <div className="cm-nurse-container">
           <div className="cm-nurse-header-box">
             <h2 className="cm-nurse-title">
-              Nursing Procedures &amp; 80/20 Fee Benchmarks
+              Nursing Procedures &amp; Fee Benchmarks
             </h2>
             <p className="cm-nurse-subtitle">
-              Official nursing fee schedule from CallMedex guidelines. You retain 80% net remuneration with a 20% platform charge. Select which procedures you offer for home dispatch:
+              Official nursing fee schedule. Select which procedures and doorstep nursing services you offer for patient dispatch:
             </p>
           </div>
 
@@ -314,10 +314,7 @@ export default function NurseDashboard() {
                   <div className="cm-nurse-procedure-commercials">
                     <div className="cm-nurse-procedure-price">₹{p.standard_fee}</div>
                     <div className="cm-nurse-procedure-takehome">
-                      Nurse Payout (80%): ₹{p.nurse_net}
-                    </div>
-                    <div className="cm-nurse-subtitle">
-                      CallMedex (20%): ₹{p.platform_fee}
+                      Estimated Payout: ₹{p.nurse_net}
                     </div>
                   </div>
 

@@ -211,7 +211,7 @@ export default function PhysiotherapistDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        setScopeSuccessMsg("Tariffs & Scope updated with guaranteed 80% net take-home calculation.");
+        setScopeSuccessMsg("Tariffs & Scope updated successfully.");
         setTimeout(() => setScopeSuccessMsg(""), 4000);
       }
     } catch (e) {
@@ -244,7 +244,7 @@ export default function PhysiotherapistDashboard() {
     { id: "schedule", label: "Slots & Availability", icon: Calendar },
     { id: "dispatch", label: "Doorstep Visits", icon: MapPin },
     { id: "clinical_eval", label: "ROM & Pain Evaluation", icon: Activity },
-    { id: "scope_tariffs", label: "Services & Tariffs (80/20)", icon: Sliders },
+    { id: "scope_tariffs", label: "Services & Tariffs", icon: Sliders },
     { id: "profile", label: "Practitioner Profile", icon: User },
   ];
 
@@ -260,7 +260,7 @@ export default function PhysiotherapistDashboard() {
     <DashboardShell
       role="physiotherapist"
       title="Physiotherapy &amp; Rehabilitation Station"
-      subtitle={`${profile?.full_name || "Physiotherapist"} · Bedside Mobilization, Tele-Rehab &amp; 80/20 Commercial Split`}
+      subtitle={`${profile?.full_name || "Physiotherapist"} · Bedside Mobilization &amp; Tele-Rehabilitation`}
       tabs={TABS}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -279,14 +279,14 @@ export default function PhysiotherapistDashboard() {
             <div className="cm-metric-card__label">Tele-Rehab Rate</div>
             <div className="cm-metric-card__value" style={{ color: "var(--cm-active)" }}>₹{consultFee}</div>
             <div className="cm-metric-card__meta">
-              Your Net Take-Home (80%): <strong>₹{Math.round(consultFee * 0.8)}</strong>
+              Estimated Net Payout: <strong>₹{Math.round(consultFee * 0.8)}</strong>
             </div>
           </div>
           <div className="cm-metric-card">
             <div className="cm-metric-card__label">Home Healthcare Visit Rate</div>
             <div className="cm-metric-card__value" style={{ color: "var(--cm-done)" }}>₹{homeVisitFee}</div>
             <div className="cm-metric-card__meta">
-              Your Net Take-Home (80%): <strong>₹{Math.round(homeVisitFee * 0.8)}</strong>
+              Estimated Net Payout: <strong>₹{Math.round(homeVisitFee * 0.8)}</strong>
             </div>
           </div>
         </div>
@@ -531,16 +531,16 @@ export default function PhysiotherapistDashboard() {
         </div>
       </div>
 
-      {/* ─── TAB 4: SCOPE OF SERVICES & TARIFFS (80/20) ─── */}
+      {/* ─── TAB 4: SCOPE OF SERVICES & TARIFFS ─── */}
       <div className={activeTab === "scope_tariffs" ? "" : "tab-panel-hidden"}>
         <div className="cm-clinical-section" style={{ padding: "var(--cm-5)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 20 }}>
             <div>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                Physiotherapy Scope of Services &amp; Tariff Management (80/20 Commercial Split)
+                Physiotherapy Scope of Services &amp; Tariff Management
               </h3>
               <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                Autonomously configure your accepted procedures, modalities, and tariffs. CallMedex retains a flat 20% platform charge; 80% is credited directly to you.
+                Autonomously configure your accepted procedures, modalities, and consultation tariffs for clinical sessions.
               </p>
             </div>
             <button
@@ -573,7 +573,7 @@ export default function PhysiotherapistDashboard() {
                 style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontWeight: 700 }}
               />
               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 4, fontWeight: 700 }}>
-                You Receive: ₹{Math.round(consultFee * 0.8)} · Platform Fee (20%): ₹{Math.round(consultFee * 0.2)}
+                Estimated Net Payout: ₹{Math.round(consultFee * 0.8)}
               </div>
             </div>
 
@@ -588,7 +588,7 @@ export default function PhysiotherapistDashboard() {
                 style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--cm-line-strong)", borderRadius: "var(--cm-radius-sm)", fontWeight: 700 }}
               />
               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 4, fontWeight: 700 }}>
-                You Receive: ₹{Math.round(homeVisitFee * 0.8)} · Platform Fee (20%): ₹{Math.round(homeVisitFee * 0.2)}
+                Estimated Net Payout: ₹{Math.round(homeVisitFee * 0.8)}
               </div>
             </div>
           </div>
@@ -637,9 +637,9 @@ export default function PhysiotherapistDashboard() {
                     />
                   </div>
                   <div style={{ textAlign: "right", minWidth: 120 }}>
-                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Platform (20%): ₹{item.platform_fee_amount}</div>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Benchmark: ₹{item.benchmark_price}</div>
                     <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 800, color: "var(--cm-done)" }}>
-                      You Get (80%): ₹{item.provider_share_amount}
+                      Net Payout: ₹{item.provider_share_amount}
                     </div>
                   </div>
                 </div>

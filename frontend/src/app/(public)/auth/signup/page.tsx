@@ -381,7 +381,7 @@ export default function SignupPage() {
                 <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, color: '#15803d' }}>
                   <li>Open the email from <strong>CallMedex</strong></li>
                   <li>Click the secure link to review the MOU &amp; Scope of Services</li>
-                  <li>Review CallMedex 80/20 platform sharing &amp; tariffs</li>
+                  <li>Review clinical agreement &amp; scope of services</li>
                   <li>Click <strong>&quot;I Agree &amp; Activate My Account&quot;</strong></li>
                 </ol>
               </div>
@@ -792,7 +792,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* CallMedex Standard Benchmark Tariffs & 80/20 Split */}
+              {/* CallMedex Standard Benchmark Tariffs */}
               <div style={{
                 marginTop: 20,
                 padding: '18px 20px',
@@ -810,39 +810,35 @@ export default function SignupPage() {
                     </span>
                   </div>
                   <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
-                    80% Provider Remuneration
+                    Verified Benchmark
                   </span>
                 </div>
 
                 <p style={{ margin: '0 0 14px 0', fontSize: '0.84rem', color: '#166534', lineHeight: 1.5 }}>
-                  Based on CallMedex Specialty Fee Benchmarks (from official agreement guidelines). When registered, your services are pre-loaded with these standard prices. You can accept them or customize them anytime in your Command Center:
+                  Based on CallMedex Specialty Fee Benchmarks (standard clinical rates). When registered, your services are pre-loaded with these standard prices. You can accept them or customize them anytime in your Command Center:
                 </p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>General Teleconsult (15m)</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Clinic Walk-In (30m)</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Doorstep Home Visit (45m)</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Specialist Teleconsult (MD)</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹700</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹560 take-home (80%)</div>
                   </div>
                 </div>
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
-                  * CallMedex platform fee is 20%. All fees are editable post-registration in your Doctor Command Center.
+                  * All fees are fully editable post-registration in your Doctor Command Center.
                 </div>
               </div>
             </div>
@@ -904,7 +900,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* CallMedex Standard Nursing Tariffs & 80/20 Split */}
+              {/* CallMedex Standard Nursing Tariffs */}
               <div style={{
                 marginTop: 20,
                 padding: '18px 20px',
@@ -922,7 +918,7 @@ export default function SignupPage() {
                     </span>
                   </div>
                   <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
-                    80% Nurse Remuneration
+                    Verified Benchmark
                   </span>
                 </div>
 
@@ -934,27 +930,23 @@ export default function SignupPage() {
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>IM/IV Injection &amp; Vitals</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹300</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹240 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Sterile Wound Dressing</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹350</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹280 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>IV Infusion &amp; Cannulation</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>12h Bedside Attendant</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹1500</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹1200 take-home (80%)</div>
                   </div>
                 </div>
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
-                  * 80% direct net payout to nurse bank account, 20% CallMedex platform charge. All fees customizable post-registration.
+                  * All procedure charges are fully customizable post-registration in your Nurse Station.
                 </div>
               </div>
             </div>
@@ -1001,7 +993,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* CallMedex Standard Dietitian Tariffs & 80/20 Split */}
+              {/* CallMedex Standard Dietitian Tariffs */}
               <div style={{
                 marginTop: 20,
                 padding: '18px 20px',
@@ -1019,7 +1011,7 @@ export default function SignupPage() {
                     </span>
                   </div>
                   <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
-                    80% Dietitian Remuneration
+                    Verified Benchmark
                   </span>
                 </div>
 
@@ -1031,22 +1023,19 @@ export default function SignupPage() {
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Tele-Dietetics Consult</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Clinic Nutrition Assessment</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Home Visit &amp; Pantry Audit</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
                   </div>
                 </div>
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
-                  * 80% direct net payout to dietitian bank account, 20% CallMedex platform fee. Rates customizable in your Studio.
+                  * All consultation charges are fully customizable post-registration in your Dietitian Studio.
                 </div>
               </div>
             </div>
@@ -1093,7 +1082,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* CallMedex Standard Physiotherapy Tariffs & 80/20 Split */}
+              {/* CallMedex Standard Physiotherapy Tariffs */}
               <div style={{
                 marginTop: 20,
                 padding: '18px 20px',
@@ -1111,7 +1100,7 @@ export default function SignupPage() {
                     </span>
                   </div>
                   <span style={{ padding: '4px 10px', borderRadius: 999, background: '#dcfce7', color: '#15803d', fontSize: '0.78rem', fontWeight: 700, border: '1px solid #86efac' }}>
-                    80% Physio Remuneration
+                    Verified Benchmark
                   </span>
                 </div>
 
@@ -1123,22 +1112,19 @@ export default function SignupPage() {
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Tele-Rehab Assessment</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹400</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹320 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Center PT Treatment</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹500</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹400 take-home (80%)</div>
                   </div>
                   <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1' }}>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Doorstep Bedside Rehab (45m)</div>
                     <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>₹800</div>
-                    <div style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 600 }}>₹640 take-home (80%)</div>
                   </div>
                 </div>
 
                 <div style={{ fontSize: '0.78rem', color: '#475569', fontStyle: 'italic' }}>
-                  * 80% direct net payout to physio bank account, 20% CallMedex platform fee. Rates customizable in your Studio.
+                  * All therapy session rates are fully customizable post-registration in your Studio.
                 </div>
               </div>
             </div>

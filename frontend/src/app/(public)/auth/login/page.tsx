@@ -166,11 +166,11 @@ export default function LoginPage() {
 
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
-                <Clinical3DIcon name="check" size={36} glow />
+                <Clinical3DIcon name="shield" size={36} glow />
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>80% Provider Remuneration Standard</div>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Transparent 80/20 revenue split as per official CallMedex MOUs</div>
+                <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Verified Clinical Network</div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>ABHA-linked health records with NABL accredited diagnostics</div>
               </div>
             </div>
           </div>

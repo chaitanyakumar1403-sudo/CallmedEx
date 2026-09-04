@@ -219,7 +219,7 @@ export default function DoctorDashboard() {
     { id: "appointments", label: "Appointments", icon: Clock },
     { id: "home_visits", label: "Home Visits", icon: Home },
     { id: "erx_studio", label: "e-Prescription Pad", icon: FileText },
-    { id: "tariffs", label: "Benchmark Tariffs & 80/20", icon: CreditCard },
+    { id: "tariffs", label: "Consultation Tariffs", icon: CreditCard },
     { id: "revenue", label: "Revenue & Payouts", icon: DollarSign },
     { id: "profile", label: "Doctor Profile", icon: User },
   ];
@@ -265,7 +265,7 @@ export default function DoctorDashboard() {
 
         <div className="cm-metric-card" onClick={() => setActiveTab("revenue")} style={{ cursor: "pointer" }}>
           <div className="cm-metric-card__label">
-            <TrendingUp size={14} style={{ color: "var(--cm-done)" }} /> 80% Net Earnings
+            <TrendingUp size={14} style={{ color: "var(--cm-done)" }} /> Net Earnings
           </div>
           <div className="cm-metric-card__value">₹3,840</div>
           <div className="cm-metric-card__meta">Daily net settlement</div>
@@ -273,10 +273,10 @@ export default function DoctorDashboard() {
 
         <div className="cm-metric-card" onClick={() => setActiveTab("tariffs")} style={{ cursor: "pointer" }}>
           <div className="cm-metric-card__label">
-            <ShieldCheck size={14} style={{ color: "var(--cm-waiting)" }} /> Benchmark Payout
+            <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Clinical Status
           </div>
-          <div className="cm-metric-card__value">80%</div>
-          <div className="cm-metric-card__meta">CallMedEx Provider MOU</div>
+          <div className="cm-metric-card__value">Active</div>
+          <div className="cm-metric-card__meta">NMC Verified Practitioner</div>
         </div>
       </div>
 
@@ -486,16 +486,16 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 2: BENCHMARK TARIFFS & 80/20 COMMERCIAL SPLIT
+          TAB 2: CONSULTATION TARIFFS & FEE SCHEDULE
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "tariffs" && (
         <div>
           <div style={{ marginBottom: "var(--cm-4)" }}>
             <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-              Specialty Fee Benchmarks &amp; 80/20 Commercial Split
+              Specialty Fee Benchmarks &amp; Tariff Management
             </h2>
             <p style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-              Official reference pricing benchmark from CallMedex Provider Agreements. You retain 80% net remuneration with a 20% platform charge.
+              Official reference pricing benchmark and fee schedule for consultations and clinical visits.
             </p>
           </div>
 
@@ -519,7 +519,7 @@ export default function DoctorDashboard() {
                       {t.mode}
                     </span>
                     <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700 }}>
-                      80% Net Take-Home
+                      Standard Tariff
                     </span>
                   </div>
                   <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
@@ -536,7 +536,7 @@ export default function DoctorDashboard() {
                     <span style={{ fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>₹{t.standard_price}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, borderTop: "1px dashed var(--cm-line-strong)", paddingTop: 4 }}>
-                    <span>Doctor Net Remuneration:</span>
+                    <span>Estimated Net Payout:</span>
                     <span style={{ fontVariantNumeric: "tabular-nums" }}>₹{t.doctor_net}</span>
                   </div>
                 </div>
@@ -701,13 +701,13 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 4: REVENUE & 80% PAYOUT ANALYTICS
+          TAB 4: REVENUE & PAYOUT ANALYTICS
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "revenue" && (
         <div>
           <div style={{ marginBottom: "var(--cm-4)" }}>
             <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-              Revenue &amp; Payout Settlements (80% Net Invariant)
+              Revenue &amp; Payout Settlements
             </h2>
             <p style={{ margin: "2px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
               Transparent financial settlements as per CallMedex Provider Agreement. Direct daily clearing to verified bank accounts.
@@ -721,12 +721,12 @@ export default function DoctorDashboard() {
               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 2 }}>8 total appointments completed</div>
             </div>
             <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-done-line)", background: "var(--cm-done-surface)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", textTransform: "uppercase", fontWeight: 700 }}>80% Net Doctor Take-Home</div>
+              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", textTransform: "uppercase", fontWeight: 700 }}>Net Provider Payout</div>
               <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-done)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>₹3,840</div>
               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 2 }}>Ready for direct bank settlement</div>
             </div>
             <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700 }}>20% Platform Fee</div>
+              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700 }}>Platform Services &amp; Processing</div>
               <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-ink-2)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>₹960</div>
               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>Telehealth infrastructure &amp; compliance</div>
             </div>
