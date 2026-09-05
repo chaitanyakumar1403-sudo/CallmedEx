@@ -149,6 +149,123 @@ const DENTAL_PROCEDURES_LIST = [
   { id: "dent_emergency_dental_care", name: "Emergency Dental Care", category: "Emergency", price: 1500, duration: "45 Mins" },
 ];
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function DocumentFileCard({
+  file,
+  status,
+  statusKey,
+  onRemove,
+  onVerify,
+}: {
+  file: File;
+  status?: string;
+  statusKey: string;
+  onRemove: () => void;
+  onVerify: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "10px 14px",
+        backgroundColor: "#f0fdf4",
+        border: "1.5px solid #86efac",
+        borderRadius: 8,
+        flex: 1,
+        gap: 12,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <div style={{ padding: 6, borderRadius: 6, backgroundColor: "#dcfce7", display: "flex", flexShrink: 0 }}>
+          <FileText size={20} color="#16a34a" />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "0.88rem",
+              color: "#166534",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: 240,
+            }}
+            title={file.name}
+          >
+            {file.name}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+            {formatFileSize(file.size)}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {status === "verified" ? (
+          <span
+            style={{
+              color: "#16a34a",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <CheckCircle2 size={16} /> AI Verified
+          </span>
+        ) : status === "verifying" ? (
+          <span
+            style={{
+              color: "#d97706",
+              fontWeight: 600,
+              fontSize: "0.85rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Clock size={16} /> Verifying...
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onVerify}
+          >
+            Verify via AI
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          style={{
+            background: "none",
+            border: "1px solid #fecaca",
+            backgroundColor: "#fee2e2",
+            color: "#991b1b",
+            cursor: "pointer",
+            fontSize: "0.78rem",
+            fontWeight: 600,
+            padding: "4px 8px",
+            borderRadius: 6,
+          }}
+          title="Remove selected file"
+        >
+          ✕ Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SignupPage() {
   const [role, setRole] = useState("patient");
   // Facility registrations are made BY a person ON BEHALF of an organization, so
@@ -188,6 +305,16 @@ export default function SignupPage() {
   const [registrantRole, setRegistrantRole] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [workSetting, setWorkSetting] = useState("solo_clinic"); // "solo_clinic" | "polyclinic" | "hospital"
+
+  // Provider certificate files state
+  const [physioCertFile, setPhysioCertFile] = useState<File | null>(null);
+  const [dentistCertFile, setDentistCertFile] = useState<File | null>(null);
+  const [dietitianCertFile, setDietitianCertFile] = useState<File | null>(null);
+  const [doctorCertFile, setDoctorCertFile] = useState<File | null>(null);
+  const [nurseCertFile, setNurseCertFile] = useState<File | null>(null);
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+  const [orgCertFile, setOrgCertFile] = useState<File | null>(null);
+  const [highlightField, setHighlightField] = useState<string | null>(null);
 
   const addDocumentField = () => setAdditionalDocs(prev => [...prev, { id: Date.now(), name: "" }]);
   const removeDocumentField = (id: number) => setAdditionalDocs(prev => prev.filter(doc => doc.id !== id));
@@ -238,15 +365,27 @@ export default function SignupPage() {
     }
   };
 
-  const triggerError = (msg: string) => {
+  const triggerError = (msg: string, targetId?: string) => {
     setError(msg);
     setLoading(false);
-    setTimeout(() => {
-      const errEl = document.getElementById("signup-bottom-error") || document.querySelector(".form-error");
-      if (errEl) {
-        errEl.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }, 50);
+    if (targetId) {
+      setHighlightField(targetId);
+      setTimeout(() => {
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          const focusable = targetEl.querySelector("input, select, textarea, button") as HTMLElement | null;
+          if (focusable) focusable.focus();
+        }
+      }, 50);
+    } else {
+      setTimeout(() => {
+        const errEl = document.getElementById("signup-bottom-error") || document.querySelector(".form-error");
+        if (errEl) {
+          errEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }, 50);
+    }
   };
 
   const handleSimulateAIVerification = (docType: string, hasFile = true) => {
@@ -268,20 +407,20 @@ export default function SignupPage() {
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirm_password") as string;
     if (password !== confirmPassword) { 
-      triggerError("Passwords do not match. Please re-enter."); 
+      triggerError("Passwords do not match. Please re-enter.", "confirm_password_group"); 
       return; 
     }
 
     // District decides which clinics, slots and collectors this account can
     // see or serve, so it cannot be optional the way free-text city was.
     if (!locState || !locDistrict) {
-      triggerError("Please select your State and District.");
+      triggerError("Please select your State and District.", "state_district_picker_container");
       return;
     }
 
     // Client-side DOB validation (non-org roles require a valid date)
     if (!isOrgLike && !dob) {
-      triggerError("Please select your full Date of Birth (Year, Month, and Day).");
+      triggerError("Please select your full Date of Birth (Year, Month, and Day).", "dob_picker_container");
       return;
     }
 
@@ -610,10 +749,19 @@ export default function SignupPage() {
                   </span>
                 </div>
               ) : (
-                <div className="form-group">
-                  <DateOfBirthPicker value={dob} onChange={setDob} />
+                <div 
+                  id="dob_picker_container"
+                  className="form-group"
+                  style={highlightField === "dob_picker_container" ? { border: "2px solid #ef4444", borderRadius: 8, padding: 8, backgroundColor: "#fef2f2" } : {}}
+                >
+                  <DateOfBirthPicker value={dob} onChange={(val) => { setDob(val); if (highlightField === "dob_picker_container") setHighlightField(null); }} />
                   {/* Hidden input for form compatibility */}
                   <input type="hidden" name="date_of_birth" value={dob} />
+                  {highlightField === "dob_picker_container" && (
+                    <div style={{ color: "#dc2626", fontSize: "0.78rem", fontWeight: 600, marginTop: 4 }}>
+                      ⚠️ Please select your full Date of Birth (Year, Month, and Day).
+                    </div>
+                  )}
                 </div>
               )}
               <div className="form-group">
@@ -692,9 +840,25 @@ export default function SignupPage() {
                 </div>
                 <small id="password-strength-label" style={{ display: "block", marginTop: 4, fontSize: "0.75rem", color: "#94a3b8" }}>Enter a password</small>
               </div>
-              <div className="form-group">
+              <div 
+                id="confirm_password_group"
+                className="form-group"
+                style={highlightField === "confirm_password_group" ? { border: "2px solid #ef4444", borderRadius: 8, padding: 8, backgroundColor: "#fef2f2" } : {}}
+              >
                 <label className="form-label">Confirm Password *</label>
-                <input name="confirm_password" type="password" className="form-input" placeholder="Re-enter password" required />
+                <input 
+                  name="confirm_password" 
+                  type="password" 
+                  className="form-input" 
+                  placeholder="Re-enter password" 
+                  required 
+                  onChange={() => { if (highlightField === "confirm_password_group") setHighlightField(null); }}
+                />
+                {highlightField === "confirm_password_group" && (
+                  <div style={{ color: "#dc2626", fontSize: "0.78rem", fontWeight: 600, marginTop: 4 }}>
+                    ⚠️ Passwords do not match.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -714,7 +878,11 @@ export default function SignupPage() {
                 phlebotomist scoping) then missed. District is the unit that
                 actually decides service coverage; the server mirrors it into
                 the city column so existing consumers keep working. */}
-            <div className="form-group">
+            <div 
+              id="state_district_picker_container"
+              className="form-group"
+              style={highlightField === "state_district_picker_container" ? { border: "2px solid #ef4444", borderRadius: 8, padding: 8, backgroundColor: "#fef2f2" } : {}}
+            >
               <label className="form-label">State &amp; District *</label>
               <StateDistrictPicker
                 stateValue={locState}
@@ -724,8 +892,14 @@ export default function SignupPage() {
                   setLocState(next.state);
                   setLocDistrict(next.district);
                   setLocDetected(next.detected);
+                  if (highlightField === "state_district_picker_container") setHighlightField(null);
                 }}
               />
+              {highlightField === "state_district_picker_container" && (
+                <div style={{ color: "#dc2626", fontSize: "0.78rem", fontWeight: 600, marginTop: 4 }}>
+                  ⚠️ Please select both your State and District.
+                </div>
+              )}
               <small style={{ display: "block", marginTop: 6, color: "#64748b", fontSize: "0.78rem" }}>
                 Your district decides which clinics, collection slots and home
                 visits are available to you.
@@ -851,22 +1025,48 @@ export default function SignupPage() {
 
               <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                 <label className="form-label">Upload Medical Registration Certificate *</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
-                  {verificationStatus['doc_license'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <CheckCircle2 size={16} /> AI Verified
-                      </span>
-                  ) : verificationStatus['doc_license'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <Clock size={16} /> Verifying...
-                      </span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_license')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                {!doctorCertFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      required 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setDoctorCertFile(f);
+                          setVerificationStatus(prev => ({ ...prev, doc_license: 'idle' }));
+                        } 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select a medical registration certificate file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={doctorCertFile}
+                    status={verificationStatus['doc_license']}
+                    statusKey="doc_license"
+                    onRemove={() => {
+                      setDoctorCertFile(null);
+                      setVerificationStatus(prev => ({ ...prev, doc_license: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('doc_license', true)}
+                  />
+                )}
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', marginTop: 4 }}>Required for platform verification. Our AI will instantly verify your credentials.</div>
               </div>
 
@@ -986,22 +1186,48 @@ export default function SignupPage() {
 
               <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                 <label className="form-label">Upload Nursing License / Certificate *</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
-                  {verificationStatus['nurse_license'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <CheckCircle2 size={16} /> AI Verified
-                      </span>
-                  ) : verificationStatus['nurse_license'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <Clock size={16} /> Verifying...
-                      </span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('nurse_license')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                {!nurseCertFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      required 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setNurseCertFile(f);
+                          setVerificationStatus(prev => ({ ...prev, nurse_license: 'idle' }));
+                        } 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select a nursing certificate file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={nurseCertFile}
+                    status={verificationStatus['nurse_license']}
+                    statusKey="nurse_license"
+                    onRemove={() => {
+                      setNurseCertFile(null);
+                      setVerificationStatus(prev => ({ ...prev, nurse_license: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('nurse_license', true)}
+                  />
+                )}
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', marginTop: 4 }}>Our AI will verify your nursing credentials against government records.</div>
               </div>
 
@@ -1105,33 +1331,47 @@ export default function SignupPage() {
 
               <div className="form-group" style={{ marginTop: 12 }}>
                 <label className="form-label">Upload Degree / IDA Registration Certificate (Optional)</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input 
-                    type="file" 
-                    accept=".pdf,.jpg,.jpeg,.png" 
-                    className="form-input" 
-                    style={{ flex: 1 }} 
-                    onChange={(e) => { 
-                      const f = e.target.files?.[0]; 
-                      if (f) { 
-                        const err = validateFileSize(f); 
-                        if (err) { 
-                          alert(err); 
-                          e.target.value = ""; 
+                {!dietitianCertFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setDietitianCertFile(f);
+                          setVerificationStatus(prev => ({ ...prev, doc_dietitian: 'idle' }));
                         } 
-                      } 
-                    }} 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select a dietitian certificate file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={dietitianCertFile}
+                    status={verificationStatus['doc_dietitian']}
+                    statusKey="doc_dietitian"
+                    onRemove={() => {
+                      setDietitianCertFile(null);
+                      setVerificationStatus(prev => ({ ...prev, doc_dietitian: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('doc_dietitian', true)}
                   />
-                  {verificationStatus['doc_dietitian'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
-                  ) : verificationStatus['doc_dietitian'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_dietitian')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -1225,33 +1465,47 @@ export default function SignupPage() {
 
               <div className="form-group" style={{ marginTop: 12 }}>
                 <label className="form-label">Upload Degree / State Council Certificate (Optional)</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input 
-                    type="file" 
-                    accept=".pdf,.jpg,.jpeg,.png" 
-                    className="form-input" 
-                    style={{ flex: 1 }} 
-                    onChange={(e) => { 
-                      const f = e.target.files?.[0]; 
-                      if (f) { 
-                        const err = validateFileSize(f); 
-                        if (err) { 
-                          alert(err); 
-                          e.target.value = ""; 
+                {!physioCertFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setPhysioCertFile(f);
+                          setVerificationStatus(prev => ({ ...prev, doc_physio: 'idle' }));
                         } 
-                      } 
-                    }} 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select a physiotherapy certificate file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={physioCertFile}
+                    status={verificationStatus['doc_physio']}
+                    statusKey="doc_physio"
+                    onRemove={() => {
+                      setPhysioCertFile(null);
+                      setVerificationStatus(prev => ({ ...prev, doc_physio: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('doc_physio', true)}
                   />
-                  {verificationStatus['doc_physio'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
-                  ) : verificationStatus['doc_physio'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_physio')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -1345,33 +1599,47 @@ export default function SignupPage() {
 
               <div className="form-group" style={{ marginTop: 12 }}>
                 <label className="form-label">Upload BDS / MDS / State Dental Council Certificate (Optional)</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input 
-                    type="file" 
-                    accept=".pdf,.jpg,.jpeg,.png" 
-                    className="form-input" 
-                    style={{ flex: 1 }} 
-                    onChange={(e) => { 
-                      const f = e.target.files?.[0]; 
-                      if (f) { 
-                        const err = validateFileSize(f); 
-                        if (err) { 
-                          alert(err); 
-                          e.target.value = ""; 
+                {!dentistCertFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setDentistCertFile(f);
+                          setVerificationStatus(prev => ({ ...prev, doc_dentist: 'idle' }));
                         } 
-                      } 
-                    }} 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select a dental certificate file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={dentistCertFile}
+                    status={verificationStatus['doc_dentist']}
+                    statusKey="doc_dentist"
+                    onRemove={() => {
+                      setDentistCertFile(null);
+                      setVerificationStatus(prev => ({ ...prev, doc_dentist: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('doc_dentist', true)}
                   />
-                  {verificationStatus['doc_dentist'] === 'verified' ? (
-                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
-                  ) : verificationStatus['doc_dentist'] === 'verifying' ? (
-                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_dentist')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                )}
               </div>
 
               <div className="form-row">
@@ -1599,18 +1867,48 @@ export default function SignupPage() {
 
                 <div className="form-group" style={{ marginBottom: 20, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                   <label className="form-label">Upload Registration / Accreditation Certificate (PDF/JPG) *</label>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
-                    {verificationStatus['org_license'] === 'verified' ? (
-                        <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
-                    ) : verificationStatus['org_license'] === 'verifying' ? (
-                        <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
-                    ) : (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('org_license')}>
-                            Verify via AI
-                        </button>
-                    )}
-                  </div>
+                  {!orgCertFile ? (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.jpg,.jpeg,.png" 
+                        className="form-input" 
+                        style={{ flex: 1 }} 
+                        required 
+                        onChange={(e) => { 
+                          const f = e.target.files?.[0]; 
+                          if (f) { 
+                            const err = validateFileSize(f); 
+                            if (err) { 
+                              alert(err); 
+                              e.target.value = ""; 
+                              return;
+                            } 
+                            setOrgCertFile(f);
+                            setVerificationStatus(prev => ({ ...prev, org_license: 'idle' }));
+                          } 
+                        }} 
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => alert("Please select an organization registration certificate file first before verifying.")}
+                      >
+                        Verify via AI
+                      </button>
+                    </div>
+                  ) : (
+                    <DocumentFileCard
+                      file={orgCertFile}
+                      status={verificationStatus['org_license']}
+                      statusKey="org_license"
+                      onRemove={() => {
+                        setOrgCertFile(null);
+                        setVerificationStatus(prev => ({ ...prev, org_license: 'idle' }));
+                      }}
+                      onVerify={() => handleSimulateAIVerification('org_license', true)}
+                    />
+                  )}
                   <div style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', marginTop: 4 }}>Our AI will verify the document against government records.</div>
                 </div>
 
@@ -1797,35 +2095,43 @@ export default function SignupPage() {
                       ✕ Remove
                     </button>
                   </div>
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <input 
-                      type="file" 
-                      accept=".pdf,.jpg,.jpeg,.png" 
-                      className="form-input" 
-                      style={{ flex: 1 }} 
-                      onChange={(e) => { 
-                        const f = e.target.files?.[0]; 
-                        if (f) { 
-                          const err = validateFileSize(f); 
-                          if (err) { 
-                            alert(err); 
-                            e.target.value = ""; 
-                          } else {
-                            handleDocFileChange(doc.id, f);
-                          }
-                        } 
-                      }} 
+                  {!doc.file ? (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.jpg,.jpeg,.png" 
+                        className="form-input" 
+                        style={{ flex: 1 }} 
+                        onChange={(e) => { 
+                          const f = e.target.files?.[0]; 
+                          if (f) { 
+                            const err = validateFileSize(f); 
+                            if (err) { 
+                              alert(err); 
+                              e.target.value = ""; 
+                            } else {
+                              handleDocFileChange(doc.id, f);
+                            }
+                          } 
+                        }} 
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => alert("Please select a document file first before verifying.")}
+                      >
+                        Verify via AI
+                      </button>
+                    </div>
+                  ) : (
+                    <DocumentFileCard
+                      file={doc.file}
+                      status={verificationStatus[`doc_${doc.id}`]}
+                      statusKey={`doc_${doc.id}`}
+                      onRemove={() => handleDocFileChange(doc.id, undefined)}
+                      onVerify={() => handleSimulateAIVerification(`doc_${doc.id}`, true)}
                     />
-                    {verificationStatus[`doc_${doc.id}`] === 'verified' ? (
-                        <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
-                    ) : verificationStatus[`doc_${doc.id}`] === 'verifying' ? (
-                        <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
-                    ) : (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification(`doc_${doc.id}`, !!doc.file)}>
-                            Verify via AI
-                        </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1844,22 +2150,48 @@ export default function SignupPage() {
               </p>
               <div className="form-group" style={{ padding: 16, backgroundColor: '#fffbeb', borderRadius: 8, border: '1px dashed #f59e0b' }}>
                 <label className="form-label">Upload Aadhaar Card (Front Side) *</label>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="form-input" style={{ flex: 1 }} required />
-                  {verificationStatus['aadhaar'] === 'verified' ? (
-                      <span style={{ color: 'var(--cm-done)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <CheckCircle2 size={14} /> AI Verified
-                      </span>
-                  ) : verificationStatus['aadhaar'] === 'verifying' ? (
-                      <span style={{ color: 'var(--cm-waiting)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Clock size={14} /> Verifying...
-                      </span>
-                  ) : (
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('aadhaar')}>
-                          Verify via AI
-                      </button>
-                  )}
-                </div>
+                {!aadhaarFile ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <input 
+                      type="file" 
+                      accept=".jpg,.jpeg,.png,.pdf" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      required 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                            return;
+                          } 
+                          setAadhaarFile(f);
+                          setVerificationStatus(prev => ({ ...prev, aadhaar: 'idle' }));
+                        } 
+                      }} 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => alert("Please select your Aadhaar card file first before verifying.")}
+                    >
+                      Verify via AI
+                    </button>
+                  </div>
+                ) : (
+                  <DocumentFileCard
+                    file={aadhaarFile}
+                    status={verificationStatus['aadhaar']}
+                    statusKey="aadhaar"
+                    onRemove={() => {
+                      setAadhaarFile(null);
+                      setVerificationStatus(prev => ({ ...prev, aadhaar: 'idle' }));
+                    }}
+                    onVerify={() => handleSimulateAIVerification('aadhaar', true)}
+                  />
+                )}
                 <div style={{ fontSize: '0.75rem', color: '#92400e', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <AlertCircle size={14} /> Our AI will verify your Aadhaar card is genuine and your name matches your registration.
                   Only the last 4 digits of your Aadhaar number are stored for privacy.

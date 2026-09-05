@@ -115,6 +115,33 @@ export default function DashboardProfile({ profile, role }: DashboardProfileProp
             {field(Clock, "Operating Hours", profile.operating_hours || "24x7 Emergency OPD")}
           </>
         )}
+
+        {/* Dentist specific details */}
+        {role === "dentist" && (
+          <>
+            {field(Building2, "Dental Clinic Name", profile.clinic_name || profile.hospital_clinic_name)}
+            {field(FileText, "Dental Council Reg No", profile.dental_council_reg || profile.registration_number || profile.license_number)}
+            {field(GraduationCap, "Dental Qualification", profile.qualification || "BDS / MDS")}
+          </>
+        )}
+
+        {/* Dietitian specific details */}
+        {role === "dietitian" && (
+          <>
+            {field(Stethoscope, "Dietetic Specialization", profile.specialization || "Clinical Nutrition & Dietetics")}
+            {field(FileText, "IDA / Council Reg No", profile.license_number || profile.registration_number)}
+            {field(GraduationCap, "Nutrition Qualification", profile.qualification || "M.Sc. Clinical Nutrition / RD")}
+          </>
+        )}
+
+        {/* Physiotherapist specific details */}
+        {role === "physiotherapist" && (
+          <>
+            {field(Stethoscope, "Therapy Specialization", profile.specialization || "Orthopaedic & Neuro Rehabilitation")}
+            {field(FileText, "Physiotherapy Reg No", profile.license_number || profile.registration_number)}
+            {field(GraduationCap, "Clinical Qualification", profile.qualification || "BPT / MPT Physical Therapy")}
+          </>
+        )}
       </dl>
     </Panel>
   );

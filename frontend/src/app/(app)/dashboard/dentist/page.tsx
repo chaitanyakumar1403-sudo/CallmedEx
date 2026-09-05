@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell, { SkeletonRows, type DashTab } from "../components/DashboardShell";
+import DashboardProfile from "../components/DashboardProfile";
+import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import {
   Calendar,
@@ -495,6 +497,7 @@ export default function DentistDashboard() {
     { id: "queue", label: "Walk-In Clinic Queue", icon: Calendar, count: walkInQueue.length },
     { id: "charting", label: "Clinical Odontogram", icon: Activity },
     { id: "mou", label: "CallMedex Dental MOU", icon: ShieldCheck },
+    { id: "profile", label: "Dentist Profile", icon: User },
   ];
 
   if (loading) {
@@ -1185,6 +1188,14 @@ export default function DentistDashboard() {
                 <FileText size={16} /> Print / Save MOU Copy
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ─── TAB 5: DENTIST PRACTICE PROFILE & VERIFICATION ─── */}
+        {activeTab === "profile" && (
+          <div>
+            <SelfieVerificationCard />
+            <DashboardProfile profile={profile} role="dentist" />
           </div>
         )}
       </div>

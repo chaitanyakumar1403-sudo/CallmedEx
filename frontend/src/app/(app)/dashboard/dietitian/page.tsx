@@ -5,6 +5,7 @@ import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 import ProviderSchedulePanel from "../components/ProviderSchedulePanel";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
+import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import {
   Calendar,
   Clock,
@@ -644,6 +645,7 @@ export default function DietitianDashboard() {
       </div>
 
       <div className={activeTab === "profile" ? "" : "tab-panel-hidden"}>
+        <SelfieVerificationCard />
         <DashboardProfile profile={profile} role="dietitian" />
       </div>
     </DashboardShell>

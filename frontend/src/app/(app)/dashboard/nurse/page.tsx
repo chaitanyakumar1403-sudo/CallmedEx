@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
+import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -558,7 +559,10 @@ export default function NurseDashboard() {
           TAB 5: NURSE PROFILE
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "profile" && (
-        <DashboardProfile profile={profile} role="nurse" />
+        <div>
+          <SelfieVerificationCard />
+          <DashboardProfile profile={profile} role="nurse" />
+        </div>
       )}
     </DashboardShell>
   );

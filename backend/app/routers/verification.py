@@ -235,12 +235,20 @@ async def verify_aadhaar(
         if not ocr_result.get("is_legible") or not ocr_result.get("is_valid_document"):
             # Store failed attempt
             if supabase:
-                supabase.table("documents").insert({
-                    "user_id": current_user["sub"],
-                    "document_type": "aadhaar_card",
-                    "verification_status": "rejected_illegible",
-                    "ai_ocr_data": ocr_result,
-                }).execute()
+                try:
+                    from datetime import datetime, timezone
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    supabase.table("documents").insert({
+                        "user_id": current_user["sub"],
+                        "document_type": "aadhaar_card",
+                        "file_url": f"aadhaar://{current_user['sub']}/{int(datetime.now(timezone.utc).timestamp())}",
+                        "file_name": file.filename or "aadhaar.jpg",
+                        "verification_status": "rejected_illegible",
+                        "verification_notes": ocr_result.get("error", "Not legible"),
+                        "uploaded_at": now_iso,
+                    }).execute()
+                except Exception as db_err:
+                    logger.warning(f"Could not record rejected aadhaar document: {db_err}")
 
             return APIResponse(
                 success=False,
@@ -265,13 +273,23 @@ async def verify_aadhaar(
 
         # Store result
         if supabase:
-            supabase.table("documents").insert({
-                "user_id": current_user["sub"],
-                "document_type": "aadhaar_card",
-                "verification_status": status,
-                "ai_ocr_data": ocr_result,
-                "name_match_score": name_score,
-            }).execute()
+            try:
+                from datetime import datetime, timezone
+                now_iso = datetime.now(timezone.utc).isoformat()
+                doc_record = {
+                    "user_id": current_user["sub"],
+                    "document_type": "aadhaar_card",
+                    "file_url": f"aadhaar://{current_user['sub']}/{int(datetime.now(timezone.utc).timestamp())}",
+                    "file_name": file.filename or "aadhaar.jpg",
+                    "verification_status": status,
+                    "verification_notes": f"Score: {name_score:.2f}, Reg: '{registered_name}', Aadhaar: '{aadhaar_name}'",
+                    "uploaded_at": now_iso,
+                }
+                if all_passed:
+                    doc_record["verified_at"] = now_iso
+                supabase.table("documents").insert(doc_record).execute()
+            except Exception as db_err:
+                logger.warning(f"Could not record aadhaar document: {db_err}")
 
         return APIResponse(
             success=all_passed,
@@ -328,17 +346,48 @@ async def verify_selfie(
     try:
         from app.services.ai_ocr import AadhaarOCRService
         from app.database import supabase
+        from datetime import datetime, timezone
 
         result = AadhaarOCRService.verify_selfie(file_bytes, content_type)
         passed = result.get("liveness_passed", False)
+        now_iso = datetime.now(timezone.utc).isoformat()
 
         if supabase:
-            supabase.table("documents").insert({
-                "user_id": current_user["sub"],
-                "document_type": "live_selfie",
-                "verification_status": "verified" if passed else "rejected_liveness",
-                "ai_ocr_data": result,
-            }).execute()
+            try:
+                doc_record = {
+                    "user_id": current_user["sub"],
+                    "document_type": "live_selfie",
+                    "file_url": f"selfie://{current_user['sub']}/{int(datetime.now(timezone.utc).timestamp())}",
+                    "file_name": file.filename or "selfie.jpg",
+                    "verification_status": "verified" if passed else "rejected_liveness",
+                    "verification_notes": result.get("rejection_reason") or f"Liveness confidence: {result.get('confidence_score', 0)}",
+                    "uploaded_at": now_iso,
+                }
+                if passed:
+                    doc_record["verified_at"] = now_iso
+                supabase.table("documents").insert(doc_record).execute()
+
+                # Also update provider profile record if passed
+                if passed:
+                    role_table_map = {
+                        "doctor": "doctors",
+                        "phlebotomist": "phlebotomists",
+                        "nurse": "nurses",
+                        "dentist": "dentists",
+                        "dietitian": "dietitians",
+                        "physiotherapist": "physiotherapists",
+                    }
+                    target_table = role_table_map.get(role)
+                    if target_table:
+                        try:
+                            supabase.table(target_table).update({
+                                "verified_at": now_iso
+                            }).eq("user_id", current_user["sub"]).execute()
+                        except Exception as update_err:
+                            logger.warning(f"Could not update {target_table} verified_at: {update_err}")
+
+            except Exception as insert_err:
+                logger.warning(f"Could not record selfie document in database: {insert_err}")
 
         return APIResponse(
             success=passed,
