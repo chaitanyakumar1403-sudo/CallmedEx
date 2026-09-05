@@ -27,7 +27,7 @@ function dataURItoBlob(dataURI: string): Blob {
  *  3. Photo file upload.
  * Verified with backend /api/verification/verify-selfie.
  */
-export default function SelfieVerificationCard() {
+export default function SelfieVerificationCard({ onVerified }: { onVerified?: () => void } = {}) {
   const [status, setStatus] = useState<"idle" | "capturing" | "uploading" | "verified" | "failed">("idle");
   const [message, setMessage] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -265,6 +265,7 @@ export default function SelfieVerificationCard() {
       if (data.success) {
         setStatus("verified");
         setMessage("✅ Live selfie verified successfully! Your practitioner identity is confirmed.");
+        onVerified?.();
       } else {
         setStatus("failed");
         setMessage(`❌ ${data.message || "Liveness check failed. Please ensure your face is well-lit and clearly visible."}`);

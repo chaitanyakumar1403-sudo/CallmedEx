@@ -77,34 +77,7 @@ export default function DoctorDashboard() {
   const [normalVisitFee, setNormalVisitFee] = useState("800");
   const [urgentVisitFee, setUrgentVisitFee] = useState("1500");
   const [showGpsMap, setShowGpsMap] = useState(false);
-  const [activeDispatches, setActiveDispatches] = useState<any[]>([
-    {
-      id: "hv-001",
-      patient_name: "Mrs. Saraswathi Rao",
-      patient_gender: "Female, 71y",
-      patient_mobile: "+91 94401 23456",
-      patient_email: "saraswathi.rao@example.com",
-      address: "Plot 42, Sector 5, MVP Colony, Visakhapatnam",
-      tier: "urgent",
-      chief_complaint: "Acute hypertension spike & dizziness, post-CABG review",
-      status: "dispatched",
-      eta_mins: 25,
-      requested_at: "Today, 10:15 AM",
-    },
-    {
-      id: "hv-002",
-      patient_name: "Ramesh Kumar Verma",
-      patient_gender: "Male, 58y",
-      patient_mobile: "+91 98480 87654",
-      patient_email: "ramesh.verma@example.com",
-      address: "Flat 302, Sai Residency, Lawsons Bay Colony, Visakhapatnam",
-      tier: "normal",
-      chief_complaint: "Routine monthly geriatric clinical evaluation & vitals check",
-      status: "confirmed",
-      eta_mins: 60,
-      requested_at: "Today, 02:30 PM",
-    },
-  ]);
+  const [activeDispatches, setActiveDispatches] = useState<any[]>([]);
   const [etaUpdatingId, setEtaUpdatingId] = useState<string | null>(null);
 
   // Real Doctor Earnings & Financial Settlement (/api/payments/my-earnings)
@@ -123,13 +96,10 @@ export default function DoctorDashboard() {
   const [rxPatientGender, setRxPatientGender] = useState("Female");
   const [rxPatientEmail, setRxPatientEmail] = useState("");
   const [rxPatientMobile, setRxPatientMobile] = useState("");
-  const [rxDiagnosis, setRxDiagnosis] = useState("Acute Upper Respiratory Tract Infection (J06.9)");
-  const [rxClinicalNotes, setRxClinicalNotes] = useState("Ensure adequate hydration, warm saline gargles, and light diet. Review if fever persists past 3 days.");
-  const [rxItems, setRxItems] = useState<any[]>([
-    { name: "Paracetamol 650mg", dose: "1 tab", freq: "TID (3 times a day)", days: "3 days", notes: "After meals" },
-    { name: "Cetirizine 10mg", dose: "1 tab", freq: "OD (Bedtime)", days: "5 days", notes: "At night" },
-  ]);
-  const [rxLabTests, setRxLabTests] = useState<string[]>(["Complete Blood Count (CBC)", "C-Reactive Protein (CRP)"]);
+  const [rxDiagnosis, setRxDiagnosis] = useState("");
+  const [rxClinicalNotes, setRxClinicalNotes] = useState("");
+  const [rxItems, setRxItems] = useState<any[]>([]);
+  const [rxLabTests, setRxLabTests] = useState<string[]>([]);
   const [newLabTest, setNewLabTest] = useState("");
 
   const [rxNewName, setRxNewName] = useState("");
@@ -441,7 +411,7 @@ export default function DoctorDashboard() {
   return (
     <DashboardShell
       role="doctor"
-      title={profile?.full_name ? `Dr. ${profile.full_name} — Workstation Dashboard` : "Clinical Doctor Workstation"}
+      title={profile?.full_name ? `Dr. ${profile.full_name}` : "Dr. Verified Medical Specialist"}
       subtitle={`${profile?.qualification || "MBBS, MD"} · ${profile?.specialization || "General Medicine & Cardiology"} · ${profile?.hospital_clinic_name || "CallMedex Clinical Network"}`}
       tabs={tabs}
       activeTab={activeTab}
@@ -507,10 +477,27 @@ export default function DoctorDashboard() {
 
         <div className="cm-metric-card" onClick={() => setActiveTab("profile")} style={{ cursor: "pointer" }}>
           <div className="cm-metric-card__label">
-            <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "#f59e0b" }} /> Clinical Status
+            <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "#0284c7" }} /> Clinical Status
           </div>
-          <div className="cm-metric-card__value" style={{ color: isVerified ? "var(--cm-done)" : "#d97706" }}>
-            {isVerified ? "Active" : "Pending"}
+          <div style={{ marginTop: 6, marginBottom: 4 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "3px 10px",
+                borderRadius: "9999px",
+                fontSize: "1.1rem",
+                fontWeight: 800,
+                letterSpacing: "0.01em",
+                background: isVerified ? "rgba(34, 197, 94, 0.12)" : "rgba(2, 132, 199, 0.12)",
+                color: isVerified ? "#15803d" : "#0369a1",
+                border: `1px solid ${isVerified ? "rgba(34, 197, 94, 0.3)" : "rgba(2, 132, 199, 0.3)"}`,
+              }}
+            >
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: isVerified ? "#22c55e" : "#0284c7" }} />
+              {isVerified ? "Active" : "Pending"}
+            </span>
           </div>
           <div className="cm-metric-card__meta">
             {isVerified ? "NMC Verified Practitioner" : "Under NMC Credential Review"}
@@ -549,25 +536,35 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 1: LIVE PATIENT WAITING ROOM RADAR
+          TAB 1: LIVE PATIENT WAITING ROOM RADAR (GLASSMORPHIC WIDGET)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "radar" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: "var(--cm-3)" }}>
+        <div className="cm-widget-glass-light" style={{ marginBottom: 24 }}>
+          <div className="cm-widget-header">
             <div>
-              <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                Virtual Teleconsultation Waiting Room Radar
-              </h2>
-              <p style={{ margin: "2px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-                Real-time queue tracking for registered patients waiting in your teleconsultation lobby.
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                  Teleconsultation Radar
+                </span>
+                <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  {waitingCount > 0 ? `${waitingCount} patient(s) waiting` : "Queue currently clear"} · Auto-refreshes every 15s
+                </span>
+              </div>
+              <h3 className="cm-widget-title">
+                <Activity size={20} />
+                <span>Virtual Teleconsultation Waiting Room Radar</span>
+              </h3>
+              <p className="cm-widget-subtitle">
+                Real-time queue tracking for registered patients waiting in your encrypted teleconsultation lobby.
               </p>
             </div>
-            <div style={{ display: "flex", gap: "var(--cm-2)" }}>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={fetchActiveTelemedQueue}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
               >
                 <RefreshCw size={14} className={queueLoading ? "animate-spin" : ""} /> {queueLoading ? "Polling..." : "Refresh Queue"}
               </button>
@@ -575,7 +572,16 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={() => router.push("/dashboard/doctor/consult/instant")}
                 className="cm-btn cm-btn--primary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontWeight: 800,
+                  borderRadius: "9999px",
+                  padding: "8px 18px",
+                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+                }}
               >
                 <Video size={14} /> Launch Instant Exam Room
               </button>
@@ -584,60 +590,62 @@ export default function DoctorDashboard() {
 
           {/* Active Waiting Room Grid */}
           {activeConsultations.length > 0 ? (
-            <div style={{ marginBottom: "var(--cm-5)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "var(--cm-3)" }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--cm-urgent)" }} />
-                <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 8px rgba(239, 68, 68, 0.6)" }} />
+                <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                   Patients In Waiting Room Now ({activeConsultations.length})
-                </h3>
+                </h4>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {activeConsultations.map((c) => (
                   <div
                     key={c.id}
-                    className="cm-card"
                     style={{
-                      border: "1px solid var(--cm-line)",
-                      borderLeft: "4px solid var(--cm-active)",
-                      padding: "var(--cm-4) var(--cm-5)",
+                      padding: "16px 20px",
+                      borderRadius: 12,
+                      background: "rgba(255, 255, 255, 0.9)",
+                      border: "1px solid rgba(186, 230, 253, 0.8)",
+                      borderLeft: "4px solid #0284c7",
+                      boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                       flexWrap: "wrap",
-                      gap: "var(--cm-3)",
+                      gap: 14,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-4)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                       <div
                         style={{
                           width: 46,
                           height: 46,
-                          borderRadius: "var(--cm-radius)",
-                          background: "var(--cm-surface-2)",
-                          color: "var(--cm-navy)",
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(224, 242, 254, 0.8) 100%)",
+                          color: "#0369a1",
                           display: "grid",
                           placeItems: "center",
-                          fontWeight: 800,
-                          fontSize: "var(--cm-text-base)",
+                          fontWeight: 900,
+                          fontSize: "1.1rem",
                         }}
                       >
                         {c.patient_name?.[0] || "P"}
                       </div>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <h4 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                             {c.patient_name || "Patient in Queue"}
-                          </h4>
-                          <span className="cm-pill cm-pill--active">
+                          </span>
+                          <span className="cm-pill cm-pill--active" style={{ fontSize: "11px", fontWeight: 800 }}>
                             Lobby Active
                           </span>
                         </div>
-                        <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                          Waiting time: {c.elapsed_minutes || 2} mins · Chief complaint: {c.notes || "Telehealth Consultation"}
+                        <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                          Waiting time: <strong>{c.elapsed_minutes || 2} mins</strong> · Chief complaint: <strong>{c.notes || "Telehealth Consultation"}</strong>
                         </div>
                         {c.patient_email && (
-                          <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ fontSize: "0.8rem", color: "#0284c7", marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
                             <Mail size={12} /> {c.patient_email}
                           </div>
                         )}
@@ -649,7 +657,7 @@ export default function DoctorDashboard() {
                         type="button"
                         onClick={() => router.push(`/dashboard/doctor/consult/${c.id}`)}
                         className="cm-btn cm-btn--primary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 16px" }}
                       >
                         <Video size={14} /> Connect Patient Now
                       </button>
@@ -659,27 +667,27 @@ export default function DoctorDashboard() {
               </div>
             </div>
           ) : (
-            <div style={{ padding: "32px 20px", textAlign: "center", background: "var(--cm-surface)", border: "1px dashed var(--cm-line)", borderRadius: "var(--cm-radius)", marginBottom: 24 }}>
-              <Activity size={36} style={{ color: "var(--cm-ink-3)", margin: "0 auto 8px" }} />
-              <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>Virtual Waiting Room is Empty</div>
-              <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-                Patients booking online teleconsultations will appear live on this radar as soon as they enter your virtual clinic.
+            <div style={{ padding: "36px 20px", textAlign: "center", background: "rgba(240, 249, 255, 0.5)", border: "1px dashed rgba(186, 230, 253, 0.9)", borderRadius: 12, marginBottom: 24 }}>
+              <Activity size={36} style={{ color: "#0284c7", margin: "0 auto 8px" }} />
+              <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "1rem" }}>Virtual Waiting Room is Empty</div>
+              <p style={{ margin: "4px auto 0", fontSize: "0.82rem", color: "var(--cm-ink-3)", maxWidth: 440 }}>
+                Patients booking online teleconsultations will appear live on this radar as soon as they enter your virtual clinic lobby.
               </p>
             </div>
           )}
 
           {/* Today's Scheduled Patients Queue */}
-          <div className="cm-clinical-section" style={{ padding: "var(--cm-5)" }}>
-            <div className="cm-clinical-section__head" style={{ marginBottom: "var(--cm-4)" }}>
-              <div className="cm-clinical-section__title-group">
-                <div className="cm-clinical-section__icon-box">
-                  <Clock size={18} />
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", display: "grid", placeItems: "center" }}>
+                  <Clock size={16} />
                 </div>
                 <div>
-                  <h3 className="cm-clinical-section__title" style={{ fontSize: "var(--cm-text-base)" }}>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                     Today&apos;s Clinical Appointments Roster ({todayBookings.length})
-                  </h3>
-                  <p className="cm-clinical-section__subtitle">
+                  </h4>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
                     Patients scheduled for telemedicine, in-person clinic, or doorstep visits.
                   </p>
                 </div>
@@ -687,47 +695,47 @@ export default function DoctorDashboard() {
             </div>
 
             {todayBookings.length === 0 ? (
-              <div style={{ padding: "32px 20px", textAlign: "center", background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)" }}>
+              <div style={{ padding: "32px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
                 <Clock size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>No Scheduled Consultations for Today</div>
-                <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                  Your schedule is published and open. New bookings will automatically populate here.
+                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Scheduled Consultations for Today</div>
+                <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 420 }}>
+                  Your schedule is published and open. New bookings will automatically populate here in real time.
                 </p>
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-3)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {todayBookings.map((patient) => (
                   <div
                     key={patient.id}
-                    className="cm-card"
                     style={{
-                      padding: "var(--cm-4) var(--cm-5)",
+                      padding: "14px 18px",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                       flexWrap: "wrap",
-                      gap: "var(--cm-3)",
-                      border: "1px solid var(--cm-line)",
-                      borderRadius: "var(--cm-radius)",
+                      gap: 12,
+                      background: "#fff",
+                      border: "1px solid rgba(186, 230, 253, 0.8)",
+                      borderRadius: 10,
                     }}
                   >
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                        <h4 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                        <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                           {patient.patient_name || "Patient"}
-                        </h4>
-                        <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                        </span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
                           ({patient.patient_gender || "Patient"})
                         </span>
                         <span className={`cm-pill ${patient.status === "waiting" ? "cm-pill--urgent" : "cm-pill--active"}`}>
                           {patient.status || "Scheduled"}
                         </span>
-                        <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", fontWeight: 700 }}>
+                        <span style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700 }}>
                           Slot: {patient.slot_time || "Today"}
                         </span>
                       </div>
 
-                      <div style={{ display: "flex", gap: 16, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
+                      <div style={{ display: "flex", gap: 16, fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
                         {patient.patient_email && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                             <Mail size={12} /> {patient.patient_email}
@@ -749,7 +757,7 @@ export default function DoctorDashboard() {
                           setActiveTab("erx_studio");
                         }}
                         className="cm-btn cm-btn--secondary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
                       >
                         <FileText size={14} /> Draft e-Rx
                       </button>
@@ -757,7 +765,7 @@ export default function DoctorDashboard() {
                         type="button"
                         onClick={() => router.push(`/dashboard/doctor/consult/${patient.id}`)}
                         className="cm-btn cm-btn--primary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800 }}
                       >
                         <Video size={14} /> Open Exam Room
                       </button>
@@ -771,32 +779,43 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 2: CONSULTATION TARIFFS & CUSTOM PRACTICE FEES
+          TAB 2: CONSULTATION TARIFFS & CUSTOM PRACTICE FEES (FULL-WIDTH WIDGET)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "tariffs" && (
-        <div style={{ maxWidth: 1000 }}>
-          <div style={{ marginBottom: "var(--cm-4)" }}>
-            <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-              Practice Consultation Tariffs
-            </h2>
-            <p style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-              Manage your customized clinical consultation fees. Configured tariffs reflect live across your patient appointment booking slots.
-            </p>
+        <div className="cm-widget-glass-light" style={{ marginBottom: 24 }}>
+          <div className="cm-widget-header">
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                  Autonomous Practice Tariffs
+                </span>
+                <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  80% Net Payout Retention · Direct Daily Bank Settlement
+                </span>
+              </div>
+              <h3 className="cm-widget-title">
+                <DollarSign size={20} />
+                <span>Practice Consultation Tariffs</span>
+              </h3>
+              <p className="cm-widget-subtitle">
+                Manage your customized clinical consultation fees. Configured tariffs reflect live across your patient appointment booking slots.
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "var(--cm-5)", alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20, alignItems: "start" }}>
             {/* Active Configured Practice Tariffs Card */}
-            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                     Current Active Practice Tariffs
-                  </h3>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                  </h4>
+                  <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
                     Live rates charged to patients at checkout
                   </div>
                 </div>
-                <span className="cm-pill cm-pill--active" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span className="cm-pill cm-pill--active" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 800, fontSize: "11px" }}>
                   <ShieldCheck size={12} /> Custom Tariffs Active
                 </span>
               </div>
@@ -831,31 +850,31 @@ export default function DoctorDashboard() {
                       key={item.type}
                       style={{
                         padding: "14px 16px",
-                        background: "var(--cm-surface-2)",
-                        border: "1px solid var(--cm-line)",
-                        borderRadius: "var(--cm-radius-sm)",
+                        background: "linear-gradient(135deg, rgba(240, 249, 255, 0.5) 0%, rgba(255, 255, 255, 0.95) 100%)",
+                        border: "1px solid rgba(186, 230, 253, 0.7)",
+                        borderRadius: 10,
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
                           {item.label}
                         </div>
-                        <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                        <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
                           {item.desc}
                         </div>
-                        <div style={{ fontSize: "11px", color: "var(--cm-done)", fontWeight: 700, marginTop: 4 }}>
+                        <div style={{ fontSize: "11px", color: "#16a34a", fontWeight: 800, marginTop: 4 }}>
                           Doctor Net Payout (80%): ₹{doctorNet}
                         </div>
                       </div>
 
                       <div style={{ textAlign: "right", marginLeft: 16 }}>
-                        <div style={{ fontSize: "var(--cm-text-xl)", fontWeight: 900, color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>
                           ₹{activeAmount}
                         </div>
-                        <span style={{ fontSize: "11px", color: feeObj ? "var(--cm-active)" : "var(--cm-ink-3)", fontWeight: 700 }}>
+                        <span style={{ fontSize: "11px", color: feeObj ? "#0284c7" : "var(--cm-ink-3)", fontWeight: 800 }}>
                           {feeObj ? "Customized" : "Default"}
                         </span>
                       </div>
@@ -864,29 +883,30 @@ export default function DoctorDashboard() {
                 })}
               </div>
 
-              <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(2, 132, 199, 0.05)", border: "1px solid rgba(2, 132, 199, 0.15)", fontSize: "12px", color: "var(--cm-ink-2)" }}>
-                💡 <strong>Autonomy Note:</strong> Tariff adjustments take effect immediately for upcoming patient bookings. You retain 80% with daily bank settlement.
+              <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "rgba(2, 132, 199, 0.06)", border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "12px", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                💡 <strong>Autonomy Note:</strong> Tariff adjustments take effect immediately for upcoming patient bookings. You retain 80% with daily direct bank settlement.
               </div>
             </div>
 
             {/* Customize Practice Fee Form */}
-            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                ✏️ Customize Practice Fee
-              </h3>
-              <p style={{ margin: "0 0 16px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+              <h4 style={{ margin: "0 0 4px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                <DollarSign size={16} style={{ color: "#0284c7" }} />
+                <span>Customize Practice Fee</span>
+              </h4>
+              <p style={{ margin: "0 0 16px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
                 Update your consultation fee for any modality.
               </p>
 
               <form onSubmit={handleSaveCustomFee} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
                     Consultation Modality
                   </label>
                   <select
                     value={feeForm.fee_type}
                     onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.88rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 600 }}
                   >
                     <option value="in_person">Walk-in Clinic Consultation</option>
                     <option value="online">Online HD Teleconsultation</option>
@@ -895,7 +915,7 @@ export default function DoctorDashboard() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
                     New Practice Fee (₹)
                   </label>
                   <input
@@ -905,10 +925,10 @@ export default function DoctorDashboard() {
                     placeholder="e.g. 600"
                     value={feeForm.amount}
                     onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.95rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 800 }}
                   />
                   {feeForm.amount && Number(feeForm.amount) > 0 && (
-                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, marginTop: 6 }}>
+                    <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800, marginTop: 6 }}>
                       Estimated Net Payout (80%): ₹{Math.round(Number(feeForm.amount) * 0.8)}
                     </div>
                   )}
@@ -918,13 +938,20 @@ export default function DoctorDashboard() {
                   type="submit"
                   disabled={feeSaving}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ marginTop: 6, fontWeight: 700, padding: "10px 16px" }}
+                  style={{
+                    marginTop: 6,
+                    fontWeight: 800,
+                    padding: "10px 18px",
+                    borderRadius: 8,
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                  }}
                 >
                   {feeSaving ? "Saving Fee..." : "Update Practice Tariff"}
                 </button>
               </form>
 
-              <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid var(--cm-line)", fontSize: "11px", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+              <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid #e2e8f0", fontSize: "11px", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
                 ⚖️ <strong>MOU Terms:</strong> All fee payouts are governed under your accepted CallMedex Provider MOU. View your complete legal agreement anytime in the <strong>Doctor Profile</strong> tab.
               </div>
             </div>
@@ -1453,58 +1480,80 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 4: REVENUE & PAYOUT SETTLEMENTS (REAL LIVE DATA)
+          TAB 4: REVENUE & PAYOUT SETTLEMENTS (REAL LIVE DATA WIDGET)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "revenue" && (
-        <div>
-          <div style={{ marginBottom: "var(--cm-4)" }}>
-            <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-              Revenue &amp; Payout Settlements
-            </h2>
-            <p style={{ margin: "2px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-              Transparent financial settlements as per CallMedex Provider Agreement. Direct daily clearing to verified bank accounts.
-            </p>
+        <div className="cm-widget-glass-light" style={{ marginBottom: 24 }}>
+          <div className="cm-widget-header">
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                  Provider Payout Ledger
+                </span>
+                <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  80/20 MOU Payout Terms · Direct Daily Bank Clearing at 23:59 IST
+                </span>
+              </div>
+              <h3 className="cm-widget-title">
+                <TrendingUp size={20} />
+                <span>Revenue &amp; Payout Settlements</span>
+              </h3>
+              <p className="cm-widget-subtitle">
+                Transparent financial settlements governed under your accepted CallMedex Clinical MOU. Direct daily clearing to your verified bank account.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={fetchEarnings}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+              >
+                <RefreshCw size={14} className={earningsLoading ? "animate-spin" : ""} /> {earningsLoading ? "Refreshing..." : "Refresh Ledger"}
+              </button>
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "var(--cm-4)", marginBottom: "var(--cm-5)" }}>
-            <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700 }}>Total Net Earned</div>
-              <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-ink)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 20 }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+              <div style={{ fontSize: "0.75rem", color: "#0369a1", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Total Net Earned</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#0f172a", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.total_earned || 0).toLocaleString()}
               </div>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 2 }}>
+              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 700, marginTop: 4 }}>
                 {earnings?.transactions?.length || 0} completed consultation(s)
               </div>
             </div>
 
-            <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-done-line)", background: "var(--cm-done-surface)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", textTransform: "uppercase", fontWeight: 700 }}>Settled to Bank</div>
-              <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-done)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ background: "linear-gradient(135deg, rgba(240, 253, 244, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%)", padding: 20, borderRadius: 12, border: "1px solid rgba(134, 239, 172, 0.8)", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.06)" }}>
+              <div style={{ fontSize: "0.75rem", color: "#15803d", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Settled to Bank</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#15803d", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.settled || 0).toLocaleString()}
               </div>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", marginTop: 2 }}>
+              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 700, marginTop: 4 }}>
                 Cleared to verified bank account
               </div>
             </div>
 
-            <div className="cm-card" style={{ padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700 }}>Pending Daily Settlement</div>
-              <div style={{ fontSize: "var(--cm-text-2xl)", fontWeight: 800, color: "var(--cm-active)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+              <div style={{ fontSize: "0.75rem", color: "#0369a1", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Pending Daily Settlement</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#0284c7", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.pending_settlement || 0).toLocaleString()}
               </div>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+              <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
                 Direct clearing batch at 23:59 IST
               </div>
             </div>
           </div>
 
           {/* Transaction Ledger Table */}
-          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
-            <h3 style={{ margin: "0 0 12px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
-              Settlement Ledger History
-            </h3>
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+            <h4 style={{ margin: "0 0 14px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+              <DollarSign size={18} style={{ color: "#0284c7" }} />
+              <span>Settlement Ledger History</span>
+            </h4>
             {earnings?.transactions && earnings.transactions.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {earnings.transactions.map((tx: any) => (
                   <div
                     key={tx.id}
@@ -1512,25 +1561,25 @@ export default function DoctorDashboard() {
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
-                      padding: "10px 14px",
-                      background: "var(--cm-surface-2)",
-                      borderRadius: 8,
-                      border: "1px solid var(--cm-line)",
+                      padding: "12px 16px",
+                      background: "linear-gradient(135deg, rgba(240, 249, 255, 0.5) 0%, rgba(255, 255, 255, 0.95) 100%)",
+                      borderRadius: 10,
+                      border: "1px solid rgba(186, 230, 253, 0.7)",
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                      <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
                         {tx.description || "Clinical Consultation Settlement"}
                       </div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                        Ref #{tx.id.slice(0, 8)} · {new Date(tx.created_at).toLocaleDateString()}
+                      <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                        Ref #{tx.id.slice(0, 8)} · {new Date(tx.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: 800, color: "var(--cm-done)", fontSize: "var(--cm-text-sm)" }}>
+                      <div style={{ fontWeight: 900, color: "#16a34a", fontSize: "0.95rem" }}>
                         +₹{tx.provider_payout || tx.amount}
                       </div>
-                      <span className={`cm-pill ${tx.status === "settled" ? "cm-pill--done" : "cm-pill--active"}`}>
+                      <span className={`cm-pill ${tx.status === "settled" ? "cm-pill--done" : "cm-pill--active"}`} style={{ fontSize: "10px", fontWeight: 800 }}>
                         {tx.status}
                       </span>
                     </div>
@@ -1538,10 +1587,10 @@ export default function DoctorDashboard() {
                 ))}
               </div>
             ) : (
-              <div style={{ padding: "32px 20px", textAlign: "center", background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)" }}>
+              <div style={{ padding: "36px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
                 <DollarSign size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>No Financial Transactions Recorded Yet</div>
-                <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Financial Transactions Recorded Yet</div>
+                <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 440 }}>
                   As a newly registered doctor account, your settlement ledger will begin accruing daily payouts as soon as patients complete consultations.
                 </p>
               </div>
@@ -2024,150 +2073,170 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {activeDispatches.map((dispatch) => (
-                <div
-                  key={dispatch.id}
-                  style={{
-                    padding: "16px 18px",
-                    borderRadius: 10,
-                    border: dispatch.tier === "urgent" ? "1px solid rgba(244, 63, 94, 0.4)" : "1px solid #e0f2fe",
-                    background: dispatch.tier === "urgent" ? "rgba(254, 242, 242, 0.5)" : "#f8fafc",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
-                          {dispatch.patient_name}
-                        </span>
-                        <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
-                          ({dispatch.patient_gender})
-                        </span>
-                        <span className={`cm-pill ${dispatch.tier === "urgent" ? "cm-pill--urgent" : "cm-pill--active"}`} style={{ textTransform: "uppercase" }}>
-                          {dispatch.tier === "urgent" ? "⚡ Urgent Visit" : "Normal Visit"}
-                        </span>
-                        <span className="cm-pill cm-pill--done" style={{ textTransform: "capitalize" }}>
-                          {dispatch.status}
-                        </span>
+            {activeDispatches.length === 0 ? (
+              <div
+                style={{
+                  padding: "40px 24px",
+                  textAlign: "center",
+                  background: "rgba(240, 249, 255, 0.5)",
+                  borderRadius: 12,
+                  border: "1px dashed rgba(186, 230, 253, 0.9)",
+                }}
+              >
+                <Activity size={36} style={{ color: "#0284c7", margin: "0 auto 10px" }} />
+                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "1rem" }}>
+                  No Active Bedside Patient Dispatches
+                </div>
+                <p style={{ margin: "6px auto 0", fontSize: "0.82rem", color: "var(--cm-ink-3)", maxWidth: 460, lineHeight: 1.5 }}>
+                  Doorstep clinical requests within your 12 km operational radius will broadcast here in real time with vital signs, address telemetry, and 1-click arrival broadcast controls.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {activeDispatches.map((dispatch) => (
+                  <div
+                    key={dispatch.id}
+                    style={{
+                      padding: "16px 18px",
+                      borderRadius: 10,
+                      border: dispatch.tier === "urgent" ? "1px solid rgba(244, 63, 94, 0.4)" : "1px solid #e0f2fe",
+                      background: dispatch.tier === "urgent" ? "rgba(254, 242, 242, 0.5)" : "#f8fafc",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
+                            {dispatch.patient_name}
+                          </span>
+                          <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
+                            ({dispatch.patient_gender})
+                          </span>
+                          <span className={`cm-pill ${dispatch.tier === "urgent" ? "cm-pill--urgent" : "cm-pill--active"}`} style={{ textTransform: "uppercase" }}>
+                            {dispatch.tier === "urgent" ? "⚡ Urgent Visit" : "Normal Visit"}
+                          </span>
+                          <span className="cm-pill cm-pill--done" style={{ textTransform: "capitalize" }}>
+                            {dispatch.status}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--cm-ink-2)", marginTop: 4 }}>
+                          <MapPin size={13} style={{ color: "#0284c7", flexShrink: 0 }} />
+                          <span>{dispatch.address}</span>
+                        </div>
+
+                        <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
+                          Complaint: <strong style={{ color: "var(--cm-ink)" }}>{dispatch.chief_complaint}</strong>
+                        </div>
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--cm-ink-2)", marginTop: 4 }}>
-                        <MapPin size={13} style={{ color: "#0284c7", flexShrink: 0 }} />
-                        <span>{dispatch.address}</span>
-                      </div>
-
-                      <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
-                        Complaint: <strong style={{ color: "var(--cm-ink)" }}>{dispatch.chief_complaint}</strong>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                          Current ETA: <span style={{ color: "#0284c7" }}>{dispatch.eta_mins} mins</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                          Requested: {dispatch.requested_at}
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--cm-ink)" }}>
-                        Current ETA: <span style={{ color: "#0284c7" }}>{dispatch.eta_mins} mins</span>
-                      </div>
-                      <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                        Requested: {dispatch.requested_at}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dispatch Actions & Live ETA Broadcast */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 800, color: "#0369a1", textTransform: "uppercase" }}>
-                        Broadcast Live ETA to Patient:
-                      </span>
-                      {[15, 25, 45].map((mins) => (
+                    {/* Dispatch Actions & Live ETA Broadcast */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 800, color: "#0369a1", textTransform: "uppercase" }}>
+                          Broadcast Live ETA to Patient:
+                        </span>
+                        {[15, 25, 45].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            disabled={etaUpdatingId === dispatch.id}
+                            onClick={() => {
+                              setEtaUpdatingId(dispatch.id);
+                              setTimeout(() => {
+                                setActiveDispatches((prev) =>
+                                  prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: mins, status: "en route" } : d))
+                                );
+                                setEtaUpdatingId(null);
+                                setStatusMsg({
+                                  text: `✓ Live ETA of ${mins} minutes broadcasted to ${dispatch.patient_name} via CallMedex SMS & Patient App.`,
+                                  type: "success",
+                                });
+                              }, 400);
+                            }}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              border: dispatch.eta_mins === mins ? "1px solid #0284c7" : "1px solid #cbd5e1",
+                              background: dispatch.eta_mins === mins ? "#0284c7" : "#fff",
+                              color: dispatch.eta_mins === mins ? "#fff" : "var(--cm-ink)",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            {mins}m
+                          </button>
+                        ))}
                         <button
-                          key={mins}
                           type="button"
-                          disabled={etaUpdatingId === dispatch.id}
                           onClick={() => {
-                            setEtaUpdatingId(dispatch.id);
-                            setTimeout(() => {
-                              setActiveDispatches((prev) =>
-                                prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: mins, status: "en route" } : d))
-                              );
-                              setEtaUpdatingId(null);
-                              setStatusMsg({
-                                text: `✓ Live ETA of ${mins} minutes broadcasted to ${dispatch.patient_name} via CallMedex SMS & Patient App.`,
-                                type: "success",
-                              });
-                            }, 400);
+                            setActiveDispatches((prev) =>
+                              prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: 0, status: "arrived" } : d))
+                            );
+                            setStatusMsg({
+                              text: `✓ Doctor marked as ARRIVED at ${dispatch.patient_name}'s bedside.`,
+                              type: "success",
+                            });
                           }}
                           style={{
                             padding: "4px 10px",
                             borderRadius: 6,
-                            border: dispatch.eta_mins === mins ? "1px solid #0284c7" : "1px solid #cbd5e1",
-                            background: dispatch.eta_mins === mins ? "#0284c7" : "#fff",
-                            color: dispatch.eta_mins === mins ? "#fff" : "var(--cm-ink)",
+                            border: "1px solid #16a34a",
+                            background: "#dcfce7",
+                            color: "#15803d",
                             fontSize: "11px",
                             fontWeight: 800,
                             cursor: "pointer",
                             transition: "all 0.2s ease",
                           }}
                         >
-                          {mins}m
+                          Arrived
                         </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveDispatches((prev) =>
-                            prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: 0, status: "arrived" } : d))
-                          );
-                          setStatusMsg({
-                            text: `✓ Doctor marked as ARRIVED at ${dispatch.patient_name}'s bedside.`,
-                            type: "success",
-                          });
-                        }}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 6,
-                          border: "1px solid #16a34a",
-                          background: "#dcfce7",
-                          color: "#15803d",
-                          fontSize: "11px",
-                          fontWeight: 800,
-                          cursor: "pointer",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        Arrived
-                      </button>
-                    </div>
+                      </div>
 
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRxPatientName(dispatch.patient_name);
-                          setRxPatientEmail(dispatch.patient_email);
-                          setRxPatientMobile(dispatch.patient_mobile);
-                          setRxDiagnosis(dispatch.chief_complaint);
-                          setActiveTab("erx_studio");
-                        }}
-                        className="cm-btn cm-btn--secondary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
-                      >
-                        <FileText size={13} /> Draft Bedside e-Rx
-                      </button>
-                      <a
-                        href={`tel:${dispatch.patient_mobile}`}
-                        className="cm-btn cm-btn--secondary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
-                      >
-                        <Phone size={13} /> Call Patient
-                      </a>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRxPatientName(dispatch.patient_name);
+                            setRxPatientEmail(dispatch.patient_email);
+                            setRxPatientMobile(dispatch.patient_mobile);
+                            setRxDiagnosis(dispatch.chief_complaint);
+                            setActiveTab("erx_studio");
+                          }}
+                          className="cm-btn cm-btn--secondary cm-btn--sm"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                        >
+                          <FileText size={13} /> Draft Bedside e-Rx
+                        </button>
+                        <a
+                          href={`tel:${dispatch.patient_mobile}`}
+                          className="cm-btn cm-btn--secondary cm-btn--sm"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                        >
+                          <Phone size={13} /> Call Patient
+                        </a>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2177,8 +2246,15 @@ export default function DoctorDashboard() {
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "profile" && (
         <div>
-          <SelfieVerificationCard />
-          <DashboardProfile profile={profile} role="doctor" />
+          <SelfieVerificationCard onVerified={() => fetchProfile()} />
+          <DashboardProfile
+            profile={profile}
+            role="doctor"
+            onProfileUpdated={(updated) => {
+              setProfile((prev: any) => ({ ...prev, ...updated }));
+              fetchProfile();
+            }}
+          />
         </div>
       )}
     </DashboardShell>
