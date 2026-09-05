@@ -25,6 +25,29 @@ if settings.GEMINI_API_KEY:
 CONSULTATION_TIMEOUT_MINUTES = 45
 
 
+class SupabaseFees:
+    """Published online tariffs, keyed by doctor users.id."""
+
+    @staticmethod
+    def online_fees(doctor_ids: list) -> dict:
+        ids = [i for i in dict.fromkeys(doctor_ids) if i]
+        if not ids or not supabase:
+            return {}
+        try:
+            rows = (
+                supabase.table("consultation_fees")
+                .select("doctor_id, amount")
+                .in_("doctor_id", ids)
+                .eq("fee_type", "online")
+                .eq("is_active", True)
+                .execute()
+            ).data or []
+            return {r["doctor_id"]: r["amount"] for r in rows}
+        except Exception as e:
+            logger.warning(f"online fee lookup failed: {e}")
+            return {}
+
+
 class TelemedicineService:
     """
     Full-featured telemedicine service:
@@ -476,18 +499,37 @@ class TelemedicineService:
             return []
 
         try:
+            # `available_for_online` is a signup checkbox nobody revisits. A
+            # doctor who later published online availability blocks and an
+            # online tariff on their workstation is offering video consults
+            # whatever that stale flag says, so the flag is no longer a filter
+            # — the published set below decides.
             query = (
                 supabase.table("doctors")
-                .select("*, users!inner(id, full_name, email, mobile, city)")
-                .eq("available_for_online", True)
+                .select("*, users!inner(id, full_name, email, mobile, city, district, state)")
                 .eq("verification_status", "verified")
             )
             if specialization:
-                query = query.eq("specialization", specialization)
+                # Case-insensitive: the table holds "general medicine" while
+                # the UI chip reads "General Medicine", and an equality match
+                # returned nothing for every specialization filter.
+                query = query.ilike("specialization", f"%{specialization}%")
 
             result = query.execute()
+            rows = result.data or []
+
+            from app.services import provider_modes
+            published = provider_modes.resolve_modes([d.get("user_id") for d in rows])
+
+            fees = SupabaseFees.online_fees([d.get("user_id") for d in rows])
+
             doctors = []
-            for d in result.data or []:
+            for d in rows:
+                uid = d.get("user_id")
+                if not provider_modes.offers_mode(
+                    published.get(uid, set()), d.get("consultation_mode"), "online"
+                ):
+                    continue
                 user = d.get("users", {})
                 doctors.append({
                     "doctor_id": user.get("id"),
@@ -495,9 +537,14 @@ class TelemedicineService:
                     "specialization": d.get("specialization", ""),
                     "qualification": d.get("qualification", ""),
                     "experience_years": d.get("years_of_experience", 0),
-                    "consultation_fee": d.get("consultation_fee", 0),
+                    # The workstation's Consultation Tariffs tab writes
+                    # consultation_fees; doctors.consultation_fee is the stale
+                    # signup value and showed every doctor as free.
+                    "consultation_fee": fees.get(uid, d.get("consultation_fee", 0)),
                     "languages": d.get("languages_spoken", ["English"]),
                     "city": user.get("city", ""),
+                    "district": user.get("district", ""),
+                    "state": user.get("state", ""),
                     "available": True,
                 })
             return doctors

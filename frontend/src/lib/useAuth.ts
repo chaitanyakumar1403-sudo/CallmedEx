@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearSession, refreshAccessToken } from './sessionKeeper';
 
 interface User {
   id: string;
@@ -54,12 +55,31 @@ export function useAuth(): UseAuthReturn {
       const userStr = localStorage.getItem('user');
       const expiresAt = localStorage.getItem('token_expires_at');
 
-      // Check for token expiry
+      // An expired ACCESS token is not an expired session — the refresh
+      // token outlives it by days. Tearing the session down here logged
+      // people out mid-task an hour after login; hand it to the refresh
+      // flow instead and only drop the session if that fails.
+      const refreshToken = localStorage.getItem('refresh_token');
       if (expiresAt && Date.now() > parseInt(expiresAt, 10)) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('token_expires_at');
-        setState((prev) => ({ ...prev, isLoading: false }));
+        if (!refreshToken) {
+          clearSession();
+          setState((prev) => ({ ...prev, isLoading: false }));
+          return;
+        }
+        refreshAccessToken().then((fresh) => {
+          if (!fresh) {
+            clearSession();
+            setState((prev) => ({ ...prev, isLoading: false }));
+            return;
+          }
+          const stored = localStorage.getItem('user');
+          setState({
+            user: stored ? JSON.parse(stored) : null,
+            token: fresh,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        });
         return;
       }
 
@@ -94,9 +114,7 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('token_expires_at');
+    clearSession();
     setState({
       user: null,
       token: null,

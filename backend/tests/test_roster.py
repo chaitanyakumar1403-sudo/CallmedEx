@@ -195,8 +195,15 @@ def test_an_advance_request_with_no_scheduled_for_is_rejected_not_reassigned(db)
         decline_job(req_id, phlebo)
 
 
-def test_the_advance_radius_is_ten_kilometres(db):
-    assert ADVANCE_RADIUS_KM == 10.0
+def test_the_advance_radius_is_fifteen_kilometres(db):
+    """Widened from 10 km on request.
+
+    When the collector nearest a booking is unavailable the pass has to reach
+    further for a replacement, or the booking falls through to the same-day
+    live offer flow and the patient is told nobody is available. 15 km is the
+    centre's service radius for next-day reassignment.
+    """
+    assert ADVANCE_RADIUS_KM == 15.0
 
 
 def test_the_inserted_dispatch_request_carries_patient_location_and_id(db):

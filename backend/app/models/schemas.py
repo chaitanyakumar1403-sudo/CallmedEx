@@ -173,6 +173,31 @@ class AddressInfo(BaseModel):
     pincode: str = ""
     country: str = "India"
 
+    @model_validator(mode="after")
+    def _derive_city_from_district(self):
+        """City mirrors district; district mirrors city when only city came in.
+
+        Signup no longer asks for a city — "Visakhapatnam" is both a city and a
+        district, and collecting both as free text gave one place three
+        spellings ('Vizag', 'VISAKHAPATNAM', 'Visakhapatnam') that every
+        city-equality filter in the platform then missed. District, chosen from
+        a fixed list, is the canonical unit; `city` is kept in sync so the many
+        existing city-based consumers (provider search, centre allocation,
+        geocoding) keep working against exactly one spelling.
+
+        The city -> district direction covers older clients and the WhatsApp
+        channel, which still send a city only.
+        """
+        district = (self.district or "").strip()
+        city = (self.city or "").strip()
+        if district:
+            self.district = district
+            self.city = district
+        elif city:
+            self.city = city
+            self.district = city
+        return self
+
 
 class UserBase(BaseModel):
     full_name: str

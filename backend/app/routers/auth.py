@@ -133,15 +133,73 @@ def _create_user(user_data: dict) -> dict:
     return user_data
 
 
+def _unknown_column(message: str, payload: dict) -> str | None:
+    """Return the payload key PostgREST rejected as unknown, if any.
+
+    PostgREST reports schema drift as PGRST204 "Could not find the 'x' column
+    of 'y' in the schema cache"; Postgres itself reports 42703 "column z does
+    not exist". Both name the column, so the caller can drop just that key
+    rather than losing the whole row.
+    """
+    lowered = message.lower()
+    if "pgrst204" not in lowered and "could not find the" not in lowered             and "42703" not in lowered and "does not exist" not in lowered:
+        return None
+    # Longest key first so "base_lat" isn't matched inside "base_latitude".
+    for key in sorted(payload, key=len, reverse=True):
+        if f"'{key}'" in message or f'"{key}"' in message or f".{key} " in message:
+            return key
+    return None
+
+
 def _create_role_profile(table: str, profile_data: dict) -> dict:
-    """Insert role-specific profile data with robust fallback."""
+    """Insert the role-specific profile. Raises if the database rejects it.
+
+    This used to swallow the exception and stash the profile in an in-process
+    dict, which meant a schema drift (a key the table has no column for) let a
+    provider finish signup, log in and use their own dashboard while having NO
+    row in `doctors`/`organizations` at all — invisible to every patient-facing
+    search, which joins those tables. That is exactly how a verified doctor
+    with 25 published availability blocks never appeared on the consultation
+    page. A provider account without its profile is not a usable account, so
+    the failure has to surface at signup instead of hiding until a patient
+    can't find them.
+
+    The in-memory store remains only for the no-database (local dev) path.
+    """
     if supabase:
-        try:
-            result = supabase.table(table).insert(profile_data).execute()
-            if result.data and len(result.data) > 0:
-                return result.data[0]
-        except Exception as e:
-            logger.warning(f"Failed to insert into {table} in Supabase: {e}, falling back to local store")
+        payload = dict(profile_data)
+        last_error: Exception | None = None
+        # Schema drift is survivable ONLY by dropping the unknown column and
+        # still writing the row — never by dropping the row. PostgREST names
+        # the offending column in PGRST204, so retry without it (bounded), and
+        # log loudly so the pending migration gets run.
+        for _ in range(len(payload)):
+            try:
+                result = supabase.table(table).insert(payload).execute()
+                if result.data and len(result.data) > 0:
+                    return result.data[0]
+                raise RuntimeError(f"{table} insert returned no row")
+            except Exception as e:
+                last_error = e
+                unknown = _unknown_column(str(e), payload)
+                if not unknown:
+                    break
+                logger.error(
+                    "Column %r is missing from table %r — writing the profile "
+                    "without it. Run database/task14_registration_integrity.sql "
+                    "to add it.", unknown, table,
+                )
+                payload.pop(unknown, None)
+
+        logger.error(f"Failed to insert into {table}: {last_error}")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Your account could not be set up completely. Nothing has "
+                "been charged and no data was kept. Please contact support "
+                "quoting this error so we can fix it."
+            ),
+        ) from last_error
     _local_users_cleanup()
     if table not in _local_profiles:
         _local_profiles[table] = []
@@ -470,7 +528,17 @@ async def signup(user: UserSignup):
     table = ROLE_TABLE_MAP.get(user.role)
     if table:
         profile_data = _build_profile_data(user, user_id)
-        _create_role_profile(table, profile_data)
+        try:
+            _create_role_profile(table, profile_data)
+        except Exception:
+            if supabase:
+                try:
+                    supabase.table("users").delete().eq("id", user_id).execute()
+                except Exception as cleanup_err:
+                    logger.error(
+                        f"Could not roll back half-created user {user_id}: {cleanup_err}"
+                    )
+            raise
 
     LegalService.log_audit(
         actor_id=user_id,
@@ -617,7 +685,22 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
             elif "scope_of_services" in profile_data and not profile_data["scope_of_services"]:
                 profile_data["scope_of_services"] = sanitize_selected_scope(role, [])
 
-            _create_role_profile(table, profile_data)
+            try:
+                _create_role_profile(table, profile_data)
+            except Exception:
+                # The users row is already committed. A provider account with
+                # no profile row is the exact half-created state that made a
+                # verified doctor invisible to every patient — so undo the user
+                # rather than leave the pair inconsistent, and let them retry.
+                if supabase:
+                    try:
+                        supabase.table("users").delete().eq("id", user_data["id"]).execute()
+                    except Exception as cleanup_err:
+                        logger.error(
+                            f"Could not roll back half-created user "
+                            f"{user_data['id']}: {cleanup_err}"
+                        )
+                raise
 
         # 3. Record the legal acceptance with full audit trail
         document_id = payload.get("document_id")

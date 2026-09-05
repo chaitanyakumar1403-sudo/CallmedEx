@@ -37,8 +37,28 @@ export default function DashboardProfile({ profile, role }: DashboardProfileProp
           <Icon as={User} size={20} />
           Registration &amp; Service Profile
         </h2>
-        <Pill tone="done">{role.toUpperCase()} VERIFIED</Pill>
+        {(() => {
+          // This pill used to read "<ROLE> VERIFIED" unconditionally, for
+          // everyone, including a doctor whose provider profile did not exist
+          // at all. A provider who believes they are verified has no reason to
+          // chase why no patient can find them — say what the record says.
+          const status = String(profile.verification_status || "").toLowerCase();
+          if (status === "verified") return <Pill tone="done">{role.toUpperCase()} VERIFIED</Pill>;
+          if (status === "rejected") return <Pill tone="urgent">VERIFICATION REJECTED</Pill>;
+          if (!profile.profile_exists && profile.profile_exists !== undefined) {
+            return <Pill tone="urgent">PROFILE INCOMPLETE</Pill>;
+          }
+          return <Pill tone="waiting">VERIFICATION PENDING</Pill>;
+        })()}
       </div>
+
+      {String(profile.verification_status || "").toLowerCase() !== "verified" && (
+        <p className="cm-profile__notice">
+          Patients cannot find you in search until this profile is complete and
+          verified. Fill in any field showing “N/A” below, then contact CallMedex
+          support to complete verification.
+        </p>
+      )}
 
       <dl className="cm-profile">
         {/* Common account fields */}
@@ -49,18 +69,23 @@ export default function DashboardProfile({ profile, role }: DashboardProfileProp
         {/* Doctor specific details */}
         {role === "doctor" && (
           <>
-            {field(Stethoscope, "Specialization", profile.specialization || "General Medicine")}
+            {/* No placeholder credentials. Showing "General Medicine" and
+                "MBBS, MD" to a doctor whose record held neither made a missing
+                profile look like a complete one. */}
+            {field(Stethoscope, "Specialization", profile.specialization)}
             {field(FileText, "Medical License Number", profile.medical_license_number)}
-            {field(GraduationCap, "Qualification", profile.qualification || "MBBS, MD")}
+            {field(GraduationCap, "Qualification", profile.qualification)}
           </>
         )}
 
         {/* Nurse specific details */}
         {role === "nurse" && (
           <>
-            {field(Stethoscope, "Nursing Specialization", profile.specialization || "General Nursing & Home Care")}
-            {field(FileText, "Nursing Council Reg No", profile.license_number || profile.registration_number || "NC-2026-REG")}
-            {field(MapPin, "Service City", profile.city || "Visakhapatnam")}
+            {field(Stethoscope, "Nursing Specialization", profile.specialization)}
+            {/* "NC-2026-REG" was a literal placeholder rendered as if it were
+                this nurse's council registration number. */}
+            {field(FileText, "Nursing Council Reg No", profile.license_number || profile.registration_number)}
+            {field(MapPin, "Service City", profile.district || profile.city)}
           </>
         )}
 

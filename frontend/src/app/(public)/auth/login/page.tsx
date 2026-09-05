@@ -19,6 +19,7 @@ import {
   Lock,
 } from "lucide-react";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
+import { storeSession } from "@/lib/sessionKeeper";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -62,9 +63,10 @@ export default function LoginPage() {
         throw new Error(errorMsg || "Login failed");
       }
 
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      localStorage.setItem("token_expires_at", String(Date.now() + 60 * 60 * 1000));
+      // storeSession also persists data.refresh_token, which was previously
+      // discarded — the whole reason every session died with "Invalid or
+      // expired token" exactly 60 minutes after login.
+      storeSession(data);
 
       const role = data.user.role;
       const slug = role === "processing_center" ? "processing-center" : role;

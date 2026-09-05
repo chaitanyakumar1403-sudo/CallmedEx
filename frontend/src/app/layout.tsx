@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 };
 
 import { Toaster } from 'sonner';
+import SessionKeeper from './components/SessionKeeper';
 
 export default function RootLayout({
   children,
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${notoTelugu.variable}`}>
       <body>
+        <SessionKeeper />
         <a className="cm-skip" href="#main">Skip to main content</a>
         {children}
         <Toaster position="top-right" richColors />

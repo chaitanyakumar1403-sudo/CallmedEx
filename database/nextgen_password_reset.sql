@@ -23,12 +23,20 @@ CREATE INDEX IF NOT EXISTS idx_password_resets_otp ON password_resets(email, otp
 -- Row Level Security
 ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
 
--- Allow the service role (backend) to manage all reset records
-CREATE POLICY "Service role manages password_resets"
-    ON password_resets
-    FOR ALL
-    USING (true)
-    WITH CHECK (true);
+-- NO POLICY, deliberately. RLS on with zero policies denies `anon` and
+-- `authenticated` outright, which is exactly what a table of password-reset
+-- OTPs and reset tokens needs.
+--
+-- There used to be a "Service role manages password_resets" policy here,
+-- FOR ALL USING (true) WITH CHECK (true). The service role BYPASSES RLS and
+-- never needed it — and a policy with no TO clause defaults to TO PUBLIC, so
+-- it handed anyone holding the (public by design) anon key full read/write on
+-- otp_code, reset_token and email: account takeover for every account on the
+-- platform. See database/task14c_password_reset_rls.sql, which drops it from
+-- environments that already ran this file.
+--
+-- The backend reaches this table with SUPABASE_SERVICE_KEY
+-- (backend/app/database.py), so it is unaffected by there being no policy.
 
 -- Auto-cleanup: Delete expired reset records older than 24 hours
 -- (Optional: run as a scheduled cron job in Supabase)

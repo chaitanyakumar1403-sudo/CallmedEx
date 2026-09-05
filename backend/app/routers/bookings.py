@@ -488,7 +488,16 @@ async def create_booking(
             catalog_id=booking.catalog_id,
             query=booking.query,
             city=booking.city,
-            home=bool(booking.home),
+            # Always prefer a home-capable partner on the partner-blind path.
+            # The patient picks no centre here, and the only way they are ever
+            # told to walk in is `walk_in_required` — i.e. nobody in their city
+            # collects at home. Passing the browser's `home` flag through meant
+            # a cheaper walk-in-only partner could win, producing a booking
+            # that was neither a home collection nor a revealed walk-in: no
+            # centre address for the patient, and no phlebotomist ever
+            # dispatched. Preferring home here makes `home_available` and
+            # `not walk_in_required` equivalent, so that gap cannot reopen.
+            home=True,
         )
         if not allocation:
             raise HTTPException(
@@ -543,8 +552,24 @@ async def create_booking(
     # to a walk-in-only partner (even when the patient's `home` flag was set)
     # must be left completely alone; that is the existing org-review/allot-slot
     # workflow and none of the processing-centre machinery below applies to it.
+    # Whether this is a home collection is decided by what the CHOSEN partner
+    # can actually do, not by a flag the browser happened to send. The old gate
+    # required `booking.home`, which the wizard only sets for package deep-links
+    # and `?mode=home` — so a lab test booked from the plain test list was
+    # written as booking_kind "legacy": no processing centre, no collection
+    # date, no dispatch, invisible to both the roster pass and the scheduled
+    # dispatch worker (both filter on booking_kind = 'home_collection'). The
+    # patient still saw "confirmed" with a Track Phlebo button against a
+    # booking nobody would ever service, and re-booked — which is how one
+    # booking showed up twice on the dashboard.
+    #
+    # `walk_in_required` (no partner in this city collects at home) still wins,
+    # and an explicitly chosen centre never reaches here at all — `allocation`
+    # is only set on the partner-blind path where the patient picks no centre.
     is_home_collection = bool(
-        booking.home and allocation and not allocation["fulfilment"].get("walk_in_required")
+        allocation
+        and not allocation["fulfilment"].get("walk_in_required")
+        and allocation["fulfilment"].get("home_available")
     )
 
     # Partner-blind diagnostic booking: patient selects date + time slot.
@@ -656,6 +681,41 @@ async def create_booking(
                 logger.warning(f"Failed to resolve family member address: {e}")
 
     if supabase:
+        # Same patient, same slot, still live → this is a re-submit, not a
+        # second appointment. The 23505 handler below has always claimed to
+        # cover this, but no unique index existed to raise one, so a patient
+        # whose first confirm failed (an expired token, a dropped connection,
+        # an impatient second tap) ended up with two live bookings for one
+        # visit. Return the booking they already hold instead of making
+        # another. database/task14_registration_integrity.sql adds the index
+        # that makes this race-proof; this check makes it true today.
+        try:
+            duplicate = _rows(
+                supabase.table("bookings")
+                .select("*")
+                .eq("patient_id", current_user["sub"])
+                .eq("slot_id", booking.slot_id)
+                # Same minute, different service (an on-demand nurse and an
+                # on-demand collector share a slot_id) is two real bookings.
+                .eq("service_type", booking.service_type.value)
+                .not_.in_("status", ["cancelled", "slot_rejected", "completed"])
+                .limit(1)
+                .execute()
+            )
+            if duplicate:
+                logger.info(
+                    f"Duplicate booking suppressed for patient "
+                    f"{current_user['sub']} on slot {booking.slot_id}; "
+                    f"returning existing booking {duplicate[0]['id']}"
+                )
+                return APIResponse(
+                    success=True,
+                    message="You already have this booking — showing your existing appointment.",
+                    data=_strip_centre_identity(duplicate[0]),
+                )
+        except Exception as dup_err:
+            logger.warning(f"Duplicate-booking check failed: {dup_err}")
+
         try:
             supabase.table("bookings").insert(booking_data).execute()
             if is_home_collection:

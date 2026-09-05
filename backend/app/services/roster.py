@@ -18,7 +18,10 @@ from app.services.processing_center import haversine_km
 
 logger = logging.getLogger(__name__)
 
-ADVANCE_RADIUS_KM = 10.0
+# The centre's service radius for next-day assignment. When the nearest
+# collector to a booking is off duty or on leave, the pass reaches this far for
+# a replacement before giving up (full-time first — see _pick).
+ADVANCE_RADIUS_KM = 15.0
 
 
 def _rows(result) -> List[dict]:
@@ -52,16 +55,40 @@ def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict
     # query, so every nightly advance-roster pass raised and assigned nobody.
     people = _rows(
         supabase.table("phlebotomists")
-        .select("user_id, processing_center_id, base_lat, base_lng, phleb_type")
+        .select(
+            "user_id, processing_center_id, base_lat, base_lng, "
+            "current_lat, current_lng, phleb_type"
+        )
         .eq("processing_center_id", processing_center_id)
         .execute()
     )
-    return [
-        p for p in people
-        if p.get("user_id") not in excluded
-        and p.get("base_lat") is not None
-        and p.get("base_lng") is not None
-    ]
+
+    # Requiring base_lat/base_lng made this return an empty list for every
+    # centre in production: nothing in signup writes a base location, and the
+    # one backfill that does (_ensure_base_location, on the first duty toggle)
+    # ends at the processing centre's own coordinates — which were also never
+    # populated. So the advance pass had no candidates, assigned nobody, and no
+    # collector was ever told about a next-day booking.
+    #
+    # A collector's last known position is a better anchor for "where will they
+    # start tomorrow" than no anchor at all, so fall back to it. `_pick` reads
+    # base_lat/base_lng, so normalise onto those keys here.
+    candidates = []
+    for p in people:
+        if p.get("user_id") in excluded:
+            continue
+        lat = p.get("base_lat")
+        lng = p.get("base_lng")
+        if lat is None or lng is None:
+            lat, lng = p.get("current_lat"), p.get("current_lng")
+        if lat is None or lng is None:
+            logger.info(
+                "Phlebotomist %s has no base or last-known location; "
+                "not eligible for advance assignment.", p.get("user_id"),
+            )
+            continue
+        candidates.append({**p, "base_lat": lat, "base_lng": lng})
+    return candidates
 
 
 def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[dict]:
@@ -189,6 +216,29 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
     return assigned
 
 
+def _notify_in_app(user_id: str, title: str, body: str, data: dict) -> None:
+    """Write one in-app notification row. Never raises.
+
+    run_roster_pass is synchronous (a Celery task), so NotificationEngine's
+    async send is driven on a private loop rather than awaited.
+    """
+    try:
+        import asyncio
+        from app.services.notification_engine import NotificationEngine
+
+        coro = NotificationEngine.send(user_id, "in_app", title, body, data)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(coro)
+            return
+        # Already inside a loop (a caller awaited us from async code):
+        # schedule it instead of blocking the loop.
+        asyncio.ensure_future(coro)
+    except Exception as e:
+        logger.warning(f"In-app roster alert for {user_id} failed: {e}")
+
+
 def _notify_assigned_phlebos(assigned: List[dict], roster_date: str) -> None:
     """Send roster assignment emails to each phlebotomist.
 
@@ -266,6 +316,24 @@ def _notify_assigned_phlebos(assigned: List[dict], roster_date: str) -> None:
                     f"Roster email delivery failed for phlebotomist {uid} "
                     f"({to_email}) — RESEND_API_KEY/SMTP not configured"
                 )
+
+            # The dashboard's notification bell reads the in_app channel, and
+            # this only ever sent email — so a collector who opened their
+            # dashboard the next morning saw nothing about work already
+            # assigned to them. Email alone is not a notification channel we
+            # control the delivery of.
+            _notify_in_app(
+                uid,
+                subject.replace("📋 ", ""),
+                (
+                    f"{job_count} home collection"
+                    f"{'s are' if job_count > 1 else ' is'} assigned to you for "
+                    f"{roster_date}. Open Schedule to see addresses, or decline "
+                    f"to have it reassigned."
+                ),
+                {"type": "roster_assignment", "roster_date": roster_date,
+                 "job_count": job_count},
+            )
         except Exception as e:
             logger.error(
                 f"Roster notification failed for phlebotomist {uid}: {e}"

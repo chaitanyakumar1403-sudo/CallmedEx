@@ -1012,13 +1012,41 @@ async def roster_summary(
         )
         user_map = {u["id"]: u for u in users}
 
-    # Dispatch requests for this date
-    dispatches = _rows(
+    # Dispatch requests for this date, for THIS centre's collectors only.
+    # Unscoped, the panel counted every centre's jobs nationally — a Vizag
+    # supervisor reading Hyderabad's workload as their own.
+    dispatch_query = (
         supabase.table("dispatch_requests")
         .select("id, assigned_provider_id, status, booking_id")
         .eq("scheduled_for", target_date)
-        .execute()
     )
+    if phlebo_ids:
+        dispatch_query = dispatch_query.in_("assigned_provider_id", phlebo_ids)
+    dispatches = _rows(dispatch_query.execute()) if phlebo_ids else []
+
+    # Jobs of this centre that nobody holds. These have no assigned_provider_id
+    # so the filter above cannot see them; they are scoped by the booking's
+    # centre instead.
+    try:
+        centre_bookings = {
+            b["id"] for b in _rows(
+                supabase.table("bookings").select("id")
+                .eq("processing_center_id", centre_id)
+                .eq("collection_date", target_date).execute()
+            )
+        }
+        if centre_bookings:
+            dispatches += [
+                d for d in _rows(
+                    supabase.table("dispatch_requests")
+                    .select("id, assigned_provider_id, status, booking_id")
+                    .eq("scheduled_for", target_date)
+                    .is_("assigned_provider_id", "null").execute()
+                )
+                if d.get("booking_id") in centre_bookings
+            ]
+    except Exception as e:
+        logger.warning(f"Unassigned roster job lookup failed for {centre_id}: {e}")
 
     roster_map = {r["phlebotomist_user_id"]: r for r in roster}
     assigned_counts: Dict[str, int] = {}

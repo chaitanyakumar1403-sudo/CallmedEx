@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 import json
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     body_bytes = await request.body()
                     if body_bytes:
                         body = json.loads(body_bytes)
-                        sanitized = sanitize_dict(body)
+                        sanitized = sanitize_json(body)
                         # Replace the request body with sanitized data
                         request._body = json.dumps(sanitized).encode("utf-8")
                 except (json.JSONDecodeError, UnicodeDecodeError):
@@ -137,21 +138,29 @@ def sanitize_input(value: str) -> str:
     return value.replace("\x00", "").strip()
 
 
+def sanitize_json(data: Any) -> Any:
+    """Recursively sanitize any JSON value — object, array, string or scalar.
+
+    A request body is not always an object. Endpoints that take a top-level
+    JSON array (PUT /api/pc/roster/{date} sends a list of roster entries)
+    reached `sanitize_dict` with a list and died on `data.items()` inside the
+    security middleware — before routing, so every one of them answered 500
+    "An unexpected error occurred." rather than doing their job. Dispatch on
+    the type instead of assuming a dict.
+    """
+    if isinstance(data, dict):
+        return {key: sanitize_json(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [sanitize_json(item) for item in data]
+    if isinstance(data, str):
+        return sanitize_input(data)
+    return data
+
+
 def sanitize_dict(data: dict) -> dict:
-    """Recursively sanitize all string values in a dictionary."""
-    sanitized = {}
-    for key, value in data.items():
-        if isinstance(value, str):
-            sanitized[key] = sanitize_input(value)
-        elif isinstance(value, dict):
-            sanitized[key] = sanitize_dict(value)
-        elif isinstance(value, list):
-            sanitized[key] = [
-                sanitize_input(v) if isinstance(v, str)
-                else sanitize_dict(v) if isinstance(v, dict)
-                else v
-                for v in value
-            ]
-        else:
-            sanitized[key] = value
-    return sanitized
+    """Recursively sanitize all string values in a dictionary.
+
+    Kept as the dict-typed entry point for existing callers; the recursion
+    itself now lives in sanitize_json.
+    """
+    return sanitize_json(data) if isinstance(data, dict) else {}

@@ -108,13 +108,11 @@ async function apiRequest<T = any>(
       const response = await fetch(url, fetchOptions);
       clearTimeout(timeoutId);
 
-      // Handle auth errors
+      // Handle auth errors. By the time a 401 reaches here the global
+      // interceptor (lib/sessionKeeper) has already tried a refresh and
+      // replayed the request, so a 401 that survives really is a dead
+      // session — it clears storage and redirects itself.
       if (response.status === 401) {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          window.location.href = '/auth/login';
-        }
         throw new APIError('Session expired. Please log in again.', 401);
       }
 

@@ -1032,6 +1032,16 @@ input[type="radio"] {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--cm-3); flex-wrap: wrap; margin-bottom: var(--cm-5);
 }
+.cm-profile__notice {
+  margin: 0 0 var(--cm-4);
+  padding: 10px 14px;
+  border-radius: var(--cm-radius);
+  background: var(--cm-waiting-surface);
+  border: 1px solid var(--cm-waiting-line);
+  color: var(--cm-waiting);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
 .cm-profile__title {
   display: flex; align-items: center; gap: var(--cm-2);
   margin: 0; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink);

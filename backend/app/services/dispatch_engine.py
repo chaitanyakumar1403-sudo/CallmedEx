@@ -238,7 +238,7 @@ class UniversalDispatchEngine:
             # dispatched into a patient's home.
             result_a = (
                 supabase.table("provider_locations")
-                .select("*, users!inner(id, full_name, mobile, email, verification_status)")
+                .select("*, users!inner(id, full_name, mobile, email)")
                 .eq("provider_type", provider_type)
                 .eq("is_online", True)
                 .not_.is_("current_lat", "null")
@@ -323,6 +323,33 @@ class UniversalDispatchEngine:
                 }
                 centre_members = available_uids - bound_to_another_centre
 
+        # Verification is authoritative on the ROLE table
+        # (phlebotomists/nurses.verification_status), not on users — the users
+        # table has no such column, so the provider_locations query that tried
+        # to embed it threw on every call and path A silently contributed
+        # nothing at all. Resolve it once, here, for every merged candidate.
+        role_table = {"phlebotomist": "phlebotomists", "nurse": "nurses"}.get(provider_type)
+        verified_ids: set = set()
+        if role_table:
+            uids = [
+                (p.get("user_id") or (p.get("users") or {}).get("id"))
+                for p in providers
+            ]
+            uids = [u for u in dict.fromkeys(uids) if u]
+            if uids:
+                try:
+                    rows = (
+                        supabase.table(role_table)
+                        .select("user_id, verification_status")
+                        .in_("user_id", uids).execute()
+                    ).data or []
+                    verified_ids = {
+                        r["user_id"] for r in rows
+                        if (r.get("verification_status") or "") == "verified"
+                    }
+                except Exception as e:
+                    logger.warning(f"verification lookup failed for {provider_type}: {e}")
+
         # Calculate distances and filter
         candidates = []
         for p in providers:
@@ -337,7 +364,7 @@ class UniversalDispatchEngine:
             # it on the role row (phlebotomists/nurses), path A on the embedded
             # user. Someone the platform has not verified never gets sent to a
             # patient's address, whichever table they surfaced from.
-            if not _is_verified_provider(p):
+            if not (_is_verified_provider(p) or user_id in verified_ids):
                 logger.warning(
                     f"Skipping unverified {provider_type} {user_id} for dispatch."
                 )
@@ -825,6 +852,24 @@ class UniversalDispatchEngine:
                         )
                     )
 
+                    # And an in-app row. The notification bell on every
+                    # provider dashboard reads the `in_app` channel, and this
+                    # path only ever wrote push + email — so a collector who
+                    # was offered work saw an empty bell and reported getting
+                    # "no alerts at all". Push is Android-only in practice and
+                    # email lands in a spam folder; the bell is the one channel
+                    # that is always there when they open the dashboard.
+                    asyncio.create_task(
+                        UniversalDispatchEngine._notify_offer_in_app(
+                            provider_id=candidate["user_id"],
+                            service_subtype=service_subtype,
+                            distance_km=candidate["distance_km"],
+                            priority=priority,
+                            dispatch_id=dispatch_id,
+                            offer_id=offer["id"],
+                        )
+                    )
+
             except Exception as e:
                 # Returning the success dict here is how a patient gets told
                 # "Phlebotomist X assigned, ~15 min away" while no
@@ -852,6 +897,45 @@ class UniversalDispatchEngine:
                 else f"No {provider_type.replace('_', ' ')}s available nearby. Your request has been queued."
             ),
         }
+
+    @staticmethod
+    async def _notify_offer_in_app(
+        *,
+        provider_id: str,
+        service_subtype: str,
+        distance_km,
+        priority: str,
+        dispatch_id: str,
+        offer_id: str,
+    ) -> None:
+        """Write the offer to the provider's in-app notification centre.
+
+        Carries no patient identity or address — same rule as the push
+        preview; the provider opens the offer to see where they are going.
+        Never raises: a notification failure must not sink a dispatch.
+        """
+        try:
+            from app.services.notification_engine import NotificationEngine
+
+            label = (service_subtype or "home visit").replace("_", " ")
+            parts = [label.title()]
+            if distance_km is not None:
+                parts.append(f"{distance_km} km away")
+            parts.append(f"respond within {offer_window_minutes()} min")
+            await NotificationEngine.send(
+                provider_id,
+                "in_app",
+                "Urgent request nearby" if priority == "urgent" else "New visit request",
+                " · ".join(parts),
+                {
+                    "type": "dispatch_offer",
+                    "dispatch_id": dispatch_id,
+                    "offer_id": offer_id,
+                    "priority": priority,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"In-app offer alert for provider {provider_id} failed: {e}")
 
     @staticmethod
     async def _push_offer_to_candidate(
@@ -1532,6 +1616,59 @@ class UniversalDispatchEngine:
     # ──────────────────────────────────────────────────────────────────
 
     @staticmethod
+    def _ensure_processing_centre(user_id: str) -> None:
+        """Attach a phlebotomist to the centre serving their district. Never raises.
+
+        Home collection is centre-bound in both directions: a collector may
+        only be offered work for their own centre, and may only hand tubes in
+        there. `phlebotomists.processing_center_id` is set by an admin — and
+        for anyone the admin has not got to yet it stays NULL, which means no
+        offers and no handover destination, silently. Resolve it from their
+        registered district the first time they come on duty; an existing
+        binding is never overwritten, so an admin's posting always wins.
+        """
+        try:
+            rows = (
+                supabase.table("phlebotomists")
+                .select("processing_center_id")
+                .eq("user_id", user_id).limit(1).execute()
+            ).data or []
+            if not rows or rows[0].get("processing_center_id"):
+                return
+
+            user_rows = (
+                supabase.table("users").select("city, district, pincode")
+                .eq("id", user_id).limit(1).execute()
+            ).data or []
+            if not user_rows:
+                return
+            u = user_rows[0]
+
+            from app.services.processing_center import resolve_center
+            centre = resolve_center(
+                city=u.get("city") or None,
+                district=u.get("district") or None,
+                pincode=u.get("pincode") or None,
+            )
+            if not centre or not centre.get("id"):
+                logger.warning(
+                    f"Phlebotomist {user_id} came on duty with no processing "
+                    f"centre and none serves district "
+                    f"{(u.get('district') or u.get('city') or '')!r}."
+                )
+                return
+
+            supabase.table("phlebotomists").update(
+                {"processing_center_id": centre["id"]}
+            ).eq("user_id", user_id).execute()
+            logger.info(
+                f"Bound phlebotomist {user_id} to processing centre "
+                f"{centre.get('code') or centre['id']} from their district."
+            )
+        except Exception as e:
+            logger.warning(f"Processing-centre binding failed for {user_id}: {e}")
+
+    @staticmethod
     def _ensure_base_location(
         user_id: str,
         lat: Optional[float] = None,
@@ -1547,7 +1684,10 @@ class UniversalDispatchEngine:
         try:
             rows = (
                 supabase.table("phlebotomists")
-                .select("base_lat, base_lng, processing_center_id")
+                .select(
+                    "base_lat, base_lng, current_lat, current_lng, "
+                    "processing_center_id"
+                )
                 .eq("user_id", user_id).limit(1).execute()
             ).data or []
             if not rows:
@@ -1557,6 +1697,13 @@ class UniversalDispatchEngine:
                 return
 
             base_lat, base_lng = lat, lng
+
+            # Their own last known fix, before reaching for a geocoder. A
+            # collector who has been on duty already has one, and it is a more
+            # accurate base than anything an address lookup returns.
+            if base_lat is None or base_lng is None:
+                base_lat = row.get("current_lat")
+                base_lng = row.get("current_lng")
 
             if base_lat is None or base_lng is None:
                 user_rows = (
@@ -1588,11 +1735,30 @@ class UniversalDispatchEngine:
             if (base_lat is None or base_lng is None) and row.get("processing_center_id"):
                 centre = (
                     supabase.table("processing_centers")
-                    .select("lat, lng")
+                    .select("lat, lng, city, address, pincode")
                     .eq("id", row["processing_center_id"]).limit(1).execute()
                 ).data or []
                 if centre and centre[0].get("lat") is not None:
                     base_lat, base_lng = centre[0]["lat"], centre[0]["lng"]
+                elif centre:
+                    # The centre's own lat/lng column has never been populated
+                    # in production, so this last resort always failed and the
+                    # collector stayed location-unknown. Geocode the centre
+                    # once from its address instead of giving up.
+                    from app.services.geocoding import geocode_address, GeocodingError
+                    try:
+                        base_lat, base_lng = geocode_address(
+                            address=(centre[0].get("address") or ""),
+                            city=(centre[0].get("city") or ""),
+                        )
+                        supabase.table("processing_centers").update(
+                            {"lat": float(base_lat), "lng": float(base_lng)}
+                        ).eq("id", row["processing_center_id"]).execute()
+                    except GeocodingError as e:
+                        logger.info(
+                            f"Processing centre {row['processing_center_id']} "
+                            f"could not be geocoded: {e}"
+                        )
 
             if base_lat is None or base_lng is None:
                 logger.warning(
@@ -1631,6 +1797,13 @@ class UniversalDispatchEngine:
         # collector as location-unknown. Resolve it once, here, the first time
         # they come on duty.
         if is_online and provider_type == "phlebotomist":
+            # A collector with no centre can be offered nothing (dispatch is
+            # centre-bound) and can hand their tubes in nowhere. Nothing in
+            # signup ever set it, so it depended entirely on an admin noticing.
+            # Bind them to the centre that serves their own district.
+            await asyncio.to_thread(
+                UniversalDispatchEngine._ensure_processing_centre, user_id
+            )
             await asyncio.to_thread(
                 UniversalDispatchEngine._ensure_base_location, user_id, lat, lng
             )

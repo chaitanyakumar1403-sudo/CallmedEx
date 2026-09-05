@@ -1,6 +1,7 @@
 "use client";
 import { useState, FormEvent } from "react";
 import DateOfBirthPicker from "@/components/DateOfBirthPicker";
+import StateDistrictPicker from "@/components/StateDistrictPicker";
 import {
   User,
   Stethoscope,
@@ -177,6 +178,11 @@ export default function SignupPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [verificationStatus, setVerificationStatus] = useState<Record<string, string>>({});
+  // Canonical State → District (with GPS detect). Replaces three free-text
+  // location inputs that let one district be spelled three ways.
+  const [locState, setLocState] = useState("");
+  const [locDistrict, setLocDistrict] = useState("");
+  const [locDetected, setLocDetected] = useState(false);
   const [additionalDocs, setAdditionalDocs] = useState<{ id: number; name: string }[]>([]);
   const [dob, setDob] = useState("");
   const [registrantRole, setRegistrantRole] = useState("");
@@ -247,6 +253,15 @@ export default function SignupPage() {
     const confirmPassword = formData.get("confirm_password") as string;
     if (password !== confirmPassword) { setError("Passwords do not match"); setLoading(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
 
+    // District decides which clinics, slots and collectors this account can
+    // see or serve, so it cannot be optional the way free-text city was.
+    if (!locState || !locDistrict) {
+      setError("Please select your State and District.");
+      setLoading(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     // Client-side DOB validation (non-org roles require a valid date)
     if (!isOrgLike && !dob) {
       setError("Please select your full Date of Birth (Year, Month, and Day).");
@@ -274,9 +289,10 @@ export default function SignupPage() {
         address_info: {
           address_line1: formData.get("address_line1"),
           address_line2: formData.get("address_line2"),
-          city: formData.get("city"),
-          state: formData.get("state"),
-          district: formData.get("district"),
+          // City is no longer collected: the backend derives it from the
+          // district so one place has exactly one spelling everywhere.
+          state: locState,
+          district: locDistrict,
           pincode: formData.get("pincode"),
           country: formData.get("country") || "India",
         },
@@ -679,19 +695,30 @@ export default function SignupPage() {
               <label className="form-label">Address</label>
               <input name="address" className="form-input" placeholder="Street address" />
             </div>
-            <div className="form-row-3">
-              <div className="form-group">
-                <label className="form-label">City</label>
-                <input name="city" className="form-input" placeholder="City" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">District</label>
-                <input name="district" className="form-input" placeholder="District" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">State</label>
-                <input name="state" className="form-input" placeholder="State" />
-              </div>
+            {/* District + State only.
+                "Visakhapatnam" is both a city and a district, so asking for
+                both as free text produced 'Vizag' / 'VISAKHAPATNAM' /
+                'Visakhapatnam' for one place — and every city-equality filter
+                in the platform (doctor discovery, centre allocation,
+                phlebotomist scoping) then missed. District is the unit that
+                actually decides service coverage; the server mirrors it into
+                the city column so existing consumers keep working. */}
+            <div className="form-group">
+              <label className="form-label">State &amp; District *</label>
+              <StateDistrictPicker
+                stateValue={locState}
+                districtValue={locDistrict}
+                detected={locDetected}
+                onChange={(next) => {
+                  setLocState(next.state);
+                  setLocDistrict(next.district);
+                  setLocDetected(next.detected);
+                }}
+              />
+              <small style={{ display: "block", marginTop: 6, color: "#64748b", fontSize: "0.78rem" }}>
+                Your district decides which clinics, collection slots and home
+                visits are available to you.
+              </small>
             </div>
             <div className="form-row">
               <div className="form-group">

@@ -103,6 +103,10 @@ const MODE_META: Record<ConsultMode, { title: string; subtitle: string; empty: s
   },
 };
 
+function normSpec(value: string): string {
+  return (value || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
 // normalize /api/providers/search/doctors rows into the page's Doctor shape
 function normalizeSearchDoctor(d: any): Doctor {
   const fees = d.fees || {};
@@ -123,9 +127,9 @@ function normalizeSearchDoctor(d: any): Doctor {
   };
 }
 
-// Location match for the State → District filter. Providers with incomplete
-// location fields are kept — hiding verified supply over a missing profile
-// field costs bookings; the fallback note covers the zero-result case.
+// Location match for the State → District filter, used only by the physical
+// modes (walk-in, home visit). Video consultation never calls this: a patient
+// in any state may consult any verified doctor.
 function matchesLocation(
   item: { state?: string; district?: string; city?: string },
   selState: string,
@@ -136,11 +140,14 @@ function matchesLocation(
     if (s && s !== selState.trim().toLowerCase()) return false;
   }
   if (selDistrict) {
-    const d = selDistrict.trim().toLowerCase();
-    const district = (item.district || '').trim().toLowerCase();
-    const city = (item.city || '').trim().toLowerCase();
-    if (district) return district === d || district.includes(d) || d.includes(district);
-    if (city) return city === d || city.includes(d) || d.includes(city);
+    const key = (v?: string) => (v || '').toLowerCase().replace(/[^a-z]/g, '');
+    const d = key(selDistrict);
+    const candidates = [key(item.district), key(item.city)].filter(Boolean);
+    // No location on the profile at all: for a physical visit that is not
+    // "matches everywhere", it is "we cannot tell" — and sending a patient to
+    // a clinic whose district is unknown is the wrong side to err on.
+    if (candidates.length === 0) return false;
+    return candidates.some((c) => c === d || c.includes(d) || d.includes(c));
   }
   return true;
 }
@@ -162,6 +169,25 @@ function ConsultationContent() {
 
   // Per-mode result cache — switching tabs doesn't refetch.
   const cache = useRef<Partial<Record<ConsultMode, { doctors: Doctor[]; orgs: OrgCard[] }>>>({});
+
+  // Default the location to the patient's own district. Walk-in and home
+  // visits are scoped to it, so making them pick it every time (and showing
+  // every doctor in India until they did) was the wrong default.
+  useEffect(() => {
+    if (locState || district) return;
+    try {
+      const stored = localStorage.getItem('user');
+      if (!stored) return;
+      const u = JSON.parse(stored);
+      const d = (u?.district || u?.city || '').trim();
+      const st = (u?.state || '').trim();
+      if (d || st) {
+        setDistrict(d);
+        setLocState(st);
+      }
+    } catch { /* no stored profile — the picker stays empty */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Read mode from URL params (from body map navigation)
   useEffect(() => {
@@ -202,13 +228,16 @@ function ConsultationContent() {
         setDoctors(docs);
         setOrgs([]);
       } else if (mode === 'walkin') {
-        const [inPerson, both, orgResult] = await Promise.all([
+        // One request: the backend now resolves a doctor's real published
+        // modes from their availability blocks and tariffs, so the old
+        // in_person + "both" merge (which still missed anyone whose enum said
+        // "online" while they published walk-in slots) is no longer needed.
+        const [inPerson, orgResult] = await Promise.all([
           discoveryAPI.searchDoctors({ consultation_mode: 'in_person' }),
-          discoveryAPI.searchDoctors({ consultation_mode: 'both' }),
           discoveryAPI.searchOrganizations({ exclude_diagnostic: true }),
         ]);
         const seen = new Map<string, Doctor>();
-        [...(inPerson.doctors || []), ...(both.doctors || [])].forEach((d: any) => {
+        (inPerson.doctors || []).forEach((d: any) => {
           const nd = normalizeSearchDoctor(d);
           if (nd.doctor_id) seen.set(nd.doctor_id, nd);
         });
@@ -254,12 +283,20 @@ function ConsultationContent() {
 
   const needsLocation = consultMode !== 'teleconsultation';
 
-  const { filteredDoctors, filteredOrgs, locationFallback } = useMemo(() => {
+  const { filteredDoctors, filteredOrgs } = useMemo(() => {
     let docs = doctors;
     let facilities = orgs;
 
     if (selectedSpec !== 'All') {
-      docs = docs.filter((d) => d.specialization === selectedSpec);
+      // The chips read "General Medicine"; the database holds
+      // "general medicine". Exact equality matched neither, so picking any
+      // specialization emptied the page even when that doctor was listed
+      // under "All" a second earlier.
+      const wanted = normSpec(selectedSpec);
+      docs = docs.filter((d) => {
+        const has = normSpec(d.specialization);
+        return has === wanted || has.includes(wanted) || wanted.includes(has);
+      });
       facilities = []; // specialization chips are doctor-oriented
     }
 
@@ -279,21 +316,18 @@ function ConsultationContent() {
       );
     }
 
-    let fallback = false;
     if (needsLocation && (locState || district)) {
-      const locDocs = docs.filter((d) => matchesLocation(d, locState, district));
-      const locOrgs = facilities.filter((o) => matchesLocation(o, locState, district));
-      // Graceful fallback: an empty strict result shows everything with a
-      // note rather than a blank page (existing page behaviour, kept).
-      if (locDocs.length === 0 && locOrgs.length === 0 && (docs.length > 0 || facilities.length > 0)) {
-        fallback = true;
-      } else {
-        docs = locDocs;
-        facilities = locOrgs;
-      }
+      // Walk-in and home visits are physical: a doctor in another district
+      // cannot see this patient, so once a location is chosen the filter is
+      // STRICT. Showing everyone as a "fallback" was worse than an empty
+      // list — it advertised doctors in other states as bookable for a
+      // clinic visit. Video consultation never reaches this branch
+      // (needsLocation is false for it) and stays nationwide on purpose.
+      docs = docs.filter((d) => matchesLocation(d, locState, district));
+      facilities = facilities.filter((o) => matchesLocation(o, locState, district));
     }
 
-    return { filteredDoctors: docs, filteredOrgs: facilities, locationFallback: fallback };
+    return { filteredDoctors: docs, filteredOrgs: facilities };
   }, [doctors, orgs, selectedSpec, searchQuery, needsLocation, locState, district]);
 
   const requireAuth = () => {
@@ -442,9 +476,10 @@ function ConsultationContent() {
               />
             </div>
           )}
-          {needsLocation && locationFallback && (
+          {needsLocation && (locState || district) && filteredDoctors.length === 0 && filteredOrgs.length === 0 && !isLoading && (
             <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: '#b45309', fontWeight: 600 }}>
-              No providers registered in {district || locState}{district && locState ? `, ${locState}` : ''} yet — showing all available providers.
+              No {consultMode === 'walkin' ? 'walk-in' : 'home-visit'} providers registered in {district || locState}{district && locState ? `, ${locState}` : ''} yet.
+              Video consultation is available from doctors anywhere in India.
             </p>
           )}
         </div>

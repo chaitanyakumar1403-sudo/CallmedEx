@@ -38,8 +38,22 @@ export default function PCRosterPanel() {
   // Local roster edits (user_id → status)
   const [edits, setEdits] = useState<Record<string, string>>({});
 
+  // Roster writes are centre-admin only (require_pc_admin on the backend).
+  // The buttons used to be shown to everyone, so a technician could edit the
+  // whole roster, press Save and get a flat error with no idea why — which is
+  // how "the processing centre roster is broken" gets reported.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  useEffect(() => {
+    pcAPI.getMe()
+      .then((me: any) => setIsAdmin(me?.pc_role === "admin"))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
+    // A previous failure's banner used to survive every later successful
+    // reload, so the panel showed an error over correct, current data.
+    setMsg(null);
     try {
       const result = await pcAPI.getRosterSummary(selectedDate);
       setData(result);
@@ -162,15 +176,22 @@ export default function PCRosterPanel() {
           <h3 style={{ margin: 0, fontSize: "1.05rem" }}>
             <Icon as={Users} size={16} /> Phlebotomists
           </h3>
-          <div style={{ display: "flex", gap: 8 }}>
-            {hasEdits && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {isAdmin === false && (
+              <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
+                View only — roster changes need a centre administrator.
+              </span>
+            )}
+            {isAdmin !== false && hasEdits && (
               <Button variant="primary" onClick={saveRoster} disabled={busy}>
                 {busy ? "Saving…" : "Save Roster"}
               </Button>
             )}
-            <Button variant="secondary" onClick={runAssignment} disabled={busy}>
-              <Icon as={RefreshCw} size={14} /> Run Assignment
-            </Button>
+            {isAdmin !== false && (
+              <Button variant="secondary" onClick={runAssignment} disabled={busy}>
+                <Icon as={RefreshCw} size={14} /> Run Assignment
+              </Button>
+            )}
           </div>
         </div>
 
@@ -212,6 +233,7 @@ export default function PCRosterPanel() {
                     {STATUS_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
+                        disabled={isAdmin === false}
                         onClick={() => setEdits(prev => ({
                           ...prev, [p.user_id]: opt.value,
                         }))}
@@ -222,7 +244,9 @@ export default function PCRosterPanel() {
                           background: currentStatus === opt.value ? opt.bg : "#fff",
                           color: currentStatus === opt.value ? opt.color : "#94a3b8",
                           fontWeight: 700, fontSize: "0.78rem",
-                          cursor: "pointer", transition: "all 0.15s",
+                          cursor: isAdmin === false ? "not-allowed" : "pointer",
+                          opacity: isAdmin === false && currentStatus !== opt.value ? 0.5 : 1,
+                          transition: "all 0.15s",
                         }}
                       >
                         {opt.label}

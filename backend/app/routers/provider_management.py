@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
+from app.services import provider_modes
 from app.utils.db_helpers import _rows
 from app.services.scope_catalogs import (
     is_allowed_diagnostic_center_service,
@@ -1474,10 +1475,39 @@ async def get_org_stats(current_user: dict = Depends(get_current_user)):
 # PUBLIC SEARCH ENDPOINTS (for Patient Booking Page)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _matches_location(
+    user: dict, district: Optional[str], state: Optional[str]
+) -> bool:
+    """District/state match for location-bound discovery.
+
+    "Visakhapatnam" is both a city and a district and signup collected both as
+    free text, so one place exists in the data as 'Vizag', 'VISAKHAPATNAM' and
+    'Visakhapatnam'. Compare on a normalised key and accept either column, so a
+    doctor is not hidden from their own district over a spelling.
+    """
+    def key(value: Optional[str]) -> str:
+        return "".join(ch for ch in (value or "").lower() if ch.isalnum())
+
+    if state:
+        s = key(user.get("state"))
+        if s and s != key(state):
+            return False
+    if district:
+        want = key(district)
+        candidates = {key(user.get("district")), key(user.get("city"))} - {""}
+        if candidates and not any(
+            c == want or c in want or want in c for c in candidates
+        ):
+            return False
+    return True
+
+
 @router.get("/search/doctors")
 async def search_doctors(
     specialization: Optional[str] = None,
     city: Optional[str] = None,
+    district: Optional[str] = None,
+    state: Optional[str] = None,
     consultation_mode: Optional[str] = None,
     q: Optional[str] = None,
     limit: int = Query(20, le=50),
@@ -1485,6 +1515,12 @@ async def search_doctors(
     """
     Public endpoint: search for doctors.
     Used by the patient booking page to find real providers.
+
+    `consultation_mode` is matched against what the doctor actually published
+    (availability blocks + tariffs), not the single legacy enum column — see
+    app/services/provider_modes. `district`/`state` scope in-person and
+    home-visit discovery to where the doctor can physically go; video
+    consultation is deliberately nationwide and passes neither.
     """
     if not supabase:
         return {"success": True, "doctors": []}
@@ -1500,11 +1536,30 @@ async def search_doctors(
             query = query.ilike("specialization", f"%{specialization}%")
         if city:
             query = query.ilike("users.city", f"%{city}%")
-        if consultation_mode:
-            query = query.eq("consultation_mode", consultation_mode)
 
-        result = query.limit(limit).execute()
+        # Over-fetch when a mode filter applies: the mode is resolved in Python
+        # from published availability, so limiting in SQL would cap the wrong
+        # set and drop matching doctors.
+        result = query.limit(200 if consultation_mode else limit).execute()
         doctors = result.data or []
+
+        if consultation_mode:
+            published = provider_modes.resolve_modes(
+                [d.get("user_id") for d in doctors]
+            )
+            doctors = [
+                d for d in doctors
+                if provider_modes.offers_mode(
+                    published.get(d.get("user_id"), set()),
+                    d.get("consultation_mode"),
+                    consultation_mode,
+                )
+            ]
+
+        if district or state:
+            doctors = [d for d in doctors if _matches_location(d.get("users") or {}, district, state)]
+
+        doctors = doctors[:limit]
 
         # Enrich with fees
         enriched = []
@@ -1538,6 +1593,12 @@ async def search_doctors(
                 "qualification": doc.get("qualification", ""),
                 "experience_years": doc.get("years_of_experience", 0),
                 "consultation_mode": doc.get("consultation_mode", "both"),
+                # The real, published set — the single enum above is kept for
+                # back-compat but no longer decides what a patient can book.
+                "consultation_modes": sorted(
+                    provider_modes.resolve_modes([doc_user_id]).get(doc_user_id)
+                    or provider_modes.normalise_mode(doc.get("consultation_mode"))
+                ),
                 "city": user.get("city", ""),
                 # Already fetched by the users!inner join above — surfaced so
                 # location-based discovery (State → District) can filter
