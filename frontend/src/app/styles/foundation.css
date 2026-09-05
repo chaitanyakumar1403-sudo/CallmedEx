@@ -2932,3 +2932,116 @@ input[type="radio"] {
   [data-surface="glass"] .cm-dash__tabs { padding-bottom: var(--cm-8); }
   [data-surface="glass"] .cm-dash__body { margin-top: calc(var(--cm-6) * -1); }
 }
+
+/* ── CallMedex Light Blue & White Glassmorphism Widgets ───────────────── */
+.cm-widget-glass-light {
+  background: linear-gradient(135deg, rgba(240, 249, 255, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(186, 230, 253, 0.7);
+  border-radius: var(--cm-radius-lg);
+  box-shadow: 0 10px 30px -5px rgba(2, 132, 199, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  padding: var(--cm-6);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.cm-widget-glass-light:hover {
+  border-color: rgba(125, 211, 252, 0.9);
+  box-shadow: 0 14px 34px -5px rgba(2, 132, 199, 0.12), 0 6px 16px -2px rgba(0, 0, 0, 0.04);
+}
+
+.cm-widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cm-3);
+  margin-bottom: var(--cm-5);
+  border-bottom: 1px solid rgba(224, 242, 254, 0.8);
+  padding-bottom: var(--cm-4);
+}
+
+.cm-widget-title {
+  margin: 0;
+  font-size: var(--cm-text-lg);
+  font-weight: 800;
+  color: var(--cm-navy);
+  display: flex;
+  align-items: center;
+  gap: var(--cm-2);
+}
+
+.cm-widget-subtitle {
+  margin: 4px 0 0 0;
+  font-size: var(--cm-text-xs);
+  color: var(--cm-ink-3);
+}
+
+/* ── e-Prescription Studio 2-Column Split ────────────────────────────── */
+.cm-erx-studio-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cm-4);
+}
+
+.cm-erx-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--cm-5);
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .cm-erx-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cm-erx-preview-parchment {
+  background: #ffffff;
+  border: 1px solid rgba(186, 230, 253, 0.8);
+  border-radius: var(--cm-radius-lg);
+  padding: 28px;
+  box-shadow: 0 12px 32px -4px rgba(2, 132, 199, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.cm-erx-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-25deg);
+  font-size: 3.8rem;
+  font-weight: 900;
+  color: rgba(2, 132, 199, 0.04);
+  pointer-events: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* ── Shift Days Grid & Badges ────────────────────────────────────────── */
+.cm-shift-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.cm-shift-day-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(224, 242, 254, 0.95);
+  border-radius: var(--cm-radius);
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.04);
+  transition: all 0.2s ease;
+}
+.cm-shift-day-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(14, 165, 233, 0.4);
+  box-shadow: 0 8px 20px -4px rgba(2, 132, 199, 0.1);
+}
+

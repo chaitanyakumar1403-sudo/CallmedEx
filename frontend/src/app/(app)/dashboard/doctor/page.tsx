@@ -34,6 +34,8 @@ import {
   Navigation,
   Check,
   Shield,
+  Printer,
+  QrCode,
 } from "lucide-react";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -931,286 +933,520 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 3: DIGITAL E-PRESCRIPTION PAD STUDIO (MANDATORY PATIENT EMAIL)
+          TAB 3: DIGITAL e-PRESCRIPTION PAD STUDIO (FULL-WIDTH 2-COLUMN STUDIO)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "erx_studio" && (
-        <div style={{ maxWidth: "900px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: "var(--cm-3)" }}>
+        <div className="cm-erx-studio-container">
+          {/* Header strip */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                Digital e-Prescription Pad Studio
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                  NMC Clinical Standard · Registered Tele-Rx Studio
+                </span>
+                <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  Dr. {profile?.full_name || "Verified Practitioner"} · Reg: {profile?.registration_number || "NMC-2026-REG"}
+                </span>
+              </div>
+              <h2 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                <FileText size={22} style={{ color: "#0284c7" }} />
+                <span>Digital e-Prescription Pad Studio</span>
               </h2>
-              <p style={{ margin: "2px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-                Draft, sign, and instantly dispatch official NMC-compliant e-prescriptions directly to patient email.
+              <p style={{ margin: "3px 0 0 0", fontSize: "0.85rem", color: "var(--cm-ink-3)" }}>
+                Draft, live-preview on official NMC parchment with watermark, and instantly dispatch signed digital e-prescriptions to patient email.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleTransmitRxEmail}
-              disabled={transmittingRx}
-              className="cm-btn cm-btn--primary cm-btn--sm"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
-            >
-              <Send size={14} /> {transmittingRx ? "Transmitting e-Rx..." : "Transmit e-Rx to Patient Email"}
-            </button>
-          </div>
-
-          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", marginBottom: 20 }}>
-            {/* Quick Patient Selector */}
-            {allActivePatients.length > 0 && (
-              <div style={{ marginBottom: "var(--cm-4)", background: "var(--cm-surface-2)", padding: "10px 14px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line)" }}>
-                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 800, color: "var(--cm-navy)", textTransform: "uppercase", marginBottom: 4 }}>
-                  Auto-Fill From Active Patients
-                </label>
-                <select
-                  value={selectedPatientId}
-                  onChange={(e) => handleSelectPatientForRx(e.target.value)}
-                  style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-                >
-                  <option value="custom">— Manual Entry / New Patient —</option>
-                  {allActivePatients.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Patient Demographics & MANDATORY Patient Email */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: "var(--cm-3)", marginBottom: "var(--cm-3)" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                  Patient Full Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Priya Sharma"
-                  value={rxPatientName}
-                  onChange={(e) => setRxPatientName(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                  Patient Age
-                </label>
-                <input
-                  type="number"
-                  placeholder="Age"
-                  value={rxPatientAge}
-                  onChange={(e) => setRxPatientAge(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                  Gender
-                </label>
-                <select
-                  value={rxPatientGender}
-                  onChange={(e) => setRxPatientGender(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-                >
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Patient Contact & Mandatory Email Field */}
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: "var(--cm-3)", marginBottom: "var(--cm-4)" }}>
-              <div>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cm-text-xs)", fontWeight: 800, color: "var(--cm-urgent)", marginBottom: 4 }}>
-                  <Mail size={13} /> Patient Email Address (MANDATORY for e-Rx Transmission) *
-                </label>
-                <input
-                  type="email"
-                  placeholder="patient.email@example.com"
-                  value={rxPatientEmail}
-                  onChange={(e) => setRxPatientEmail(e.target.value)}
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    borderRadius: "var(--cm-radius-sm)",
-                    border: rxPatientEmail ? "1px solid var(--cm-active)" : "1px solid var(--cm-urgent-line)",
-                    background: rxPatientEmail ? "#f0f9ff" : "#fff",
-                    fontSize: "var(--cm-text-sm)",
-                    fontWeight: 600,
-                  }}
-                />
-                <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 3 }}>
-                  ✉️ The patient will receive the official signed digital e-prescription at this email address.
-                </div>
-              </div>
-              <div>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                  <Phone size={13} /> Patient Mobile (Optional)
-                </label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  value={rxPatientMobile}
-                  onChange={(e) => setRxPatientMobile(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "var(--cm-4)" }}>
-              <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                Primary Clinical Diagnosis (ICD-10 Standard)
-              </label>
-              <input
-                type="text"
-                value={rxDiagnosis}
-                onChange={(e) => setRxDiagnosis(e.target.value)}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
-              />
-            </div>
-
-            {/* Prescribed Medications Table */}
-            <div style={{ marginBottom: "var(--cm-4)" }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 800, color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-                ℞ Prescribed Generic Medications ({rxItems.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--cm-2)" }}>
-                {rxItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      background: "var(--cm-surface-2)",
-                      border: "1px solid var(--cm-line)",
-                      borderRadius: "var(--cm-radius-sm)",
-                      padding: "10px 14px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
-                        {idx + 1}. {item.name}
-                      </div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                        {item.dose} · {item.freq} · {item.days} ({item.notes})
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setRxItems(rxItems.filter((_, i) => i !== idx))}
-                      style={{ background: "none", border: "none", color: "var(--cm-urgent)", cursor: "pointer", padding: 4 }}
-                      title="Remove medication"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Add Medicine Form */}
-            <div style={{ background: "var(--cm-surface)", border: "1px dashed var(--cm-line-strong)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", marginBottom: 16 }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-navy)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-                + Add Generic Formulation
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center" }}>
-                <input
-                  type="text"
-                  placeholder="Salt name (e.g. Amoxicillin 500mg)"
-                  value={rxNewName}
-                  onChange={(e) => setRxNewName(e.target.value)}
-                  style={{ padding: "8px 10px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-                />
-                <input
-                  type="text"
-                  placeholder="Dosage"
-                  value={rxNewDose}
-                  onChange={(e) => setRxNewDose(e.target.value)}
-                  style={{ padding: "8px 10px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-                />
-                <select
-                  value={rxNewFreq}
-                  onChange={(e) => setRxNewFreq(e.target.value)}
-                  style={{ padding: "8px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-                >
-                  <option value="OD (Once daily)">OD</option>
-                  <option value="BD (Twice daily)">BD</option>
-                  <option value="TID (3 times daily)">TID</option>
-                  <option value="QID (4 times daily)">QID</option>
-                  <option value="SOS (As needed)">SOS</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Duration"
-                  value={rxNewDays}
-                  onChange={(e) => setRxNewDays(e.target.value)}
-                  style={{ padding: "8px 10px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddRxItem}
-                  className="cm-btn cm-btn--primary cm-btn--sm"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
-            {/* Diagnostic Lab Tests */}
-            <div style={{ marginBottom: "var(--cm-4)" }}>
-              <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                Diagnostic Lab Investigations (Optional)
-              </label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input
-                  type="text"
-                  placeholder="e.g. Serum Creatinine, HbA1c, Lipid Profile"
-                  value={newLabTest}
-                  onChange={(e) => setNewLabTest(e.target.value)}
-                  style={{ flex: 1, padding: "8px 10px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-                />
-                <button type="button" onClick={handleAddLabTest} className="cm-btn cm-btn--secondary cm-btn--sm">
-                  Add Test
-                </button>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {rxLabTests.map((t, idx) => (
-                  <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 999, background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 600, border: "1px solid #bfdbfe" }}>
-                    {t}
-                    <button type="button" onClick={() => setRxLabTests(rxLabTests.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", cursor: "pointer", color: "#1d4ed8", padding: 0 }}>×</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Clinical Notes & Advice */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
-                Doctor Advice &amp; Lifestyle Instructions
-              </label>
-              <textarea
-                rows={3}
-                value={rxClinicalNotes}
-                onChange={(e) => setRxClinicalNotes(e.target.value)}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-xs)" }}
-              />
-            </div>
-
-            {/* Action Bar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--cm-line)", paddingTop: 14 }}>
-              <div style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
-                Practitioner: <strong style={{ color: "var(--cm-ink)" }}>{profile?.full_name ? `Dr. ${profile.full_name}` : "Verified NMC Doctor"}</strong>
-              </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="cm-btn cm-btn--secondary cm-btn--sm"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+              >
+                <Printer size={14} /> Print / Save PDF
+              </button>
               <button
                 type="button"
                 onClick={handleTransmitRxEmail}
                 disabled={transmittingRx}
                 className="cm-btn cm-btn--primary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 18px" }}
               >
-                <Send size={14} /> {transmittingRx ? "Transmitting..." : "Transmit e-Rx to Patient Email"}
+                <Send size={14} /> {transmittingRx ? "Transmitting e-Rx..." : "Transmit e-Rx to Patient Email"}
               </button>
+            </div>
+          </div>
+
+          {/* Two-Column Studio Layout */}
+          <div className="cm-erx-grid">
+            {/* ── LEFT COLUMN: Clinical Drafting Deck ────────────── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Quick Patient Selector */}
+              {allActivePatients.length > 0 && (
+                <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "12px 16px", borderRadius: 10, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.05)" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                    Auto-Fill From Active Patients
+                  </label>
+                  <select
+                    value={selectedPatientId}
+                    onChange={(e) => handleSelectPatientForRx(e.target.value)}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.85rem", background: "#f8fafc", color: "var(--cm-ink)", fontWeight: 600 }}
+                  >
+                    <option value="custom">— Manual Entry / New Patient —</option>
+                    {allActivePatients.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Patient Demographics Card */}
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <User size={14} /> Patient Demographics
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Priya Sharma"
+                      value={rxPatientName}
+                      onChange={(e) => setRxPatientName(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                      Age
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Age"
+                      value={rxPatientAge}
+                      onChange={(e) => setRxPatientAge(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                      Gender
+                    </label>
+                    <select
+                      value={rxPatientGender}
+                      onChange={(e) => setRxPatientGender(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                    >
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Patient Contact & Mandatory Email Field */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1.2fr", gap: 10 }}>
+                  <div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 800, color: rxPatientEmail ? "#0369a1" : "var(--cm-urgent)", marginBottom: 4 }}>
+                      <Mail size={13} /> Patient Email Address (MANDATORY) *
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="patient.email@example.com"
+                      value={rxPatientEmail}
+                      onChange={(e) => setRxPatientEmail(e.target.value)}
+                      required
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: rxPatientEmail ? "1.5px solid #0284c7" : "1.5px solid rgba(225, 29, 72, 0.5)",
+                        background: rxPatientEmail ? "#f0f9ff" : "#fff",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                      }}
+                    />
+                    <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 4 }}>
+                      Official digitally-signed e-prescription is automatically delivered here.
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                      <Phone size={13} /> Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      value={rxPatientMobile}
+                      onChange={(e) => setRxPatientMobile(e.target.value)}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* ICD-10 Diagnosis Card */}
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+                <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+                  Primary Clinical Diagnosis (ICD-10 Standard)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Acute Viral Upper Respiratory Infection (ICD-10: J06.9)"
+                  value={rxDiagnosis}
+                  onChange={(e) => setRxDiagnosis(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff", marginBottom: 8 }}
+                />
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {["Viral Pharyngitis (J02.9)", "Type 2 Diabetes (E11.9)", "Hypertension (I10)", "Acute Bronchitis (J20.9)", "Gastritis (K29.7)"].map((diag) => (
+                    <button
+                      key={diag}
+                      type="button"
+                      onClick={() => setRxDiagnosis(diag)}
+                      style={{ padding: "3px 8px", borderRadius: 6, fontSize: "11px", fontWeight: 600, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#475569", cursor: "pointer" }}
+                    >
+                      + {diag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Formulation Builder & Current Medications Deck */}
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div style={{ fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    ℞ Prescribed Generic Formulations ({rxItems.length})
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--cm-ink-3)" }}>
+                    Indian NMC Telemedicine Act Compliant
+                  </span>
+                </div>
+
+                {/* Current Items List */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                  {rxItems.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "#f0f9ff",
+                        border: "1px solid #bae6fd",
+                        borderRadius: 8,
+                        padding: "10px 14px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#0369a1" }}>
+                          {idx + 1}. {item.name}
+                        </div>
+                        <div style={{ fontSize: "0.76rem", color: "#0284c7", marginTop: 2 }}>
+                          {item.dose} · {item.freq} · {item.days} · <em>{item.notes}</em>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRxItems(rxItems.filter((_, i) => i !== idx))}
+                        style={{ background: "none", border: "none", color: "var(--cm-urgent)", cursor: "pointer", padding: 4 }}
+                        title="Remove formulation"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Formulation Form */}
+                <div style={{ background: "linear-gradient(135deg, rgba(240, 249, 255, 0.7), rgba(255, 255, 255, 0.95))", border: "1px dashed #7dd3fc", borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                    + Add Generic Salt / Formulation
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="Generic Salt & Strength (e.g. Paracetamol 650mg)"
+                      value={rxNewName}
+                      onChange={(e) => setRxNewName(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Dose (e.g. 1 tab)"
+                      value={rxNewDose}
+                      onChange={(e) => setRxNewDose(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    />
+                    <select
+                      value={rxNewFreq}
+                      onChange={(e) => setRxNewFreq(e.target.value)}
+                      style={{ padding: "8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    >
+                      <option value="OD (Once daily)">OD (Once daily)</option>
+                      <option value="BD (Twice daily)">BD (Twice daily)</option>
+                      <option value="TID (Thrice daily)">TID (Thrice daily)</option>
+                      <option value="QID (4 times daily)">QID (4 times daily)</option>
+                      <option value="SOS (As needed)">SOS (As needed)</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr auto", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      placeholder="Duration (e.g. 5 days)"
+                      value={rxNewDays}
+                      onChange={(e) => setRxNewDays(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    />
+                    <select
+                      value={rxNewNotes}
+                      onChange={(e) => setRxNewNotes(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    >
+                      <option value="After food">After food</option>
+                      <option value="Before food">Before food</option>
+                      <option value="With food">With food</option>
+                      <option value="Empty stomach">Empty stomach</option>
+                      <option value="At bedtime">At bedtime</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAddRxItem}
+                      className="cm-btn cm-btn--primary cm-btn--sm"
+                      style={{ fontWeight: 800, padding: "8px 16px" }}
+                    >
+                      <Plus size={14} /> Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diagnostic Labs & Clinical Advice Deck */}
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+                {/* Diagnostic Lab Tests */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                    Diagnostic Lab Investigations (Optional)
+                  </label>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      placeholder="e.g. Complete Blood Count (CBC), Serum Creatinine, HbA1c"
+                      value={newLabTest}
+                      onChange={(e) => setNewLabTest(e.target.value)}
+                      style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                    />
+                    <button type="button" onClick={handleAddLabTest} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ fontWeight: 700 }}>
+                      Add Test
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {rxLabTests.map((t, idx) => (
+                      <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "#f0f9ff", color: "#0369a1", fontSize: "11px", fontWeight: 700, border: "1px solid #bae6fd" }}>
+                        {t}
+                        <button type="button" onClick={() => setRxLabTests(rxLabTests.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", cursor: "pointer", color: "#0284c7", padding: 0, fontWeight: "bold" }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clinical Notes & Advice */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                    Doctor Advice &amp; Lifestyle Instructions
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={rxClinicalNotes}
+                    onChange={(e) => setRxClinicalNotes(e.target.value)}
+                    placeholder="e.g. Maintain hydration (3L/day), light diet, review if fever persists > 48h."
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── RIGHT COLUMN: Live NMC Digital Prescription Slip Preview ─ */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div className="cm-erx-preview-parchment" style={{ flex: 1 }}>
+                {/* Watermark */}
+                <div className="cm-erx-watermark">
+                  OFFICIAL NMC e-Rx
+                </div>
+
+                {/* Doctor & Clinic Official Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #0284c7", paddingBottom: 14, marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.08em", color: "#0284c7", textTransform: "uppercase" }}>
+                      CALLMEDEX HEALTHCARE NETWORK · TELEMEDICINE &amp; BEDSIDE
+                    </div>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
+                      {profile?.full_name ? `Dr. ${profile.full_name}` : "Dr. Verified Medical Specialist"}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 600 }}>
+                      {profile?.qualification || "MBBS, MD"} · {profile?.specialization || "General Medicine & Telehealth"}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
+                      Reg. No: <strong style={{ color: "#0f172a" }}>{profile?.registration_number || "NMC-DL-2026-88421"}</strong> (National Medical Commission)
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 6, background: "rgba(2, 132, 199, 0.1)", border: "1px solid rgba(2, 132, 199, 0.25)", color: "#0284c7", fontSize: "11px", fontWeight: 800 }}>
+                      <ShieldCheck size={13} /> NMC Compliant
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: 4 }}>
+                      Date: <strong>{new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</strong>
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b" }}>
+                      Rx ID: <strong>CMD-RX-{new Date().getFullYear()}-{profile?.id ? profile.id.slice(0, 4).toUpperCase() : "8841"}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Patient Summary Strip */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, padding: "10px 14px", background: "rgba(240, 249, 255, 0.6)", borderRadius: 8, border: "1px solid #e0f2fe", marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", color: "#0284c7", fontWeight: 800, textTransform: "uppercase" }}>Patient Details</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a" }}>
+                      {rxPatientName || "Patient Name (Pending)"}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#475569" }}>
+                      {rxPatientAge ? `${rxPatientAge} yrs` : "Age —"} · {rxPatientGender || "Gender —"}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "0.7rem", color: "#0284c7", fontWeight: 800, textTransform: "uppercase" }}>Registered Delivery Email</div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, color: rxPatientEmail ? "#0369a1" : "#e11d48", wordBreak: "break-all" }}>
+                      {rxPatientEmail || "⚠️ Mandatory email required"}
+                    </div>
+                    {rxPatientMobile && (
+                      <div style={{ fontSize: "0.76rem", color: "#64748b" }}>
+                        Tel: {rxPatientMobile}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Diagnosis Banner */}
+                {rxDiagnosis && (
+                  <div style={{ marginBottom: 14, padding: "8px 12px", borderRadius: 6, background: "#f8fafc", borderLeft: "3px solid #0284c7" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Clinical Diagnosis: </span>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>{rxDiagnosis}</span>
+                  </div>
+                )}
+
+                {/* ℞ Prescription Body */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "1.1rem", fontWeight: 900, color: "#0284c7", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>
+                    <span>℞</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.05em" }}>Prescribed Medications</span>
+                  </div>
+
+                  {rxItems.length === 0 ? (
+                    <div style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem", fontStyle: "italic", border: "1px dashed #cbd5e1", borderRadius: 8 }}>
+                      No medications added yet. Add medications using the formulation deck on the left.
+                    </div>
+                  ) : (
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1.5px solid #cbd5e1", textAlign: "left", color: "#475569", fontSize: "0.72rem", textTransform: "uppercase" }}>
+                          <th style={{ padding: "6px 8px", width: 24 }}>#</th>
+                          <th style={{ padding: "6px 8px" }}>Formulation &amp; Strength</th>
+                          <th style={{ padding: "6px 8px" }}>Dosage &amp; Frequency</th>
+                          <th style={{ padding: "6px 8px" }}>Duration</th>
+                          <th style={{ padding: "6px 8px" }}>Timing</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rxItems.map((med, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "8px", fontWeight: 700, color: "#64748b" }}>{idx + 1}</td>
+                            <td style={{ padding: "8px", fontWeight: 700, color: "#0f172a" }}>{med.name}</td>
+                            <td style={{ padding: "8px", color: "#334155" }}>{med.dose} · {med.freq}</td>
+                            <td style={{ padding: "8px", color: "#334155" }}>{med.days}</td>
+                            <td style={{ padding: "8px", color: "#0284c7", fontWeight: 600 }}>{med.notes || "After food"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Investigations */}
+                {rxLabTests.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
+                      Recommended Diagnostic Investigations
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {rxLabTests.map((t, idx) => (
+                        <span key={idx} style={{ padding: "3px 8px", borderRadius: 4, background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 700, border: "1px solid #dbeafe" }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Advice & Instructions */}
+                {rxClinicalNotes && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
+                      Clinical Advice &amp; Lifestyle Precautions
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#334155", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", whiteSpace: "pre-wrap" }}>
+                      {rxClinicalNotes}
+                    </div>
+                  </div>
+                )}
+
+                {/* Official Sign-off & Digital Signature Bar */}
+                <div style={{ borderTop: "2px solid #e2e8f0", paddingTop: 14, marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ padding: 6, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, display: "grid", placeItems: "center" }}>
+                      <QrCode size={40} style={{ color: "#0284c7" }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "10px", fontWeight: 800, color: "#0284c7", textTransform: "uppercase" }}>
+                        CallMedex Tamper-Proof QR
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#64748b", maxWidth: 180 }}>
+                        Scan to verify digital signature and pharmacist dispatch clearance.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: "11px", fontWeight: 800 }}>
+                      <CheckCircle2 size={13} /> DIGITALLY SIGNED &amp; VERIFIED
+                    </div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", fontFamily: "cursive, Georgia, serif" }}>
+                      {profile?.full_name ? `Dr. ${profile.full_name}` : "Verified Medical Officer"}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b" }}>
+                      Secured under IT Act 2000 &amp; NMC Guidelines
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transmit action bar */}
+              <div style={{ marginTop: 12, padding: "12px 16px", background: "rgba(255, 255, 255, 0.9)", borderRadius: 10, border: "1px solid rgba(186, 230, 253, 0.8)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  Recipient: <strong style={{ color: rxPatientEmail ? "#0369a1" : "var(--cm-urgent)" }}>{rxPatientEmail || "Enter email on left to enable dispatch"}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTransmitRxEmail}
+                  disabled={transmittingRx || !rxPatientEmail}
+                  className="cm-btn cm-btn--primary cm-btn--sm"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 20px" }}
+                >
+                  <Send size={14} /> {transmittingRx ? "Transmitting..." : "Send e-Prescription to Patient"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1535,21 +1771,31 @@ export default function DoctorDashboard() {
           TAB 7: DOCTOR HOME VISITS & BEDSIDE CARE DISPATCH OVERHAUL
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "home_visits" && (
-        <div style={{ maxWidth: 1050 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: "var(--cm-4)" }}>
+        <div className="cm-widget-glass-light">
+          {/* Header strip */}
+          <div className="cm-widget-header">
             <div>
-              <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 800 }}>
-                Doctor Home Visits &amp; Bedside Care Management
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                  On-Demand Bedside Care Console
+                </span>
+                <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                  {activeDispatches.length} active patient dispatch{activeDispatches.length === 1 ? "" : "es"} · Shift: <strong>{homeVisitShift}</strong> · Radius: <strong>12 km</strong>
+                </span>
+              </div>
+              <h2 className="cm-widget-title">
+                <Home size={22} style={{ color: "#0284c7" }} />
+                <span>Doctor Home Visits &amp; Bedside Care Management</span>
               </h2>
-              <p style={{ margin: "2px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                Manage home visit shifts, set independent Normal vs. Urgent visit tariffs, and broadcast real-time ETAs to patients.
+              <p className="cm-widget-subtitle">
+                Manage bedside roster, configure Normal vs. Urgent visit fees with transparent 80% net payouts, and broadcast real-time ETAs directly to patient families.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowGpsMap(!showGpsMap)}
               className="cm-btn cm-btn--secondary cm-btn--sm"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
             >
               <Navigation size={14} /> {showGpsMap ? "Hide Live GPS Map" : "View Live Route Tracker"}
             </button>
@@ -1557,18 +1803,20 @@ export default function DoctorDashboard() {
 
           {/* Shift Scheduling & Duty Status Strip */}
           <div
-            className="cm-card"
             style={{
               padding: "16px 20px",
-              border: "1px solid var(--cm-line)",
-              borderRadius: "var(--cm-radius)",
-              marginBottom: "var(--cm-4)",
+              border: "1px solid rgba(186, 230, 253, 0.8)",
+              borderRadius: 12,
+              marginBottom: 20,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
               flexWrap: "wrap",
               gap: 16,
-              background: homeVisitOnDuty ? "linear-gradient(135deg, rgba(22, 163, 74, 0.06) 0%, rgba(2, 132, 199, 0.04) 100%)" : "var(--cm-surface-2)",
+              background: homeVisitOnDuty
+                ? "linear-gradient(135deg, rgba(240, 253, 244, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%)"
+                : "rgba(255, 255, 255, 0.8)",
+              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -1587,15 +1835,15 @@ export default function DoctorDashboard() {
               </div>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>
+                  <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
                     Bedside Visit Duty Status:
                   </span>
                   <span className={`cm-pill ${homeVisitOnDuty ? "cm-pill--done" : "cm-pill--neutral"}`}>
                     {homeVisitOnDuty ? "● ON DUTY FOR VISITS" : "○ OFF-DUTY"}
                   </span>
                 </div>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                  Active Shift: <strong>{homeVisitShift}</strong> · Operating Radius: <strong>12 km from clinic</strong>
+                <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                  Active Shift: <strong>{homeVisitShift}</strong> · Operating Radius: <strong>12 km from registered clinic</strong>
                 </div>
               </div>
             </div>
@@ -1605,11 +1853,11 @@ export default function DoctorDashboard() {
                 value={homeVisitShift}
                 onChange={(e) => setHomeVisitShift(e.target.value)}
                 style={{
-                  padding: "7px 12px",
-                  borderRadius: "var(--cm-radius-sm)",
-                  border: "1px solid var(--cm-line-strong)",
-                  fontSize: "var(--cm-text-xs)",
-                  background: "var(--cm-surface)",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #bae6fd",
+                  fontSize: "0.82rem",
+                  background: "#fff",
                   color: "var(--cm-ink)",
                   fontWeight: 600,
                 }}
@@ -1624,7 +1872,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={() => setHomeVisitOnDuty(!homeVisitOnDuty)}
                 className={`cm-btn cm-btn--sm ${homeVisitOnDuty ? "cm-btn--secondary" : "cm-btn--primary"}`}
-                style={{ fontWeight: 700 }}
+                style={{ fontWeight: 800, padding: "8px 18px" }}
               >
                 {homeVisitOnDuty ? "Go Off-Duty" : "Go On-Duty"}
               </button>
@@ -1632,30 +1880,30 @@ export default function DoctorDashboard() {
           </div>
 
           {/* Normal vs. Urgent Home Visit Custom Tariff Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--cm-4)", marginBottom: "var(--cm-5)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, marginBottom: 20 }}>
             {/* Normal Scheduled Home Visit Tier */}
             <div
-              className="cm-card"
               style={{
                 padding: "20px",
-                border: "1px solid var(--cm-line)",
-                borderRadius: "var(--cm-radius)",
-                background: "var(--cm-surface)",
+                border: "1px solid rgba(186, 230, 253, 0.8)",
+                borderRadius: 12,
+                background: "rgba(255, 255, 255, 0.9)",
+                boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 800 }}>
                   Scheduled Bedside Care
                 </span>
-                <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700 }}>
+                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800 }}>
                   Doctor Net: ₹{Math.round(Number(normalVisitFee) * 0.8)} (80%)
                 </span>
               </div>
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                 Normal Home Visit
               </h3>
-              <p style={{ margin: "0 0 14px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
-                Pre-scheduled bedside clinical examination, chronic follow-ups, and elder care checks within 12–24h slot.
+              <p style={{ margin: "0 0 14px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
+                Pre-scheduled bedside clinical examination, chronic follow-ups, and elder care checks within 12–24h window.
               </p>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1670,10 +1918,11 @@ export default function DoctorDashboard() {
                     style={{
                       width: "100%",
                       padding: "8px 12px 8px 24px",
-                      borderRadius: "var(--cm-radius-sm)",
-                      border: "1px solid var(--cm-line-strong)",
-                      fontSize: "var(--cm-text-sm)",
+                      borderRadius: 8,
+                      border: "1px solid #bae6fd",
+                      fontSize: "0.9rem",
                       fontWeight: 800,
+                      background: "#fff",
                     }}
                   />
                 </div>
@@ -1688,7 +1937,7 @@ export default function DoctorDashboard() {
                     setStatusMsg({ text: `✓ Normal home visit fee set to ₹${normalVisitFee}.`, type: "success" });
                   }}
                   className="cm-btn cm-btn--secondary cm-btn--sm"
-                  style={{ fontWeight: 700 }}
+                  style={{ fontWeight: 800, padding: "8px 16px" }}
                 >
                   Save Fee
                 </button>
@@ -1697,32 +1946,32 @@ export default function DoctorDashboard() {
 
             {/* Urgent Priority Home Visit Tier */}
             <div
-              className="cm-card"
               style={{
                 padding: "20px",
-                border: "1px solid rgba(225, 29, 72, 0.3)",
-                borderRadius: "var(--cm-radius)",
-                background: "linear-gradient(135deg, rgba(225, 29, 72, 0.03) 0%, rgba(254, 242, 242, 0.5) 100%)",
+                border: "1px solid rgba(244, 63, 94, 0.4)",
+                borderRadius: 12,
+                background: "linear-gradient(135deg, rgba(255, 241, 242, 0.7) 0%, rgba(255, 255, 255, 0.95) 100%)",
+                boxShadow: "0 2px 8px rgba(225, 29, 72, 0.06)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <span className="cm-pill cm-pill--urgent" style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                <span className="cm-pill cm-pill--urgent" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 800 }}>
                   Urgent Priority Dispatch
                 </span>
-                <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700 }}>
+                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800 }}>
                   Doctor Net: ₹{Math.round(Number(urgentVisitFee) * 0.8)} (80%)
                 </span>
               </div>
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 800, color: "#9f1239" }}>
                 Urgent Home Visit
               </h3>
-              <p style={{ margin: "0 0 14px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
-                Acute symptom response, prompt dispatch with live arrival ETA notification broadcasted directly to family.
+              <p style={{ margin: "0 0 14px 0", fontSize: "0.8rem", color: "#881337", lineHeight: 1.4 }}>
+                Acute symptom response, prompt dispatch with live arrival ETA notification broadcasted directly to patient family.
               </p>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ position: "relative", flex: 1 }}>
-                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "var(--cm-ink-3)" }}>₹</span>
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "#be123c" }}>₹</span>
                   <input
                     type="number"
                     min={600}
@@ -1732,10 +1981,11 @@ export default function DoctorDashboard() {
                     style={{
                       width: "100%",
                       padding: "8px 12px 8px 24px",
-                      borderRadius: "var(--cm-radius-sm)",
-                      border: "1px solid var(--cm-line-strong)",
-                      fontSize: "var(--cm-text-sm)",
+                      borderRadius: 8,
+                      border: "1px solid rgba(244, 63, 94, 0.4)",
+                      fontSize: "0.9rem",
                       fontWeight: 800,
+                      background: "#fff",
                     }}
                   />
                 </div>
@@ -1745,7 +1995,7 @@ export default function DoctorDashboard() {
                     setStatusMsg({ text: `✓ Urgent priority home visit fee set to ₹${urgentVisitFee}.`, type: "success" });
                   }}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ fontWeight: 700 }}
+                  style={{ fontWeight: 800, padding: "8px 16px" }}
                 >
                   Save Fee
                 </button>
@@ -1755,20 +2005,21 @@ export default function DoctorDashboard() {
 
           {/* Optional Satellite GPS Map */}
           {showGpsMap && (
-            <div style={{ marginBottom: "var(--cm-5)", borderRadius: "var(--cm-radius)", overflow: "hidden", border: "1px solid var(--cm-line)" }}>
+            <div style={{ marginBottom: 20, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(186, 230, 253, 0.8)" }}>
               <ProviderDispatchTracker title="Live Satellite Bedside Navigation" providerType="doctor" />
             </div>
           )}
 
           {/* Active Home Visit Dispatch & ETA Broadcast Roster */}
-          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "20px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                  Bedside Patient Dispatches ({activeDispatches.length})
+                <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Activity size={18} style={{ color: "#0284c7" }} />
+                  <span>Bedside Patient Dispatches ({activeDispatches.length})</span>
                 </h3>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
-                  Active patient requests with ETA broadcast actions
+                <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                  Active patient requests with 1-click broadcast ETA actions
                 </div>
               </div>
             </div>
@@ -1779,9 +2030,9 @@ export default function DoctorDashboard() {
                   key={dispatch.id}
                   style={{
                     padding: "16px 18px",
-                    borderRadius: "var(--cm-radius)",
-                    border: dispatch.tier === "urgent" ? "1px solid rgba(225, 29, 72, 0.4)" : "1px solid var(--cm-line)",
-                    background: dispatch.tier === "urgent" ? "rgba(254, 242, 242, 0.4)" : "var(--cm-surface-2)",
+                    borderRadius: 10,
+                    border: dispatch.tier === "urgent" ? "1px solid rgba(244, 63, 94, 0.4)" : "1px solid #e0f2fe",
+                    background: dispatch.tier === "urgent" ? "rgba(254, 242, 242, 0.5)" : "#f8fafc",
                     display: "flex",
                     flexDirection: "column",
                     gap: 12,
@@ -1790,10 +2041,10 @@ export default function DoctorDashboard() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>
+                        <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
                           {dispatch.patient_name}
                         </span>
-                        <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                        <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
                           ({dispatch.patient_gender})
                         </span>
                         <span className={`cm-pill ${dispatch.tier === "urgent" ? "cm-pill--urgent" : "cm-pill--active"}`} style={{ textTransform: "uppercase" }}>
@@ -1804,19 +2055,19 @@ export default function DoctorDashboard() {
                         </span>
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", marginTop: 4 }}>
-                        <MapPin size={13} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--cm-ink-2)", marginTop: 4 }}>
+                        <MapPin size={13} style={{ color: "#0284c7", flexShrink: 0 }} />
                         <span>{dispatch.address}</span>
                       </div>
 
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
                         Complaint: <strong style={{ color: "var(--cm-ink)" }}>{dispatch.chief_complaint}</strong>
                       </div>
                     </div>
 
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                        Current ETA: <span style={{ color: "var(--cm-active)" }}>{dispatch.eta_mins} mins</span>
+                      <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                        Current ETA: <span style={{ color: "#0284c7" }}>{dispatch.eta_mins} mins</span>
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 2 }}>
                         Requested: {dispatch.requested_at}
@@ -1825,9 +2076,9 @@ export default function DoctorDashboard() {
                   </div>
 
                   {/* Dispatch Actions & Live ETA Broadcast */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed var(--cm-line)", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--cm-ink-3)", textTransform: "uppercase" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 800, color: "#0369a1", textTransform: "uppercase" }}>
                         Broadcast Live ETA to Patient:
                       </span>
                       {[15, 25, 45].map((mins) => (
@@ -1849,14 +2100,15 @@ export default function DoctorDashboard() {
                             }, 400);
                           }}
                           style={{
-                            padding: "4px 8px",
+                            padding: "4px 10px",
                             borderRadius: 6,
-                            border: dispatch.eta_mins === mins ? "1px solid var(--cm-active)" : "1px solid var(--cm-line)",
-                            background: dispatch.eta_mins === mins ? "var(--cm-active)" : "var(--cm-surface)",
+                            border: dispatch.eta_mins === mins ? "1px solid #0284c7" : "1px solid #cbd5e1",
+                            background: dispatch.eta_mins === mins ? "#0284c7" : "#fff",
                             color: dispatch.eta_mins === mins ? "#fff" : "var(--cm-ink)",
                             fontSize: "11px",
-                            fontWeight: 700,
+                            fontWeight: 800,
                             cursor: "pointer",
+                            transition: "all 0.2s ease",
                           }}
                         >
                           {mins}m
@@ -1874,14 +2126,15 @@ export default function DoctorDashboard() {
                           });
                         }}
                         style={{
-                          padding: "4px 8px",
+                          padding: "4px 10px",
                           borderRadius: 6,
-                          border: "1px solid var(--cm-done)",
-                          background: "var(--cm-done-surface)",
-                          color: "var(--cm-done)",
+                          border: "1px solid #16a34a",
+                          background: "#dcfce7",
+                          color: "#15803d",
                           fontSize: "11px",
-                          fontWeight: 700,
+                          fontWeight: 800,
                           cursor: "pointer",
+                          transition: "all 0.2s ease",
                         }}
                       >
                         Arrived
@@ -1906,7 +2159,7 @@ export default function DoctorDashboard() {
                       <a
                         href={`tel:${dispatch.patient_mobile}`}
                         className="cm-btn cm-btn--secondary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
                       >
                         <Phone size={13} /> Call Patient
                       </a>

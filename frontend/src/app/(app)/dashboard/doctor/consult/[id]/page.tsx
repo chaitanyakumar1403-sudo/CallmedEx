@@ -523,104 +523,106 @@ export default function DoctorConsultationRoom({
         {!started && !aiAnalysis && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "var(--cm-5)", marginTop: 12 }}>
             {/* Patient Clinical Intake Card */}
-            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+            <div className="cm-widget-glass-light">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Patient Waiting in Virtual Lobby
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                      ● Patient Waiting in Virtual Lobby
+                    </span>
                   </div>
-                  <h2 style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-xl)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h2 style={{ margin: "6px 0 0 0", fontSize: "1.35rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                     {patientData.name}
                   </h2>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                  <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", marginTop: 4, display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
                     <span>{patientData.age}</span>
                     <span>·</span>
                     <span>{patientData.gender}</span>
                     <span>·</span>
-                    <span>UHID: {patientData.uhid}</span>
+                    <span>UHID: <strong>{patientData.uhid}</strong></span>
                   </div>
                   {(patientData.email || patientData.phone) && (
-                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", marginTop: 6, display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                    <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-2)", marginTop: 8, display: "flex", flexWrap: "wrap", gap: "8px" }}>
                       {patientData.email && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cm-active-surface)", color: "var(--cm-active)", padding: "2px 8px", borderRadius: "4px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(240, 249, 255, 0.8)", color: "#0369a1", padding: "4px 10px", borderRadius: 8, border: "1px solid #bae6fd", fontWeight: 600 }}>
                           <Mail size={12} /> {patientData.email}
                         </span>
                       )}
                       {patientData.phone && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--cm-surface-2)", color: "var(--cm-ink-2)", padding: "2px 8px", borderRadius: "4px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(248, 250, 252, 0.8)", color: "#475569", padding: "4px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontWeight: 600 }}>
                           <Phone size={12} /> {patientData.phone}
                         </span>
                       )}
                     </div>
                   )}
                 </div>
-                <span className="cm-pill cm-pill--active">
-                  {resolvedParams.id === "instant" ? "Direct Call" : `Booking #${resolvedParams.id.slice(0, 6)}`}
+                <span className="cm-pill cm-pill--active" style={{ fontWeight: 800, fontSize: "11px" }}>
+                  {resolvedParams.id === "instant" ? "⚡ Direct Tele-Call" : `Booking #${resolvedParams.id.slice(0, 6)}`}
                 </span>
               </div>
 
               {/* Vitals Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 22 }}>
-                <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
-                  <Activity size={16} style={{ color: "var(--cm-active)", margin: "0 auto 4px" }} />
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>BP</div>
-                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>118/76</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+                <div style={{ padding: "12px 10px", borderRadius: 10, background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(186, 230, 253, 0.7)", textAlign: "center", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.04)" }}>
+                  <Activity size={16} style={{ color: "#0284c7", margin: "0 auto 4px" }} />
+                  <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase" }}>BP</div>
+                  <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>118/76</div>
                 </div>
-                <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
-                  <Heart size={16} style={{ color: "var(--cm-urgent)", margin: "0 auto 4px" }} />
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Pulse</div>
-                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>74 bpm</div>
+                <div style={{ padding: "12px 10px", borderRadius: 10, background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(244, 63, 94, 0.3)", textAlign: "center", boxShadow: "0 2px 6px rgba(225, 29, 72, 0.04)" }}>
+                  <Heart size={16} style={{ color: "#e11d48", margin: "0 auto 4px" }} />
+                  <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase" }}>Pulse</div>
+                  <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#9f1239", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>74 bpm</div>
                 </div>
-                <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
-                  <Thermometer size={16} style={{ color: "var(--cm-waiting)", margin: "0 auto 4px" }} />
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Temp</div>
-                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>98.6°F</div>
+                <div style={{ padding: "12px 10px", borderRadius: 10, background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(245, 158, 11, 0.3)", textAlign: "center", boxShadow: "0 2px 6px rgba(245, 158, 11, 0.04)" }}>
+                  <Thermometer size={16} style={{ color: "#d97706", margin: "0 auto 4px" }} />
+                  <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase" }}>Temp</div>
+                  <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#92400e", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>98.6°F</div>
                 </div>
-                <div style={{ padding: "10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", textAlign: "center" }}>
-                  <Activity size={16} style={{ color: "var(--cm-done)", margin: "0 auto 4px" }} />
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>SpO2</div>
-                  <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>99%</div>
+                <div style={{ padding: "12px 10px", borderRadius: 10, background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(34, 197, 94, 0.3)", textAlign: "center", boxShadow: "0 2px 6px rgba(34, 197, 94, 0.04)" }}>
+                  <Activity size={16} style={{ color: "#16a34a", margin: "0 auto 4px" }} />
+                  <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase" }}>SpO2</div>
+                  <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#166534", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>99%</div>
                 </div>
               </div>
 
               {/* Chief Complaints & History */}
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", textTransform: "uppercase", marginBottom: 6 }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
                   Chief Complaint
                 </div>
-                <div style={{ padding: "10px 14px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-2)" }}>
+                <div style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(255, 255, 255, 0.85)", border: "1px solid rgba(186, 230, 253, 0.8)", fontSize: "0.85rem", color: "var(--cm-ink-2)", fontWeight: 500, lineHeight: 1.5 }}>
                   {patientData.symptoms}
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
                 <div>
-                  <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-3)", textTransform: "uppercase", marginBottom: 4 }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--cm-ink-3)", textTransform: "uppercase", marginBottom: 4 }}>
                     Known Allergies
                   </div>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-urgent)", fontWeight: 700, padding: "6px 10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-urgent-surface)", border: "1px solid var(--cm-urgent-line)" }}>
+                  <div style={{ fontSize: "0.78rem", color: "#be123c", fontWeight: 700, padding: "8px 12px", borderRadius: 8, background: "rgba(254, 242, 242, 0.8)", border: "1px solid rgba(244, 63, 94, 0.3)" }}>
                     Penicillin (Mild Rash)
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-3)", textTransform: "uppercase", marginBottom: 4 }}>
+                  <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--cm-ink-3)", textTransform: "uppercase", marginBottom: 4 }}>
                     Current Medications
                   </div>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", padding: "6px 10px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
+                  <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-2)", padding: "8px 12px", borderRadius: 8, background: "rgba(255, 255, 255, 0.8)", border: "1px solid rgba(186, 230, 253, 0.7)", fontWeight: 600 }}>
                     Multivitamins daily
                   </div>
                 </div>
               </div>
 
-              <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+              <div style={{ borderTop: "1px solid rgba(186, 230, 253, 0.8)", paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
                   Digital consent timestamped &amp; stored
                 </div>
                 <button
                   type="button"
                   onClick={startConsultation}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, padding: "8px 20px" }}
                 >
                   Enter Room <ChevronRight size={16} />
                 </button>
@@ -628,53 +630,55 @@ export default function DoctorConsultationRoom({
             </div>
 
             {/* Doctor Telehealth Ready Checklist */}
-            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div className="cm-widget-glass-light" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-                  Doctor Console Readiness Check
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(34, 197, 94, 0.12)", color: "#15803d", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(34, 197, 94, 0.25)" }}>
+                    ● Hardware &amp; Clinical Scribe Ready
+                  </span>
                 </div>
-                <h3 style={{ margin: "0 0 16px 0", fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                  Hardware &amp; Clinical Scribe Ready
+                <h3 className="cm-widget-title" style={{ margin: "4px 0 16px 0", fontSize: "1.2rem" }}>
+                  <span>Doctor Console Readiness Check</span>
                 </h3>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "6px", background: "var(--cm-done-surface)", color: "var(--cm-done)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <CheckCircle2 size={16} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, background: "rgba(255, 255, 255, 0.85)", border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.04)" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#dcfce7", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <CheckCircle2 size={18} />
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Camera Sensor Active</div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>1080p HD Video Room Ready</div>
+                      <div style={{ fontWeight: 800, fontSize: "0.85rem", color: "var(--cm-ink)" }}>Camera Sensor Active</div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>1080p HD Video Room Calibrated &amp; Ready</div>
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "6px", background: "var(--cm-done-surface)", color: "var(--cm-done)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <CheckCircle2 size={16} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, background: "rgba(255, 255, 255, 0.85)", border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.04)" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#dcfce7", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <CheckCircle2 size={18} />
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>Speech-to-Text Audio Scribe</div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Microphone input calibrated for real-time transcription</div>
+                      <div style={{ fontWeight: 800, fontSize: "0.85rem", color: "var(--cm-ink)" }}>Speech-to-Text Audio Scribe</div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>Microphone input calibrated for real-time transcription</div>
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "6px", background: "var(--cm-done-surface)", color: "var(--cm-done)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <CheckCircle2 size={16} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, background: "rgba(255, 255, 255, 0.85)", border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.04)" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "#dcfce7", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <CheckCircle2 size={18} />
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>National Medical Commission Mandate</div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Registered Practitioner: {doctorUser?.name || "Dr. Verified"}</div>
+                      <div style={{ fontWeight: 800, fontSize: "0.85rem", color: "var(--cm-ink)" }}>National Medical Commission Mandate</div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>Registered Practitioner: <strong>{doctorUser?.name || "Dr. Verified"}</strong></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div style={{ background: "var(--cm-active-surface)", border: "1px solid var(--cm-active-line)", borderRadius: "var(--cm-radius-sm)", padding: "14px", marginTop: 12 }}>
-                <div style={{ fontWeight: 800, fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", marginBottom: 4 }}>
-                  NMC Telemedicine Practice Guidelines
+              <div style={{ background: "rgba(240, 249, 255, 0.85)", border: "1px solid #bae6fd", borderRadius: 10, padding: "14px 16px", marginTop: 12, boxShadow: "0 2px 6px rgba(2, 132, 199, 0.05)" }}>
+                <div style={{ fontWeight: 800, fontSize: "0.78rem", color: "#0369a1", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                  <ShieldCheck size={14} /> NMC Telemedicine Practice Guidelines
                 </div>
-                <p style={{ margin: 0, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
                   The patient has granted digital consent. Prescriptions issued here carry full legal validity under Indian Telemedicine Guidelines. All Schedule X drugs are locked by default.
                 </p>
               </div>

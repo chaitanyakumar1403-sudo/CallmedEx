@@ -391,39 +391,77 @@ export default function ProviderSchedulePanel({
         </div>
       )}
 
-      {/* ── Weekly Availability & Shift Scheduler ─────────────────────── */}
-      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
+      {/* ── Weekly Availability & Shift Scheduler Widget ───────────────── */}
+      <div className="cm-widget-glass-light" style={{ marginBottom: 24 }}>
+        <div className="cm-widget-header">
           <div>
-            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)" }}>
-              Weekly Availability &amp; Shift Management
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                Clinical Roster Console
+              </span>
+              <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
+                {availability.length} active shift{availability.length === 1 ? "" : "s"} · {new Set(availability.map((a) => a.day_of_week)).size} days active
+              </span>
+            </div>
+            <h3 className="cm-widget-title">
+              <Icon as={CalendarDays} size={20} />
+              <span>Weekly Availability &amp; Shift Management</span>
             </h3>
-            <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
-              Define morning and evening shifts, choose days of practice, and control slot length.
+            <p className="cm-widget-subtitle">
+              Define morning and evening shifts, choose days of practice, and control slot length with automated capacity calculation.
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowForm((s) => !s)}>
-            <Icon as={Plus} size={16} />
-            {showForm ? "Close Builder" : "Configure Shifts / Add Hours"}
-          </Button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => setShowForm((s) => !s)}
+              className="cm-btn cm-btn--primary cm-btn--sm"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                fontWeight: 800,
+                borderRadius: "9999px",
+                padding: "8px 18px",
+                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+              }}
+            >
+              <Icon as={Plus} size={16} />
+              <span>{showForm ? "Close Shift Builder" : "Configure Shifts / Add Hours"}</span>
+            </button>
+          </div>
         </div>
 
-        {/* Shift Builder Form (Matching User Reference Image 1) */}
+        {/* Shift Builder Form (Frosted Glass Drawer) */}
         {showForm && (
-          <div style={{ border: "1px solid var(--cm-line-strong, #cbd5e1)", borderRadius: 12, padding: 20, margin: "16px 0", background: "var(--cm-surface-2, #f8fafc)" }}>
-            <div style={{ display: "flex", gap: 10, borderBottom: "1px solid var(--cm-line, #e2e8f0)", paddingBottom: 10, marginBottom: 16 }}>
+          <div
+            style={{
+              borderRadius: "var(--cm-radius-lg)",
+              padding: 24,
+              margin: "0 0 24px 0",
+              background: "linear-gradient(135deg, rgba(240, 249, 255, 0.9) 0%, rgba(255, 255, 255, 0.98) 100%)",
+              border: "1px solid rgba(186, 230, 253, 0.9)",
+              boxShadow: "0 10px 25px -5px rgba(2, 132, 199, 0.08)",
+              backdropFilter: "blur(16px)",
+            }}
+          >
+            <div style={{ display: "flex", gap: 10, borderBottom: "1px solid rgba(224, 242, 254, 0.9)", paddingBottom: 12, marginBottom: 18 }}>
               <button
                 type="button"
                 onClick={() => setBuilderTab("shift")}
                 style={{
-                  padding: "6px 14px",
-                  borderRadius: 6,
+                  padding: "7px 16px",
+                  borderRadius: 8,
                   border: "none",
                   fontWeight: 800,
                   fontSize: "0.85rem",
                   cursor: "pointer",
-                  background: builderTab === "shift" ? "var(--cm-navy, #1e3a8a)" : "transparent",
+                  background: builderTab === "shift" ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "rgba(2, 132, 199, 0.06)",
                   color: builderTab === "shift" ? "#ffffff" : "var(--cm-ink-2, #334155)",
+                  boxShadow: builderTab === "shift" ? "0 4px 12px rgba(2, 132, 199, 0.25)" : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 🌅 🌆 Morning &amp; Evening Shift Builder (Recommended)
@@ -432,14 +470,16 @@ export default function ProviderSchedulePanel({
                 type="button"
                 onClick={() => setBuilderTab("custom")}
                 style={{
-                  padding: "6px 14px",
-                  borderRadius: 6,
+                  padding: "7px 16px",
+                  borderRadius: 8,
                   border: "none",
                   fontWeight: 800,
                   fontSize: "0.85rem",
                   cursor: "pointer",
-                  background: builderTab === "custom" ? "var(--cm-navy, #1e3a8a)" : "transparent",
+                  background: builderTab === "custom" ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "rgba(2, 132, 199, 0.06)",
                   color: builderTab === "custom" ? "#ffffff" : "var(--cm-ink-2, #334155)",
+                  boxShadow: builderTab === "custom" ? "0 4px 12px rgba(2, 132, 199, 0.25)" : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 Single Custom Block
@@ -454,7 +494,7 @@ export default function ProviderSchedulePanel({
                     <select
                       value={shiftForm.consultation_mode}
                       onChange={(e) => setShiftForm({ ...shiftForm, consultation_mode: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", fontSize: "0.85rem" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "0.85rem", background: "#fff" }}
                     >
                       {MODES.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
@@ -468,17 +508,17 @@ export default function ProviderSchedulePanel({
                     <select
                       value={shiftForm.slot_duration_minutes}
                       onChange={(e) => setShiftForm({ ...shiftForm, slot_duration_minutes: Number(e.target.value) })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", fontSize: "0.85rem", fontWeight: 700 }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "0.85rem", background: "#fff" }}
                     >
                       {SLOT_DURATIONS.map((d) => (
-                        <option key={d} value={d}>{d} min</option>
+                        <option key={d} value={d}>{d} minutes per patient</option>
                       ))}
                     </select>
                   </label>
                 </div>
 
                 {/* Morning Shift */}
-                <div style={{ background: "var(--cm-surface, #ffffff)", border: "1px solid var(--cm-line, #e2e8f0)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 10, padding: 16, marginBottom: 14, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)" }}>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
                     <input
                       type="checkbox"
@@ -510,7 +550,7 @@ export default function ProviderSchedulePanel({
                           style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
                         />
                       </label>
-                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 600, marginTop: 18 }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 700, marginTop: 18 }}>
                         ({shiftStats.mSlots} morning slots per day)
                       </div>
                     </div>
@@ -518,7 +558,7 @@ export default function ProviderSchedulePanel({
                 </div>
 
                 {/* Evening Shift */}
-                <div style={{ background: "var(--cm-surface, #ffffff)", border: "1px solid var(--cm-line, #e2e8f0)", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.9)", border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 10, padding: 16, marginBottom: 14, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)" }}>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
                     <input
                       type="checkbox"
@@ -550,14 +590,14 @@ export default function ProviderSchedulePanel({
                           style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
                         />
                       </label>
-                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 600, marginTop: 18 }}>
+                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 700, marginTop: 18 }}>
                         ({shiftStats.eSlots} evening slots per day)
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Available Days Checkboxes (matching reference) */}
+                {/* Available Days Checkboxes */}
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "var(--cm-ink-2, #334155)", textTransform: "uppercase", marginBottom: 8 }}>
                     Available Days
@@ -572,14 +612,15 @@ export default function ProviderSchedulePanel({
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
-                            padding: "6px 12px",
+                            padding: "6px 14px",
                             borderRadius: 8,
                             cursor: "pointer",
                             fontSize: "0.85rem",
                             fontWeight: 700,
-                            border: `1px solid ${isSelected ? "var(--cm-active, #0284c7)" : "#cbd5e1"}`,
-                            background: isSelected ? "var(--cm-surface, #ffffff)" : "transparent",
+                            border: `1px solid ${isSelected ? "#0284c7" : "rgba(186, 230, 253, 0.8)"}`,
+                            background: isSelected ? "linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(224, 242, 254, 0.8) 100%)" : "rgba(255, 255, 255, 0.7)",
                             color: isSelected ? "var(--cm-navy, #1e3a8a)" : "#64748b",
+                            transition: "all 0.2s ease",
                           }}
                         >
                           <input
@@ -604,7 +645,7 @@ export default function ProviderSchedulePanel({
                         value={shiftForm.location_name}
                         onChange={(e) => setShiftForm({ ...shiftForm, location_name: e.target.value })}
                         placeholder="e.g. Visakha Multispeciality Clinics"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                       />
                     </label>
                     <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
@@ -613,15 +654,15 @@ export default function ProviderSchedulePanel({
                         value={shiftForm.location_address}
                         onChange={(e) => setShiftForm({ ...shiftForm, location_address: e.target.value })}
                         placeholder="Street, area, city (e.g. Chandrampalem, Visakhapatnam)"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                       />
                     </label>
                   </div>
                 )}
 
                 {/* Live Slot Calculation Summary */}
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "0.85rem", fontWeight: 700, marginBottom: 16 }}>
-                  → Generates {shiftStats.mSlots} morning + {shiftStats.eSlots} evening slots ({shiftStats.daily} slots/day × {shiftForm.selected_days.length} days = {shiftStats.weekly} bookable slots per week)
+                <div style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "#15803d", fontSize: "0.85rem", fontWeight: 700, marginBottom: 16 }}>
+                  ✨ Generates {shiftStats.mSlots} morning + {shiftStats.eSlots} evening slots ({shiftStats.daily} slots/day × {shiftForm.selected_days.length} days = {shiftStats.weekly} bookable slots per week)
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
@@ -647,7 +688,7 @@ export default function ProviderSchedulePanel({
                     <select
                       value={form.consultation_mode}
                       onChange={(e) => setForm({ ...form, consultation_mode: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {MODES.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
@@ -660,7 +701,7 @@ export default function ProviderSchedulePanel({
                       value={form.day_of_week}
                       onChange={(e) => setForm({ ...form, day_of_week: Number(e.target.value) })}
                       disabled={form.apply_to_all_days}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {DAYS.map((d) => (
                         <option key={d.value} value={d.value}>{d.label}</option>
@@ -673,7 +714,7 @@ export default function ProviderSchedulePanel({
                       type="time"
                       value={form.start_time}
                       onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                     />
                   </label>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
@@ -682,7 +723,7 @@ export default function ProviderSchedulePanel({
                       type="time"
                       value={form.end_time}
                       onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                     />
                   </label>
                   <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
@@ -690,7 +731,7 @@ export default function ProviderSchedulePanel({
                     <select
                       value={form.slot_duration_minutes}
                       onChange={(e) => setForm({ ...form, slot_duration_minutes: Number(e.target.value) })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {SLOT_DURATIONS.map((d) => (
                         <option key={d} value={d}>{d} minutes</option>
@@ -707,7 +748,7 @@ export default function ProviderSchedulePanel({
                         value={form.location_name}
                         onChange={(e) => setForm({ ...form, location_name: e.target.value })}
                         placeholder="e.g. Visakha Multispeciality Clinics"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                       />
                     </label>
                     <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
@@ -716,7 +757,7 @@ export default function ProviderSchedulePanel({
                         value={form.location_address}
                         onChange={(e) => setForm({ ...form, location_address: e.target.value })}
                         placeholder="Street, area, city"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                       />
                     </label>
                   </div>
@@ -752,24 +793,26 @@ export default function ProviderSchedulePanel({
         {MODES.map((m) => {
           const modeRows = availability.filter((a) => a.consultation_mode === m.value);
           return (
-            <div key={m.value} style={{ marginBottom: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <Icon as={m.value === "in_person" ? MapPin : m.value === "online" ? Calendar : Clock} size={16} />
-                <span style={{ fontSize: "0.88rem", fontWeight: 800, textTransform: "uppercase", color: "#334155" }}>
+            <div key={m.value} style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, paddingBottom: 6, borderBottom: "1px solid rgba(224, 242, 254, 0.8)" }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", display: "grid", placeItems: "center" }}>
+                  <Icon as={m.value === "in_person" ? MapPin : m.value === "online" ? Calendar : Clock} size={16} />
+                </div>
+                <span style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", color: "var(--cm-navy, #1e3a8a)", letterSpacing: "0.03em" }}>
                   {m.label}
                 </span>
-                <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
-                  ({modeRows.length} active block{modeRows.length === 1 ? "" : "s"})
+                <span style={{ fontSize: "0.76rem", background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", padding: "2px 10px", borderRadius: 999, fontWeight: 700, border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                  {modeRows.length} active block{modeRows.length === 1 ? "" : "s"}
                 </span>
               </div>
 
               {modeRows.length === 0 ? (
-                <div style={{ fontSize: "0.83rem", color: "#94a3b8", padding: "12px 16px", background: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1" }}>
+                <div style={{ fontSize: "0.85rem", color: "#64748b", padding: "16px 20px", background: "rgba(255, 255, 255, 0.6)", borderRadius: 10, border: "1px dashed rgba(186, 230, 253, 0.9)" }}>
                   No hours published for {m.label.toLowerCase()} yet. Click &quot;Configure Shifts / Add Hours&quot; above to publish your schedule.
                 </div>
               ) : (
-                /* Group by Day */
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 }}>
+                /* Group by Day in Responsive Glass Cards */
+                <div className="cm-shift-day-grid">
                   {DAYS.map((dayObj) => {
                     const dayBlocks = modeRows
                       .filter((r) => r.day_of_week === dayObj.value)
@@ -782,21 +825,12 @@ export default function ProviderSchedulePanel({
                     const primaryAddress = dayBlocks.find((b) => b.location_address)?.location_address;
 
                     return (
-                      <div
-                        key={dayObj.value}
-                        style={{
-                          border: "1px solid var(--cm-line, #e2e8f0)",
-                          borderRadius: 10,
-                          padding: 14,
-                          background: "var(--cm-surface, #ffffff)",
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, borderBottom: "1px solid #f1f5f9", paddingBottom: 6 }}>
-                          <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink, #0f172a)" }}>
+                      <div key={dayObj.value} className="cm-shift-day-card">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, borderBottom: "1px solid rgba(224, 242, 254, 0.9)", paddingBottom: 8 }}>
+                          <span style={{ fontWeight: 800, fontSize: "0.98rem", color: "var(--cm-navy, #1e3a8a)" }}>
                             {dayObj.label}
                           </span>
-                          <span style={{ fontSize: "0.72rem", background: "#e0f2fe", color: "#0369a1", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                          <span style={{ fontSize: "0.72rem", background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", padding: "2px 8px", borderRadius: 999, fontWeight: 800, border: "1px solid rgba(2, 132, 199, 0.2)" }}>
                             {dayBlocks.length} shift{dayBlocks.length === 1 ? "" : "s"}
                           </span>
                         </div>
@@ -814,17 +848,18 @@ export default function ProviderSchedulePanel({
                                   display: "flex",
                                   justifyContent: "space-between",
                                   alignItems: "center",
-                                  padding: "6px 10px",
-                                  background: "#f8fafc",
-                                  borderRadius: 6,
-                                  border: "1px solid #e2e8f0",
+                                  padding: "8px 12px",
+                                  background: "linear-gradient(135deg, rgba(240, 249, 255, 0.6) 0%, rgba(255, 255, 255, 0.9) 100%)",
+                                  borderRadius: 8,
+                                  border: "1px solid rgba(186, 230, 253, 0.7)",
+                                  boxShadow: "0 1px 3px rgba(2, 132, 199, 0.04)",
                                 }}
                               >
                                 <div>
                                   <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>
                                     {shiftIcon} {blk.start_time.slice(0, 5)} – {blk.end_time.slice(0, 5)}
                                   </span>
-                                  <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#0284c7", fontWeight: 600 }}>
+                                  <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#0284c7", fontWeight: 700, background: "rgba(2, 132, 199, 0.1)", padding: "1px 6px", borderRadius: 4 }}>
                                     {blk.slot_duration_minutes} min slots
                                   </span>
                                 </div>
@@ -833,7 +868,7 @@ export default function ProviderSchedulePanel({
                                   onClick={() => removeAvailability(blk.id)}
                                   aria-label="Remove this shift"
                                   title="Remove this shift"
-                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: 2 }}
+                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}
                                 >
                                   <Icon as={Trash2} size={14} />
                                 </button>
@@ -842,14 +877,14 @@ export default function ProviderSchedulePanel({
                           })}
                         </div>
 
-                        {/* Location Badge (Shown once per day to prevent repetitive clutter) */}
+                        {/* Location Badge */}
                         {primaryLocation && (
-                          <div style={{ fontSize: "0.74rem", color: "#64748b", borderTop: "1px dashed #e2e8f0", paddingTop: 8, display: "flex", alignItems: "flex-start", gap: 4 }}>
+                          <div style={{ fontSize: "0.74rem", color: "#64748b", borderTop: "1px dashed rgba(186, 230, 253, 0.8)", paddingTop: 8, display: "flex", alignItems: "flex-start", gap: 6 }}>
                             <span style={{ marginTop: 2, flexShrink: 0, color: "#0284c7", display: "inline-flex" }}>
                               <Icon as={MapPin} size={14} />
                             </span>
                             <span>
-                              <strong style={{ color: "#334155" }}>{primaryLocation}</strong>
+                              <strong style={{ color: "var(--cm-navy, #1e3a8a)" }}>{primaryLocation}</strong>
                               {primaryAddress ? ` • ${primaryAddress}` : ""}
                             </span>
                           </div>
@@ -864,26 +899,37 @@ export default function ProviderSchedulePanel({
         })}
       </div>
 
-      {/* ── Blocked Dates / Leave Management Studio ─────────────────────── */}
-      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)", background: "var(--cm-surface, #fff)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+      {/* ── Blocked Dates / Leave Management Studio Widget ───────────────── */}
+      <div
+        className="cm-widget-glass-light"
+        style={{
+          border: "1px solid rgba(244, 63, 94, 0.25)",
+          background: "linear-gradient(135deg, rgba(255, 241, 242, 0.6) 0%, rgba(255, 255, 255, 0.95) 100%)",
+        }}
+      >
+        <div className="cm-widget-header" style={{ borderBottomColor: "rgba(254, 205, 211, 0.8)" }}>
           <div>
-            <h3 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)", display: "flex", alignItems: "center", gap: 8 }}>
-              <CalendarDays size={20} color="#dc2626" />
-              Leave &amp; Blocked Dates Management
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(225, 29, 72, 0.12)", color: "#e11d48", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(225, 29, 72, 0.25)" }}>
+                Slot Outage Safeguard
+              </span>
+            </div>
+            <h3 className="cm-widget-title" style={{ color: "#9f1239" }}>
+              <Icon as={CalendarDays} size={20} />
+              <span>Leave &amp; Blocked Dates Management</span>
             </h3>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
+            <p className="cm-widget-subtitle">
               Mark dates as blocked to temporarily suspend patient slot booking. Existing confirmed appointments remain safeguarded.
             </p>
           </div>
-          <div style={{ padding: "6px 12px", borderRadius: 999, background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontSize: "0.78rem", fontWeight: 700 }}>
+          <div style={{ padding: "6px 14px", borderRadius: 999, background: "rgba(225, 29, 72, 0.1)", color: "#be123c", border: "1px solid rgba(225, 29, 72, 0.3)", fontSize: "0.8rem", fontWeight: 800 }}>
             {blockedDates.length} Date{blockedDates.length === 1 ? "" : "s"} Blocked
           </div>
         </div>
 
         {/* Quick Reason Presets */}
-        <div style={{ marginBottom: 14 }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 6 }}>
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 8 }}>
             Quick Reason Presets:
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -893,14 +939,16 @@ export default function ProviderSchedulePanel({
                 type="button"
                 onClick={() => setBlockReason(preset)}
                 style={{
-                  padding: "4px 10px",
-                  borderRadius: 6,
-                  border: blockReason === preset ? "1px solid #dc2626" : "1px solid #e2e8f0",
-                  background: blockReason === preset ? "#fef2f2" : "#f8fafc",
-                  color: blockReason === preset ? "#b91c1c" : "#475569",
-                  fontSize: "0.76rem",
-                  fontWeight: 600,
+                  padding: "5px 12px",
+                  borderRadius: 8,
+                  border: blockReason === preset ? "1px solid #e11d48" : "1px solid rgba(244, 63, 94, 0.2)",
+                  background: blockReason === preset ? "linear-gradient(135deg, #e11d48 0%, #be123c 100%)" : "rgba(255, 255, 255, 0.8)",
+                  color: blockReason === preset ? "#ffffff" : "#881337",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
                   cursor: "pointer",
+                  boxShadow: blockReason === preset ? "0 4px 10px rgba(225, 29, 72, 0.25)" : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 {preset}
@@ -909,41 +957,53 @@ export default function ProviderSchedulePanel({
           </div>
         </div>
 
-        <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
+        <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#881337" }}>
             Select Date to Block *
             <input
               type="date"
               value={blockDate}
               onChange={(e) => setBlockDate(e.target.value)}
-              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(244, 63, 94, 0.3)", fontSize: "0.85rem", background: "#fff" }}
               required
             />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155", flex: 1, minWidth: 220 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#881337", flex: 1, minWidth: 220 }}>
             Reason for Unavailability (Optional)
             <input
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
               placeholder="e.g. National Medical Council Annual Summit"
-              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(244, 63, 94, 0.3)", fontSize: "0.85rem", background: "#fff" }}
             />
           </label>
           <button
             type="submit"
             className="cm-btn cm-btn--secondary cm-btn--sm"
-            style={{ borderColor: "#dc2626", color: "#b91c1c", fontWeight: 700, height: 38, display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{
+              borderColor: "#e11d48",
+              color: "#be123c",
+              fontWeight: 800,
+              height: 40,
+              padding: "0 18px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              borderRadius: 8,
+              background: "rgba(255, 255, 255, 0.9)",
+              boxShadow: "0 2px 8px rgba(225, 29, 72, 0.1)",
+            }}
           >
             <Icon as={CalendarDays} size={16} /> Block This Date
           </button>
         </form>
 
         {blockedDates.length === 0 ? (
-          <div style={{ fontSize: "0.85rem", color: "#94a3b8", padding: "16px 20px", background: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1", textAlign: "center" }}>
+          <div style={{ fontSize: "0.85rem", color: "#881337", padding: "18px 20px", background: "rgba(255, 255, 255, 0.7)", borderRadius: 10, border: "1px dashed rgba(244, 63, 94, 0.3)", textAlign: "center" }}>
             No upcoming leaves or blocked dates recorded. Your published shifts are fully active and bookable by patients.
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
             {blockedDates.map((b) => (
               <div
                 key={b.id}
@@ -951,20 +1011,21 @@ export default function ProviderSchedulePanel({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "10px 14px",
+                  padding: "12px 16px",
                   borderRadius: 10,
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  color: "#991b1b",
+                  background: "rgba(255, 255, 255, 0.9)",
+                  border: "1px solid rgba(244, 63, 94, 0.3)",
+                  boxShadow: "0 2px 8px rgba(225, 29, 72, 0.08)",
+                  color: "#9f1239",
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ fontWeight: 800, fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 6 }}>
                     <Icon as={CalendarDays} size={14} />
                     {new Date(b.blocked_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
                   </div>
-                  <div style={{ fontSize: "0.76rem", color: "#b91c1c", marginTop: 2 }}>
-                    Reason: {b.reason || "Scheduled Leave"}
+                  <div style={{ fontSize: "0.78rem", color: "#be123c", marginTop: 3 }}>
+                    Reason: <strong>{b.reason || "Scheduled Leave"}</strong>
                   </div>
                 </div>
                 <button
@@ -973,14 +1034,15 @@ export default function ProviderSchedulePanel({
                   aria-label={`Unblock ${b.blocked_date}`}
                   title="Unblock date and restore slots"
                   style={{
-                    background: "#fff",
-                    border: "1px solid #fca5a5",
+                    background: "linear-gradient(135deg, rgba(225, 29, 72, 0.1) 0%, rgba(244, 63, 94, 0.15) 100%)",
+                    border: "1px solid rgba(225, 29, 72, 0.35)",
                     borderRadius: 6,
-                    padding: "4px 8px",
+                    padding: "5px 10px",
                     cursor: "pointer",
-                    color: "#b91c1c",
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
+                    color: "#be123c",
+                    fontSize: "0.76rem",
+                    fontWeight: 800,
+                    transition: "all 0.2s ease",
                   }}
                 >
                   Unblock
