@@ -391,91 +391,6 @@ export default function ProviderSchedulePanel({
         </div>
       )}
 
-      {/* ── Consultation Tariffs & 1-Click CallMedex Standard ────────────── */}
-      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
-          <div>
-            <h3 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)" }}>
-              Practice Fees &amp; Tariff Management
-            </h3>
-            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
-              Configure your consultation rates or instantly apply official CallMedex MOU standard benchmarks.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={applyStandardMOUFees}
-            className="cm-btn cm-btn--secondary cm-btn--sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, borderColor: "var(--cm-navy, #1e3a8a)" }}
-          >
-            ⚡ Set to CallMedex Standard Prices
-          </button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, marginBottom: 18 }}>
-          {MODES.map((m) => {
-            const fee = feeFor(m.value);
-            const standardBenchmark = m.value === "online" ? 400 : m.value === "in_person" ? 500 : 800;
-            return (
-              <div
-                key={m.value}
-                style={{
-                  border: "1px solid var(--cm-line, #e2e8f0)",
-                  borderRadius: 10,
-                  padding: 14,
-                  background: fee ? "var(--cm-surface, #ffffff)" : "var(--cm-surface-2, #f8fafc)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "0.78rem", textTransform: "uppercase", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
-                    {m.label}
-                  </span>
-                  <span style={{ fontSize: "0.72rem", color: "var(--cm-active, #0284c7)", fontWeight: 600 }}>
-                    Benchmark: ₹{standardBenchmark}
-                  </span>
-                </div>
-                <div style={{ fontSize: "1.35rem", fontWeight: 800, color: fee ? "var(--cm-ink, #0f172a)" : "#94a3b8", marginTop: 4 }}>
-                  {fee ? `₹${fee.amount}` : "Not set"}
-                </div>
-                {fee && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--cm-done, #16a34a)", marginTop: 4, fontWeight: 600 }}>
-                    Estimated 80% Net Payout: ₹{Math.round(fee.amount * 0.8)}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Custom Fee Set Form */}
-        <form onSubmit={saveFee} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", borderTop: "1px dashed var(--cm-line, #e2e8f0)", paddingTop: 14 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
-            Service Mode
-            <select
-              value={feeForm.fee_type}
-              onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", minWidth: 170, fontSize: "0.85rem" }}
-            >
-              {MODES.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
-            Custom Fee (₹)
-            <input
-              type="number"
-              min={1}
-              value={feeForm.amount}
-              onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-              placeholder="e.g. 500"
-              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong, #cbd5e1)", width: 140, fontSize: "0.85rem" }}
-            />
-          </label>
-          <Button type="submit" variant="primary">Save Custom Fee</Button>
-        </form>
-      </div>
-
       {/* ── Weekly Availability & Shift Scheduler ─────────────────────── */}
       <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
@@ -949,68 +864,128 @@ export default function ProviderSchedulePanel({
         })}
       </div>
 
-      {/* ── Blocked Dates / Leave ─────────────────────────────────────── */}
-      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)" }}>
-        <h3 style={{ margin: "0 0 4px", fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
-          Leave &amp; Blocked Dates
-        </h3>
-        <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
-          Marking a date as unavailable suspends all consultation slots for that day.
-        </p>
-        <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 16 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-            Date
+      {/* ── Blocked Dates / Leave Management Studio ─────────────────────── */}
+      <div className="card" style={{ padding: 24, borderRadius: "var(--cm-radius, 12px)", border: "1px solid var(--cm-line, #e2e8f0)", background: "var(--cm-surface, #fff)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: "0 0 4px", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink, #0f172a)", display: "flex", alignItems: "center", gap: 8 }}>
+              <CalendarDays size={20} color="#dc2626" />
+              Leave &amp; Blocked Dates Management
+            </h3>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--cm-ink-3, #64748b)" }}>
+              Mark dates as blocked to temporarily suspend patient slot booking. Existing confirmed appointments remain safeguarded.
+            </p>
+          </div>
+          <div style={{ padding: "6px 12px", borderRadius: 999, background: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", fontSize: "0.78rem", fontWeight: 700 }}>
+            {blockedDates.length} Date{blockedDates.length === 1 ? "" : "s"} Blocked
+          </div>
+        </div>
+
+        {/* Quick Reason Presets */}
+        <div style={{ marginBottom: 14 }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 6 }}>
+            Quick Reason Presets:
+          </span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {["Medical Conference", "Weekly Off", "Personal Leave", "Emergency / Sabbatical", "CME Training"].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setBlockReason(preset)}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: blockReason === preset ? "1px solid #dc2626" : "1px solid #e2e8f0",
+                  background: blockReason === preset ? "#fef2f2" : "#f8fafc",
+                  color: blockReason === preset ? "#b91c1c" : "#475569",
+                  fontSize: "0.76rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>
+            Select Date to Block *
             <input
               type="date"
               value={blockDate}
               onChange={(e) => setBlockDate(e.target.value)}
-              style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1" }}
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+              required
             />
           </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-            Reason (optional)
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#334155", flex: 1, minWidth: 220 }}>
+            Reason for Unavailability (Optional)
             <input
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="Conference, leave, holiday…"
-              style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", minWidth: 200 }}
+              placeholder="e.g. National Medical Council Annual Summit"
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
             />
           </label>
-          <Button type="submit" variant="secondary">
-            <Icon as={CalendarDays} size={16} /> Block date
-          </Button>
+          <button
+            type="submit"
+            className="cm-btn cm-btn--secondary cm-btn--sm"
+            style={{ borderColor: "#dc2626", color: "#b91c1c", fontWeight: 700, height: 38, display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <Icon as={CalendarDays} size={16} /> Block This Date
+          </button>
         </form>
+
         {blockedDates.length === 0 ? (
-          <div style={{ fontSize: "0.85rem", color: "#94a3b8" }}>No upcoming blocked dates.</div>
+          <div style={{ fontSize: "0.85rem", color: "#94a3b8", padding: "16px 20px", background: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1", textAlign: "center" }}>
+            No upcoming leaves or blocked dates recorded. Your published shifts are fully active and bookable by patients.
+          </div>
         ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
             {blockedDates.map((b) => (
-              <span
+              <div
                 key={b.id}
                 style={{
-                  display: "inline-flex",
+                  display: "flex",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "6px 12px",
-                  borderRadius: 999,
+                  padding: "10px 14px",
+                  borderRadius: 10,
                   background: "#fef2f2",
-                  border: "1px solid #fca5a5",
-                  color: "#b91c1c",
-                  fontSize: "0.82rem",
-                  fontWeight: 600,
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
                 }}
               >
-                {b.blocked_date}
-                {b.reason ? ` — ${b.reason}` : ""}
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: "0.88rem", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Icon as={CalendarDays} size={14} />
+                    {new Date(b.blocked_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                  <div style={{ fontSize: "0.76rem", color: "#b91c1c", marginTop: 2 }}>
+                    Reason: {b.reason || "Scheduled Leave"}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => removeBlockedDate(b.id)}
                   aria-label={`Unblock ${b.blocked_date}`}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#b91c1c" }}
+                  title="Unblock date and restore slots"
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #fca5a5",
+                    borderRadius: 6,
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                    color: "#b91c1c",
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                  }}
                 >
-                  ×
+                  Unblock
                 </button>
-              </span>
+              </div>
             ))}
           </div>
         )}

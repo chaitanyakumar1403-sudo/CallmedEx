@@ -30,44 +30,14 @@ import {
   RefreshCw,
   Sparkles,
   ExternalLink,
+  MapPin,
+  Navigation,
+  Check,
+  Shield,
 } from "lucide-react";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-// Official CallMedex Excel Benchmark Tariffs (from MOU Guidelines)
-const EXCEL_BENCHMARK_TARIFFS = [
-  {
-    id: "gen_video",
-    name: "General Teleconsultation (10–15 min)",
-    mode: "online",
-    standard_price: 400,
-    doctor_share_pct: 80,
-    doctor_net: 320,
-    platform_fee: 80,
-    description: "Secure 1-on-1 HD video consult with live clinical SOAP documentation",
-  },
-  {
-    id: "clinic_opd",
-    name: "In-Person Clinic Consultation (15–30 min)",
-    mode: "in_person",
-    standard_price: 500,
-    doctor_share_pct: 80,
-    doctor_net: 400,
-    platform_fee: 100,
-    description: "Physical walk-in clinic evaluation and diagnostic review",
-  },
-  {
-    id: "home_visit",
-    name: "Doorstep Home Clinical Visit (30–45 min)",
-    mode: "home_visit",
-    standard_price: 800,
-    doctor_share_pct: 80,
-    doctor_net: 640,
-    platform_fee: 160,
-    description: "Comprehensive home bedside clinical examination and prescription",
-  },
-];
 
 interface ProviderEarnings {
   total_earned: number;
@@ -84,7 +54,8 @@ interface ProviderFee {
 
 export default function DoctorDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("radar");
+  // Appointments is first and default
+  const [activeTab, setActiveTab] = useState("appointments");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -96,6 +67,43 @@ export default function DoctorDashboard() {
   // Real Bookings (Today's roster)
   const [todayBookings, setTodayBookings] = useState<any[]>([]);
   const [appointmentsFilter, setAppointmentsFilter] = useState<"all" | "waiting" | "confirmed" | "completed">("all");
+  const [modalityFilter, setModalityFilter] = useState<"all" | "walk_in" | "home_visit" | "online">("all");
+
+  // Home Visit Shift Scheduling & Service Tier Manager State
+  const [homeVisitOnDuty, setHomeVisitOnDuty] = useState(true);
+  const [homeVisitShift, setHomeVisitShift] = useState("09:00 AM – 06:00 PM");
+  const [normalVisitFee, setNormalVisitFee] = useState("800");
+  const [urgentVisitFee, setUrgentVisitFee] = useState("1500");
+  const [showGpsMap, setShowGpsMap] = useState(false);
+  const [activeDispatches, setActiveDispatches] = useState<any[]>([
+    {
+      id: "hv-001",
+      patient_name: "Mrs. Saraswathi Rao",
+      patient_gender: "Female, 71y",
+      patient_mobile: "+91 94401 23456",
+      patient_email: "saraswathi.rao@example.com",
+      address: "Plot 42, Sector 5, MVP Colony, Visakhapatnam",
+      tier: "urgent",
+      chief_complaint: "Acute hypertension spike & dizziness, post-CABG review",
+      status: "dispatched",
+      eta_mins: 25,
+      requested_at: "Today, 10:15 AM",
+    },
+    {
+      id: "hv-002",
+      patient_name: "Ramesh Kumar Verma",
+      patient_gender: "Male, 58y",
+      patient_mobile: "+91 98480 87654",
+      patient_email: "ramesh.verma@example.com",
+      address: "Flat 302, Sai Residency, Lawsons Bay Colony, Visakhapatnam",
+      tier: "normal",
+      chief_complaint: "Routine monthly geriatric clinical evaluation & vitals check",
+      status: "confirmed",
+      eta_mins: 60,
+      requested_at: "Today, 02:30 PM",
+    },
+  ]);
+  const [etaUpdatingId, setEtaUpdatingId] = useState<string | null>(null);
 
   // Real Doctor Earnings & Financial Settlement (/api/payments/my-earnings)
   const [earnings, setEarnings] = useState<ProviderEarnings | null>(null);
@@ -290,25 +298,6 @@ export default function DoctorDashboard() {
     setNewLabTest("");
   };
 
-  // 1-Click CallMedex Standard MOU Pricing
-  const handleApplyStandardMOUFees = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/providers/fees/apply-standard`, {
-        method: "POST",
-        headers: authHeaders(),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatusMsg({ text: "✓ Official CallMedex Standard Tariffs applied: Walk-in (₹500), Online (₹400), Home Visit (₹800).", type: "success" });
-        fetchFees();
-      } else {
-        setStatusMsg({ text: data.detail || "Could not apply standard tariffs.", type: "error" });
-      }
-    } catch {
-      setStatusMsg({ text: "Network error applying standard tariffs.", type: "error" });
-    }
-  };
-
   // Save Custom Practice Fee
   const handleSaveCustomFee = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,13 +397,13 @@ export default function DoctorDashboard() {
   const waitingCount = activeConsultations.length + todayBookings.filter((b) => b.status === "waiting").length;
 
   const tabs = [
-    { id: "radar", label: "Waiting Room Radar", icon: Activity },
-    { id: "schedule", label: "Slots & Availability", icon: Calendar },
     { id: "appointments", label: "Appointments", icon: Clock },
+    { id: "schedule", label: "Slots & Availability", icon: Calendar },
+    { id: "radar", label: "Waiting Room Radar", icon: Activity },
     { id: "erx_studio", label: "e-Prescription Pad", icon: FileText },
     { id: "tariffs", label: "Consultation Tariffs", icon: CreditCard },
-    { id: "revenue", label: "Revenue & Payouts", icon: DollarSign },
     { id: "home_visits", label: "Home Visits", icon: Home },
+    { id: "revenue", label: "Revenue & Payouts", icon: DollarSign },
     { id: "profile", label: "Doctor Profile", icon: User },
   ];
 
@@ -425,15 +414,33 @@ export default function DoctorDashboard() {
   ];
 
   const filteredBookings = todayBookings.filter((b) => {
-    if (appointmentsFilter === "all") return true;
-    return b.status === appointmentsFilter;
+    // Status filter
+    if (appointmentsFilter !== "all" && b.status !== appointmentsFilter) {
+      return false;
+    }
+    // Sub-modality filter
+    if (modalityFilter !== "all") {
+      const sType = String(b.service_type || b.consultation_type || b.mode || "").toLowerCase();
+      if (modalityFilter === "walk_in") {
+        return sType.includes("walk") || sType.includes("person") || sType.includes("clinic") || sType.includes("opd");
+      }
+      if (modalityFilter === "home_visit") {
+        return sType.includes("home") || sType.includes("doorstep") || sType.includes("visit");
+      }
+      if (modalityFilter === "online") {
+        return sType.includes("online") || sType.includes("video") || sType.includes("tele");
+      }
+    }
+    return true;
   });
+
+  const isVerified = String(profile?.verification_status).toLowerCase() === "verified";
 
   return (
     <DashboardShell
       role="doctor"
-      title="Clinical Doctor Workstation"
-      subtitle={`${profile?.full_name ? `Dr. ${profile.full_name}` : "Doctor"} · Verified NMC Registered Practitioner`}
+      title={profile?.full_name ? `Dr. ${profile.full_name} — Workstation Dashboard` : "Clinical Doctor Workstation"}
+      subtitle={`${profile?.qualification || "MBBS, MD"} · ${profile?.specialization || "General Medicine & Cardiology"} · ${profile?.hospital_clinic_name || "CallMedex Clinical Network"}`}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -441,9 +448,24 @@ export default function DoctorDashboard() {
         <button
           type="button"
           onClick={() => router.push("/dashboard/doctor/consult/instant")}
-          className="cm-btn cm-btn--primary cm-btn--sm"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            fontWeight: 800,
+            fontSize: "var(--cm-text-sm)",
+            padding: "9px 18px",
+            borderRadius: "9999px",
+            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+            color: "#fff",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+            boxShadow: "0 4px 14px rgba(2, 132, 199, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35)",
+            cursor: "pointer",
+            backdropFilter: "blur(12px)",
+            transition: "all 0.2s ease",
+          }}
         >
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 10px #4ade80" }} />
           <Video size={16} /> Instant Teleconsult Room
         </button>
       }
@@ -481,12 +503,16 @@ export default function DoctorDashboard() {
           <div className="cm-metric-card__meta">Daily direct settlement</div>
         </div>
 
-        <div className="cm-metric-card" onClick={() => setActiveTab("tariffs")} style={{ cursor: "pointer" }}>
+        <div className="cm-metric-card" onClick={() => setActiveTab("profile")} style={{ cursor: "pointer" }}>
           <div className="cm-metric-card__label">
-            <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Clinical Status
+            <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "#f59e0b" }} /> Clinical Status
           </div>
-          <div className="cm-metric-card__value" style={{ color: "var(--cm-done)" }}>Active</div>
-          <div className="cm-metric-card__meta">NMC Verified Practitioner</div>
+          <div className="cm-metric-card__value" style={{ color: isVerified ? "var(--cm-done)" : "#d97706" }}>
+            {isVerified ? "Active" : "Pending"}
+          </div>
+          <div className="cm-metric-card__meta">
+            {isVerified ? "NMC Verified Practitioner" : "Under NMC Credential Review"}
+          </div>
         </div>
       </div>
 
@@ -743,155 +769,162 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 2: CONSULTATION TARIFFS & FEE BENCHMARK STUDIO
+          TAB 2: CONSULTATION TARIFFS & CUSTOM PRACTICE FEES
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "tariffs" && (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: "var(--cm-4)" }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                Consultation Tariffs &amp; MOU Fee Benchmarks
-              </h2>
-              <p style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
-                Configure custom practice pricing or apply standard CallMedex benchmark fees with 1-click.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleApplyStandardMOUFees}
-              className="cm-btn cm-btn--primary cm-btn--sm"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
-            >
-              <Sparkles size={14} /> ⚡ Apply CallMedex Standard MOU Tariffs
-            </button>
+        <div style={{ maxWidth: 1000 }}>
+          <div style={{ marginBottom: "var(--cm-4)" }}>
+            <h2 style={{ margin: 0, fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-ink)" }}>
+              Practice Consultation Tariffs
+            </h2>
+            <p style={{ margin: "4px 0 0 0", fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-3)" }}>
+              Manage your customized clinical consultation fees. Configured tariffs reflect live across your patient appointment booking slots.
+            </p>
           </div>
 
-          {/* Active Pricing Grid with Benchmark Comparisons */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--cm-4)", marginBottom: "var(--cm-5)" }}>
-            {EXCEL_BENCHMARK_TARIFFS.map((t) => {
-              const customFee = fees.find((f) => f.fee_type === t.mode);
-              const activePrice = customFee ? customFee.amount : t.standard_price;
-              const doctorNet = Math.round(activePrice * 0.8);
-              const platformFee = activePrice - doctorNet;
-
-              return (
-                <div
-                  key={t.id}
-                  className="cm-card"
-                  style={{
-                    padding: "var(--cm-5)",
-                    border: "1px solid var(--cm-line)",
-                    borderRadius: "var(--cm-radius)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase" }}>
-                        {t.mode.replace("_", " ")}
-                      </span>
-                      <span style={{ fontSize: "var(--cm-text-xs)", color: customFee ? "var(--cm-active)" : "var(--cm-done)", fontWeight: 700 }}>
-                        {customFee ? "Custom Practice Tariff" : "CallMedex Standard MOU"}
-                      </span>
-                    </div>
-                    <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
-                      {t.name}
-                    </h3>
-                    <p style={{ margin: "0 0 var(--cm-4) 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
-                      {t.description}
-                    </p>
-                  </div>
-
-                  <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius-sm)", padding: "12px 14px", border: "1px solid var(--cm-line)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>Active Fee:</span>
-                      <span style={{ fontSize: "var(--cm-text-xl)", fontWeight: 800, color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>
-                        ₹{activePrice}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, borderTop: "1px dashed var(--cm-line-strong)", paddingTop: 6, marginBottom: 4 }}>
-                      <span>Doctor Net Payout (80%):</span>
-                      <span style={{ fontVariantNumeric: "tabular-nums" }}>₹{doctorNet}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                      <span>Platform Infrastructure (20%):</span>
-                      <span style={{ fontVariantNumeric: "tabular-nums" }}>₹{platformFee}</span>
-                    </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "var(--cm-5)", alignItems: "start" }}>
+            {/* Active Configured Practice Tariffs Card */}
+            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                    Current Active Practice Tariffs
+                  </h3>
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                    Live rates charged to patients at checkout
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                <span className="cm-pill cm-pill--active" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <ShieldCheck size={12} /> Custom Tariffs Active
+                </span>
+              </div>
 
-          {/* Custom Tariff Customizer & Settlement Guidelines */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--cm-4)", alignItems: "start" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[
+                  {
+                    type: "in_person",
+                    label: "Walk-in Clinic Consultation",
+                    desc: "Physical in-clinic evaluation and diagnostic examination",
+                    defaultVal: 500,
+                  },
+                  {
+                    type: "online",
+                    label: "Online HD Teleconsultation",
+                    desc: "Encrypted 1-on-1 video consult with live e-Prescription",
+                    defaultVal: 400,
+                  },
+                  {
+                    type: "home_visit",
+                    label: "Doorstep Home Clinical Visit",
+                    desc: "Comprehensive bedside visit and patient physical checkup",
+                    defaultVal: 800,
+                  },
+                ].map((item) => {
+                  const feeObj = fees.find((f) => f.fee_type === item.type);
+                  const activeAmount = feeObj ? feeObj.amount : item.defaultVal;
+                  const doctorNet = Math.round(activeAmount * 0.8);
+
+                  return (
+                    <div
+                      key={item.type}
+                      style={{
+                        padding: "14px 16px",
+                        background: "var(--cm-surface-2)",
+                        border: "1px solid var(--cm-line)",
+                        borderRadius: "var(--cm-radius-sm)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                          {item.label}
+                        </div>
+                        <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                          {item.desc}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--cm-done)", fontWeight: 700, marginTop: 4 }}>
+                          Doctor Net Payout (80%): ₹{doctorNet}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: "right", marginLeft: 16 }}>
+                        <div style={{ fontSize: "var(--cm-text-xl)", fontWeight: 900, color: "var(--cm-ink)", fontVariantNumeric: "tabular-nums" }}>
+                          ₹{activeAmount}
+                        </div>
+                        <span style={{ fontSize: "11px", color: feeObj ? "var(--cm-active)" : "var(--cm-ink-3)", fontWeight: 700 }}>
+                          {feeObj ? "Customized" : "Default"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(2, 132, 199, 0.05)", border: "1px solid rgba(2, 132, 199, 0.15)", fontSize: "12px", color: "var(--cm-ink-2)" }}>
+                💡 <strong>Autonomy Note:</strong> Tariff adjustments take effect immediately for upcoming patient bookings. You retain 80% with daily bank settlement.
+              </div>
+            </div>
+
+            {/* Customize Practice Fee Form */}
             <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
-              <h3 style={{ margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
                 ✏️ Customize Practice Fee
               </h3>
               <p style={{ margin: "0 0 16px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                Set your custom tariff. As per MOU, you retain 80% with transparent direct settlement.
+                Update your consultation fee for any modality.
               </p>
-              <form onSubmit={handleSaveCustomFee} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+              <form onSubmit={handleSaveCustomFee} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 6 }}>
                     Consultation Modality
                   </label>
                   <select
                     value={feeForm.fee_type}
                     onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
                   >
                     <option value="in_person">Walk-in Clinic Consultation</option>
                     <option value="online">Online HD Teleconsultation</option>
                     <option value="home_visit">Doorstep Home Clinical Visit</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                  <label style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 6 }}>
                     New Practice Fee (₹)
                   </label>
                   <input
                     type="number"
                     min={100}
                     step={50}
-                    placeholder="e.g. 500"
+                    placeholder="e.g. 600"
                     value={feeForm.amount}
                     onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)" }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--cm-radius-sm)", border: "1px solid var(--cm-line-strong)", fontSize: "var(--cm-text-sm)", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
                   />
                   {feeForm.amount && Number(feeForm.amount) > 0 && (
-                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, marginTop: 4 }}>
+                    <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700, marginTop: 6 }}>
                       Estimated Net Payout (80%): ₹{Math.round(Number(feeForm.amount) * 0.8)}
                     </div>
                   )}
                 </div>
+
                 <button
                   type="submit"
                   disabled={feeSaving}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ marginTop: 4 }}
+                  style={{ marginTop: 6, fontWeight: 700, padding: "10px 16px" }}
                 >
                   {feeSaving ? "Saving Fee..." : "Update Practice Tariff"}
                 </button>
               </form>
-            </div>
 
-            <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-done-line)", background: "var(--cm-done-surface)", borderRadius: "var(--cm-radius)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <ShieldCheck size={18} style={{ color: "var(--cm-done)" }} />
-                <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-done)" }}>
-                  CallMedex Provider Settlement Guidelines
-                </h3>
+              <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid var(--cm-line)", fontSize: "11px", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
+                ⚖️ <strong>MOU Terms:</strong> All fee payouts are governed under your accepted CallMedex Provider MOU. View your complete legal agreement anytime in the <strong>Doctor Profile</strong> tab.
               </div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", lineHeight: 1.6 }}>
-                <li><strong>80/20 Revenue Ratio:</strong> Practitioners keep 80% net earnings; 20% platform charge covers secure WebRTC video, digital consent, AI voice scribe, and e-Rx delivery.</li>
-                <li><strong>Daily Bank Settlement:</strong> All cleared consult payouts are batched daily to your verified bank account via IMPS/NEFT with zero processing deductions.</li>
-                <li><strong>MOU Protection:</strong> You maintain full clinical autonomy to adjust fees or retain standard CallMedex benchmark tariffs at any time.</li>
-                <li><strong>Telemedicine Act 2026 Compliant:</strong> Digital signatures, encrypted transmission, and audit logs are included automatically.</li>
-              </ul>
             </div>
           </div>
         </div>
@@ -1289,17 +1322,17 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 6: APPOINTMENTS TAB (REAL PATIENT ROSTER WITH EMAIL)
+          TAB 6: APPOINTMENTS TAB (SUB-MODALITY TABS & 1-CLICK E-RX)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "appointments" && (
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 800 }}>
-                Appointments Roster
+                Clinical Appointments &amp; Consultations Roster
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                Patient consultation schedule with verified contact emails and triage details.
+                Patient consultation schedule with verified contact emails, triage records, and direct e-Rx dispatch.
               </p>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -1309,15 +1342,16 @@ export default function DoctorDashboard() {
                   type="button"
                   onClick={() => setAppointmentsFilter(filter)}
                   style={{
-                    padding: "4px 10px",
+                    padding: "6px 12px",
                     borderRadius: 6,
                     border: "1px solid var(--cm-line)",
                     fontSize: "var(--cm-text-xs)",
                     fontWeight: 700,
                     textTransform: "capitalize",
-                    background: appointmentsFilter === filter ? "var(--cm-navy)" : "transparent",
+                    background: appointmentsFilter === filter ? "var(--cm-navy)" : "var(--cm-surface)",
                     color: appointmentsFilter === filter ? "#fff" : "var(--cm-ink-2)",
                     cursor: "pointer",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   {filter}
@@ -1326,14 +1360,95 @@ export default function DoctorDashboard() {
             </div>
           </div>
 
+          {/* Deep Navy Glassmorphic Sub-Modality Filter Tabs */}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              padding: "8px",
+              background: "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)",
+              borderRadius: "var(--cm-radius)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+              marginBottom: "var(--cm-4)",
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              { id: "all", label: "All Modalities", count: todayBookings.length },
+              {
+                id: "walk_in",
+                label: "Walk-In Clinic OPD",
+                count: todayBookings.filter((b) => {
+                  const s = String(b.service_type || b.consultation_type || b.mode || "").toLowerCase();
+                  return s.includes("walk") || s.includes("person") || s.includes("clinic") || s.includes("opd");
+                }).length,
+              },
+              {
+                id: "home_visit",
+                label: "Doorstep Home Visits",
+                count: todayBookings.filter((b) => {
+                  const s = String(b.service_type || b.consultation_type || b.mode || "").toLowerCase();
+                  return s.includes("home") || s.includes("doorstep") || s.includes("visit");
+                }).length,
+              },
+              {
+                id: "online",
+                label: "Online Teleconsultation",
+                count: todayBookings.filter((b) => {
+                  const s = String(b.service_type || b.consultation_type || b.mode || "").toLowerCase();
+                  return s.includes("online") || s.includes("video") || s.includes("tele");
+                }).length,
+              },
+            ].map((tab) => {
+              const isActive = modalityFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setModalityFilter(tab.id as any)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    border: isActive ? "1px solid rgba(56, 189, 248, 0.5)" : "1px solid transparent",
+                    background: isActive ? "linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(3, 105, 161, 0.6) 100%)" : "transparent",
+                    color: isActive ? "#38bdf8" : "rgba(226, 232, 240, 0.75)",
+                    fontSize: "var(--cm-text-xs)",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: 9999,
+                      fontSize: "10px",
+                      background: isActive ? "rgba(56, 189, 248, 0.25)" : "rgba(255, 255, 255, 0.1)",
+                      color: isActive ? "#e0f2fe" : "#94a3b8",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {filteredBookings.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", background: "var(--cm-surface)", border: "1px dashed var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
               <Clock size={36} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
               <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
-                No Appointments in This View
+                No Appointments in This Filter View
               </div>
               <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
-                Patients booking slots across walk-in OPD or video teleconsultations will be listed here.
+                Patients booking slots across walk-in clinic, home visits, or video teleconsultations will be listed here.
               </p>
             </div>
           ) : (
@@ -1388,9 +1503,17 @@ export default function DoctorDashboard() {
                         setActiveTab("erx_studio");
                       }}
                       className="cm-btn cm-btn--secondary cm-btn--sm"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontWeight: 700,
+                        background: "linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(2, 132, 199, 0.15) 100%)",
+                        border: "1px solid rgba(2, 132, 199, 0.3)",
+                        color: "var(--cm-active)",
+                      }}
                     >
-                      <FileText size={14} /> Draft e-Rx
+                      <FileText size={14} /> ⚡ Draft &amp; Transmit e-Rx
                     </button>
                     <button
                       type="button"
@@ -1398,7 +1521,7 @@ export default function DoctorDashboard() {
                       className="cm-btn cm-btn--primary cm-btn--sm"
                       style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
                     >
-                      <Video size={14} /> Open Video Room
+                      <Video size={14} /> Open Exam Room
                     </button>
                   </div>
                 </div>
@@ -1409,16 +1532,395 @@ export default function DoctorDashboard() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 7: HOME VISITS TAB
+          TAB 7: DOCTOR HOME VISITS & BEDSIDE CARE DISPATCH OVERHAUL
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "home_visits" && (
-        <div style={{ margin: "-24px -40px" }}>
-          <ProviderDispatchTracker title="Doctor Home Visits Dispatch" providerType="doctor" />
+        <div style={{ maxWidth: 1050 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: "var(--cm-4)" }}>
+            <div>
+              <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 800 }}>
+                Doctor Home Visits &amp; Bedside Care Management
+              </h2>
+              <p style={{ margin: "2px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                Manage home visit shifts, set independent Normal vs. Urgent visit tariffs, and broadcast real-time ETAs to patients.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGpsMap(!showGpsMap)}
+              className="cm-btn cm-btn--secondary cm-btn--sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Navigation size={14} /> {showGpsMap ? "Hide Live GPS Map" : "View Live Route Tracker"}
+            </button>
+          </div>
+
+          {/* Shift Scheduling & Duty Status Strip */}
+          <div
+            className="cm-card"
+            style={{
+              padding: "16px 20px",
+              border: "1px solid var(--cm-line)",
+              borderRadius: "var(--cm-radius)",
+              marginBottom: "var(--cm-4)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+              background: homeVisitOnDuty ? "linear-gradient(135deg, rgba(22, 163, 74, 0.06) 0%, rgba(2, 132, 199, 0.04) 100%)" : "var(--cm-surface-2)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: homeVisitOnDuty ? "#dcfce7" : "#f1f5f9",
+                  color: homeVisitOnDuty ? "#15803d" : "#64748b",
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                <Home size={22} />
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>
+                    Bedside Visit Duty Status:
+                  </span>
+                  <span className={`cm-pill ${homeVisitOnDuty ? "cm-pill--done" : "cm-pill--neutral"}`}>
+                    {homeVisitOnDuty ? "● ON DUTY FOR VISITS" : "○ OFF-DUTY"}
+                  </span>
+                </div>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                  Active Shift: <strong>{homeVisitShift}</strong> · Operating Radius: <strong>12 km from clinic</strong>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <select
+                value={homeVisitShift}
+                onChange={(e) => setHomeVisitShift(e.target.value)}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: "var(--cm-radius-sm)",
+                  border: "1px solid var(--cm-line-strong)",
+                  fontSize: "var(--cm-text-xs)",
+                  background: "var(--cm-surface)",
+                  color: "var(--cm-ink)",
+                  fontWeight: 600,
+                }}
+              >
+                <option value="09:00 AM – 01:00 PM">Morning Shift (09:00 AM – 01:00 PM)</option>
+                <option value="02:00 PM – 06:00 PM">Evening Shift (02:00 PM – 06:00 PM)</option>
+                <option value="09:00 AM – 06:00 PM">Full Day Shift (09:00 AM – 06:00 PM)</option>
+                <option value="24/7 On-Call (Emergencies)">24/7 On-Call Emergency</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setHomeVisitOnDuty(!homeVisitOnDuty)}
+                className={`cm-btn cm-btn--sm ${homeVisitOnDuty ? "cm-btn--secondary" : "cm-btn--primary"}`}
+                style={{ fontWeight: 700 }}
+              >
+                {homeVisitOnDuty ? "Go Off-Duty" : "Go On-Duty"}
+              </button>
+            </div>
+          </div>
+
+          {/* Normal vs. Urgent Home Visit Custom Tariff Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--cm-4)", marginBottom: "var(--cm-5)" }}>
+            {/* Normal Scheduled Home Visit Tier */}
+            <div
+              className="cm-card"
+              style={{
+                padding: "20px",
+                border: "1px solid var(--cm-line)",
+                borderRadius: "var(--cm-radius)",
+                background: "var(--cm-surface)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                  Scheduled Bedside Care
+                </span>
+                <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700 }}>
+                  Doctor Net: ₹{Math.round(Number(normalVisitFee) * 0.8)} (80%)
+                </span>
+              </div>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Normal Home Visit
+              </h3>
+              <p style={{ margin: "0 0 14px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
+                Pre-scheduled bedside clinical examination, chronic follow-ups, and elder care checks within 12–24h slot.
+              </p>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "var(--cm-ink-3)" }}>₹</span>
+                  <input
+                    type="number"
+                    min={400}
+                    step={50}
+                    value={normalVisitFee}
+                    onChange={(e) => setNormalVisitFee(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px 8px 24px",
+                      borderRadius: "var(--cm-radius-sm)",
+                      border: "1px solid var(--cm-line-strong)",
+                      fontSize: "var(--cm-text-sm)",
+                      fontWeight: 800,
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await fetch(`${apiBase}/api/providers/fees`, {
+                      method: "POST",
+                      headers: authHeaders(),
+                      body: JSON.stringify({ fee_type: "home_visit", amount: Number(normalVisitFee) }),
+                    });
+                    setStatusMsg({ text: `✓ Normal home visit fee set to ₹${normalVisitFee}.`, type: "success" });
+                  }}
+                  className="cm-btn cm-btn--secondary cm-btn--sm"
+                  style={{ fontWeight: 700 }}
+                >
+                  Save Fee
+                </button>
+              </div>
+            </div>
+
+            {/* Urgent Priority Home Visit Tier */}
+            <div
+              className="cm-card"
+              style={{
+                padding: "20px",
+                border: "1px solid rgba(225, 29, 72, 0.3)",
+                borderRadius: "var(--cm-radius)",
+                background: "linear-gradient(135deg, rgba(225, 29, 72, 0.03) 0%, rgba(254, 242, 242, 0.5) 100%)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <span className="cm-pill cm-pill--urgent" style={{ textTransform: "uppercase", fontSize: "10px" }}>
+                  Urgent Priority Dispatch
+                </span>
+                <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", fontWeight: 700 }}>
+                  Doctor Net: ₹{Math.round(Number(urgentVisitFee) * 0.8)} (80%)
+                </span>
+              </div>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                Urgent Home Visit
+              </h3>
+              <p style={{ margin: "0 0 14px 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
+                Acute symptom response, prompt dispatch with live arrival ETA notification broadcasted directly to family.
+              </p>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "var(--cm-ink-3)" }}>₹</span>
+                  <input
+                    type="number"
+                    min={600}
+                    step={50}
+                    value={urgentVisitFee}
+                    onChange={(e) => setUrgentVisitFee(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px 8px 24px",
+                      borderRadius: "var(--cm-radius-sm)",
+                      border: "1px solid var(--cm-line-strong)",
+                      fontSize: "var(--cm-text-sm)",
+                      fontWeight: 800,
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusMsg({ text: `✓ Urgent priority home visit fee set to ₹${urgentVisitFee}.`, type: "success" });
+                  }}
+                  className="cm-btn cm-btn--primary cm-btn--sm"
+                  style={{ fontWeight: 700 }}
+                >
+                  Save Fee
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Optional Satellite GPS Map */}
+          {showGpsMap && (
+            <div style={{ marginBottom: "var(--cm-5)", borderRadius: "var(--cm-radius)", overflow: "hidden", border: "1px solid var(--cm-line)" }}>
+              <ProviderDispatchTracker title="Live Satellite Bedside Navigation" providerType="doctor" />
+            </div>
+          )}
+
+          {/* Active Home Visit Dispatch & ETA Broadcast Roster */}
+          <div className="cm-card" style={{ padding: "var(--cm-5)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "var(--cm-text-base)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  Bedside Patient Dispatches ({activeDispatches.length})
+                </h3>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                  Active patient requests with ETA broadcast actions
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {activeDispatches.map((dispatch) => (
+                <div
+                  key={dispatch.id}
+                  style={{
+                    padding: "16px 18px",
+                    borderRadius: "var(--cm-radius)",
+                    border: dispatch.tier === "urgent" ? "1px solid rgba(225, 29, 72, 0.4)" : "1px solid var(--cm-line)",
+                    background: dispatch.tier === "urgent" ? "rgba(254, 242, 242, 0.4)" : "var(--cm-surface-2)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 800, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)" }}>
+                          {dispatch.patient_name}
+                        </span>
+                        <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                          ({dispatch.patient_gender})
+                        </span>
+                        <span className={`cm-pill ${dispatch.tier === "urgent" ? "cm-pill--urgent" : "cm-pill--active"}`} style={{ textTransform: "uppercase" }}>
+                          {dispatch.tier === "urgent" ? "⚡ Urgent Visit" : "Normal Visit"}
+                        </span>
+                        <span className="cm-pill cm-pill--done" style={{ textTransform: "capitalize" }}>
+                          {dispatch.status}
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-2)", marginTop: 4 }}>
+                        <MapPin size={13} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
+                        <span>{dispatch.address}</span>
+                      </div>
+
+                      <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 4 }}>
+                        Complaint: <strong style={{ color: "var(--cm-ink)" }}>{dispatch.chief_complaint}</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 800, color: "var(--cm-ink)" }}>
+                        Current ETA: <span style={{ color: "var(--cm-active)" }}>{dispatch.eta_mins} mins</span>
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                        Requested: {dispatch.requested_at}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dispatch Actions & Live ETA Broadcast */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed var(--cm-line)", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--cm-ink-3)", textTransform: "uppercase" }}>
+                        Broadcast Live ETA to Patient:
+                      </span>
+                      {[15, 25, 45].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          disabled={etaUpdatingId === dispatch.id}
+                          onClick={() => {
+                            setEtaUpdatingId(dispatch.id);
+                            setTimeout(() => {
+                              setActiveDispatches((prev) =>
+                                prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: mins, status: "en route" } : d))
+                              );
+                              setEtaUpdatingId(null);
+                              setStatusMsg({
+                                text: `✓ Live ETA of ${mins} minutes broadcasted to ${dispatch.patient_name} via CallMedex SMS & Patient App.`,
+                                type: "success",
+                              });
+                            }, 400);
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            border: dispatch.eta_mins === mins ? "1px solid var(--cm-active)" : "1px solid var(--cm-line)",
+                            background: dispatch.eta_mins === mins ? "var(--cm-active)" : "var(--cm-surface)",
+                            color: dispatch.eta_mins === mins ? "#fff" : "var(--cm-ink)",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveDispatches((prev) =>
+                            prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: 0, status: "arrived" } : d))
+                          );
+                          setStatusMsg({
+                            text: `✓ Doctor marked as ARRIVED at ${dispatch.patient_name}'s bedside.`,
+                            type: "success",
+                          });
+                        }}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: "1px solid var(--cm-done)",
+                          background: "var(--cm-done-surface)",
+                          color: "var(--cm-done)",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Arrived
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRxPatientName(dispatch.patient_name);
+                          setRxPatientEmail(dispatch.patient_email);
+                          setRxPatientMobile(dispatch.patient_mobile);
+                          setRxDiagnosis(dispatch.chief_complaint);
+                          setActiveTab("erx_studio");
+                        }}
+                        className="cm-btn cm-btn--secondary cm-btn--sm"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                      >
+                        <FileText size={13} /> Draft Bedside e-Rx
+                      </button>
+                      <a
+                        href={`tel:${dispatch.patient_mobile}`}
+                        className="cm-btn cm-btn--secondary cm-btn--sm"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        <Phone size={13} /> Call Patient
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          TAB 8: PROFILE TAB
+          TAB 8: PROFILE TAB (WITH GLASSMORPHIC MOU & CREDENTIALS VIEWER)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "profile" && (
         <div>

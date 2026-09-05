@@ -870,6 +870,57 @@ async def get_me(current_user: dict = Depends(get_current_user)):
             except Exception:
                 user["is_online"] = False
 
+            # Enrich with role table attributes (verification_status, specialization, qualification, clinic, bio, fee justification)
+            role_str = user.get("role")
+            role_table = None
+            for r_enum, t_name in ROLE_TABLE_MAP.items():
+                if (isinstance(r_enum, str) and r_enum == role_str) or (hasattr(r_enum, "value") and r_enum.value == role_str):
+                    role_table = t_name
+                    break
+
+            if role_table and role_table != "patients":
+                try:
+                    r_res = (
+                        supabase.table(role_table)
+                        .select("*")
+                        .eq("user_id", current_user["sub"])
+                        .limit(1)
+                        .execute()
+                    )
+                    if r_res.data:
+                        r_data = r_res.data[0]
+                        for k, v in r_data.items():
+                            if k not in ("id", "user_id") and v is not None:
+                                user[k] = v
+                        if "verification_status" in r_data:
+                            user["verification_status"] = r_data.get("verification_status") or "pending"
+                except Exception as r_err:
+                    logger.warning(f"Could not enrich role profile from {role_table}: {r_err}")
+
+                # Enrich with bio and fee justification presentation details if stored
+                try:
+                    pres_res = (
+                        supabase.table("documents")
+                        .select("verification_notes")
+                        .eq("user_id", current_user["sub"])
+                        .eq("document_type", "provider_presentation")
+                        .order("uploaded_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+                    if pres_res.data and pres_res.data[0].get("verification_notes"):
+                        import json
+                        notes_data = json.loads(pres_res.data[0]["verification_notes"])
+                        if isinstance(notes_data, dict):
+                            user["bio"] = notes_data.get("bio", "")
+                            user["fee_justification"] = notes_data.get("fee_justification", "")
+                            if notes_data.get("urgent_home_visit_fee"):
+                                user["urgent_home_visit_fee"] = notes_data.get("urgent_home_visit_fee")
+                            if notes_data.get("normal_home_visit_fee"):
+                                user["normal_home_visit_fee"] = notes_data.get("normal_home_visit_fee")
+                except Exception as pres_err:
+                    logger.debug(f"Could not load provider presentation: {pres_err}")
+
             return APIResponse(success=True, message="User profile", data=user)
 
     # Local fallback

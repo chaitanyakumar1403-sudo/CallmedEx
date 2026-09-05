@@ -6,6 +6,7 @@ Organizations: add doctors, set services/fees, manage calendar.
 """
 import uuid
 import re
+import json
 import logging
 from datetime import datetime, timezone, date, timedelta, time
 from typing import Any, Optional, List
@@ -121,6 +122,21 @@ class OrgTimingsUpdate(BaseModel):
     is_open: bool
     open_time: Optional[str] = None
     close_time: Optional[str] = None
+
+
+class ProviderProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    mobile: Optional[str] = None
+    specialization: Optional[str] = None
+    qualification: Optional[str] = None
+    hospital_clinic_name: Optional[str] = None
+    years_of_experience: Optional[int] = None
+    medical_license_number: Optional[str] = None
+    bio: Optional[str] = None
+    fee_justification: Optional[str] = None
+    languages_spoken: Optional[List[str]] = None
+    urgent_home_visit_fee: Optional[float] = None
+    normal_home_visit_fee: Optional[float] = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -731,6 +747,166 @@ async def apply_standard_tariffs(
         "success": True,
         "message": "CallMedex official MOU standard tariffs successfully applied.",
         "fees": saved,
+    }
+
+
+# ─── Provider MOU & Legal Agreement Viewer ───────────────────────────────────
+
+@router.get("/mou")
+async def get_provider_mou(current_user: dict = Depends(get_current_user)):
+    """
+    Get official active MOU and legal acceptance details for the authenticated provider.
+    Accessible from Doctor Profile and other provider profile workstations.
+    """
+    from app.services.legal import LegalService
+    role = current_user.get("role", "doctor")
+    doc = LegalService.get_active_document(role)
+
+    acceptance = None
+    if supabase:
+        try:
+            acc_res = (
+                supabase.table("legal_acceptances")
+                .select("*")
+                .eq("user_id", current_user["sub"])
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if acc_res.data:
+                acceptance = acc_res.data[0]
+        except Exception as e:
+            logger.warning(f"Could not read legal acceptance for user {current_user['sub']}: {e}")
+
+    return {
+        "success": True,
+        "document": doc,
+        "acceptance": acceptance,
+        "role": role,
+    }
+
+
+# ─── Provider Profile & Presentation Editor ──────────────────────────────────
+
+@router.put("/profile")
+async def update_provider_profile(
+    body: ProviderProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update provider's profile, bio, fee justification, and clinical presentation.
+    Persists credentials to role table (doctors/nurses/etc) and presentation to documents store.
+    """
+    user_id = current_user["sub"]
+    role = current_user.get("role", "doctor")
+
+    user_updates = {}
+    if body.full_name is not None:
+        user_updates["full_name"] = body.full_name
+    if body.mobile is not None:
+        user_updates["mobile"] = body.mobile
+
+    if user_updates and supabase:
+        try:
+            supabase.table("users").update(user_updates).eq("id", user_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to update users table: {e}")
+
+    # Role table updates
+    from app.routers.auth import ROLE_TABLE_MAP
+    role_table = None
+    for r_enum, t_name in ROLE_TABLE_MAP.items():
+        if (isinstance(r_enum, str) and r_enum == role) or (hasattr(r_enum, "value") and r_enum.value == role):
+            role_table = t_name
+            break
+
+    if not role_table:
+        role_table = "doctors" if role == "doctor" else None
+
+    role_updates = {}
+    if body.specialization is not None:
+        role_updates["specialization"] = body.specialization
+    if body.qualification is not None:
+        role_updates["qualification"] = body.qualification
+    if body.hospital_clinic_name is not None:
+        role_updates["hospital_clinic_name"] = body.hospital_clinic_name
+        if role == "dentist":
+            role_updates["clinic_name"] = body.hospital_clinic_name
+    if body.years_of_experience is not None:
+        role_updates["years_of_experience"] = body.years_of_experience
+    if body.medical_license_number is not None:
+        role_updates["medical_license_number"] = body.medical_license_number
+        if role in ("nurse", "dentist", "dietitian", "physiotherapist"):
+            role_updates["license_number"] = body.medical_license_number
+    if body.languages_spoken is not None:
+        role_updates["languages_spoken"] = body.languages_spoken
+
+    if role_table and role_updates and supabase:
+        try:
+            up_res = supabase.table(role_table).update(role_updates).eq("user_id", user_id).execute()
+            if not up_res.data:
+                role_updates["id"] = str(uuid.uuid4())
+                role_updates["user_id"] = user_id
+                supabase.table(role_table).insert(role_updates).execute()
+        except Exception as e:
+            logger.error(f"Failed to update role table {role_table}: {e}")
+
+    # Bio and Fee Justification Presentation Storage
+    presentation_data = {}
+    if body.bio is not None:
+        presentation_data["bio"] = body.bio
+    if body.fee_justification is not None:
+        presentation_data["fee_justification"] = body.fee_justification
+    if body.urgent_home_visit_fee is not None:
+        presentation_data["urgent_home_visit_fee"] = body.urgent_home_visit_fee
+    if body.normal_home_visit_fee is not None:
+        presentation_data["normal_home_visit_fee"] = body.normal_home_visit_fee
+
+    if (body.bio is not None or body.fee_justification is not None or body.urgent_home_visit_fee is not None or body.normal_home_visit_fee is not None) and supabase:
+        try:
+            # Check for existing presentation doc
+            existing = (
+                supabase.table("documents")
+                .select("id, verification_notes")
+                .eq("user_id", user_id)
+                .eq("document_type", "provider_presentation")
+                .order("uploaded_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            merged_notes = {}
+            if existing.data and existing.data[0].get("verification_notes"):
+                try:
+                    merged_notes = json.loads(existing.data[0]["verification_notes"])
+                except Exception:
+                    merged_notes = {}
+            merged_notes.update(presentation_data)
+
+            if existing.data:
+                supabase.table("documents").update({
+                    "verification_notes": json.dumps(merged_notes),
+                }).eq("id", existing.data[0]["id"]).execute()
+            else:
+                supabase.table("documents").insert({
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "document_type": "provider_presentation",
+                    "file_name": "presentation.json",
+                    "file_url": "internal://presentation",
+                    "verification_notes": json.dumps(merged_notes),
+                    "verification_status": "verified",
+                }).execute()
+        except Exception as pe:
+            logger.error(f"Failed to store presentation document: {pe}")
+
+    return {
+        "success": True,
+        "message": "Provider profile, presentation, and fee justification saved successfully.",
+        "data": {
+            **user_updates,
+            **role_updates,
+            **presentation_data,
+        },
     }
 
 
