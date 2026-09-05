@@ -70,6 +70,15 @@ def geocode_address(
         except Exception as e:
             logger.warning(f"Geoapify geocoding failed for '{query}': {e}")
 
+    # Try OpenStreetMap Nominatim fallback (tier 3, zero API key required)
+    try:
+        result = _nominatim_geocode(query)
+        if result:
+            _geocode_cache[cache_key] = result
+            return result
+    except Exception as e:
+        logger.warning(f"Nominatim geocoding failed for '{query}': {e}")
+
     raise GeocodingError(
         f"Could not geocode address: '{query}'. "
         f"No geocoding provider returned coordinates."
@@ -180,6 +189,28 @@ def _geoapify_geocode(query: str, api_key: str) -> Optional[Tuple[float, float]]
         # Geoapify returns [lng, lat] (GeoJSON order)
         return (float(coords[1]), float(coords[0]))
 
+    return None
+
+
+# ─── OpenStreetMap Nominatim Fallback ──────────────────────────────────────
+
+def _nominatim_geocode(query: str) -> Optional[Tuple[float, float]]:
+    """Call OpenStreetMap Nominatim Geocoding API with polite User-Agent."""
+    encoded_query = urllib.request.quote(query)
+    url = f"https://nominatim.openstreetmap.org/search?format=json&q={encoded_query}&countrycodes=in&limit=1"
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "CallMedex-Healthcare-Platform/2.0", "Accept-Language": "en"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if data and len(data) > 0:
+                lat = float(data[0]["lat"])
+                lng = float(data[0]["lon"])
+                return (lat, lng)
+    except Exception as e:
+        logger.warning(f"Nominatim request failed: {e}")
     return None
 
 

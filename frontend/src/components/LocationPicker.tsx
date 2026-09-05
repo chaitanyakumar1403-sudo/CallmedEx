@@ -95,7 +95,80 @@ export default function LocationPicker({
     }
   }, []);
 
-  // Auto-detect location
+  // Forward geocode for manual address input (Geoapify with Nominatim fallback)
+  const forwardGeocode = useCallback(async (query: string): Promise<Partial<LocationData>> => {
+    const geoapifyKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "";
+    try {
+      if (geoapifyKey) {
+        const encoded = encodeURIComponent(query.trim());
+        const res = await fetch(
+          `https://api.geoapify.com/v1/geocode/search?text=${encoded}&country=India&apiKey=${geoapifyKey}&format=json`
+        );
+        const json = await res.json();
+        const result = json.results?.[0];
+        if (result && result.lat && result.lon) {
+          return {
+            lat: result.lat,
+            lng: result.lon,
+            city: result.city || result.town || result.village || result.county || "",
+            state: result.state || "",
+            pincode: result.postcode || "",
+          };
+        }
+      }
+
+      // Nominatim forward geocoding fallback
+      const encoded = encodeURIComponent(`${query.trim()}, India`);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&countrycodes=in&limit=1&addressdetails=1`,
+        {
+          headers: {
+            "Accept-Language": "en",
+            "User-Agent": "CallMedex/2.0",
+          },
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const item = data[0];
+          const addr = item.address || {};
+          return {
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon),
+            city: addr.city || addr.town || addr.village || addr.county || "",
+            state: addr.state || "",
+            pincode: addr.postcode || "",
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("Forward geocode error:", e);
+    }
+    return { lat: 0, lng: 0, city: "", state: "", pincode: "" };
+  }, []);
+
+  // Process geolocation coordinates and notify parent
+  const processCoordinates = useCallback(async (latitude: number, longitude: number) => {
+    const geocoded = await reverseGeocode(latitude, longitude);
+    const loc: LocationData = {
+      lat: latitude,
+      lng: longitude,
+      address: geocoded.address || "",
+      city: geocoded.city || "",
+      state: geocoded.state || "",
+      pincode: geocoded.pincode || "",
+      source: "gps",
+    };
+
+    setLocationData(loc);
+    setDetected(true);
+    setDetecting(false);
+    setError("");
+    onLocationSelect(loc);
+  }, [reverseGeocode, onLocationSelect]);
+
+  // Auto-detect location with progressive fallback ladder
   const handleDetect = useCallback(async () => {
     if (!navigator.geolocation) {
       setError("Geolocation is not supported by your browser.");
@@ -105,77 +178,102 @@ export default function LocationPicker({
     setDetecting(true);
     setError("");
 
+    // Stage 1: Try High Accuracy GPS with 8s deadline
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords;
-        const geocoded = await reverseGeocode(latitude, longitude);
-
-        const loc: LocationData = {
-          lat: latitude,
-          lng: longitude,
-          address: geocoded.address || "",
-          city: geocoded.city || "",
-          state: geocoded.state || "",
-          pincode: geocoded.pincode || "",
-          source: "gps",
-        };
-
-        setLocationData(loc);
-        setDetected(true);
-        setDetecting(false);
-        onLocationSelect(loc);
+        await processCoordinates(position.coords.latitude, position.coords.longitude);
       },
       (err) => {
-        setDetecting(false);
-        switch (err.code) {
-          case err.PERMISSION_DENIED:
-            setError("Location permission denied. Please enter your address manually.");
-            setShowManual(true);
-            break;
-          case err.POSITION_UNAVAILABLE:
-            setError("Location unavailable. Please enter your address manually.");
-            setShowManual(true);
-            break;
-          case err.TIMEOUT:
-            setError("Location request timed out. Please try again or enter manually.");
-            setShowManual(true);
-            break;
-          default:
-            setError("Unknown location error.");
-            setShowManual(true);
+        if (err.code === err.PERMISSION_DENIED) {
+          setDetecting(false);
+          setError("Location permission denied. Please enter your address manually.");
+          setShowManual(true);
+          return;
         }
+
+        // Stage 2: Fallback to coarse network/Wi-Fi positioning (succeeds indoors on mobile in <1.5s)
+        navigator.geolocation.getCurrentPosition(
+          async (fallbackPosition) => {
+            await processCoordinates(fallbackPosition.coords.latitude, fallbackPosition.coords.longitude);
+          },
+          (fallbackErr) => {
+            setDetecting(false);
+            switch (fallbackErr.code) {
+              case fallbackErr.PERMISSION_DENIED:
+                setError("Location permission denied. Please enter your address manually.");
+                break;
+              case fallbackErr.POSITION_UNAVAILABLE:
+                setError("Location unavailable. Please enter your address manually.");
+                break;
+              case fallbackErr.TIMEOUT:
+                setError("Location request timed out. Please try again or enter manually.");
+                break;
+              default:
+                setError("Could not detect location. Please enter manually.");
+            }
+            setShowManual(true);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 300000, // Accept cached network fix up to 5 min old
+          }
+        );
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000, // Cache location for 5 minutes
+        timeout: 8000,
+        maximumAge: 60000,
       }
     );
-  }, [reverseGeocode, onLocationSelect]);
+  }, [processCoordinates]);
 
-  // Manual address submit
-  const handleManualSubmit = useCallback(() => {
+  // Manual address submit with forward geocoding resolution
+  const handleManualSubmit = useCallback(async () => {
     if (!manualAddress.trim()) return;
 
+    setDetecting(true);
+    let lat = 0;
+    let lng = 0;
+    let city = "";
+    let state = "";
+    let pincode = "";
+
+    // Extract pincode regex
+    const pincodeMatch = manualAddress.match(/\b\d{6}\b/);
+    if (pincodeMatch) {
+      pincode = pincodeMatch[0];
+    }
+
+    try {
+      const geo = await forwardGeocode(manualAddress);
+      if (geo.lat && geo.lng) {
+        lat = geo.lat;
+        lng = geo.lng;
+        if (geo.city) city = geo.city;
+        if (geo.state) state = geo.state;
+        if (geo.pincode && !pincode) pincode = geo.pincode;
+      }
+    } catch {
+      // Fallback preserves address text
+    }
+
     const loc: LocationData = {
-      lat: 0,
-      lng: 0,
+      lat,
+      lng,
       address: manualAddress.trim(),
-      city: "",
-      state: "",
-      pincode: "",
+      city,
+      state,
+      pincode,
       source: "manual",
     };
 
-    // Try to extract pincode from address
-    const pincodeMatch = manualAddress.match(/\b\d{6}\b/);
-    if (pincodeMatch) {
-      loc.pincode = pincodeMatch[0];
-    }
-
     setLocationData(loc);
+    setDetected(true);
+    setDetecting(false);
+    setError("");
     onLocationSelect(loc);
-  }, [manualAddress, onLocationSelect]);
+  }, [manualAddress, forwardGeocode, onLocationSelect]);
 
   const containerStyle = compact
     ? { marginBottom: 16 }

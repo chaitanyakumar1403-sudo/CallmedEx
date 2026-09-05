@@ -527,7 +527,33 @@ async def get_my_tasks(
             .execute()
         )
         if result.data:
-            tasks = _strip_otp_fields(result.data)
+            now_dt = datetime.now(timezone.utc)
+            valid_tasks = []
+            stale_ids = []
+            for t in result.data:
+                created_str = t.get("created_at")
+                is_stale = False
+                if created_str:
+                    try:
+                        c_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                        if now_dt - c_dt > timedelta(hours=24):
+                            is_stale = True
+                    except Exception:
+                        pass
+                if is_stale:
+                    stale_ids.append(t["id"])
+                else:
+                    valid_tasks.append(t)
+            if stale_ids:
+                try:
+                    supabase.table("dispatch_requests").update({
+                        "status": "cancelled",
+                        "cancel_reason": "auto_expired_stale_task",
+                    }).in_("id", stale_ids).execute()
+                except Exception as ex_err:
+                    logger.warning(f"Could not auto-expire stale tasks: {ex_err}")
+
+            tasks = _strip_otp_fields(valid_tasks)
             _attach_slot_times(tasks)
             return {"tasks": tasks}
     except Exception as e:

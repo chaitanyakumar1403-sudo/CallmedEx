@@ -75,6 +75,27 @@ class VerificationService:
             "name_field": "full_name",
             "license_field": "nursing_license_number",
         },
+        "dentist": {
+            "required_fields": ["dental_license_number", "qualification"],
+            "verification_source": "Dental Council of India / State Dental Council + AI OCR",
+            "table": "dentists",
+            "name_field": "full_name",
+            "license_field": "dental_license_number",
+        },
+        "dietitian": {
+            "required_fields": ["dietitian_license_number", "qualification"],
+            "verification_source": "Indian Dietetic Association (IDA) / Nutrition Board + AI OCR",
+            "table": "dietitians",
+            "name_field": "full_name",
+            "license_field": "dietitian_license_number",
+        },
+        "physiotherapist": {
+            "required_fields": ["physio_license_number", "qualification"],
+            "verification_source": "Indian Association of Physiotherapists (IAP) + AI OCR",
+            "table": "physiotherapists",
+            "name_field": "full_name",
+            "license_field": "physio_license_number",
+        },
     }
 
     # ═══════════════════════════════════════════════════════════════════════

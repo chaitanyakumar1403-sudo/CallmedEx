@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/verification", tags=["Verification"])
 
 # Roles that can use the verification pipeline
-VERIFIABLE_ROLES = {"doctor", "pharmacy", "phlebotomist", "organization", "nurse"}
+VERIFIABLE_ROLES = {
+    "doctor", "pharmacy", "phlebotomist", "organization", "nurse",
+    "dentist", "dietitian", "physiotherapist",
+}
 
 # Maximum file size: 10MB
 MAX_FILE_SIZE = 10 * 1024 * 1024

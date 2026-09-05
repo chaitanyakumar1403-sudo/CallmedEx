@@ -183,7 +183,7 @@ export default function SignupPage() {
   const [locState, setLocState] = useState("");
   const [locDistrict, setLocDistrict] = useState("");
   const [locDetected, setLocDetected] = useState(false);
-  const [additionalDocs, setAdditionalDocs] = useState<{ id: number; name: string }[]>([]);
+  const [additionalDocs, setAdditionalDocs] = useState<{ id: number; name: string; file?: File }[]>([]);
   const [dob, setDob] = useState("");
   const [registrantRole, setRegistrantRole] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -192,6 +192,7 @@ export default function SignupPage() {
   const addDocumentField = () => setAdditionalDocs(prev => [...prev, { id: Date.now(), name: "" }]);
   const removeDocumentField = (id: number) => setAdditionalDocs(prev => prev.filter(doc => doc.id !== id));
   const handleDocNameChange = (id: number, name: string) => setAdditionalDocs(prev => prev.map(doc => doc.id === id ? { ...doc, name } : doc));
+  const handleDocFileChange = (id: number, file: File | undefined) => setAdditionalDocs(prev => prev.map(doc => doc.id === id ? { ...doc, file, name: doc.name || (file ? file.name.replace(/\.[^/.]+$/, "") : "") } : doc));
 
   const toggleMedical = (condition: string) => {
     setMedicalHistory((prev) =>
@@ -237,11 +238,26 @@ export default function SignupPage() {
     }
   };
 
-  const handleSimulateAIVerification = (docType: string) => {
+  const triggerError = (msg: string) => {
+    setError(msg);
+    setLoading(false);
+    setTimeout(() => {
+      const errEl = document.getElementById("signup-bottom-error") || document.querySelector(".form-error");
+      if (errEl) {
+        errEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 50);
+  };
+
+  const handleSimulateAIVerification = (docType: string, hasFile = true) => {
+    if (!hasFile) {
+      alert("Please select a document file first before verifying.");
+      return;
+    }
     setVerificationStatus(prev => ({ ...prev, [docType]: "verifying" }));
     setTimeout(() => {
       setVerificationStatus(prev => ({ ...prev, [docType]: "verified" }));
-    }, 2000);
+    }, 1500);
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -251,22 +267,21 @@ export default function SignupPage() {
     const formData = new FormData(e.currentTarget);
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirm_password") as string;
-    if (password !== confirmPassword) { setError("Passwords do not match"); setLoading(false); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (password !== confirmPassword) { 
+      triggerError("Passwords do not match. Please re-enter."); 
+      return; 
+    }
 
     // District decides which clinics, slots and collectors this account can
     // see or serve, so it cannot be optional the way free-text city was.
     if (!locState || !locDistrict) {
-      setError("Please select your State and District.");
-      setLoading(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      triggerError("Please select your State and District.");
       return;
     }
 
     // Client-side DOB validation (non-org roles require a valid date)
     if (!isOrgLike && !dob) {
-      setError("Please select your full Date of Birth (Year, Month, and Day).");
-      setLoading(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      triggerError("Please select your full Date of Birth (Year, Month, and Day).");
       return;
     }
 
@@ -287,14 +302,11 @@ export default function SignupPage() {
         ...(isOrgLike || role === "staff" ? (registrantRole ? { registrant_role: registrantRole } : {}) : {}),
         ...(isOrgLike || role === "staff" ? (ownerEmail ? { owner_email: ownerEmail } : {}) : {}),
         address_info: {
-          address_line1: formData.get("address_line1"),
-          address_line2: formData.get("address_line2"),
-          // City is no longer collected: the backend derives it from the
-          // district so one place has exactly one spelling everywhere.
+          address: ((formData.get("address") as string) || "").trim(),
           state: locState,
           district: locDistrict,
-          pincode: formData.get("pincode"),
-          country: formData.get("country") || "India",
+          pincode: ((formData.get("pincode") as string) || "").trim(),
+          country: ((formData.get("country") as string) || "India").trim(),
         },
       };
 
@@ -440,8 +452,7 @@ export default function SignupPage() {
       setSuccess(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Signup failed";
-      setError(msg);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      triggerError(msg);
     } finally {
       setLoading(false);
     }
@@ -1092,6 +1103,37 @@ export default function SignupPage() {
                 </div>
               </div>
 
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label className="form-label">Upload Degree / IDA Registration Certificate (Optional)</label>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <input 
+                    type="file" 
+                    accept=".pdf,.jpg,.jpeg,.png" 
+                    className="form-input" 
+                    style={{ flex: 1 }} 
+                    onChange={(e) => { 
+                      const f = e.target.files?.[0]; 
+                      if (f) { 
+                        const err = validateFileSize(f); 
+                        if (err) { 
+                          alert(err); 
+                          e.target.value = ""; 
+                        } 
+                      } 
+                    }} 
+                  />
+                  {verificationStatus['doc_dietitian'] === 'verified' ? (
+                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                  ) : verificationStatus['doc_dietitian'] === 'verifying' ? (
+                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                  ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_dietitian')}>
+                          Verify via AI
+                      </button>
+                  )}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Dietetic Specializations (Select all that apply)</label>
                 <div className="chip-group">
@@ -1181,6 +1223,37 @@ export default function SignupPage() {
                 </div>
               </div>
 
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label className="form-label">Upload Degree / State Council Certificate (Optional)</label>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <input 
+                    type="file" 
+                    accept=".pdf,.jpg,.jpeg,.png" 
+                    className="form-input" 
+                    style={{ flex: 1 }} 
+                    onChange={(e) => { 
+                      const f = e.target.files?.[0]; 
+                      if (f) { 
+                        const err = validateFileSize(f); 
+                        if (err) { 
+                          alert(err); 
+                          e.target.value = ""; 
+                        } 
+                      } 
+                    }} 
+                  />
+                  {verificationStatus['doc_physio'] === 'verified' ? (
+                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                  ) : verificationStatus['doc_physio'] === 'verifying' ? (
+                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                  ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_physio')}>
+                          Verify via AI
+                      </button>
+                  )}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Clinical Focus Areas (Select all that apply)</label>
                 <div className="chip-group">
@@ -1267,6 +1340,37 @@ export default function SignupPage() {
                 <div className="form-group">
                   <label className="form-label">Years of Dental Experience</label>
                   <input name="years_of_experience" type="number" className="form-input" placeholder="e.g. 5" defaultValue="1" min="0" />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label className="form-label">Upload BDS / MDS / State Dental Council Certificate (Optional)</label>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <input 
+                    type="file" 
+                    accept=".pdf,.jpg,.jpeg,.png" 
+                    className="form-input" 
+                    style={{ flex: 1 }} 
+                    onChange={(e) => { 
+                      const f = e.target.files?.[0]; 
+                      if (f) { 
+                        const err = validateFileSize(f); 
+                        if (err) { 
+                          alert(err); 
+                          e.target.value = ""; 
+                        } 
+                      } 
+                    }} 
+                  />
+                  {verificationStatus['doc_dentist'] === 'verified' ? (
+                      <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
+                  ) : verificationStatus['doc_dentist'] === 'verifying' ? (
+                      <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
+                  ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification('doc_dentist')}>
+                          Verify via AI
+                      </button>
+                  )}
                 </div>
               </div>
 
@@ -1678,16 +1782,15 @@ export default function SignupPage() {
                 Upload any additional certificates (e.g., PG Certificate, MBBS Certificate, Fellowship, Clinic License, etc.) to strengthen your profile.
               </p>
               
-              {additionalDocs.map(doc => (
+              {additionalDocs.map((doc, idx) => (
                 <div key={doc.id} className="form-group" style={{ marginBottom: 16, padding: 16, backgroundColor: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
                     <input 
                       type="text" 
                       className="form-input" 
-                      placeholder="Document Name (e.g., PG Certificate)" 
+                      placeholder={`Document ${idx + 1} Name (e.g. PG Degree, License)`} 
                       value={doc.name} 
                       onChange={(e) => handleDocNameChange(doc.id, e.target.value)}
-                      required 
                       style={{ flex: 1 }}
                     />
                     <button type="button" onClick={() => removeDocumentField(doc.id)} className="btn btn-secondary btn-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
@@ -1695,13 +1798,30 @@ export default function SignupPage() {
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="form-input" style={{ flex: 1 }} required onChange={(e) => { const f = e.target.files?.[0]; if (f) { const err = validateFileSize(f); if (err) { alert(err); e.target.value = ""; } } }} />
+                    <input 
+                      type="file" 
+                      accept=".pdf,.jpg,.jpeg,.png" 
+                      className="form-input" 
+                      style={{ flex: 1 }} 
+                      onChange={(e) => { 
+                        const f = e.target.files?.[0]; 
+                        if (f) { 
+                          const err = validateFileSize(f); 
+                          if (err) { 
+                            alert(err); 
+                            e.target.value = ""; 
+                          } else {
+                            handleDocFileChange(doc.id, f);
+                          }
+                        } 
+                      }} 
+                    />
                     {verificationStatus[`doc_${doc.id}`] === 'verified' ? (
                         <span style={{ color: '#2f855a', fontWeight: 600 }}>✅ AI Verified</span>
                     ) : verificationStatus[`doc_${doc.id}`] === 'verifying' ? (
                         <span style={{ color: '#d69e2e', fontWeight: 600 }}>⏳ Verifying...</span>
                     ) : (
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification(`doc_${doc.id}`)}>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSimulateAIVerification(`doc_${doc.id}`, !!doc.file)}>
                             Verify via AI
                         </button>
                     )}
@@ -1780,6 +1900,28 @@ export default function SignupPage() {
                   it to activate your account. This is a legal requirement for all providers on CallMedex.
                 </p>
               </div>
+            </div>
+          )}
+
+          {error && (
+            <div 
+              id="signup-bottom-error"
+              style={{ 
+                backgroundColor: '#fef2f2', 
+                border: '1.5px solid #ef4444', 
+                borderRadius: 8, 
+                padding: '14px 16px', 
+                marginBottom: 16, 
+                color: '#991b1b', 
+                fontWeight: 600, 
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <AlertCircle size={20} color="#dc2626" style={{ flexShrink: 0 }} />
+              <span>{error}</span>
             </div>
           )}
 

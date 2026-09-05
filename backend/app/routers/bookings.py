@@ -194,15 +194,25 @@ def _normalised_mode(mode: Optional[str]) -> str:
 
 
 def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
-    """True when a picked slot is already close enough that waiting for the
-    next trigger_dispatch_for_upcoming_bookings poll tick (every 10 min)
-    would leave the phlebotomist with too little lead time. Uses the same
-    lookahead window that task runs on, so a booking never falls into the
-    gap between the immediate and polled dispatch paths.
+    """True when a picked slot is for today (same calendar date in IST) or
+    is within the lead time window (up to 4 hours), so the phlebotomist on duty
+    is notified immediately rather than having the booking sit unseen.
     """
-    from app.workers.tasks.scheduled_dispatch import LOOKAHEAD_MINUTES
-    slot_dt = datetime.fromisoformat(slot_start_str)
-    return slot_dt - datetime.now(timezone.utc) <= timedelta(minutes=LOOKAHEAD_MINUTES)
+    try:
+        from app.workers.tasks.scheduled_dispatch import LOOKAHEAD_MINUTES, IST
+        slot_dt = datetime.fromisoformat(slot_start_str)
+        now_utc = datetime.now(timezone.utc)
+        # Check lookahead window (at least 240 minutes)
+        if slot_dt - now_utc <= timedelta(minutes=max(LOOKAHEAD_MINUTES, 240)):
+            return True
+        # Check same calendar date in IST
+        slot_ist = slot_dt.astimezone(IST) if slot_dt.tzinfo else slot_dt
+        now_ist = datetime.now(IST)
+        if slot_ist.date() <= now_ist.date():
+            return True
+    except Exception as e:
+        logger.warning(f"Could not parse slot_start {slot_start_str!r}: {e}")
+    return False
 
 
 async def _dispatch_home_visit(
@@ -651,10 +661,12 @@ async def create_booking(
         booking_data["collection_district"] = booking.district or ""
         # Precise collection location for phlebotomist dispatch (lat/lng).
         # When booking is for a family member, resolve their address below.
-        if booking.collection_lat is not None:
+        if booking.collection_lat is not None and booking.collection_lat != 0:
             booking_data["collection_lat"] = booking.collection_lat
-        if booking.collection_lng is not None:
+        if booking.collection_lng is not None and booking.collection_lng != 0:
             booking_data["collection_lng"] = booking.collection_lng
+        if booking.collection_address and "Collection address:" not in (booking_data.get("notes") or ""):
+            booking_data["notes"] = ((booking_data.get("notes") or "").strip() + f"\nCollection address: {booking.collection_address}").strip()
         # When booking for a specific family member, resolve their address for dispatch
         if booking.family_member_id:
             try:
@@ -666,7 +678,7 @@ async def create_booking(
                 if fm and fm[0]:
                     fm_row = fm[0]
                     # Only override with family member's address if they have one
-                    if fm_row.get("lat") is not None and fm_row.get("lng") is not None:
+                    if fm_row.get("lat") is not None and fm_row.get("lng") is not None and fm_row["lat"] != 0 and fm_row["lng"] != 0:
                         booking_data["collection_lat"] = fm_row["lat"]
                         booking_data["collection_lng"] = fm_row["lng"]
                     if fm_row.get("city"):
@@ -679,6 +691,39 @@ async def create_booking(
                         booking_data["notes"] = (booking.notes or "") + f"\n{addr_note}"
             except Exception as e:
                 logger.warning(f"Failed to resolve family member address: {e}")
+
+        # Pre-insert Geocoding Guarantee:
+        # If collection_lat / collection_lng are missing or 0, geocode immediately
+        if (
+            booking_data.get("collection_lat") is None
+            or booking_data.get("collection_lng") is None
+            or (booking_data.get("collection_lat") == 0 and booking_data.get("collection_lng") == 0)
+        ):
+            patient_addr = (
+                booking.collection_address
+                or (booking_data.get("notes", "").split("Collection address:")[-1].strip() if "Collection address:" in (booking_data.get("notes") or "") else "")
+                or booking.district
+                or booking.city
+                or ""
+            )
+            city = booking.city or booking_data.get("collection_city") or ""
+            if not city and supabase:
+                try:
+                    u_row = _rows(supabase.table("users").select("city").eq("id", current_user["sub"]).limit(1).execute())
+                    if u_row:
+                        city = u_row[0].get("city") or ""
+                except Exception:
+                    pass
+            if patient_addr or city:
+                from app.services.geocoding import geocode_address
+                try:
+                    glat, glng = geocode_address(address=patient_addr or city, city=city)
+                    if glat and glng:
+                        booking_data["collection_lat"] = glat
+                        booking_data["collection_lng"] = glng
+                        logger.info(f"Pre-insert geocoded collection coordinates for booking: ({glat}, {glng})")
+                except Exception as e:
+                    logger.warning(f"Pre-insert geocoding failed: {e}")
 
     if supabase:
         # Same patient, same slot, still live → this is a re-submit, not a
@@ -790,6 +835,14 @@ async def create_booking(
                                 logger.warning(f"City coordinate lookup failed: {lookup_err}")
 
                         if patient_lat and patient_lng:
+                            try:
+                                supabase.table("bookings").update({
+                                    "collection_lat": float(patient_lat),
+                                    "collection_lng": float(patient_lng),
+                                }).eq("id", booking_id).execute()
+                            except Exception as upd_err:
+                                logger.warning(f"Failed to update booking coordinates: {upd_err}")
+
                             # Resolve processing_center_id from the booking row
                             # (set by _provision_home_collection → assign_booking above)
                             pc_id: Optional[str] = None

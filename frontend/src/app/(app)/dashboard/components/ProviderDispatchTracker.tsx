@@ -210,8 +210,8 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
         setTasks(filtered);
         const done = all.filter((t: DispatchTask) => t.status === "completed");
         setCompletedToday(done.length);
-        // Find current in-progress task
-        const active = all.find((t: DispatchTask) =>
+        // Find current in-progress task (using filtered array so stale tasks are excluded)
+        const active = filtered.find((t: DispatchTask) =>
           ["provider_accepted", "en_route", "arrived", "in_progress"].includes(t.status)
         );
         setActiveTask(active || null);

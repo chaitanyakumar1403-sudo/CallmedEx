@@ -521,8 +521,8 @@ function BookingPageContent() {
           // Family member booking: if selected, use their address for dispatch
           family_member_id: selectedFamilyMember?.id || undefined,
           // Collection coordinates for phlebotomist dispatch (home collection)
-          collection_lat: coords?.lat || undefined,
-          collection_lng: coords?.lng || undefined,
+          collection_lat: (coords?.lat && coords.lat !== 0) ? coords.lat : undefined,
+          collection_lng: (coords?.lng && coords.lng !== 0) ? coords.lng : undefined,
           collection_address: dispatchAddress?.trim() || undefined,
           ...(bookingType === "lab" && !selectedOrg?.isReal
             ? {
@@ -1653,7 +1653,15 @@ function BookingPageContent() {
                           opacity: hasAddress ? 1 : 0.7,
                           transition: "all 0.2s",
                         }}
-                        onClick={() => setSelectedFamilyMember(member)}
+                        onClick={() => {
+                          setSelectedFamilyMember(member);
+                          if (member.address) {
+                            setDispatchAddress(member.address);
+                          }
+                          if (member.lat && member.lng && member.lat !== 0 && member.lng !== 0) {
+                            setCoords({ lat: member.lat, lng: member.lng });
+                          }
+                        }}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div style={{
@@ -1708,7 +1716,9 @@ function BookingPageContent() {
                   initialAddress={dispatchAddress}
                   onLocationSelect={(loc) => {
                     setDispatchAddress(loc.address);
-                    setCoords({ lat: loc.lat, lng: loc.lng });
+                    if (loc.lat && loc.lng && loc.lat !== 0 && loc.lng !== 0) {
+                      setCoords({ lat: loc.lat, lng: loc.lng });
+                    }
                   }}
                 />
               </div>
