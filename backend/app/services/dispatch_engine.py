@@ -330,6 +330,7 @@ class UniversalDispatchEngine:
         # nothing at all. Resolve it once, here, for every merged candidate.
         role_table = {"phlebotomist": "phlebotomists", "nurse": "nurses"}.get(provider_type)
         verified_ids: set = set()
+        phleb_types: dict = {}
         if role_table:
             uids = [
                 (p.get("user_id") or (p.get("users") or {}).get("id"))
@@ -338,15 +339,21 @@ class UniversalDispatchEngine:
             uids = [u for u in dict.fromkeys(uids) if u]
             if uids:
                 try:
+                    columns = "user_id, verification_status, phleb_type" if provider_type == "phlebotomist" else "user_id, verification_status"
                     rows = (
                         supabase.table(role_table)
-                        .select("user_id, verification_status")
+                        .select(columns)
                         .in_("user_id", uids).execute()
                     ).data or []
                     verified_ids = {
                         r["user_id"] for r in rows
                         if (r.get("verification_status") or "") == "verified"
                     }
+                    if provider_type == "phlebotomist":
+                        phleb_types = {
+                            r["user_id"]: (r.get("phleb_type") or "").lower()
+                            for r in rows
+                        }
                 except Exception as e:
                     logger.warning(f"verification lookup failed for {provider_type}: {e}")
 
@@ -388,7 +395,16 @@ class UniversalDispatchEngine:
             dist = UniversalDispatchEngine.haversine_km(
                 patient_lat, patient_lng, float(p_lat), float(p_lng)
             )
-            if ignore_radius or dist <= radius_km:
+            # Full-time phlebotomists have an expanded 25 km operational radius across
+            # the city/transit network, allowing them to travel and collect doorstep samples
+            # anywhere within 25 km. Part-time phlebotomists adhere to base local radius (15 km).
+            effective_radius = radius_km
+            if provider_type == "phlebotomist":
+                p_type = phleb_types.get(user_id) or (p.get("phleb_type") or "").lower()
+                if p_type in ("full_time", "full-time", "ft"):
+                    effective_radius = max(radius_km, 25.0)
+
+            if ignore_radius or dist <= effective_radius:
                 user_data = p.get("users", {})
                 candidates.append({
                     "user_id": user_id,

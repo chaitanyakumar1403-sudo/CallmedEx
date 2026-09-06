@@ -396,23 +396,243 @@ function ConsultationContent() {
 
   const meta = MODE_META[consultMode];
 
-  const modeButton = (mode: ConsultMode, label: string, activeBg: string, activeShadow: string) => (
-    <button
-      onClick={() => setConsultMode(mode)}
-      style={{
-        flex: 1, padding: '12px 16px', borderRadius: 10,
-        border: 'none', cursor: 'pointer',
-        fontWeight: 700, fontSize: '0.85rem',
-        background: consultMode === mode ? activeBg : 'transparent',
-        color: consultMode === mode ? '#fff' : '#64748b',
-        boxShadow: consultMode === mode ? activeShadow : 'none',
-        transition: 'all 0.25s ease',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  );
+  const ModeSymbol3D = ({ mode, isOrg = false }: { mode: ConsultMode | 'org'; isOrg?: boolean }) => {
+    if (isOrg) {
+      return (
+        <div
+          className="glass-3d-symbol"
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: 20,
+            flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.75) 50%, rgba(224, 242, 254, 0.5) 100%)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            border: '1.5px solid rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 10px 24px -4px rgba(2, 132, 199, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(2, 132, 199, 0.12)',
+            display: 'grid',
+            placeItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 6,
+              right: 6,
+              height: '42%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+              borderRadius: '14px 14px 4px 4px',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #0c4a6e 100%)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#ffffff',
+              boxShadow: '0 6px 14px -2px rgba(2, 132, 199, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <Building2 size={22} />
+          </div>
+        </div>
+      );
+    }
+
+    if (mode === 'teleconsultation') {
+      return (
+        <div
+          className="glass-3d-symbol"
+          title="Video Consultation"
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: 20,
+            flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.75) 50%, rgba(186, 230, 253, 0.5) 100%)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            border: '1.5px solid rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 10px 24px -4px rgba(2, 132, 199, 0.32), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(2, 132, 199, 0.15)',
+            display: 'grid',
+            placeItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 6,
+              right: 6,
+              height: '42%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+              borderRadius: '14px 14px 4px 4px',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 60%, #0c4a6e 100%)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#ffffff',
+              boxShadow: '0 6px 14px -2px rgba(2, 132, 199, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <Video size={22} />
+          </div>
+        </div>
+      );
+    }
+
+    if (mode === 'home') {
+      return (
+        <div
+          className="glass-3d-symbol"
+          title="Home Visit"
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: 20,
+            flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(236, 253, 245, 0.75) 50%, rgba(209, 250, 229, 0.5) 100%)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            border: '1.5px solid rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 10px 24px -4px rgba(16, 185, 129, 0.25), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(16, 185, 129, 0.12)',
+            display: 'grid',
+            placeItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 6,
+              right: 6,
+              height: '42%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+              borderRadius: '14px 14px 4px 4px',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #059669 0%, #047857 60%, #064e3b 100%)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#ffffff',
+              boxShadow: '0 6px 14px -2px rgba(5, 150, 105, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
+            }}
+          >
+            <Home size={22} />
+          </div>
+        </div>
+      );
+    }
+
+    // Default: 'walkin' in-person visit
+    return (
+      <div
+        className="glass-3d-symbol"
+        title="Walk-in Visit"
+        style={{
+          width: 68,
+          height: 68,
+          borderRadius: 20,
+          flexShrink: 0,
+          background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 245, 249, 0.8) 50%, rgba(226, 232, 240, 0.6) 100%)',
+          backdropFilter: 'blur(14px)',
+          WebkitBackdropFilter: 'blur(14px)',
+          border: '1.5px solid rgba(255, 255, 255, 0.9)',
+          boxShadow: '0 10px 24px -4px rgba(15, 23, 42, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(15, 23, 42, 0.12)',
+          display: 'grid',
+          placeItems: 'center',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: 6,
+            right: 6,
+            height: '42%',
+            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+            borderRadius: '14px 14px 4px 4px',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 60%, #0284c7 100%)',
+            display: 'grid',
+            placeItems: 'center',
+            color: '#ffffff',
+            boxShadow: '0 6px 14px -2px rgba(15, 23, 42, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.6), inset 0 -2px 3px rgba(0, 0, 0, 0.25)',
+          }}
+        >
+          <Stethoscope size={22} />
+        </div>
+      </div>
+    );
+  };
+
+  const modeButton = (mode: ConsultMode, label: string, IconComp: any) => {
+    const isActive = consultMode === mode;
+    return (
+      <button
+        onClick={() => setConsultMode(mode)}
+        style={{
+          flex: 1,
+          padding: '12px 18px',
+          borderRadius: 12,
+          border: isActive ? '1.5px solid rgba(255, 255, 255, 0.4)' : '1px solid transparent',
+          cursor: 'pointer',
+          fontWeight: 700,
+          fontSize: '0.88rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          background: isActive
+            ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+            : 'transparent',
+          color: isActive ? '#ffffff' : 'var(--cm-navy, #0f172a)',
+          boxShadow: isActive
+            ? '0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)'
+            : 'none',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <IconComp size={18} style={{ opacity: isActive ? 1 : 0.7 }} />
+        <span>{label}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="section">
@@ -471,22 +691,22 @@ function ConsultationContent() {
           </div>
         </div>
 
-        {/* ── Mode Toggle ─────────────────────────────────────────── */}
+        {/* ── Mode Toggle (Glassmorphic CallMedex Design) ─────────────────────────────────────────── */}
         <div style={{
-          display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 28,
-          background: 'var(--cm-surface-2)', borderRadius: 'var(--cm-radius-sm)', padding: 6,
-          maxWidth: 580, margin: '0 auto 28px',
-          border: '1px solid var(--cm-line)',
+          display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28,
+          background: 'rgba(255, 255, 255, 0.75)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRadius: 16,
+          padding: 8,
+          maxWidth: 620,
+          margin: '0 auto 28px',
+          border: '1.5px solid rgba(2, 132, 199, 0.22)',
+          boxShadow: '0 8px 32px -4px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
         }}>
-          {modeButton('teleconsultation', 'Video Consultation',
-            'var(--cm-active)',
-            'none')}
-          {modeButton('walkin', 'Walk-in Visit',
-            'var(--cm-navy)',
-            'none')}
-          {modeButton('home', 'Home Visit',
-            'var(--cm-done)',
-            'none')}
+          {modeButton('teleconsultation', 'Video Consultation', Video)}
+          {modeButton('walkin', 'Walk-in Visit', Stethoscope)}
+          {modeButton('home', 'Home Visit', Home)}
         </div>
 
         {/* ── Search & Location Bar ───────────────────────────────── */}
@@ -523,17 +743,39 @@ function ConsultationContent() {
           )}
         </div>
 
-        {/* Specialization Filter */}
+        {/* Specialization Filter (Glassmorphic CallMedex Design) */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 32, justifyContent: 'center', flexWrap: 'wrap' }}>
-          {SPECIALIZATIONS.map((spec) => (
-            <button
-              key={spec}
-              className={`chip ${selectedSpec === spec ? 'active' : ''}`}
-              onClick={() => setSelectedSpec(spec)}
-            >
-              {spec}
-            </button>
-          ))}
+          {SPECIALIZATIONS.map((spec) => {
+            const isActive = selectedSpec === spec;
+            return (
+              <button
+                key={spec}
+                onClick={() => setSelectedSpec(spec)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 22,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: isActive
+                    ? '1.5px solid rgba(255, 255, 255, 0.4)'
+                    : '1px solid rgba(2, 132, 199, 0.16)',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                    : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  color: isActive ? '#ffffff' : 'var(--cm-navy, #1e293b)',
+                  boxShadow: isActive
+                    ? '0 4px 14px rgba(2, 132, 199, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35)'
+                    : '0 2px 6px rgba(2, 132, 199, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                {spec}
+              </button>
+            );
+          })}
         </div>
 
         {/* Loading State */}
@@ -586,28 +828,25 @@ function ConsultationContent() {
                   <div
                     key={org.id}
                     className="card doctor-card"
-                    style={{ padding: 24, display: 'flex', gap: 20, alignItems: 'center' }}
+                    style={{
+                      padding: 24,
+                      display: 'flex',
+                      gap: 20,
+                      alignItems: 'center',
+                      background: 'rgba(255, 255, 255, 0.88)',
+                      backdropFilter: 'blur(14px)',
+                      WebkitBackdropFilter: 'blur(14px)',
+                      border: '1.5px solid rgba(2, 132, 199, 0.16)',
+                      borderRadius: 18,
+                      boxShadow: '0 6px 20px -2px rgba(2, 132, 199, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
+                      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
                   >
-                    <div
-                      className="doctor-card__avatar"
-                      style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        background: 'var(--cm-surface-2)',
-                        border: '1px solid var(--cm-line-strong)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: 'var(--cm-navy)',
-                      }}
-                    >
-                      <Building2 size={28} />
-                    </div>
+                    <ModeSymbol3D mode="org" isOrg={true} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', marginBottom: 4 }}>
+                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1.02rem', fontWeight: 800, color: 'var(--cm-navy, #0f172a)', marginBottom: 4 }}>
                             {org.name}
                           </h4>
                           <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)' }}>
@@ -615,7 +854,20 @@ function ConsultationContent() {
                             {consultMode === 'home' && org.home_service_enabled ? ' · Home service' : ''}
                           </div>
                         </div>
-                        <span className="badge badge-success">● Verified</span>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          background: 'rgba(34, 197, 94, 0.14)',
+                          color: '#15803d',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                          ● Verified
+                        </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -627,14 +879,22 @@ function ConsultationContent() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           {org.min_price != null && (
-                            <span style={{ fontWeight: 700, color: 'var(--color-navy)' }}>
+                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-navy)' }}>
                               from ₹{org.min_price}
                             </span>
                           )}
                           <button
                             className="btn btn-primary btn-sm"
                             onClick={() => handleOrgBooking(org)}
-                            style={{ minWidth: 110 }}
+                            style={{
+                              minWidth: 110,
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                              border: 'none',
+                              boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                              color: '#ffffff',
+                            }}
                           >
                             {consultMode === 'home' ? 'Book Home Visit' : 'Book Visit'}
                           </button>
@@ -648,28 +908,25 @@ function ConsultationContent() {
                   <div
                     key={doc.doctor_id}
                     className="card doctor-card"
-                    style={{ padding: 24, display: 'flex', gap: 20, alignItems: 'center' }}
+                    style={{
+                      padding: 24,
+                      display: 'flex',
+                      gap: 20,
+                      alignItems: 'center',
+                      background: 'rgba(255, 255, 255, 0.88)',
+                      backdropFilter: 'blur(14px)',
+                      WebkitBackdropFilter: 'blur(14px)',
+                      border: '1.5px solid rgba(2, 132, 199, 0.16)',
+                      borderRadius: 18,
+                      boxShadow: '0 6px 20px -2px rgba(2, 132, 199, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
+                      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
                   >
-                    <div
-                      className="doctor-card__avatar"
-                      style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: '50%',
-                        flexShrink: 0,
-                        background: 'var(--cm-surface-2)',
-                        border: '1px solid var(--cm-line-strong)',
-                        display: 'grid',
-                        placeItems: 'center',
-                        color: consultMode === 'teleconsultation' ? 'var(--cm-active)' : 'var(--cm-navy)',
-                      }}
-                    >
-                      {consultMode === 'teleconsultation' ? <Video size={28} /> : consultMode === 'home' ? <Home size={28} /> : <Stethoscope size={28} />}
-                    </div>
+                    <ModeSymbol3D mode={consultMode} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', marginBottom: 4 }}>
+                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: 800, color: 'var(--cm-navy, #0f172a)', marginBottom: 4 }}>
                             {doc.name}
                           </h4>
                           <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)' }}>
@@ -709,8 +966,19 @@ function ConsultationContent() {
                             </button>
                           </div>
                         </div>
-                        <span className={`badge ${doc.available ? 'badge-success' : 'badge-warning'}`}>
-                          {doc.available ? '● Available' : '● Busy'}
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: 20,
+                          background: doc.available ? 'rgba(34, 197, 94, 0.14)' : 'rgba(239, 68, 68, 0.14)',
+                          color: doc.available ? '#15803d' : '#dc2626',
+                          border: doc.available ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}>
+                          ● {doc.available ? 'AVAILABLE' : 'BUSY'}
                         </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
@@ -730,14 +998,25 @@ function ConsultationContent() {
                           )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ fontWeight: 700, color: 'var(--color-navy)' }}>
+                          <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--color-navy)' }}>
                             ₹{doc.consultation_fee}
                           </span>
                           <button
-                            className={`btn ${consultMode === 'teleconsultation' ? 'btn-teal' : 'btn-primary'} btn-sm`}
+                            className="btn btn-primary btn-sm"
                             disabled={!doc.available}
                             onClick={() => handleConsult(doc)}
-                            style={{ minWidth: 110 }}
+                            style={{
+                              minWidth: 110,
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              background: doc.available
+                                ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                                : 'var(--cm-line)',
+                              color: doc.available ? '#ffffff' : 'var(--cm-ink-4)',
+                              border: 'none',
+                              boxShadow: doc.available ? '0 4px 14px rgba(2, 132, 199, 0.35)' : 'none',
+                              cursor: doc.available ? 'pointer' : 'not-allowed',
+                            }}
                           >
                             {consultMode === 'teleconsultation'
                               ? (doc.available ? 'Consult' : 'Unavailable')

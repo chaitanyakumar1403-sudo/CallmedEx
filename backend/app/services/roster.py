@@ -117,15 +117,17 @@ def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[di
     ]
 
 
+FULL_TIME_RADIUS_KM = 25.0
+
+
 def _pick(candidates: List[dict], booking: dict, load: dict,
           exclude: Optional[set] = None) -> Optional[dict]:
-    """Nearest by base location within the radius, breaking ties on load.
+    """Nearest by base location within radius, breaking ties on load.
 
-    P2.5: Two-pass selection — prefers full-time phlebotomists for stability.
-    Never leaves a booking unassigned when a part-time phlebo could cover it.
-
-    Pass 1: full-time only (within radius, sorted by load then distance).
-    Pass 2: all candidates including part-time (fallback).
+    - Full-time phlebotomists: 25 km service radius across the city/train route.
+    - Part-time phlebotomists: 15 km local radius.
+    - Pass 1: prefers full-time phlebotomists within 25 km.
+    - Pass 2: falls back to part-time phlebotomists within 15 km.
     """
     exclude = exclude or set()
     viable = []
@@ -137,22 +139,20 @@ def _pick(candidates: List[dict], booking: dict, load: dict,
             float(booking["collection_lat"]), float(booking["collection_lng"]),
             float(person["base_lat"]), float(person["base_lng"]),
         )
-        if dist <= ADVANCE_RADIUS_KM:
-            viable.append((load.get(uid, 0), dist, uid, person))
+        is_full_time = (person.get("phleb_type") or "full_time").lower() in ("full_time", "full-time", "ft")
+        max_dist = FULL_TIME_RADIUS_KM if is_full_time else ADVANCE_RADIUS_KM
+        if dist <= max_dist:
+            viable.append((load.get(uid, 0), dist, uid, person, is_full_time))
     if not viable:
         return None
 
-    # Pass 1: prefer full-time candidates
-    full_time = [
-        v for v in viable
-        if (v[3].get("phleb_type") or "full_time").lower() in ("full_time", "full-time", "ft")
-    ]
+    # Pass 1: prefer full-time candidates (within 25 km)
+    full_time = [v for v in viable if v[4]]
     if full_time:
         full_time.sort(key=lambda v: (v[0], v[1], v[2]))
         return full_time[0][3]
 
-    # Pass 2: fall back to all candidates (part-time included)
-    # CONSTRAINT: Never leave a booking unassigned when a part-time phlebo could cover it.
+    # Pass 2: fall back to all candidates (part-time included within 15 km)
     viable.sort(key=lambda v: (v[0], v[1], v[2]))
     return viable[0][3]
 

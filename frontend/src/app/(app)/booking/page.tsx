@@ -55,24 +55,17 @@ const DEFAULT_DIAGNOSTIC_PACKAGES = [
 ];
 
 // ─── Time Slot & Pricing Configuration ────────────────────────────────────
-// Slot tiers:
-//   Premium (06:00, 06:30, 07:00) — step-collection slots with ₹99 surcharge
-//   Standard (05:00, 07:30–20:00) — regular pricing
-
-const PREMIUM_SLOTS = new Set(["06:00", "06:30", "07:00"]);
+// All slots are standard with regular pricing (no premium slot surcharges).
 
 interface SlotPricing {
-  tier: "premium" | "standard";
+  tier: "standard";
   label: string;
   badge: string;
   /** Surcharge added on top of base test prices */
   surcharge: number;
 }
 
-function getSlotPricing(slot: string): SlotPricing {
-  if (PREMIUM_SLOTS.has(slot)) {
-    return { tier: "premium", label: "Premium", badge: "+₹99 Extra", surcharge: 99 };
-  }
+function getSlotPricing(_slot: string): SlotPricing {
   return { tier: "standard", label: "Standard", badge: "", surcharge: 0 };
 }
 
@@ -534,18 +527,14 @@ function BookingPageContent() {
           : "lab_test";
 
       const slotKey = `${providerId}|${selectedDate}|${selectedSlot}`;
-      const pricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
 
-      // Build notes with all selected tests + slot pricing info
-      const pricingNote = pricing?.tier === "premium"
-        ? `[Premium slot]`
-        : "";
+      // Build notes with all selected tests
       const testNotes =
         selectedTests.length > 0
-          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${fee} ${pricingNote}`
+          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${fee}`
           : selectedTest
-          ? `Test: ${selectedTest.name} ${pricingNote}`
-          : `${pricingNote}`;
+          ? `Test: ${selectedTest.name}`
+          : "";
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings`, {
         method: "POST",
@@ -560,7 +549,7 @@ function BookingPageContent() {
           slot_id: slotKey,
           notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
-          total_price: (selectedTests.length > 0 ? multiTestTotal : (packageParam ? (Number(priceParam) || 0) : selectedTest?.price || selectedDoctor?.fee || 0)) + (pricing?.surcharge || 0),
+          total_price: selectedTests.length > 0 ? multiTestTotal : (packageParam ? (Number(priceParam) || 0) : selectedTest?.price || selectedDoctor?.fee || 0),
           preferred_date: selectedDate,
           // Lab is partner-blind: no centre was chosen (providerId is ""), so
           // the backend resolves the allocation itself from these. catalog_id
@@ -733,12 +722,12 @@ function BookingPageContent() {
   // no phlebotomist to dispatch when the patient is visiting the centre.
   const isUrgentHomeLab = bookingType === "lab" && modeParam === "home" && priorityParam === "urgent";
   const isOnDemand = bookingType === "home_collection" || bookingType === "home_doctor" || bookingType === "nurse_visit" || isUrgentHomeLab;
-  // ─── Pricing with time-slot tiers ────────────────────────────────────────
+  // ─── Pricing configuration ──────────────────────────────────────────────
   const slotPricing = selectedSlot ? getSlotPricing(selectedSlot) : null;
   // Base price: sum of selected tests / doctor fee / package price
   const basePrice = selectedDoctor?.fee || (selectedTests.length > 0 ? multiTestTotal : selectedTest?.price) || (bookingType === "doctor" ? (selectedOrg?.consultation_fee || 300) : 0);
-  // Premium slots add a surcharge; standard slots are base price
-  const fee = basePrice + (slotPricing?.surcharge || 0);
+  // Standard pricing across all slots (no premium surcharge)
+  const fee = basePrice;
 
   // Step indicator
   const getSteps = () => {
@@ -1836,7 +1825,7 @@ function BookingPageContent() {
             </h3>
 
             {/* Date picker */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 24, overflowX: "auto", paddingBottom: 4 }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 24, overflowX: "auto", paddingBottom: 6 }}>
               {dates.map((d) => {
                 const parts = d.label.split(" ");
                 const dayOfWeek = parts[0]?.replace(",", "");
@@ -1849,17 +1838,29 @@ function BookingPageContent() {
                   <div
                     key={d.value}
                     style={{
-                      padding: "10px 14px",
-                      borderRadius: 12,
+                      padding: "12px 16px",
+                      borderRadius: 14,
                       textAlign: "center",
                       cursor: closed ? "not-allowed" : "pointer",
-                      minWidth: 72,
-                      border: isSelected ? "2px solid #0284c7" : closed ? "2px solid #fecaca" : "2px solid #e2e8f0",
-                      background: isSelected ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : closed ? "#fef2f2" : "white",
-                      color: isSelected ? "#fff" : closed ? "#dc2626" : "inherit",
-                      opacity: closed ? 0.6 : 1,
-                      transition: "all 0.2s ease",
-                      boxShadow: isSelected ? "0 4px 12px rgba(2, 132, 199, 0.3)" : "none",
+                      minWidth: 78,
+                      border: isSelected
+                        ? "1.5px solid rgba(2, 132, 199, 0.9)"
+                        : closed
+                        ? "1px solid rgba(254, 202, 202, 0.8)"
+                        : "1px solid rgba(2, 132, 199, 0.16)",
+                      background: isSelected
+                        ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
+                        : closed
+                        ? "rgba(254, 242, 242, 0.7)"
+                        : "rgba(255, 255, 255, 0.85)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      color: isSelected ? "#ffffff" : closed ? "#dc2626" : "var(--cm-navy, #0f172a)",
+                      opacity: closed ? 0.55 : 1,
+                      transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                      boxShadow: isSelected
+                        ? "0 8px 24px -4px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.4)"
+                        : "0 2px 8px rgba(2, 132, 199, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
                     }}
                     onClick={() => {
                       if (!closed) {
@@ -1869,9 +1870,9 @@ function BookingPageContent() {
                       }
                     }}
                   >
-                    <div style={{ fontSize: "0.7rem", opacity: 0.8, fontWeight: 600, textTransform: "uppercase" }}>{dayOfWeek}</div>
-                    <div style={{ fontWeight: 800, fontSize: "1.2rem", margin: "2px 0" }}>{dayNum}</div>
-                    <div style={{ fontSize: "0.65rem", opacity: 0.7 }}>{closed ? "Closed" : isToday ? "Today" : month}</div>
+                    <div style={{ fontSize: "0.72rem", opacity: isSelected ? 0.9 : 0.7, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{dayOfWeek}</div>
+                    <div style={{ fontWeight: 800, fontSize: "1.35rem", margin: "2px 0", lineHeight: 1.15 }}>{dayNum}</div>
+                    <div style={{ fontSize: "0.68rem", opacity: isSelected ? 0.9 : 0.75, fontWeight: 600 }}>{closed ? "Closed" : isToday ? "Today" : month}</div>
                   </div>
                 );
               })}
@@ -1887,7 +1888,7 @@ function BookingPageContent() {
 
               if (closed) {
                 return (
-                  <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 12, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
+                  <div style={{ padding: 24, backgroundColor: "#fef2f2", borderRadius: 14, border: "1px solid #fecaca", textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>🚫</div>
                     <h4 style={{ color: "#991b1b", marginBottom: 4 }}>Facility Closed on This Day</h4>
                     <p style={{ color: "#b91c1c", fontSize: "0.85rem" }}>This facility is not open on this day. Please select a different date.</p>
@@ -1897,7 +1898,7 @@ function BookingPageContent() {
 
               if (dynamicSlots.length === 0) {
                 return (
-                  <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 12, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
+                  <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 14, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
                     <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏰</div>
                     <h4 style={{ color: "#92400e", marginBottom: 4 }}>No Time Slots Available</h4>
                     <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. Please select a different date.</p>
@@ -1905,68 +1906,59 @@ function BookingPageContent() {
                 );
               }
 
-              // Categorise slots
-              const premiumSlots = dynamicSlots.filter((t) => PREMIUM_SLOTS.has(t));
-              // 05:00-06:30,07:30-11:30 → morning; 12:00+ → afternoon
-              const earlyMorningSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) < 7);
-              const morningSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 7 && parseInt(t.split(":")[0]) < 12);
-              const afternoonSlots = dynamicSlots.filter((t) => !PREMIUM_SLOTS.has(t) && parseInt(t.split(":")[0]) >= 12);
+              // Categorise slots strictly into Morning (before 12:00) and Afternoon & Evening (12:00 onwards)
+              // No premium slot surcharge: 06:00, 06:30, 07:00 are standard morning slots
+              const morningSlots = dynamicSlots.filter((t) => {
+                const hour = parseInt(t.split(":")[0], 10);
+                return hour < 12;
+              });
+              const afternoonEveningSlots = dynamicSlots.filter((t) => {
+                const hour = parseInt(t.split(":")[0], 10);
+                return hour >= 12;
+              });
 
               return (
                 <>
-                  {/* Premium Slots (06:00, 06:30, 07:00) */}
-                  {premiumSlots.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: "0.75rem", color: "#7c3aed", marginBottom: 8, fontWeight: 700 }}>
-                        ⭐ Premium Step Collection — ₹99 Extra
+                  {/* Morning Slots (05:00 AM – 11:30 AM) */}
+                  {morningSlots.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{
+                        fontSize: "0.82rem",
+                        color: "var(--cm-navy, #0f172a)",
+                        marginBottom: 10,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}>
+                        <span style={{ fontSize: "1.1rem" }}>🌅</span> Morning Slots (5:00 AM – 11:30 AM)
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8 }}>
-                        {premiumSlots.map((t) => {
-                          const pricing = getSlotPricing(t);
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
+                        {morningSlots.map((t) => {
                           const isSelected = selectedSlot === t;
                           return (
                             <div
                               key={t}
                               style={{
-                                padding: "10px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
-                                fontSize: "0.82rem", fontWeight: 600,
-                                border: isSelected ? "2px solid #7c3aed" : "2px solid #e9d5ff",
-                                backgroundColor: isSelected ? "#f5f3ff" : "#fff",
-                                color: "#5b21b6",
-                                transition: "all 0.15s ease",
-                              }}
-                              onClick={() => { setSelectedSlot(t); setError(""); }}
-                            >
-                              <div>{formatSlotLabel(t)}</div>
-                              {pricing.surcharge > 0 && (
-                                <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "#7c3aed", marginTop: 2 }}>
-                                  +₹{pricing.surcharge}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Early Morning + Morning Slots (05:00–11:30) */}
-                  {(earlyMorningSlots.length > 0 || morningSlots.length > 0) && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>☀️ Morning Slots</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                        {[...earlyMorningSlots, ...morningSlots].map((t) => {
-                          const isSelected = selectedSlot === t;
-                          return (
-                            <div
-                              key={t}
-                              style={{
-                                padding: "8px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
-                                fontSize: "0.82rem", fontWeight: 600,
-                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                                backgroundColor: isSelected ? "#0284c7" : "white",
-                                color: isSelected ? "white" : "#4a5568",
-                                transition: "all 0.15s ease",
+                                padding: "10px 8px",
+                                borderRadius: 10,
+                                textAlign: "center",
+                                cursor: "pointer",
+                                fontSize: "0.85rem",
+                                fontWeight: 700,
+                                border: isSelected
+                                  ? "1.5px solid rgba(255, 255, 255, 0.4)"
+                                  : "1px solid rgba(2, 132, 199, 0.22)",
+                                background: isSelected
+                                  ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
+                                  : "rgba(255, 255, 255, 0.78)",
+                                backdropFilter: "blur(10px)",
+                                WebkitBackdropFilter: "blur(10px)",
+                                color: isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
+                                boxShadow: isSelected
+                                  ? "0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)"
+                                  : "0 2px 6px rgba(2, 132, 199, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+                                transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
                               }}
                               onClick={() => { setSelectedSlot(t); setError(""); }}
                             >
@@ -1978,23 +1970,46 @@ function BookingPageContent() {
                     </div>
                   )}
 
-                  {/* Afternoon/Evening Slots */}
-                  {afternoonSlots.length > 0 && (
+                  {/* Afternoon & Evening Slots (12:00 PM – 8:00 PM) */}
+                  {afternoonEveningSlots.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: "0.75rem", color: "#718096", marginBottom: 8, fontWeight: 600 }}>🌇 Afternoon & Evening Slots</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
-                        {afternoonSlots.map((t) => {
+                      <div style={{
+                        fontSize: "0.82rem",
+                        color: "var(--cm-navy, #0f172a)",
+                        marginBottom: 10,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}>
+                        <span style={{ fontSize: "1.1rem" }}>🌆</span> Afternoon &amp; Evening Slots (12:00 PM – 8:00 PM)
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
+                        {afternoonEveningSlots.map((t) => {
                           const isSelected = selectedSlot === t;
                           return (
                             <div
                               key={t}
                               style={{
-                                padding: "8px 4px", borderRadius: 8, textAlign: "center", cursor: "pointer",
-                                fontSize: "0.82rem", fontWeight: 600,
-                                border: isSelected ? "2px solid #0284c7" : "2px solid #cbd5e1",
-                                backgroundColor: isSelected ? "#0284c7" : "white",
-                                color: isSelected ? "white" : "#4a5568",
-                                transition: "all 0.15s ease",
+                                padding: "10px 8px",
+                                borderRadius: 10,
+                                textAlign: "center",
+                                cursor: "pointer",
+                                fontSize: "0.85rem",
+                                fontWeight: 700,
+                                border: isSelected
+                                  ? "1.5px solid rgba(255, 255, 255, 0.4)"
+                                  : "1px solid rgba(2, 132, 199, 0.22)",
+                                background: isSelected
+                                  ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
+                                  : "rgba(255, 255, 255, 0.78)",
+                                backdropFilter: "blur(10px)",
+                                WebkitBackdropFilter: "blur(10px)",
+                                color: isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
+                                boxShadow: isSelected
+                                  ? "0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)"
+                                  : "0 2px 6px rgba(2, 132, 199, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+                                transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
                               }}
                               onClick={() => { setSelectedSlot(t); setError(""); }}
                             >
@@ -2009,57 +2024,53 @@ function BookingPageContent() {
               );
             })()}
 
-            {/* Total Fee & Summary with slot pricing breakdown */}
-            {selectedDate && selectedSlot && !isDayClosed(selectedDate) && (() => {
-              const pricing = getSlotPricing(selectedSlot);
-              return (
-                <div style={{ padding: 16, backgroundColor: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", marginBottom: 20 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div>
-                      <div style={{ fontWeight: 700, color: "#166534" }}>
-                        📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
-                        {pricing.tier === "premium" && (
-                          <span style={{ marginLeft: 8, fontSize: "0.7rem", backgroundColor: "#7c3aed", color: "white", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>
-                            {pricing.label}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
-                        {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || (selectedTests.length > 0 ? `${selectedTests.length} test(s) selected` : "Appointment")}
-                      </div>
-                      {selectedDoctor && (
-                        <div style={{ marginTop: 4 }}>
-                          <button
-                            type="button"
-                            onClick={() => setCredentialsModalDoc(selectedDoctor)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "#0284c7",
-                              fontSize: "0.75rem",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              padding: 0,
-                            }}
-                          >
-                            <ShieldCheck size={13} /> View Doctor Profile &amp; Tariff Justification
-                          </button>
-                        </div>
-                      )}
-                      {pricing.tier === "premium" && (
-                        <div style={{ fontSize: "0.75rem", color: "#5b21b6", marginTop: 4 }}>
-                          ⭐ Premium slot: +₹{pricing.surcharge} surcharge
-                        </div>
-                      )}
+            {/* Total Fee & Summary (Clean glassmorphic CallMedex layout) */}
+            {selectedDate && selectedSlot && !isDayClosed(selectedDate) && (
+              <div style={{
+                padding: "18px 20px",
+                background: "rgba(240, 253, 244, 0.85)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                borderRadius: 14,
+                border: "1px solid rgba(34, 197, 94, 0.25)",
+                boxShadow: "0 8px 24px -6px rgba(34, 197, 94, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)",
+                marginBottom: 20
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: "#166534", fontSize: "0.95rem" }}>
+                      📅 {selectedDate} at {formatSlotLabel(selectedSlot)}
                     </div>
-                    <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#15803d" }}>₹{fee}</div>
+                    <div style={{ fontSize: "0.82rem", color: "#15803d", marginTop: 3 }}>
+                      {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || (selectedTests.length > 0 ? `${selectedTests.length} test(s) selected` : "Appointment")}
+                    </div>
+                    {selectedDoctor && (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setCredentialsModalDoc(selectedDoctor)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#0284c7",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: 0,
+                          }}
+                        >
+                          <ShieldCheck size={14} /> View Doctor Profile &amp; Tariff Justification
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#15803d" }}>₹{fee}</div>
                 </div>
-              );
-            })()}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 12 }}>
               {/* Lab's step 2 is "Choose Tests" (no centre step); every other
