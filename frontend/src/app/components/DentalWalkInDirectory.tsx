@@ -216,8 +216,8 @@ export default function DentalWalkInDirectory({
 
   return (
     <div
+      className="card cm-panel"
       style={{
-        backgroundColor: "var(--cm-surface)",
         borderRadius: "var(--cm-radius)",
         border: "1px solid var(--cm-line)",
         padding: "24px",
@@ -385,8 +385,10 @@ export default function DentalWalkInDirectory({
                     borderRadius: "9999px",
                     border: isCatActive
                       ? "1px solid var(--cm-navy)"
-                      : "1px solid var(--cm-line)",
-                    background: isCatActive ? "var(--cm-navy)" : "var(--cm-surface)",
+                      : "1px solid rgba(226, 232, 240, 0.8)",
+                    background: isCatActive ? "var(--cm-navy)" : "rgba(255, 255, 255, 0.7)",
+                    backdropFilter: "blur(8px)",
+                    WebkitBackdropFilter: "blur(8px)",
                     color: isCatActive ? "#ffffff" : "var(--cm-ink-2)",
                     fontWeight: 700,
                     fontSize: "0.78rem",
@@ -444,8 +446,10 @@ export default function DentalWalkInDirectory({
                       borderRadius: "9999px",
                       border: isSelected
                         ? "1px solid var(--cm-navy)"
-                        : "1px solid var(--cm-line)",
-                      background: isSelected ? "var(--cm-navy)" : "var(--cm-surface-2)",
+                        : "1px solid rgba(226, 232, 240, 0.8)",
+                      background: isSelected ? "var(--cm-navy)" : "rgba(255, 255, 255, 0.7)",
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
                       color: isSelected ? "#ffffff" : "var(--cm-ink-2)",
                       fontWeight: 700,
                       fontSize: "0.82rem",
@@ -490,9 +494,11 @@ export default function DentalWalkInDirectory({
           {activeService && (
             <div
               style={{
-                backgroundColor: "var(--cm-surface-2)",
+                backgroundColor: "rgba(255, 255, 255, 0.7)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
                 borderRadius: "10px",
-                border: "1px solid var(--cm-line)",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
                 padding: "14px 18px",
                 marginBottom: "20px",
                 display: "flex",
@@ -609,10 +615,14 @@ export default function DentalWalkInDirectory({
                   {sortedOffers.map((offer) => (
                     <div
                       key={offer.provider_id}
+                      className="cm-card cm-card--interactive"
                       style={{
-                        backgroundColor: "var(--cm-surface)",
+                        backgroundColor: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(12px)",
+                        WebkitBackdropFilter: "blur(12px)",
                         borderRadius: "10px",
-                        border: "1px solid var(--cm-line)",
+                        border: "1px solid rgba(255, 255, 255, 0.9)",
+                        boxShadow: "0 4px 16px rgba(2, 132, 199, 0.06)",
                         padding: "16px 20px",
                         display: "flex",
                         justifyContent: "space-between",

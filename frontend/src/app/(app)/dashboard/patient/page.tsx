@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { customConfirm } from "@/lib/customConfirm";
-import DashboardProfile from "../components/DashboardProfile";
+import PatientNavSidebar from "../components/PatientNavSidebar";
+import PatientAIAdvisor from "../components/PatientAIAdvisor";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
@@ -14,7 +15,6 @@ import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { BiomarkerMatrix } from "../components/BiomarkerMatrix";
 import { DoctorBriefingModal } from "../components/DoctorBriefingModal";
 import { FamilySwiperWheel } from "../components/FamilySwiperWheel";
-import { EmergencySOSWidget } from "../components/EmergencySOSWidget";
 import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
@@ -718,22 +718,106 @@ export default function PatientDashboard() {
           >
             {t.bookTest}
           </a>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!await customConfirm(t.emergencyConfirm)) return;
+              try {
+                let lat = 12.9716;
+                let lng = 77.5946;
+                let address = "Emergency Patient Location";
+                try {
+                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    if (!navigator.geolocation) return reject(new Error("no geo"));
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, maximumAge: 60000 });
+                  });
+                  lat = pos.coords.latitude;
+                  lng = pos.coords.longitude;
+                  address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+                } catch {}
+                const res = await dispatchAPI.triggerEmergencySOS({ lat, lng, address, note: "Patient Header 1-Tap SOS" });
+                if (res.data?.success || res.status === 200) {
+                  toast.error("EMERGENCY BEACON BROADCAST: All nearby responders notified.");
+                } else {
+                  toast.error("Emergency alert triggered. Please call 108/112 immediately.");
+                }
+              } catch {
+                toast.error("Emergency alert triggered. Please call 108/112.");
+              }
+            }}
+            style={{
+              padding: "10px 18px", borderRadius: 999, border: "none",
+              background: "var(--cm-urgent)", color: "#ffffff", fontWeight: 800,
+              fontSize: "0.85rem", cursor: "pointer", display: "inline-flex",
+              alignItems: "center", gap: 6,
+              boxShadow: "0 2px 10px rgba(220, 38, 38, 0.35)",
+            }}
+          >
+            <AlertTriangle size={15} /> Emergency SOS
+          </button>
         </>
       }
     >
 
-        {/* ── Patient Dashboard Upgrade Subsystems ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
-          {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && <FamilySwiperWheel lang={lang} />}
-          {FEATURE_FLAGS.ENABLE_EMERGENCY_SOS && <EmergencySOSWidget lang={lang} />}
-          {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && <BiomarkerMatrix lang={lang} />}
-          {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && <MedicineCabinetGrid lang={lang} />}
-          {/* Cold-chain radar is sample-collection kit: it shows a carrier-box
-              temperature, so it must not render over a physiotherapy or
-              dietetics visit. And `patientOtp || "4829"` printed a FAKE
-              verification PIN over a real dispatch for the whole window before
-              the provider marked themselves arrived — the patient reads that
-              out, the provider's verify-OTP rejects it, and the visit stalls. */}
+      {/* ── Two-Column Layout: Left Sticky Navigation + Main Dashboard Content ── */}
+      <div className="cm-patient-layout">
+        <aside className="cm-patient-sidebar">
+          <PatientNavSidebar />
+        </aside>
+
+        <main className="cm-patient-content">
+          {/* Modern KPI Stats — Top of Dashboard */}
+          <div className="cm-kpi-grid">
+            <div className="cm-kpi-card">
+              <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
+              <div>
+                <div className="cm-kpi-card__label">{t.kpi.upcoming}</div>
+                <div className="cm-kpi-card__value">{upcomingCount}</div>
+                <div className="cm-kpi-card__subtitle">{t.kpi.upcomingSub}</div>
+              </div>
+              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+                <Clinical3DIcon name="calendar" size={36} glow />
+              </div>
+            </div>
+
+            <div className="cm-kpi-card">
+              <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
+              <div>
+                <div className="cm-kpi-card__label">{t.kpi.completed}</div>
+                <div className="cm-kpi-card__value">{completedCount}</div>
+                <div className="cm-kpi-card__subtitle">{t.kpi.completedSub}</div>
+              </div>
+              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+                <Clinical3DIcon name="check" size={36} glow />
+              </div>
+            </div>
+
+            <div className="cm-kpi-card">
+              <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
+              <div>
+                <div className="cm-kpi-card__label">{t.kpi.prescriptions}</div>
+                <div className="cm-kpi-card__value">0</div>
+                <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
+              </div>
+              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+                <Clinical3DIcon name="pill" size={36} glow />
+              </div>
+            </div>
+
+            <div className="cm-kpi-card">
+              <div className="cm-kpi-card__accent" />
+              <div>
+                <div className="cm-kpi-card__label">{t.kpi.records}</div>
+                <div className="cm-kpi-card__value">0</div>
+                <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
+              </div>
+              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
+                <Clinical3DIcon name="chart" size={36} glow />
+              </div>
+            </div>
+          </div>
+
+          {/* Phlebotomist Cold-Chain Radar */}
           {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && trackingData
             && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"]
               .includes(trackingData.status)
@@ -749,12 +833,31 @@ export default function PatientDashboard() {
               otpPin={patientOtp ?? undefined}
             />
           )}
-        </div>
 
-        {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
-        <div style={{ marginBottom: 24 }}>
+          {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
           <SampleStatusRail lang={lang} />
-        </div>
+
+          {/* ── AI Preventive Care Advisor (OpenRouter AI) ────── */}
+          <PatientAIAdvisor />
+
+          {/* ── Patient Dashboard Upgrade Subsystems ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && (
+              <div id="family-circle">
+                <FamilySwiperWheel lang={lang} />
+              </div>
+            )}
+            {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && (
+              <div id="biomarkers">
+                <BiomarkerMatrix lang={lang} />
+              </div>
+            )}
+            {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && (
+              <div id="medicine-cabinet">
+                <MedicineCabinetGrid lang={lang} />
+              </div>
+            )}
+          </div>
 
         {/* Industry-First Features Quick-Action Bar */}
         <div className="cm-action-rail" style={{ marginBottom: 24 }}>
@@ -1151,57 +1254,6 @@ export default function PatientDashboard() {
           );
         })()}
 
-        {/* Modern KPI Stats */}
-        <div className="cm-kpi-grid">
-          <div className="cm-kpi-card">
-            <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
-            <div>
-              <div className="cm-kpi-card__label">{t.kpi.upcoming}</div>
-              <div className="cm-kpi-card__value">{upcomingCount}</div>
-              <div className="cm-kpi-card__subtitle">{t.kpi.upcomingSub}</div>
-            </div>
-            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-              <Clinical3DIcon name="calendar" size={36} glow />
-            </div>
-          </div>
-
-          <div className="cm-kpi-card">
-            <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
-            <div>
-              <div className="cm-kpi-card__label">{t.kpi.completed}</div>
-              <div className="cm-kpi-card__value">{completedCount}</div>
-              <div className="cm-kpi-card__subtitle">{t.kpi.completedSub}</div>
-            </div>
-            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-              <Clinical3DIcon name="check" size={36} glow />
-            </div>
-          </div>
-
-          <div className="cm-kpi-card">
-            <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
-            <div>
-              <div className="cm-kpi-card__label">{t.kpi.prescriptions}</div>
-              <div className="cm-kpi-card__value">0</div>
-              <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
-            </div>
-            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-              <Clinical3DIcon name="pill" size={36} glow />
-            </div>
-          </div>
-
-          <div className="cm-kpi-card">
-            <div className="cm-kpi-card__accent" />
-            <div>
-              <div className="cm-kpi-card__label">{t.kpi.records}</div>
-              <div className="cm-kpi-card__value">0</div>
-              <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
-            </div>
-            <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-              <Clinical3DIcon name="chart" size={36} glow />
-            </div>
-          </div>
-        </div>
-
         {/* Slot Allotment Notifications */}
         {allottedBookings.length > 0 && (
           <div style={{ marginBottom: 20 }}>
@@ -1272,14 +1324,15 @@ export default function PatientDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.35rem", color: "var(--cm-ink)", fontWeight: 800 }}>
-            {t.quickActions.title}
-          </h3>
-          <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
-            {t.quickActions.subtitle}
-          </span>
-        </div>
+        <div id="quick-actions">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.35rem", color: "var(--cm-ink)", fontWeight: 800 }}>
+              {t.quickActions.title}
+            </h3>
+            <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
+              {t.quickActions.subtitle}
+            </span>
+          </div>
 
         <div className="cm-quick-grid">
           {/* Urgent Home Collection */}
@@ -1465,7 +1518,7 @@ export default function PatientDashboard() {
             <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
               <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="sparkles" size={50} glow />
+                <Clinical3DIcon name="ai-report" size={50} glow />
               </div>
               <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
               <p className="cm-quick-card__subtitle">
@@ -1481,12 +1534,12 @@ export default function PatientDashboard() {
           <button
             type="button"
             onClick={() => {
-              const el = document.getElementById("dental-directory-section");
+              const el = document.getElementById("dental-clinics");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
             className="cm-quick-card"
           >
-            <div className="cm-quick-card__stripe" style={{ background: "#0ea5e9" }} />
+            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
             <div>
               <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
                 <Clinical3DIcon name="dental" size={50} glow />
@@ -1496,31 +1549,37 @@ export default function PatientDashboard() {
                 19 Canonical procedures: RCT, scaling, crowns &amp; oral surgery.
               </p>
             </div>
-            <span className="cm-quick-card__tag" style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd" }}>
+            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
               100% Walk-In Only
             </span>
           </button>
         </div>
+      </div>
 
         {/* Radiology & Diagnostic Imaging Centers (MRI, CT, Scans, CBC) */}
-        <RadiologyCentersSection onBookingCreated={refreshBookings} lang={lang} />
+        <div id="radiology-diagnostics">
+          <RadiologyCentersSection onBookingCreated={refreshBookings} lang={lang} />
+        </div>
 
         {/* Dental Practice & Oral Care Walk-In Directory (19 Canonical Procedures) */}
-        <div id="dental-directory-section">
+        <div id="dental-clinics">
           <DentalWalkInDirectory onBookingCreated={refreshBookings} lang={lang} />
         </div>
 
         {/* Family Members */}
-        <FamilyMembersPanel />
+        <div id="family-circle">
+          <FamilyMembersPanel />
+        </div>
 
         {/* Recent Bookings */}
-        <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.bookings.title}</h3>
+        <div id="recent-bookings">
+          <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.bookings.title}</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {loading ? (
-            <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)" }}>{t.bookings.loading}</div>
+            <div className="cm-booking-glass-card card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)", justifyContent: "center" }}>{t.bookings.loading}</div>
           ) : bookings?.length > 0 ? (
             bookings.map((booking: any) => (
-              <div key={booking.id} className="card" style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)" }}>
+              <div key={booking.id} className="cm-booking-glass-card card">
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 10,
@@ -1622,6 +1681,7 @@ export default function PatientDashboard() {
             </a>
           )}
         </div>
+      </div>
 
         {/* Health Records Placeholder */}
         <div className="card" style={{ marginTop: 32, padding: 32, textAlign: "center", border: abhaLinkedNumber ? "2px solid var(--cm-done-line)" : "2px dashed var(--cm-line)", backgroundColor: abhaLinkedNumber ? "var(--cm-done-surface)" : "var(--cm-surface)" }}>
@@ -1648,8 +1708,8 @@ export default function PatientDashboard() {
           )}
         </div>
 
-        {/* ─── Profile Details ─── */}
-        <DashboardProfile profile={profile} role="patient" />
+        </main>
+      </div>
     </DashboardShell>
 
       {showAbhaModal && (
@@ -1749,71 +1809,7 @@ export default function PatientDashboard() {
         </div>
       )}
 
-      {/* Floating Emergency SOS Button */}
-      <button
-        className="sos-floating-btn"
-        onClick={async () => {
-          if (!await customConfirm(t.emergencyConfirm)) return;
 
-          try {
-            // Get actual GPS coordinates from the browser
-            let lat: number;
-            let lng: number;
-            let address = "Emergency Location";
-
-            try {
-              const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                if (!navigator.geolocation) {
-                  reject(new Error("Geolocation not available"));
-                  return;
-                }
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                  enableHighAccuracy: true,
-                  timeout: 10000,
-                  maximumAge: 60000,
-                });
-              });
-              lat = position.coords.latitude;
-              lng = position.coords.longitude;
-              address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-            } catch (geoErr) {
-              // Geolocation failed — prompt user for manual input
-              const manualLat = prompt("Could not get your GPS location. Please enter your latitude:");
-              const manualLng = prompt("Please enter your longitude:");
-              if (!manualLat || !manualLng) {
-                toast("Emergency SOS cancelled — location is required.");
-                return;
-              }
-              lat = parseFloat(manualLat);
-              lng = parseFloat(manualLng);
-              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-                toast("Invalid coordinates. Emergency SOS cancelled.");
-                return;
-              }
-              address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-            }
-
-            const token = localStorage.getItem("token");
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/emergency-sos`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({ lat, lng, address }),
-            });
-            const data = await res.json();
-            if (res.ok && data.dispatch_id) {
-              localStorage.setItem("activeDispatchId", data.dispatch_id);
-              setActiveDispatchId(data.dispatch_id);
-              toast(data.message || "EMERGENCY BEACON DISPATCHED!");
-            } else {
-              toast(data.detail || data.message || "Failed to send emergency SOS. Please call emergency services directly.");
-            }
-          } catch (e) {
-            toast("Failed to send emergency SOS. Please call emergency services directly (108 for ambulance).");
-          }
-        }}
-      >
-        <AlertTriangle size={14} /> {t.emergencySOSBtn}
-      </button>
 
       {/* Industry-First Feature Modals */}
       <AIVoiceIntakeModal

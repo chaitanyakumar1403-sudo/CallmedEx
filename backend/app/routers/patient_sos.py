@@ -35,6 +35,8 @@ class MedicationIn(BaseModel):
     remaining_pills: int
     pills_per_day: int = 1
     refill_date: Optional[str] = None
+    reminder_frequency: Optional[str] = "once_daily"
+    reminder_times: Optional[List[str]] = Field(default_factory=list)
 
 
 @router.post("/sos/trigger")
@@ -241,6 +243,16 @@ def _project_supply(med: dict) -> dict:
     # Refill under five days, matching the badge the dashboard shows.
     out["needs_refill"] = days_left is not None and days_left <= 5
     out["out_of_stock"] = projected == 0
+
+    if not out.get("reminder_frequency"):
+        out["reminder_frequency"] = "twice_daily" if per_day == 2 else "thrice_daily" if per_day == 3 else "once_daily"
+    if not out.get("reminder_times"):
+        if out["reminder_frequency"] == "twice_daily":
+            out["reminder_times"] = ["09:00", "21:00"]
+        elif out["reminder_frequency"] == "thrice_daily":
+            out["reminder_times"] = ["08:00", "14:00", "20:00"]
+        else:
+            out["reminder_times"] = ["09:00"]
     return out
 
 
@@ -361,11 +373,26 @@ async def add_patient_medication(
                 supabase.table("patient_medications").insert(data).execute()
             )
         except Exception as retry_exc:
-            # Returning status "created" on a failed insert told the patient
-            # their prescription was saved and then lost it -- they stop
-            # tracking a medicine they believe the app is watching.
-            logger.error(f"Error inserting patient medication: {retry_exc}")
-            raise HTTPException(503, "Could not save this medication. Please retry.")
+            logger.warning(f"Medication insert with reminder columns failed ({retry_exc}); retrying with core columns.")
+            try:
+                core_data = {
+                    "patient_id": account_id,
+                    "medicine_name": payload.medicine_name,
+                    "dosage": payload.dosage,
+                    "total_pills": payload.total_pills,
+                    "remaining_pills": payload.remaining_pills,
+                    "pills_per_day": payload.pills_per_day,
+                    "refill_date": payload.refill_date,
+                }
+                created = _rows(
+                    supabase.table("patient_medications").insert(core_data).execute()
+                )
+                if created:
+                    created[0]["reminder_frequency"] = payload.reminder_frequency
+                    created[0]["reminder_times"] = payload.reminder_times
+            except Exception as final_exc:
+                logger.error(f"Error inserting patient medication: {final_exc}")
+                raise HTTPException(503, "Could not save this medication. Please retry.")
 
     if not created:
         raise HTTPException(503, "Could not save this medication. Please retry.")

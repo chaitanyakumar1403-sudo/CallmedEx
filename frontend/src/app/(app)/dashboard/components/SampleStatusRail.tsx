@@ -10,24 +10,29 @@
  *   3. Verified
  *   4. Sent to Reference Lab
  *
- * Each tube gets its own rail. Rejected tubes show a red "Rejected" badge.
+ * Each tube gets its own rail. Cancelled tubes are strictly omitted.
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Icon } from "@/components/ui";
 import {
-  Clock, TestTube, Truck, ShieldCheck, FlaskConical, XCircle,
+  Clock, TestTube, Truck, ShieldCheck, FlaskConical, XCircle, Activity
 } from "@/components/ui/icons";
 import { patientSamplesAPI } from "@/lib/api";
 import { PATIENT_TRANSLATIONS, PatientLang } from "../patient/patientTranslations";
 
-const TUBE_COLOURS: Record<string, string> = {
-  lavender: "#9b59b6", gold: "#f39c12", blue: "#3498db",
-  grey: "#95a5a6", red: "#e74c3c", green: "#2ecc71", yellow: "#f1c40f",
+const TUBE_COLOURS: Record<string, { bg: string; border: string; text: string }> = {
+  lavender: { bg: "rgba(168, 85, 247, 0.15)", border: "rgba(168, 85, 247, 0.4)", text: "var(--cm-ink)" },
+  gold: { bg: "rgba(245, 158, 11, 0.15)", border: "rgba(245, 158, 11, 0.4)", text: "var(--cm-ink)" },
+  blue: { bg: "rgba(14, 165, 233, 0.15)", border: "rgba(14, 165, 233, 0.4)", text: "var(--cm-ink)" },
+  grey: { bg: "rgba(148, 163, 184, 0.15)", border: "rgba(148, 163, 184, 0.4)", text: "var(--cm-ink)" },
+  red: { bg: "rgba(239, 68, 68, 0.15)", border: "rgba(239, 68, 68, 0.4)", text: "var(--cm-ink)" },
+  green: { bg: "rgba(16, 185, 129, 0.15)", border: "rgba(16, 185, 129, 0.4)", text: "var(--cm-ink)" },
+  yellow: { bg: "rgba(234, 179, 8, 0.15)", border: "rgba(234, 179, 8, 0.4)", text: "var(--cm-ink)" },
 };
 
-function capToHex(cap: string): string {
-  return TUBE_COLOURS[(cap || "").toLowerCase().trim()] || "#94a3b8";
+function getTubeStyle(cap: string) {
+  const key = (cap || "").toLowerCase().trim();
+  return TUBE_COLOURS[key] || { bg: "var(--cm-surface-2)", border: "var(--cm-line)", text: "var(--cm-ink)" };
 }
 
 function getSteps(lang: PatientLang = 'en') {
@@ -51,33 +56,30 @@ function StepDot({
 }) {
   const done = currentStep > step;
   const active = currentStep === step;
-  const pending = currentStep < step;
 
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
-      flex: 1, position: "relative",
+      flex: 1, position: "relative", zIndex: 1,
     }}>
       <div style={{
-        width: 34, height: 34, borderRadius: "50%",
+        width: 36, height: 36, borderRadius: "50%",
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: done ? "#16a34a"
-          : active ? "#1a2b4a"
-          : "#e2e8f0",
-        color: done || active ? "#fff" : "#94a3b8",
+        background: done ? "var(--cm-done)"
+          : active ? "var(--cm-active)"
+          : "var(--cm-surface-2)",
+        color: done || active ? "#ffffff" : "var(--cm-ink-3)",
         fontWeight: 700, fontSize: "0.75rem",
-        border: active ? "3px solid #3b82f6" : "3px solid transparent",
-        boxShadow: active ? "0 0 0 4px rgba(59, 130, 246, 0.2)" : "none",
-        transition: "all 0.4s ease",
-        animation: active ? "pulse 2s infinite" : "none",
+        border: active ? "3px solid var(--cm-accent)" : "3px solid transparent",
+        boxShadow: active ? "0 0 0 4px rgba(2, 132, 199, 0.2)" : "none",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
       }}>
-        <Icon as={StepIcon} size={16} />
+        <StepIcon size={16} />
       </div>
       <span style={{
-        fontSize: "0.68rem", fontWeight: done || active ? 700 : 500,
-        color: done ? "#16a34a" : active ? "#1a2b4a" : "#94a3b8",
-        marginTop: 6, textAlign: "center", lineHeight: 1.2,
-        transition: "color 0.3s",
+        fontSize: "0.72rem", fontWeight: active ? 800 : done ? 600 : 500,
+        color: active ? "var(--cm-ink)" : done ? "var(--cm-ink-2)" : "var(--cm-ink-3)",
+        marginTop: 6, textAlign: "center", maxWidth: 90, lineHeight: 1.25,
       }}>
         {label}
       </span>
@@ -88,94 +90,83 @@ function StepDot({
 function ConnectorLine({ done }: { done: boolean }) {
   return (
     <div style={{
-      flex: 1, height: 3, marginTop: 16,
-      background: done
-        ? "linear-gradient(90deg, #16a34a, #22c55e)"
-        : "#e2e8f0",
-      borderRadius: 999,
-      transition: "background 0.4s ease",
-      minWidth: 20,
+      flex: 1, height: 3, marginTop: 17,
+      background: done ? "var(--cm-done)" : "var(--cm-line)",
+      borderRadius: 2,
+      transition: "background 0.3s ease",
     }} />
   );
 }
 
 function SampleRail({ sample, lang = 'en' }: { sample: any; lang?: PatientLang }) {
-  const isRejected = sample.stage === "rejected";
-  const currentStep = isRejected ? -1 : (sample.step ?? 0);
+  const currentStep = sample.step ?? 0;
+  const isRejected = sample.status === "rejected";
+  const tubeStyle = getTubeStyle(sample.cap_colour);
   const steps = getSteps(lang);
 
   return (
     <div
       className="card"
       style={{
-        padding: 16,
-        borderLeft: isRejected
-          ? "4px solid #dc2626"
-          : `4px solid ${capToHex(sample.cap_colour)}`,
+        padding: "16px 20px",
+        borderRadius: "var(--cm-radius)",
+        border: "1px solid var(--cm-line)",
+        borderLeft: `5px solid ${sample.cap_colour ? (sample.cap_colour === 'gold' ? 'var(--cm-amber)' : sample.cap_colour === 'lavender' ? 'var(--cm-purple)' : 'var(--cm-active)') : 'var(--cm-active)'}`,
       }}
     >
-      {/* Tube info */}
+      {/* Tube & Test Header */}
       <div style={{
-        display: "flex", justifyContent: "space-between",
-        alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        marginBottom: 16, flexWrap: "wrap", gap: 8,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {sample.cap_colour && (
-            <div style={{
-              width: 18, height: 18, borderRadius: "50%",
-              background: capToHex(sample.cap_colour),
-              border: "2px solid #fff",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-            }} />
-          )}
-          <span style={{ fontWeight: 700, fontSize: "0.88rem", color: "#0f172a" }}>
-            {sample.tube_name || "Unknown tube"}
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "4px 10px", borderRadius: 999,
+            background: tubeStyle.bg, border: `1px solid ${tubeStyle.border}`,
+            fontSize: "0.78rem", fontWeight: 700, color: tubeStyle.text,
+          }}>
+            <TestTube size={13} />
+            {sample.tube_name || sample.expected_tube_type_code || "Specimen"}
+            {sample.cap_colour ? ` (${sample.cap_colour})` : ""}
           </span>
-          {sample.barcode && (
-            <span style={{
-              fontFamily: "monospace", fontSize: "0.78rem",
-              color: "#64748b", marginLeft: 4,
-            }}>
-              {sample.barcode}
+          {sample.subject_name && (
+            <span style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
+              for {sample.subject_name}
             </span>
           )}
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {(sample.test_names || []).map((t: string, i: number) => (
-            <span
-              key={i}
-              style={{
-                padding: "2px 10px", borderRadius: 999,
-                background: "#f0f9ff", border: "1px solid #bfdbfe",
-                fontSize: "0.72rem", fontWeight: 600, color: "#1e40af",
-              }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
+
+        {/* Tests in this tube */}
+        {sample.test_names && sample.test_names.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {sample.test_names.map((name: string, i: number) => (
+              <span key={i} style={{
+                fontSize: "0.72rem", padding: "2px 8px", borderRadius: 4,
+                background: "var(--cm-surface-2)", color: "var(--cm-ink-2)",
+                border: "1px solid var(--cm-line)", fontWeight: 600,
+              }}>
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {sample.subject_name && (
-        <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: 10 }}>
-          Patient: <span style={{ fontWeight: 600 }}>{sample.subject_name}</span>
-        </div>
-      )}
-
-      {/* Progress rail */}
+      {/* 5-Step Stepper */}
       {isRejected ? (
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
-          padding: "10px 14px", borderRadius: 8,
-          background: "#fef2f2", border: "1px solid #fca5a5",
+          padding: "10px 16px", borderRadius: "var(--cm-radius)",
+          background: "var(--cm-urgent-surface)", border: "1px solid var(--cm-urgent-line)",
         }}>
-          <Icon as={XCircle} size={16} />
-          <span style={{ fontWeight: 700, color: "#991b1b" }}>
-            Sample Rejected
+          <XCircle size={16} style={{ color: "var(--cm-urgent)" }} />
+          <span style={{ fontWeight: 700, color: "var(--cm-urgent)", fontSize: "0.85rem" }}>
+            Sample Specimen Requires Recollection
           </span>
         </div>
       ) : (
-        <div style={{ display: "flex", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", position: "relative" }}>
           {steps.map((s, i) => (
             <div key={i} style={{ display: "contents" }}>
               <StepDot step={i} currentStep={currentStep} label={s.label} icon={s.icon} />
@@ -185,14 +176,15 @@ function SampleRail({ sample, lang = 'en' }: { sample: any; lang?: PatientLang }
         </div>
       )}
 
-      {/* Current status label */}
+      {/* Current status indicator */}
       {!isRejected && (
         <div style={{
-          textAlign: "center", marginTop: 12,
+          textAlign: "center", marginTop: 14,
           fontSize: "0.82rem", fontWeight: 700,
-          color: currentStep >= 4 ? "#16a34a" : "#1a2b4a",
+          color: currentStep >= 4 ? "var(--cm-done)" : "var(--cm-navy)",
+          letterSpacing: "0.02em",
         }}>
-          {sample.step_label || "Processing"}
+          {sample.step_label || "Processing in Lab Workflow"}
         </div>
       )}
     </div>
@@ -207,17 +199,14 @@ export default function SampleStatusRail({ lang = 'en' }: { lang?: PatientLang }
   const load = useCallback(async () => {
     try {
       const data = await patientSamplesAPI.getMySamples();
-      // The endpoint doubles as the "My Reports" inbox, so it returns finished
-      // and cancelled tubes too. Those belong in the reports list, not on a
-      // live progress rail — they used to render here as "Pending Collection"
-      // forever, so a test cancelled months ago still looked like a collection
-      // on its way.
       const all = data.samples || [];
-      setSamples(
-        all.filter((s: any) =>
-          s.is_active ?? !["cancelled", "completed", "delivered", "failed"].includes(s.status),
-        ),
+      // Cancelled, rejected, failed, and delivered tests must NOT appear on the live progress rail
+      const activeSamples = all.filter((s: any) =>
+        s.is_active === true &&
+        !["cancelled", "completed", "delivered", "failed", "rejected"].includes(s.status) &&
+        !["cancelled", "rejected", "failed"].includes(s.stage)
       );
+      setSamples(activeSamples);
     } catch {
       // Silent fail — the section simply won't show
     } finally {
@@ -229,8 +218,8 @@ export default function SampleStatusRail({ lang = 'en' }: { lang?: PatientLang }
 
   if (loading) {
     return (
-      <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
-        Loading sample status…
+      <div id="sample-tracking" style={{ padding: 20, textAlign: "center", color: "var(--cm-ink-3)" }}>
+        Loading live sample status…
       </div>
     );
   }
@@ -238,20 +227,23 @@ export default function SampleStatusRail({ lang = 'en' }: { lang?: PatientLang }
   if (samples.length === 0) return null;
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); }
-          50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1); }
-        }
-      `}</style>
-
-      <h3 style={{
-        margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a",
-        display: "flex", alignItems: "center", gap: 8,
-      }}>
-        <Icon as={TestTube} size={16} /> {t.sampleStatusTitle}
-      </h3>
+    <div id="sample-tracking" style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h3 style={{
+          margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--cm-ink)",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <Activity size={18} style={{ color: "var(--cm-active)" }} />
+          {t.sampleStatusTitle}
+        </h3>
+        <span style={{
+          fontSize: "0.75rem", fontWeight: 700,
+          background: "var(--cm-active-surface)", color: "var(--cm-active)",
+          border: "1px solid var(--cm-active-line)", padding: "2px 10px", borderRadius: 999,
+        }}>
+          {samples.length} Active {samples.length === 1 ? "Tube" : "Tubes"}
+        </span>
+      </div>
 
       {samples.map((s) => (
         <SampleRail key={s.id} sample={s} lang={lang} />

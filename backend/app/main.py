@@ -329,9 +329,10 @@ from app.routers import phlebo_stats
 app.include_router(phlebo_stats.router)
 from app.routers import mediassist_inbound
 app.include_router(mediassist_inbound.router)
-from app.routers import patient_health, patient_sos
+from app.routers import patient_health, patient_sos, patient_ai
 app.include_router(patient_health.router)
 app.include_router(patient_sos.router)
+app.include_router(patient_ai.router)
 from app.routers import device_tokens
 app.include_router(device_tokens.router)
 from app.routers import patient_handoff

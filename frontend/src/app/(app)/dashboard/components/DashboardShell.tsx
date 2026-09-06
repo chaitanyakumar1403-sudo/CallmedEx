@@ -27,7 +27,7 @@ export type DashRole =
  * a lab technician all read their screen indoors at a desk.
  *
  * Adding a dashboard to the treatment is one entry here. */
-const GLASS_ROLES = new Set(["doctor", "organization", "processing_center"]);
+const GLASS_ROLES = new Set(["doctor", "organization", "processing_center", "patient"]);
 
 export default function DashboardShell({
   role, title, subtitle, aside, tabs, activeTab, onTabChange, children,

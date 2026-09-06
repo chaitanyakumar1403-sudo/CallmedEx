@@ -183,6 +183,156 @@ const JOINT_NODES: [number, number][] = [
 ];
 const DENTITION: [number, number][] = [[112, 0], [116, 1.0], [120, 1.4], [124, 1.0], [128, 0]];
 
+function Organ3DInteractiveEmblem({ id }: { id: string }) {
+  switch (id) {
+    case "heart":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(225, 29, 72, 0.45))" }}>
+            <defs>
+              <linearGradient id="org-heart-grad" x1="8" y1="10" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#fda4af" />
+                <stop offset="35%" stopColor="#f43f5e" />
+                <stop offset="85%" stopColor="#be123c" />
+                <stop offset="100%" stopColor="#881337" />
+              </linearGradient>
+              <linearGradient id="org-aorta" x1="18" y1="4" x2="30" y2="16" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ef4444" />
+                <stop offset="100%" stopColor="#991b1b" />
+              </linearGradient>
+            </defs>
+            <path d="M22 6C22 4 26 4 26 6V14H22V6Z" fill="url(#org-aorta)" />
+            <path d="M27 7C27 5.5 30 5.5 30 7V13H27V7Z" fill="url(#org-aorta)" />
+            <path
+              d="M24 14C27 10 34 9 38 14C43 20 42 28 36 34L24 44L12 34C6 28 5 20 10 14C14 9 21 10 24 14Z"
+              fill="url(#org-heart-grad)"
+              stroke="#ffffff"
+              strokeWidth="1.2"
+              strokeOpacity="0.4"
+            />
+            <ellipse cx="14" cy="18" rx="4.5" ry="2.5" fill="#ffffff" fillOpacity="0.55" transform="rotate(-30 14 18)" />
+            <path d="M24 17C26 22 28 27 31 32M27 24L30 25" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" strokeOpacity="0.65" />
+          </svg>
+        </div>
+      );
+    case "head":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(99, 102, 241, 0.45))" }}>
+            <defs>
+              <linearGradient id="org-brain-grad" x1="10" y1="8" x2="38" y2="42" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#c7d2fe" />
+                <stop offset="35%" stopColor="#818cf8" />
+                <stop offset="85%" stopColor="#4f46e5" />
+                <stop offset="100%" stopColor="#312e81" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M24 10C16 10 10 16 10 24C10 30 14 36 21 38V42H27V38C34 36 38 30 38 24C38 16 32 10 24 10Z"
+              fill="url(#org-brain-grad)"
+              stroke="#ffffff"
+              strokeWidth="1.2"
+              strokeOpacity="0.4"
+            />
+            <path
+              d="M17 18C20 16 23 20 20 23C17 26 21 30 24 28C27 26 31 30 28 33M31 18C28 16 25 20 28 23"
+              stroke="#ffffff"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeOpacity="0.7"
+            />
+            <circle cx="16" cy="15" r="2" fill="#ffffff" fillOpacity="0.75" />
+            <circle cx="32" cy="15" r="2" fill="#ffffff" fillOpacity="0.75" />
+          </svg>
+        </div>
+      );
+    case "lungs":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(14, 165, 233, 0.45))" }}>
+            <defs>
+              <linearGradient id="org-lungs-grad" x1="10" y1="12" x2="38" y2="44" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#bae6fd" />
+                <stop offset="40%" stopColor="#38bdf8" />
+                <stop offset="85%" stopColor="#0284c7" />
+                <stop offset="100%" stopColor="#075985" />
+              </linearGradient>
+            </defs>
+            <path d="M24 6V18M21 9H27M21 13H27" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M22 19C15 20 10 26 10 34C10 40 16 42 21 41C23 41 23 37 23 32L22 19Z" fill="url(#org-lungs-grad)" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.5" />
+            <path d="M26 19C33 20 38 26 38 34C38 40 32 42 27 41C25 41 25 37 25 32L26 19Z" fill="url(#org-lungs-grad)" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.5" />
+            <ellipse cx="16" cy="27" rx="2.5" ry="5" fill="#ffffff" fillOpacity="0.45" />
+            <ellipse cx="32" cy="27" rx="2.5" ry="5" fill="#ffffff" fillOpacity="0.45" />
+          </svg>
+        </div>
+      );
+    case "abdomen":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(124, 58, 237, 0.45))" }}>
+            <defs>
+              <linearGradient id="org-liver-grad" x1="12" y1="12" x2="36" y2="40" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ddd6fe" />
+                <stop offset="40%" stopColor="#a78bfa" />
+                <stop offset="85%" stopColor="#7c3aed" />
+                <stop offset="100%" stopColor="#4c1d95" />
+              </linearGradient>
+            </defs>
+            <path d="M24 14C14 14 10 18 10 26C10 34 16 38 28 38C34 38 38 34 38 28C38 20 32 14 24 14Z" fill="url(#org-liver-grad)" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.4" />
+            <ellipse cx="18" cy="22" rx="4" ry="2" fill="#ffffff" fillOpacity="0.5" transform="rotate(-15 18 22)" />
+            <path d="M20 28C24 30 28 29 32 26" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.6" />
+          </svg>
+        </div>
+      );
+    case "dental":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(13, 148, 136, 0.45))" }}>
+            <defs>
+              <linearGradient id="org-tooth-grad" x1="14" y1="10" x2="34" y2="42" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#ffffff" />
+                <stop offset="40%" stopColor="#ccfbf1" />
+                <stop offset="85%" stopColor="#14b8a6" />
+                <stop offset="100%" stopColor="#0f766e" />
+              </linearGradient>
+            </defs>
+            <path d="M16 12C12 12 10 16 10 21C10 27 14 31 16 36C18 39 19 44 21 44C22 44 23 42 24 38C25 42 26 44 27 44C29 44 30 39 32 36C34 31 38 27 38 21C38 16 36 12 32 12C28 12 26 15 24 16C22 15 20 12 16 12Z" fill="url(#org-tooth-grad)" stroke="#0d9488" strokeWidth="1.2" />
+            <ellipse cx="17" cy="18" rx="4" ry="2.5" fill="#ffffff" fillOpacity="0.75" />
+          </svg>
+        </div>
+      );
+    case "eyes":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(2, 132, 199, 0.45))" }}>
+            <ellipse cx="24" cy="24" rx="18" ry="12" fill="#ffffff" stroke="#38bdf8" strokeWidth="2" />
+            <circle cx="24" cy="24" r="8" fill="#0284c7" />
+            <circle cx="24" cy="24" r="4" fill="#0f172a" />
+            <circle cx="22" cy="21" r="2" fill="#ffffff" />
+          </svg>
+        </div>
+      );
+    case "ent":
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(217, 119, 6, 0.45))" }}>
+            <path d="M22 10C16 10 12 15 12 22C12 28 16 31 18 34C20 37 20 40 22 41C24 41 25 39 25 36C25 32 21 29 21 24C21 18 24 15 28 15C32 15 34 18 34 22" stroke="#d97706" strokeWidth="2.8" strokeLinecap="round" />
+            <circle cx="28" cy="23" r="3" fill="#f59e0b" />
+          </svg>
+        </div>
+      );
+    default:
+      return (
+        <div style={{ width: 44, height: 44, position: "relative", display: "grid", placeItems: "center" }}>
+          <svg width="40" height="40" viewBox="0 0 48 48" fill="none" style={{ filter: "drop-shadow(0 4px 10px rgba(219, 39, 119, 0.45))" }}>
+            <circle cx="24" cy="24" r="16" fill="#f472b6" stroke="#ffffff" strokeWidth="1.5" />
+            <circle cx="24" cy="24" r="6" stroke="#ffffff" strokeWidth="2" fill="none" />
+          </svg>
+        </div>
+      );
+  }
+}
+
 export default function InteractiveBodyMap() {
   const router = useRouter();
   const [selectedOrgan, setSelectedOrgan] = useState<string>("heart");
@@ -215,17 +365,26 @@ export default function InteractiveBodyMap() {
   };
 
   return (
-    <div className="cm-panel" style={{ background: "var(--cm-surface)", border: "1px solid var(--cm-line)", boxShadow: "var(--cm-shadow-1)" }}>
+    <div id="interactive-twin" className="cm-panel" style={{
+      background: "linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 249, 255, 0.72) 100%)",
+      border: "1px solid rgba(255, 255, 255, 0.85)",
+      boxShadow: "0 16px 40px -8px rgba(2, 132, 199, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
+      backdropFilter: "blur(20px) saturate(180%)",
+      WebkitBackdropFilter: "blur(20px) saturate(180%)",
+    }}>
       {/* Header Bar with clinical telemetry badge */}
       <div className="cm-row-between" style={{ marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: "var(--cm-3)" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
             <span style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 34, height: 34, borderRadius: "var(--cm-radius)", background: "var(--cm-surface-2)", color: "var(--cm-navy)",
-              border: "1px solid var(--cm-line)"
+              width: 38, height: 38, borderRadius: "var(--cm-radius)",
+              background: "linear-gradient(135deg, rgba(2, 132, 199, 0.18) 0%, rgba(56, 189, 248, 0.28) 100%)",
+              color: "var(--cm-active)",
+              border: "1px solid rgba(56, 189, 248, 0.4)",
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8)"
             }}>
-              <Activity size={18} />
+              <Box size={20} style={{ filter: "drop-shadow(0 0 6px rgba(2, 132, 199, 0.6))" }} />
             </span>
             <h3 className="cm-panel__title" style={{ margin: 0, fontSize: "var(--cm-text-lg)", color: "var(--cm-ink)", fontWeight: 800 }}>
               Interactive Anatomical Twin
@@ -240,38 +399,57 @@ export default function InteractiveBodyMap() {
         </div>
 
         {/* 3D / 2D View Switcher */}
-        <div style={{ display: "inline-flex", background: "var(--cm-surface-2)", padding: 3, borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-line)" }}>
+        <div style={{
+          display: "inline-flex",
+          background: "linear-gradient(135deg, rgba(240, 249, 255, 0.8) 0%, rgba(224, 242, 254, 0.6) 100%)",
+          padding: 4,
+          borderRadius: "var(--cm-radius)",
+          border: "1px solid rgba(56, 189, 248, 0.3)",
+          boxShadow: "inset 0 1px 2px rgba(2, 132, 199, 0.08)"
+        }}>
           <button
             type="button"
             onClick={() => setViewMode("3d")}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "6px 12px", borderRadius: "calc(var(--cm-radius) - 2px)",
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "7px 14px", borderRadius: "calc(var(--cm-radius) - 2px)",
               fontSize: "var(--cm-text-xs)", fontWeight: 700,
-              background: viewMode === "3d" ? "var(--cm-surface)" : "transparent",
-              color: viewMode === "3d" ? "var(--cm-navy)" : "var(--cm-ink-3)",
-              border: viewMode === "3d" ? "1px solid var(--cm-line-strong)" : "1px solid transparent",
-              boxShadow: viewMode === "3d" ? "var(--cm-shadow-1)" : "none",
+              background: viewMode === "3d" ? "linear-gradient(135deg, rgba(2, 132, 199, 0.18) 0%, rgba(56, 189, 248, 0.25) 100%)" : "transparent",
+              color: viewMode === "3d" ? "var(--cm-active)" : "var(--cm-ink-3)",
+              border: viewMode === "3d" ? "1px solid rgba(56, 189, 248, 0.45)" : "1px solid transparent",
+              boxShadow: viewMode === "3d" ? "0 2px 8px rgba(2, 132, 199, 0.15)" : "none",
               cursor: "pointer",
+              transition: "all 0.2s ease",
             }}
           >
-            <Box size={14} /> 3D Anatomical Twin
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: viewMode === "3d" ? "drop-shadow(0 0 4px rgba(2, 132, 199, 0.6))" : "none" }}>
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            3D Anatomical Twin
           </button>
           <button
             type="button"
             onClick={() => setViewMode("2d")}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "6px 12px", borderRadius: "calc(var(--cm-radius) - 2px)",
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "7px 14px", borderRadius: "calc(var(--cm-radius) - 2px)",
               fontSize: "var(--cm-text-xs)", fontWeight: 700,
-              background: viewMode === "2d" ? "var(--cm-surface)" : "transparent",
-              color: viewMode === "2d" ? "var(--cm-navy)" : "var(--cm-ink-3)",
-              border: viewMode === "2d" ? "1px solid var(--cm-line-strong)" : "1px solid transparent",
-              boxShadow: viewMode === "2d" ? "var(--cm-shadow-1)" : "none",
+              background: viewMode === "2d" ? "linear-gradient(135deg, rgba(2, 132, 199, 0.18) 0%, rgba(56, 189, 248, 0.25) 100%)" : "transparent",
+              color: viewMode === "2d" ? "var(--cm-active)" : "var(--cm-ink-3)",
+              border: viewMode === "2d" ? "1px solid rgba(56, 189, 248, 0.45)" : "1px solid transparent",
+              boxShadow: viewMode === "2d" ? "0 2px 8px rgba(2, 132, 199, 0.15)" : "none",
               cursor: "pointer",
+              transition: "all 0.2s ease",
             }}
           >
-            <Layers size={14} /> 2D Anatomy Map
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: viewMode === "2d" ? "drop-shadow(0 0 4px rgba(2, 132, 199, 0.6))" : "none" }}>
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+            2D Anatomy Map
           </button>
         </div>
       </div>
@@ -622,10 +800,12 @@ export default function InteractiveBodyMap() {
           {/* Dossier Header */}
           <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-3)", marginBottom: "var(--cm-3)" }}>
             <span style={{
-              display: "grid", placeItems: "center", width: 46, height: 46, borderRadius: "var(--cm-radius)",
-              background: "var(--cm-surface-2)", color: current.color, flex: "none", border: `1px solid var(--cm-line)`
+              display: "grid", placeItems: "center", width: 48, height: 48, borderRadius: "var(--cm-radius)",
+              background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(240, 249, 255, 0.7) 100%)",
+              flex: "none", border: `1px solid rgba(255, 255, 255, 0.9)`,
+              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95)"
             }}>
-              <current.Icon size={24} />
+              <Organ3DInteractiveEmblem id={current.id} />
             </span>
             <div style={{ flex: 1 }}>
               <h4 style={{ margin: 0, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)", fontWeight: 800 }}>{current.name}</h4>
@@ -640,7 +820,7 @@ export default function InteractiveBodyMap() {
           </p>
 
           {/* Vitals Benchmark Card */}
-          <div style={{ background: "var(--cm-surface-2)", padding: "12px 14px", borderRadius: "var(--cm-radius)", marginBottom: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+          <div style={{ background: "linear-gradient(135deg, rgba(240, 249, 255, 0.8) 0%, rgba(224, 242, 254, 0.6) 100%)", padding: "12px 14px", borderRadius: "var(--cm-radius)", marginBottom: "var(--cm-4)", border: "1px solid rgba(56, 189, 248, 0.3)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)", marginBottom: 4 }}>
               <ClipboardList size={16} style={{ color: current.color }} />
               <strong style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
@@ -662,7 +842,9 @@ export default function InteractiveBodyMap() {
                 <div
                   key={i}
                   style={{
-                    background: "var(--cm-surface)", border: "1px solid var(--cm-line)",
+                    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(240, 249, 255, 0.68) 100%)",
+                    border: "1px solid rgba(255, 255, 255, 0.9)",
+                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
                     borderRadius: "var(--cm-radius)", padding: "10px 14px",
                     display: "flex", justifyContent: "space-between", alignItems: "center"
                   }}
@@ -687,19 +869,47 @@ export default function InteractiveBodyMap() {
 
           {/* Consultation Actions — Online / Offline choice */}
           {consultMode === null && (
-            <div style={{ display: "flex", gap: "var(--cm-2)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "var(--cm-3)", flexWrap: "wrap", marginTop: 4 }}>
               <button
                 type="button"
-                className="cm-btn cm-btn--primary"
-                style={{ flex: 1, padding: "10px 16px", fontWeight: 700 }}
+                className="cm-btn"
+                style={{
+                  flex: 1, padding: "12px 18px", fontWeight: 800,
+                  background: "linear-gradient(135deg, rgba(2, 132, 199, 0.95) 0%, rgba(14, 165, 233, 0.9) 100%)",
+                  border: "1px solid rgba(255, 255, 255, 0.6)",
+                  boxShadow: "0 4px 14px rgba(2, 132, 199, 0.25), 0 1px 0 rgba(255, 255, 255, 0.4) inset",
+                  backdropFilter: "blur(12px)",
+                  borderRadius: "var(--cm-radius)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  transition: "all 0.2s ease"
+                }}
                 onClick={() => setConsultMode("choosing")}
               >
                 <Stethoscope size={16} /> Consult {current.specialization}
               </button>
               <button
                 type="button"
-                className="cm-btn cm-btn--secondary"
-                style={{ flex: 1, padding: "10px 16px", fontWeight: 700 }}
+                className="cm-btn"
+                style={{
+                  flex: 1, padding: "12px 18px", fontWeight: 800,
+                  background: "linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 249, 255, 0.72) 100%)",
+                  border: "1px solid rgba(2, 132, 199, 0.35)",
+                  boxShadow: "0 4px 12px rgba(2, 132, 199, 0.08), 0 1px 0 rgba(255, 255, 255, 0.95) inset",
+                  backdropFilter: "blur(12px)",
+                  borderRadius: "var(--cm-radius)",
+                  color: "var(--cm-active)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  transition: "all 0.2s ease"
+                }}
                 onClick={() => router.push(`/diagnostics?search=${encodeURIComponent(current.name)}`)}
               >
                 <FlaskConical size={16} /> Book Lab Package
@@ -709,7 +919,7 @@ export default function InteractiveBodyMap() {
 
           {/* Online vs Offline Choice */}
           {consultMode === "choosing" && (
-            <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.75)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid rgba(14, 165, 233, 0.25)", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}>
               <div className="cm-row-between" style={{ marginBottom: "var(--cm-3)" }}>
                 <strong style={{ color: "var(--cm-navy)", fontSize: "var(--cm-text-sm)" }}>
                   Select Consultation Channel
@@ -723,7 +933,7 @@ export default function InteractiveBodyMap() {
                   type="button"
                   onClick={handleOnlineConsult}
                   className="cm-card cm-card--interactive"
-                  style={{ textAlign: "center", border: "2px solid var(--cm-navy)", background: "var(--cm-surface)" }}
+                  style={{ textAlign: "center", border: "2px solid rgba(14, 165, 233, 0.6)", background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
                 >
                   <Video size={22} style={{ color: "var(--cm-navy)", marginBottom: 6 }} />
                   <div style={{ fontWeight: 700, color: "var(--cm-navy)", fontSize: "var(--cm-text-sm)" }}>
@@ -739,7 +949,7 @@ export default function InteractiveBodyMap() {
                   type="button"
                   onClick={() => setConsultMode("offline_list")}
                   className="cm-card cm-card--interactive"
-                  style={{ textAlign: "center", border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}
+                  style={{ textAlign: "center", border: "1px solid rgba(148, 163, 184, 0.3)", background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
                 >
                   <Building2 size={22} style={{ color: "var(--cm-ink)", marginBottom: 6 }} />
                   <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>
@@ -756,7 +966,7 @@ export default function InteractiveBodyMap() {
 
           {/* Offline Clinic List */}
           {consultMode === "offline_list" && (
-            <div style={{ background: "var(--cm-surface-2)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid var(--cm-line)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderRadius: "var(--cm-radius)", padding: "var(--cm-4)", border: "1px solid rgba(14, 165, 233, 0.25)", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)" }}>
               <div className="cm-row-between" style={{ marginBottom: "var(--cm-3)" }}>
                 <strong style={{ color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)", display: "flex", alignItems: "center", gap: 6 }}>
                   <Building2 size={14} /> Walk-in {current.specialization} Clinics
@@ -784,7 +994,7 @@ export default function InteractiveBodyMap() {
                         type="button"
                         onClick={() => router.push(`/booking?type=doctor&doctor=${cId}&spec=${encodeURIComponent(current.specialization)}`)}
                         className="cm-card cm-card--interactive"
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", gap: "var(--cm-3)", padding: "var(--cm-3) var(--cm-4)", background: "var(--cm-surface)" }}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", textAlign: "left", gap: "var(--cm-3)", padding: "var(--cm-3) var(--cm-4)", background: "rgba(255, 255, 255, 0.75)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid rgba(226, 232, 240, 0.8)" }}
                       >
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>

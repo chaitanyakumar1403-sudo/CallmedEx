@@ -1293,6 +1293,34 @@ async def cancel_dispatch(dispatch_id: str, current_user: dict = Depends(get_cur
             except Exception:
                 pass
 
+        # Also cancel uncollected samples associated with this booking or dispatch
+        if supabase:
+            try:
+                sample_ids = set()
+                direct = _rows(
+                    supabase.table("samples").select("id")
+                    .eq("booking_id", booking_id)
+                    .eq("status", "pending_collection").execute()
+                )
+                for r in direct:
+                    if r.get("id"):
+                        sample_ids.add(r["id"])
+
+                by_dispatch = _rows(
+                    supabase.table("samples").select("id")
+                    .eq("dispatch_request_id", dispatch_id)
+                    .eq("status", "pending_collection").execute()
+                )
+                for r in by_dispatch:
+                    if r.get("id"):
+                        sample_ids.add(r["id"])
+
+                for sid in sample_ids:
+                    supabase.table("samples").update({"status": "cancelled"})\
+                        .eq("id", sid).eq("status", "pending_collection").execute()
+            except Exception as s_err:
+                logger.warning(f"Dispatch cancel sample update failed: {s_err}")
+
     return {
         "success": True, 
         "message": f"Request cancelled successfully. {'A cancellation fee will be applied.' if fee_applied else 'No fee applied.'}",

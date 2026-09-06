@@ -2078,19 +2078,45 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
         # tube already drawn is a physical specimen in someone's hand and an
         # app cancellation does not make it disappear.
         try:
-            uncollected = _rows(
+            sample_ids_to_cancel = set()
+            uncollected_direct = _rows(
                 supabase.table("samples")
                 .select("id")
                 .eq("booking_id", booking_id)
                 .eq("status", "pending_collection")
                 .execute()
             )
-            for row in uncollected:
-                supabase.table("samples").update({"status": "cancelled"})                     .eq("id", row["id"]).eq("status", "pending_collection").execute()
+            for r in uncollected_direct:
+                if r.get("id"):
+                    sample_ids_to_cancel.add(r["id"])
+
+            # Also check booking_subjects belonging to this booking
+            bs_rows = _rows(
+                supabase.table("booking_subjects")
+                .select("id")
+                .eq("booking_id", booking_id)
+                .execute()
+            )
+            bs_ids = [r["id"] for r in bs_rows if r.get("id")]
+            if bs_ids:
+                uncollected_via_subject = _rows(
+                    supabase.table("samples")
+                    .select("id")
+                    .in_("booking_subject_id", bs_ids)
+                    .eq("status", "pending_collection")
+                    .execute()
+                )
+                for r in uncollected_via_subject:
+                    if r.get("id"):
+                        sample_ids_to_cancel.add(r["id"])
+
+            for sid in sample_ids_to_cancel:
+                supabase.table("samples").update({"status": "cancelled"}) \
+                    .eq("id", sid).eq("status", "pending_collection").execute()
                 try:
                     supabase.table("sample_events").insert({
                         "id": str(uuid.uuid4()),
-                        "sample_id": row["id"],
+                        "sample_id": sid,
                         "event": "cancelled",
                         "actor_id": user_id,
                         "actor_role": current_user.get("role", "patient"),
@@ -2098,10 +2124,10 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }).execute()
                 except Exception as ev_err:
-                    logger.warning(f"Cancel custody event failed for {row['id']}: {ev_err}")
-            if uncollected:
+                    logger.warning(f"Cancel custody event failed for {sid}: {ev_err}")
+            if sample_ids_to_cancel:
                 logger.info(
-                    f"Cancelled {len(uncollected)} uncollected sample(s) for booking {booking_id}"
+                    f"Cancelled {len(sample_ids_to_cancel)} uncollected sample(s) for booking {booking_id}"
                 )
         except Exception as e:
             logger.error(f"Failed to cancel samples for booking {booking_id}: {e}")

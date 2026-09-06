@@ -141,14 +141,15 @@ async def my_samples(user: dict = Depends(get_current_user)):
                 svc.get("name") or svc.get("code", "")
             )
 
-    # Enrich with subject names
+    # Enrich with subject names and booking statuses
     subject_ids = list({s.get("booking_subject_id") for s in samples
                         if s.get("booking_subject_id")})
     subject_names = {}
+    bs_to_booking = {}
     if subject_ids:
         subjects = _rows(
             supabase.table("booking_subjects")
-            .select("id, family_member_id")
+            .select("id, family_member_id, booking_id")
             .in_("id", subject_ids)
             .execute()
         )
@@ -165,11 +166,38 @@ async def my_samples(user: dict = Depends(get_current_user)):
             fm_map = {m["id"]: m.get("full_name", "") for m in members}
         for s in subjects:
             subject_names[s["id"]] = fm_map.get(s.get("family_member_id", ""), "")
+            if s.get("booking_id"):
+                bs_to_booking[s["id"]] = s["booking_id"]
+
+    # Gather all parent booking IDs to inspect booking status
+    all_booking_ids = list({
+        s.get("booking_id") or bs_to_booking.get(s.get("booking_subject_id", ""))
+        for s in samples
+        if (s.get("booking_id") or bs_to_booking.get(s.get("booking_subject_id", "")))
+    })
+    booking_status_map = {}
+    if all_booking_ids:
+        b_rows = _rows(
+            supabase.table("bookings")
+            .select("id, status")
+            .in_("id", all_booking_ids)
+            .execute()
+        )
+        booking_status_map = {b["id"]: b.get("status") for b in b_rows}
 
     # Build safe response
     out = []
     for s in samples:
         status = s.get("status", "pending_collection")
+        parent_bid = s.get("booking_id") or bs_to_booking.get(s.get("booking_subject_id", ""))
+        booking_status = booking_status_map.get(parent_bid, "") if parent_bid else ""
+        is_booking_cancelled = booking_status in ("cancelled", "slot_rejected")
+        is_sample_cancelled = status in ("cancelled", "rejected", "failed")
+
+        # If booking was cancelled and tube wasn't drawn yet, tube is cancelled
+        if is_booking_cancelled and status == "pending_collection":
+            status = "cancelled"
+
         stage_info = STAGE_MAP.get(status) or {
             "stage": status or "unknown", "step": 0, "label": "Processing",
         }
@@ -191,7 +219,7 @@ async def my_samples(user: dict = Depends(get_current_user)):
             # Drives the live status rail. Cancelled and finished tubes stayed
             # on it forever, rendered as "Pending Collection", because every
             # status missing from STAGE_MAP fell back to that.
-            "is_active": status in ACTIVE_SAMPLE_STATUSES,
+            "is_active": (status in ACTIVE_SAMPLE_STATUSES) and not is_booking_cancelled and not is_sample_cancelled,
         })
         out.append(safe)
 

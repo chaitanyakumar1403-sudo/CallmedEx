@@ -14,6 +14,6 @@ export {
   Mail, GraduationCap, ScanLine, Boxes, CalendarDays, Truck, ShieldCheck,
   Ban, BarChart3, CircleDot, ArrowRight, Award, Droplets, Tag, TrendingDown,
   Bike, Sparkles, Smile, Ear, Brain, Heart, Wind, Droplet, Bone, HeartHandshake, Video, Activity,
-  UserCheck, Shield, AlertCircle, Calendar, Check, Lock,
+  UserCheck, Shield, AlertCircle, Calendar, Check, Lock, Zap, Pill, Box, Compass,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";

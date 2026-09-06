@@ -299,6 +299,8 @@ export const discoveryAPI = {
 export const dispatchAPI = {
   cancelDispatch: (dispatchId: string) =>
     api.post(`/dispatch/${dispatchId}/cancel`),
+  triggerEmergencySOS: (payload: { lat: number; lng: number; address: string; note?: string }) =>
+    api.post('/dispatch/emergency-sos', payload),
 };
 
 // ─── Processing Centre API (Spec 2) ──────────────────────────────────────

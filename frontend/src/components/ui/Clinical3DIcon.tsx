@@ -47,7 +47,12 @@ export type Clinical3DIconName =
   | "package"
   | "ambulance"
   | "dental"
-  | "tooth";
+  | "tooth"
+  | "ai-report"
+  | "medicine-3d"
+  | "care-pulse"
+  | "callmedex-care"
+  | "brand-3d";
 
 export interface Clinical3DIconProps extends React.SVGProps<SVGSVGElement> {
   name: Clinical3DIconName;
@@ -350,6 +355,44 @@ export default function Clinical3DIcon({
           <stop offset="0%" stopColor="#e0f2fe" />
           <stop offset="60%" stopColor="#7dd3fc" />
           <stop offset="100%" stopColor="#0284c7" />
+        </linearGradient>
+
+        {/* 24. AI Clinical Report Gradients */}
+        <linearGradient id="report-sheet-back" x1="14" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f0f9ff" />
+          <stop offset="100%" stopColor="#bae6fd" />
+        </linearGradient>
+        <linearGradient id="report-sheet-front" x1="10" y1="12" x2="48" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="50%" stopColor="#f8fafc" />
+          <stop offset="100%" stopColor="#e2e8f0" />
+        </linearGradient>
+        <linearGradient id="report-ai-core" x1="24" y1="20" x2="44" y2="40" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="50%" stopColor="#0284c7" />
+          <stop offset="100%" stopColor="#0f172a" />
+        </linearGradient>
+        <linearGradient id="report-ecg" x1="14" y1="42" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#10b981" />
+          <stop offset="100%" stopColor="#06b6d4" />
+        </linearGradient>
+
+        {/* 25. CallMedex Care 3D Glassmorphic Heart Emblem Gradients */}
+        <linearGradient id="cm-glass-heart-body" x1="12" y1="8" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#38bdf8" />
+          <stop offset="45%" stopColor="#0ea5e9" />
+          <stop offset="100%" stopColor="#0284c7" />
+        </linearGradient>
+        <radialGradient id="cm-glass-heart-sheen" cx="24" cy="18" r="28" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+          <stop offset="40%" stopColor="#bae6fd" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#0284c7" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="cm-glass-heart-pulse" x1="14" y1="27" x2="50" y2="27" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="30%" stopColor="#34d399" />
+          <stop offset="70%" stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#ffffff" />
         </linearGradient>
       </defs>
 
@@ -947,6 +990,124 @@ export default function Clinical3DIcon({
             strokeWidth="0.8"
           />
           <circle cx="45" cy="15.5" r="1" fill="#ffffff" />
+        </g>
+      )}
+
+      {(name === "ai-report") && (
+        <g>
+          {/* Ambient Ground Shadow */}
+          <ellipse cx="32" cy="58" rx="20" ry="4" fill="#0284c7" fillOpacity="0.22" />
+
+          {/* Back Sheet / Diagnostic Folder with Isometric Tilt */}
+          <rect x="17" y="8" width="34" height="46" rx="5" fill="url(#report-sheet-back)" stroke="#38bdf8" strokeWidth="1.5" transform="rotate(6 34 31)" />
+          
+          {/* Main Clinical Report Document */}
+          <rect x="12" y="12" width="36" height="46" rx="5" fill="url(#report-sheet-front)" stroke="#cbd5e1" strokeWidth="1.5" />
+          
+          {/* Document Top Header Banner */}
+          <path d="M12 17C12 14.2 14.2 12 17 12H43C45.8 12 48 14.2 48 17V21H12V17Z" fill="url(#report-ai-core)" />
+          <circle cx="18" cy="16.5" r="2" fill="#38bdf8" />
+          <rect x="23" y="15" width="16" height="3" rx="1.5" fill="#ffffff" />
+          
+          {/* Document Content Lines */}
+          <rect x="16" y="25" width="18" height="2.5" rx="1" fill="#64748b" />
+          <rect x="16" y="30" width="14" height="2.5" rx="1" fill="#94a3b8" />
+          
+          {/* AI Neural Lens / Holographic Scanner Disc */}
+          <circle cx="37" cy="31" r="7.5" fill="url(#ai-star)" stroke="#ffffff" strokeWidth="1.5" />
+          <circle cx="37" cy="31" r="5" fill="none" stroke="#ffffff" strokeWidth="1" strokeDasharray="2 2" />
+          <circle cx="37" cy="31" r="2" fill="#ffffff" />
+          
+          {/* Real-Time Telemetry ECG Wave on Document */}
+          <path
+            d="M16 44H21L23 39L26 48L29 41L31 44H44"
+            fill="none"
+            stroke="url(#report-ecg)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          
+          {/* Verified Clinical Seal */}
+          <circle cx="41" cy="48" r="4.5" fill="#10b981" stroke="#ffffff" strokeWidth="1" />
+          <path d="M39.5 48L40.8 49.3L43 47" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" />
+        </g>
+      )}
+
+      {(name === "medicine-3d") && (
+        <g>
+          {/* Ambient Shadow */}
+          <ellipse cx="32" cy="56" rx="18" ry="4" fill="#0284c7" fillOpacity="0.25" />
+          
+          {/* 3D Angled Pill Capsule */}
+          <g transform="rotate(-35 32 32)">
+            {/* Left/Upper Half (Cyan / Azure) */}
+            <path
+              d="M20 22C20 15.4 25.4 10 32 10C38.6 10 44 15.4 44 22V32H20V22Z"
+              fill="url(#cal-header)"
+            />
+            {/* Right/Lower Half (Deep Navy / Royal) */}
+            <path
+              d="M20 32H44V42C44 48.6 38.6 54 32 54C25.4 54 20 48.6 20 42V32Z"
+              fill="url(#pill-left)"
+            />
+            {/* Specular Glare / Reflection Streak */}
+            <rect x="24" y="14" width="4" height="26" rx="2" fill="#ffffff" fillOpacity="0.55" />
+            <circle cx="26" cy="15" r="1.5" fill="#ffffff" />
+            {/* Center Waist Ring */}
+            <line x1="20" y1="32" x2="44" y2="32" stroke="#ffffff" strokeWidth="1.8" strokeOpacity="0.7" />
+          </g>
+        </g>
+      )}
+
+      {(name === "care-pulse" || name === "callmedex-care" || name === "brand-3d") && (
+        <g>
+          {/* Ambient Ground / Glow Shadow */}
+          <ellipse cx="32" cy="56" rx="18" ry="4.5" fill="#0284c7" fillOpacity="0.35" />
+
+          {/* 3D Volumetric Glassmorphic Heart Body */}
+          <path
+            d="M32 52 C32 52 12 38.5 12 23 C12 14.5 18.5 9.5 26 9.5 C29.2 9.5 31.2 11 32 12 C32.8 11 34.8 9.5 38 9.5 C45.5 9.5 52 14.5 52 23 C52 38.5 32 52 32 52 Z"
+            fill="url(#cm-glass-heart-body)"
+            stroke="#ffffff"
+            strokeWidth="1.8"
+            strokeOpacity="0.9"
+          />
+
+          {/* Refractive Glass Top Sheen & Depth Layer */}
+          <path
+            d="M32 50 C32 50 14 37 14 23 C14 16 19.5 11.5 26 11.5 C28.5 11.5 30.5 12.8 32 14 C33.5 12.8 35.5 11.5 38 11.5 C44.5 11.5 50 16 50 23 C50 37 32 50 32 50 Z"
+            fill="url(#cm-glass-heart-sheen)"
+          />
+
+          {/* Glossy Specular Shoulder Highlights */}
+          <path
+            d="M17 18 C19 13.5 23 12 26 12 C28 12 29.5 12.8 30.5 14 C27 15 22 17 18 22 C17.3 20.5 17 19.2 17 18 Z"
+            fill="#ffffff"
+            fillOpacity="0.8"
+          />
+          <circle cx="21" cy="16" r="2" fill="#ffffff" fillOpacity="0.95" />
+
+          {/* Glowing 3D Pulse ECG Waveform Across Heart Center */}
+          <path
+            d="M15 27 H22 L25 18 L29 36 L34 21 L38 29 L41 27 H49"
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth="3.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M15 27 H22 L25 18 L29 36 L34 21 L38 29 L41 27 H49"
+            fill="none"
+            stroke="url(#cm-glass-heart-pulse)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Sparkling Telemetry Beacon Node */}
+          <circle cx="34" cy="21" r="2.2" fill="#ffffff" />
         </g>
       )}
     </svg>

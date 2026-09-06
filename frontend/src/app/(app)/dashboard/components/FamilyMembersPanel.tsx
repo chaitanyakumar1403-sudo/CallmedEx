@@ -113,7 +113,7 @@ export default function FamilyMembersPanel() {
           onClick={() => setShowForm(!showForm)}
           style={{
             padding: "8px 16px", borderRadius: "var(--cm-radius)", border: "none", cursor: "pointer",
-            backgroundColor: showForm ? "var(--cm-surface-3)" : "var(--cm-navy)", color: showForm ? "var(--cm-ink)" : "#fff",
+            backgroundColor: showForm ? "var(--cm-surface-3)" : "var(--cm-navy)", color: showForm ? "var(--cm-ink)" : "var(--cm-surface)",
             fontWeight: 700, fontSize: "0.85rem", transition: "all 0.2s", display: "inline-flex", alignItems: "center", gap: 6
           }}
         >
@@ -132,7 +132,7 @@ export default function FamilyMembersPanel() {
                   value={form.full_name}
                   onChange={e => setForm({ ...form, full_name: e.target.value })}
                   placeholder="Family member's full name"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                   required
                 />
               </div>
@@ -141,7 +141,7 @@ export default function FamilyMembersPanel() {
                 <select
                   value={form.relationship}
                   onChange={e => setForm({ ...form, relationship: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                   required
                 >
                   <option value="">Select relationship</option>
@@ -153,7 +153,7 @@ export default function FamilyMembersPanel() {
                 <select
                   value={form.gender}
                   onChange={e => setForm({ ...form, gender: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                 >
                   <option value="">Select gender</option>
                   {genders.map(g => <option key={g} value={g.toLowerCase()}>{g}</option>)}
@@ -165,7 +165,7 @@ export default function FamilyMembersPanel() {
                   type="date"
                   value={form.date_of_birth}
                   onChange={e => setForm({ ...form, date_of_birth: e.target.value })}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                 />
               </div>
               <div>
@@ -174,7 +174,7 @@ export default function FamilyMembersPanel() {
                   value={form.mobile}
                   onChange={e => setForm({ ...form, mobile: e.target.value })}
                   placeholder="Mobile number"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                 />
               </div>
               <div>
@@ -183,7 +183,7 @@ export default function FamilyMembersPanel() {
                   value={form.pincode}
                   onChange={e => setForm({ ...form, pincode: e.target.value })}
                   placeholder="Pincode"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "var(--cm-surface)", color: "var(--cm-ink)" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line-strong)", fontSize: "0.9rem", background: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(4px)", color: "var(--cm-ink)" }}
                 />
               </div>
             </div>
