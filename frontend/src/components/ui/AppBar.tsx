@@ -82,6 +82,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
         onUnreadCountChange={(count) => setUnreadCount(count)}
+        role={resolvedRole}
       />
 
       {resolvedUser && (

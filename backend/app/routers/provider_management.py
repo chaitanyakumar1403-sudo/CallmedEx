@@ -1069,7 +1069,7 @@ async def org_add_doctor(
     current_user: dict = Depends(get_current_user),
 ):
     """Organization adds a doctor by their email."""
-    if current_user.get("role") not in ("organization", "admin"):
+    if current_user.get("role") not in ("organization", "admin", "processing_center"):
         raise HTTPException(403, "Only organizations can add doctors")
 
     if not supabase:
@@ -1080,7 +1080,7 @@ async def org_add_doctor(
         doctor_result = (
             supabase.table("users")
             .select("id, full_name, email")
-            .eq("email", body.doctor_email)
+            .eq("email", body.doctor_email.strip())
             .eq("role", "doctor")
             .execute()
         )
@@ -1098,32 +1098,72 @@ async def org_add_doctor(
     try:
         org_result = (
             supabase.table("organizations")
-            .select("id")
+            .select("id, organization_name")
             .eq("user_id", current_user["sub"])
             .execute()
         )
         if not org_result.data:
             raise HTTPException(404, "Organization profile not found. Complete registration first.")
-        org_id = org_result.data[0]["id"]
+        org_row = org_result.data[0]
+        org_id = org_row["id"]
+        org_name = org_row.get("organization_name", "")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error finding org: {e}")
         raise HTTPException(500, "Failed to find organization")
 
+    # Auto-populate specialization and fee if not explicitly passed
+    spec = (body.specialization or "").strip()
+    fee = body.consultation_fee or 0
+    try:
+        doc_prof = supabase.table("doctors").select("specialization, consultation_fee").eq("user_id", doctor["id"]).limit(1).execute()
+        if doc_prof.data:
+            if not spec:
+                spec = doc_prof.data[0].get("specialization") or ""
+            if not fee:
+                fee = doc_prof.data[0].get("consultation_fee") or 0
+    except Exception as e:
+        logger.warning(f"Could not load doctor profile for defaults: {e}")
+
     # Link doctor
     record = {
         "id": str(uuid.uuid4()),
         "organization_id": org_id,
         "doctor_user_id": doctor["id"],
-        "specialization": body.specialization or "",
-        "consultation_fee": body.consultation_fee or 0,
+        "specialization": spec,
+        "consultation_fee": fee,
         "is_active": True,
         "joined_at": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
-        supabase.table("organization_doctors").insert(record).execute()
+        # Upsert or update existing record if deactivated
+        existing_link = (
+            supabase.table("organization_doctors")
+            .select("id")
+            .eq("organization_id", org_id)
+            .eq("doctor_user_id", doctor["id"])
+            .execute()
+        )
+        if existing_link.data:
+            supabase.table("organization_doctors").update({
+                "is_active": True,
+                "specialization": spec,
+                "consultation_fee": fee,
+            }).eq("id", existing_link.data[0]["id"]).execute()
+        else:
+            supabase.table("organization_doctors").insert(record).execute()
+
+        # Seamlessly associate any doctor availability blocks matching this org name
+        if org_name:
+            try:
+                supabase.table("doctor_availability").update({
+                    "organization_id": org_id,
+                }).eq("doctor_id", doctor["id"]).ilike("location_name", f"%{org_name}%").execute()
+            except Exception as e:
+                logger.warning(f"Could not update doctor availability organization_id: {e}")
+
         return {
             "success": True,
             "message": f"Dr. {doctor['full_name']} added to your organization",
@@ -1131,8 +1171,8 @@ async def org_add_doctor(
                 "id": doctor["id"],
                 "name": doctor["full_name"],
                 "email": doctor["email"],
-                "specialization": body.specialization,
-                "fee": body.consultation_fee,
+                "specialization": spec,
+                "fee": fee,
             },
         }
     except Exception as e:
@@ -1144,14 +1184,14 @@ async def org_add_doctor(
 
 @router.get("/org/doctors")
 async def org_list_doctors(current_user: dict = Depends(get_current_user)):
-    """Organization lists all their linked doctors."""
+    """Organization lists all their linked doctors enriched with live schedules and credentials."""
     if not supabase:
         return {"success": True, "doctors": []}
 
     try:
         org_result = (
             supabase.table("organizations")
-            .select("id")
+            .select("id, organization_name")
             .eq("user_id", current_user["sub"])
             .execute()
         )
@@ -1159,6 +1199,7 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
             return {"success": True, "doctors": []}
 
         org_id = org_result.data[0]["id"]
+        org_name = org_result.data[0].get("organization_name", "")
 
         result = (
             supabase.table("organization_doctors")
@@ -1167,7 +1208,74 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
             .eq("is_active", True)
             .execute()
         )
-        return {"success": True, "doctors": result.data or []}
+        raw_doctors = result.data or []
+        doc_user_ids = [d.get("doctor_user_id") for d in raw_doctors if d.get("doctor_user_id")]
+
+        # Enrich with doctor profile (qualifications, years of experience, NMC status)
+        doc_profiles = {}
+        if doc_user_ids:
+            try:
+                dp_res = (
+                    supabase.table("doctors")
+                    .select("user_id, qualification, years_of_experience, verification_status, hospital_clinic_name")
+                    .in_("user_id", doc_user_ids)
+                    .execute()
+                )
+                for dp in (dp_res.data or []):
+                    doc_profiles[dp["user_id"]] = dp
+            except Exception as e:
+                logger.warning(f"Could not load doctor profiles for org: {e}")
+
+        # Enrich with live doctor_availability blocks updated by the doctor
+        doc_avails = {}
+        if doc_user_ids:
+            try:
+                av_res = (
+                    supabase.table("doctor_availability")
+                    .select("id, doctor_id, day_of_week, start_time, end_time, consultation_mode, location_name, location_address, slot_duration_minutes, is_active")
+                    .in_("doctor_id", doc_user_ids)
+                    .eq("is_active", True)
+                    .order("day_of_week")
+                    .order("start_time")
+                    .execute()
+                )
+                for av in (av_res.data or []):
+                    doc_avails.setdefault(av["doctor_id"], []).append({
+                        "id": av.get("id"),
+                        "day_of_week": av.get("day_of_week"),
+                        "start_time": str(av.get("start_time", ""))[:5],
+                        "end_time": str(av.get("end_time", ""))[:5],
+                        "consultation_mode": av.get("consultation_mode"),
+                        "slot_duration_minutes": av.get("slot_duration_minutes", 15),
+                        "location_name": av.get("location_name", ""),
+                        "location_address": av.get("location_address", ""),
+                    })
+            except Exception as e:
+                logger.warning(f"Could not load doctor availability for org: {e}")
+
+        enriched = []
+        for d in raw_doctors:
+            uid = d.get("doctor_user_id")
+            prof = doc_profiles.get(uid, {})
+            all_av = doc_avails.get(uid, [])
+            # Filter walk-in blocks matching this org or in_person
+            walkin_blocks = [
+                a for a in all_av
+                if a.get("consultation_mode") in ("in_person", "both") or (org_name and org_name.lower() in (a.get("location_name") or "").lower())
+            ]
+            enriched.append({
+                **d,
+                "qualification": prof.get("qualification", ""),
+                "experience_years": prof.get("years_of_experience", 0),
+                "verification_status": prof.get("verification_status", "verified"),
+                "hospital_clinic_name": prof.get("hospital_clinic_name") or org_name,
+                "availability": all_av,
+                "walkin_availability": walkin_blocks,
+                "has_active_walkin": len(walkin_blocks) > 0,
+                "walkin_blocks_count": len(walkin_blocks),
+            })
+
+        return {"success": True, "doctors": enriched}
     except Exception as e:
         logger.error(f"Error listing org doctors: {e}")
         return {"success": True, "doctors": []}
@@ -1678,6 +1786,43 @@ def _matches_location(
     return True
 
 
+SPECIALTY_ALIASES: dict[str, list[str]] = {
+    "cardiology": ["cardio", "cardiac", "heart", "pgdcc", "cardiologist"],
+    "general medicine": ["general", "physician", "internal medicine", "family medicine", "gp", "mbbs"],
+    "dermatology": ["derma", "skin", "dermatologist"],
+    "pediatrics": ["pediatric", "paediatric", "child", "pediatrician"],
+    "gynecology": ["gynec", "gynaec", "obgyn", "obstetric", "women", "gynecologist"],
+    "orthopedics": ["orthopedic", "orthopaedic", "ortho", "bone", "joint", "orthopedist"],
+    "ent": ["ent", "ear", "nose", "throat", "otolaryngol"],
+    "neurology": ["neuro", "brain", "neurologist"],
+    "psychiatry": ["psych", "mental", "psychiatrist"],
+    "dentistry": ["dent", "oral", "dentist"],
+    "ophthalmology": ["ophthal", "eye", "vision", "ophthalmologist"],
+    "pulmonology": ["pulmo", "chest", "respiratory", "lung", "pulmonologist"],
+}
+
+
+def matches_specialty(doc_spec: str, requested: Optional[str]) -> bool:
+    """Semantic match between a doctor's specialization and user requested filter."""
+    if not requested or requested.strip().lower() in ("all", ""):
+        return True
+    req = "".join(ch for ch in requested.lower() if ch.isalnum())
+    doc = "".join(ch for ch in (doc_spec or "").lower() if ch.isalnum())
+    if not doc:
+        return False
+    if req in doc or doc in req:
+        return True
+
+    # Match aliases/synonyms
+    for cat_name, aliases in SPECIALTY_ALIASES.items():
+        cat_key = "".join(ch for ch in cat_name if ch.isalnum())
+        # Check if the requested filter targets this category
+        if cat_key in req or req in cat_key or any(a in req for a in aliases):
+            if any(a in doc for a in aliases) or cat_key in doc:
+                return True
+    return False
+
+
 @router.get("/search/doctors")
 async def search_doctors(
     specialization: Optional[str] = None,
@@ -1708,16 +1853,16 @@ async def search_doctors(
             .eq("verification_status", "verified")
         )
 
-        if specialization:
-            query = query.ilike("specialization", f"%{specialization}%")
         if city:
             query = query.ilike("users.city", f"%{city}%")
 
-        # Over-fetch when a mode filter applies: the mode is resolved in Python
-        # from published availability, so limiting in SQL would cap the wrong
-        # set and drop matching doctors.
-        result = query.limit(200 if consultation_mode else limit).execute()
+        # Over-fetch so Python semantic specialization and mode resolution
+        # do not drop valid matches through rigid SQL substrings.
+        result = query.limit(200 if (consultation_mode or specialization) else limit).execute()
         doctors = result.data or []
+
+        if specialization:
+            doctors = [d for d in doctors if matches_specialty(d.get("specialization", ""), specialization)]
 
         if consultation_mode:
             published = provider_modes.resolve_modes(
@@ -1737,7 +1882,31 @@ async def search_doctors(
 
         doctors = doctors[:limit]
 
-        # Enrich with fees
+        # Batch-fetch presentation data (bio and fee justification) from documents
+        doc_user_ids = [d.get("user_id") for d in doctors if d.get("user_id")]
+        presentation_map: dict[str, dict[str, str]] = {}
+        if doc_user_ids:
+            try:
+                pres_res = (
+                    supabase.table("documents")
+                    .select("user_id, verification_notes")
+                    .in_("user_id", doc_user_ids)
+                    .eq("document_type", "provider_presentation")
+                    .execute()
+                )
+                for row in (pres_res.data or []):
+                    try:
+                        notes = json.loads(row.get("verification_notes") or "{}")
+                        presentation_map[row["user_id"]] = {
+                            "bio": notes.get("bio", ""),
+                            "fee_justification": notes.get("fee_justification", ""),
+                        }
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"Could not load provider presentations: {e}")
+
+        # Enrich with fees and presentation
         enriched = []
         for doc in doctors:
             user: Any = doc.get("users", {})
@@ -1762,6 +1931,7 @@ async def search_doctors(
             if not fees and doc.get("consultation_fee"):
                 fees["in_person"] = doc["consultation_fee"]
 
+            pres = presentation_map.get(doc_user_id, {})
             enriched.append({
                 "id": doc_user_id,
                 "name": user.get("full_name", ""),
@@ -1769,16 +1939,15 @@ async def search_doctors(
                 "qualification": doc.get("qualification", ""),
                 "experience_years": doc.get("years_of_experience", 0),
                 "consultation_mode": doc.get("consultation_mode", "both"),
-                # The real, published set — the single enum above is kept for
-                # back-compat but no longer decides what a patient can book.
                 "consultation_modes": sorted(
                     provider_modes.resolve_modes([doc_user_id]).get(doc_user_id)
                     or provider_modes.normalise_mode(doc.get("consultation_mode"))
                 ),
+                "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
+                "bio": pres.get("bio") or doc.get("bio") or "",
+                "fee_justification": pres.get("fee_justification") or doc.get("fee_justification") or "",
+                "verification_status": doc.get("verification_status") or "verified",
                 "city": user.get("city", ""),
-                # Already fetched by the users!inner join above — surfaced so
-                # location-based discovery (State → District) can filter
-                # client-side without a second round-trip.
                 "district": user.get("district", ""),
                 "state": user.get("state", ""),
                 "fees": fees,
@@ -1789,6 +1958,102 @@ async def search_doctors(
     except Exception as e:
         logger.error(f"Error searching doctors: {e}")
         return {"success": True, "doctors": []}
+
+
+@router.get("/doctor/{doctor_id}/presentation")
+async def get_doctor_presentation(doctor_id: str):
+    """Public endpoint to fetch doctor professional presentation and fee justification."""
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+    try:
+        # Match either by user_id or doctor id
+        doc_res = (
+            supabase.table("doctors")
+            .select("*, users!inner(id, full_name, email, city, district, state)")
+            .or_(f"user_id.eq.{doctor_id},id.eq.{doctor_id}")
+            .limit(1)
+            .execute()
+        )
+        if not doc_res.data:
+            raise HTTPException(404, "Doctor not found")
+
+        doc = doc_res.data[0]
+        user = doc.get("users", {})
+        uid = user.get("id") or doc.get("user_id")
+
+        # Fetch fees
+        fees = {}
+        try:
+            fees_res = (
+                supabase.table("consultation_fees")
+                .select("fee_type, amount")
+                .eq("doctor_id", uid)
+                .eq("is_active", True)
+                .execute()
+            )
+            for f in (fees_res.data or []):
+                fees[f["fee_type"]] = f["amount"]
+        except Exception:
+            pass
+
+        if not fees and doc.get("consultation_fee"):
+            fees["in_person"] = doc["consultation_fee"]
+
+        # Fetch presentation notes from documents
+        bio = ""
+        fee_justification = ""
+        try:
+            pres_res = (
+                supabase.table("documents")
+                .select("verification_notes")
+                .eq("user_id", uid)
+                .eq("document_type", "provider_presentation")
+                .order("uploaded_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if pres_res.data and pres_res.data[0].get("verification_notes"):
+                notes = json.loads(pres_res.data[0]["verification_notes"])
+                bio = notes.get("bio", "")
+                fee_justification = notes.get("fee_justification", "")
+        except Exception:
+            pass
+
+        # Fetch availability blocks
+        av_res = (
+            supabase.table("doctor_availability")
+            .select("day_of_week, start_time, end_time, consultation_mode, location_name, location_address, slot_duration_minutes")
+            .eq("doctor_id", uid)
+            .eq("is_active", True)
+            .order("day_of_week")
+            .order("start_time")
+            .execute()
+        )
+
+        return {
+            "success": True,
+            "doctor": {
+                "id": uid,
+                "name": user.get("full_name", ""),
+                "specialization": doc.get("specialization", ""),
+                "qualification": doc.get("qualification", ""),
+                "experience_years": doc.get("years_of_experience", 0),
+                "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
+                "bio": bio,
+                "fee_justification": fee_justification,
+                "fees": fees,
+                "verification_status": doc.get("verification_status", "verified"),
+                "city": user.get("city", ""),
+                "district": user.get("district", ""),
+                "state": user.get("state", ""),
+                "availability": av_res.data or [],
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching doctor presentation: {e}")
+        raise HTTPException(500, "Failed to fetch doctor presentation")
 
 
 @router.get("/search/providers")

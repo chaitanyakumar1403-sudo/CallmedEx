@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { telemedAPI, discoveryAPI } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import StateDistrictPicker from '@/components/StateDistrictPicker';
+import DoctorPresentationModal from '@/app/components/DoctorPresentationModal';
 import {
   Video,
   Building2,
@@ -27,6 +28,7 @@ import {
   Star,
   ShieldCheck,
   Stethoscope,
+  Sparkles,
 } from 'lucide-react';
 
 type ConsultMode = 'teleconsultation' | 'walkin' | 'home';
@@ -45,6 +47,9 @@ interface Doctor {
   available: boolean;
   rating?: number;
   consultation_mode?: string;
+  hospital_clinic_name?: string;
+  bio?: string;
+  fee_justification?: string;
 }
 
 interface OrgCard {
@@ -72,6 +77,40 @@ const SPECIALIZATIONS = [
   'Ophthalmology',
   'Pulmonology',
 ];
+
+const SPECIALTY_ALIASES: Record<string, string[]> = {
+  cardiology: ['cardio', 'cardiac', 'heart', 'pgdcc', 'cardiologist'],
+  'general medicine': ['general', 'physician', 'internal medicine', 'family medicine', 'gp', 'mbbs'],
+  dermatology: ['derma', 'skin', 'dermatologist'],
+  pediatrics: ['pediatric', 'paediatric', 'child', 'pediatrician'],
+  gynecology: ['gynec', 'gynaec', 'obgyn', 'obstetric', 'women', 'gynecologist'],
+  orthopedics: ['orthopedic', 'orthopaedic', 'ortho', 'bone', 'joint', 'orthopedist'],
+  ent: ['ent', 'ear', 'nose', 'throat', 'otolaryngol'],
+  neurology: ['neuro', 'brain', 'neurologist'],
+  psychiatry: ['psych', 'mental', 'psychiatrist'],
+  dentistry: ['dent', 'oral', 'dentist'],
+  ophthalmology: ['ophthal', 'eye', 'vision', 'ophthalmologist'],
+  pulmonology: ['pulmo', 'chest', 'respiratory', 'lung', 'pulmonologist'],
+};
+
+function matchesSpecialization(candidateSpec: string, selectedSpec: string): boolean {
+  if (!selectedSpec || selectedSpec === 'All') return true;
+  const cand = (candidateSpec || '').toLowerCase().replace(/[^a-z]/g, '');
+  const sel = (selectedSpec || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (!cand) return false;
+  if (cand === sel || cand.includes(sel) || sel.includes(cand)) return true;
+
+  for (const [category, aliases] of Object.entries(SPECIALTY_ALIASES)) {
+    const catKey = category.toLowerCase().replace(/[^a-z]/g, '');
+    const selMatchesCat = catKey.includes(sel) || sel.includes(catKey) || aliases.some((a) => sel.includes(a) || a.includes(sel));
+    if (selMatchesCat) {
+      if (aliases.some((a) => cand.includes(a)) || cand.includes(catKey)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Walk-in tab: the organization types a patient can physically visit.
 const WALKIN_ORG_TYPES = ['dental_clinic', 'physiotherapy_center', 'clinic', 'polyclinic', 'hospital'];
@@ -124,6 +163,9 @@ function normalizeSearchDoctor(d: any): Doctor {
     state: d.state || '',
     available: true,
     consultation_mode: d.consultation_mode,
+    hospital_clinic_name: d.hospital_clinic_name || d.location_name || '',
+    bio: d.bio || '',
+    fee_justification: d.fee_justification || '',
   };
 }
 
@@ -156,6 +198,7 @@ function ConsultationContent() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [orgs, setOrgs] = useState<OrgCard[]>([]);
   const [selectedSpec, setSelectedSpec] = useState('All');
+  const [presentationDoctor, setPresentationDoctor] = useState<Doctor | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [consultMode, setConsultMode] = useState<ConsultMode>('teleconsultation');
   const [isLoading, setIsLoading] = useState(true);
@@ -288,16 +331,12 @@ function ConsultationContent() {
     let facilities = orgs;
 
     if (selectedSpec !== 'All') {
-      // The chips read "General Medicine"; the database holds
-      // "general medicine". Exact equality matched neither, so picking any
-      // specialization emptied the page even when that doctor was listed
-      // under "All" a second earlier.
-      const wanted = normSpec(selectedSpec);
-      docs = docs.filter((d) => {
-        const has = normSpec(d.specialization);
-        return has === wanted || has.includes(wanted) || wanted.includes(has);
-      });
-      facilities = []; // specialization chips are doctor-oriented
+      docs = docs.filter((d) => matchesSpecialization(d.specialization, selectedSpec));
+      facilities = facilities.filter(
+        (o) =>
+          matchesSpecialization(o.organization_type, selectedSpec) ||
+          matchesSpecialization(o.name, selectedSpec)
+      );
     }
 
     if (searchQuery) {
@@ -641,6 +680,34 @@ function ConsultationContent() {
                               {doc.qualification}
                             </div>
                           )}
+                          {doc.hospital_clinic_name && (
+                            <div style={{ fontSize: '0.78rem', color: '#0d9488', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                              <Building2 size={12} /> {doc.hospital_clinic_name}
+                            </div>
+                          )}
+                          <div style={{ marginTop: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setPresentationDoctor(doc)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                fontSize: '0.76rem',
+                                fontWeight: 600,
+                                background: 'rgba(13, 148, 136, 0.08)',
+                                color: '#0d9488',
+                                border: '1px solid rgba(13, 148, 136, 0.25)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              <Sparkles size={12} style={{ color: '#0d9488' }} />
+                              <span>View Profile & Tariff Justification</span>
+                            </button>
+                          </div>
                         </div>
                         <span className={`badge ${doc.available ? 'badge-success' : 'badge-warning'}`}>
                           {doc.available ? '● Available' : '● Busy'}
@@ -688,6 +755,26 @@ function ConsultationContent() {
             )}
           </>
         )}
+
+        {/* Doctor Professional Presentation Modal */}
+        <DoctorPresentationModal
+          isOpen={!!presentationDoctor}
+          onClose={() => setPresentationDoctor(null)}
+          doctor={presentationDoctor}
+          onBook={(mode) => {
+            if (presentationDoctor) {
+              const doc = presentationDoctor;
+              setPresentationDoctor(null);
+              if (mode === 'teleconsultation') {
+                router.push(`/consultation/${doc.doctor_id}?name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+              } else if (mode === 'home') {
+                router.push(`/booking?type=home_doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+              } else {
+                router.push(`/booking?type=doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+              }
+            }
+          }}
+        />
 
         {/* Compliance Footer */}
         <div

@@ -112,6 +112,77 @@ const PROACTIVE_PATIENT_NOTIFICATIONS: PatientNotification[] = [
   },
 ];
 
+const PROACTIVE_DOCTOR_NOTIFICATIONS: PatientNotification[] = [
+  {
+    id: "proactive-doc-1",
+    title: "Virtual Teleconsultation Room Ready",
+    message:
+      "Your virtual consultation waiting room is provisioned with high-definition video and AI-assisted SOAP clinical charting. Check in when ready for patient intake.",
+    category: "visit",
+    time: "5 mins ago",
+    timestamp: Date.now() - 5 * 60 * 1000,
+    read: false,
+    actionLabel: "Enter Workstation",
+    actionHref: "/dashboard/doctor",
+    priority: "urgent",
+  },
+  {
+    id: "proactive-doc-2",
+    title: "Walk-in Roster Synced — Visakha Multispeciality Clinics",
+    message:
+      "Affiliated clinic schedule confirmed: 12 weekly walk-in consultation blocks active (Mon–Sat 09:30–12:00, 19:00–21:00). Patient appointments are routed directly to reception OPD.",
+    category: "tracking",
+    time: "30 mins ago",
+    timestamp: Date.now() - 30 * 60 * 1000,
+    read: false,
+    actionLabel: "Manage Practice Roster",
+    actionHref: "/dashboard/doctor",
+    priority: "high",
+  },
+  {
+    id: "proactive-doc-3",
+    title: "NMC Digital Verification Active",
+    message:
+      "Dr. Latchireddi Sa Naidu — Medical registration and credentials verified under NMC 2026 digital registry. Autonomous practice tariffs and BIS generic e-prescriptions active.",
+    category: "biomarker",
+    time: "2 hours ago",
+    timestamp: Date.now() - 2 * 3600 * 1000,
+    read: true,
+    actionLabel: "View Credentials",
+    actionHref: "/dashboard/doctor",
+    priority: "normal",
+  },
+];
+
+const PROACTIVE_ORG_NOTIFICATIONS: PatientNotification[] = [
+  {
+    id: "proactive-org-1",
+    title: "Affiliated Doctor Schedule Synced",
+    message:
+      "Dr. Latchireddi Sa Naidu (Cardiology) has 12 active weekly walk-in consultation blocks registered for your facility reception OPD.",
+    category: "visit",
+    time: "15 mins ago",
+    timestamp: Date.now() - 15 * 60 * 1000,
+    read: false,
+    actionLabel: "View Linked Doctors",
+    actionHref: "/dashboard/organization",
+    priority: "high",
+  },
+  {
+    id: "proactive-org-2",
+    title: "Facility Scope & Services Active",
+    message:
+      "Your clinical services and walk-in consultation tariffs are live on CallMedex patient discovery network.",
+    category: "tracking",
+    time: "1 hour ago",
+    timestamp: Date.now() - 60 * 60 * 1000,
+    read: true,
+    actionLabel: "Review Services",
+    actionHref: "/dashboard/organization",
+    priority: "normal",
+  },
+];
+
 function relativeTime(iso?: string): string {
   if (!iso) return "recently";
   const then = new Date(iso).getTime();
@@ -166,18 +237,40 @@ interface PatientNotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
   onUnreadCountChange?: (count: number) => void;
+  role?: string;
 }
 
 export function PatientNotificationCenter({
   isOpen,
   onClose,
   onUnreadCountChange,
+  role,
 }: PatientNotificationCenterProps) {
   const [notifications, setNotifications] = useState<PatientNotification[]>([]);
   const [activeCategory, setActiveCategory] = useState<NotificationCategory>("all");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const detectedRole = (() => {
+    const raw = (role || "").toLowerCase();
+    if (raw.includes("doctor") || raw.includes("workstation")) return "doctor";
+    if (raw.includes("organization") || raw.includes("console")) return "organization";
+    if (raw.includes("patient") || raw.includes("portal")) return "patient";
+    try {
+      const path = typeof window !== "undefined" ? window.location.pathname : "";
+      if (path.includes("/dashboard/doctor")) return "doctor";
+      if (path.includes("/dashboard/organization")) return "organization";
+      if (path.includes("/dashboard/patient")) return "patient";
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      const r = (u.role || "").toLowerCase();
+      if (r === "doctor") return "doctor";
+      if (r === "organization" || r === "processing_center") return "organization";
+      return "patient";
+    } catch {
+      return "patient";
+    }
+  })();
 
   // Fetch notifications or populate realistic proactive notifications
   useEffect(() => {
@@ -202,9 +295,36 @@ export function PatientNotificationCenter({
 
         if (cancelled) return;
 
-        // Merge with proactive patient care alerts
-        const allItems = [...fetchedItems];
-        for (const item of PROACTIVE_PATIENT_NOTIFICATIONS) {
+        // Role-based filtering to eliminate cross-role pollution
+        let roleFiltered = fetchedItems;
+        if (detectedRole === "doctor") {
+          roleFiltered = fetchedItems.filter(
+            (item) =>
+              item.category !== "tracking" &&
+              !item.title.toLowerCase().includes("medication dose") &&
+              !item.title.toLowerCase().includes("phlebotomist") &&
+              !item.message.toLowerCase().includes("metformin") &&
+              !item.message.toLowerCase().includes("fasting")
+          );
+        } else if (detectedRole === "organization") {
+          roleFiltered = fetchedItems.filter(
+            (item) =>
+              !item.title.toLowerCase().includes("medication dose") &&
+              !item.title.toLowerCase().includes("phlebotomist") &&
+              !item.message.toLowerCase().includes("metformin")
+          );
+        }
+
+        const proactiveList =
+          detectedRole === "doctor"
+            ? PROACTIVE_DOCTOR_NOTIFICATIONS
+            : detectedRole === "organization"
+            ? PROACTIVE_ORG_NOTIFICATIONS
+            : PROACTIVE_PATIENT_NOTIFICATIONS;
+
+        // Merge with role-appropriate proactive alerts
+        const allItems = [...roleFiltered];
+        for (const item of proactiveList) {
           if (!allItems.some((existing) => existing.id === item.id)) {
             allItems.push(item);
           }
@@ -236,7 +356,7 @@ export function PatientNotificationCenter({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, onUnreadCountChange]);
+  }, [isOpen, onUnreadCountChange, detectedRole]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -357,10 +477,18 @@ export function PatientNotificationCenter({
             </div>
             <div>
               <h2 id="cm-notification-title" className="cm-notification-header__title">
-                Patient Notification Center
+                {detectedRole === "doctor"
+                  ? "Doctor Clinical Alert & Roster Center"
+                  : detectedRole === "organization"
+                  ? "Organization Operations Center"
+                  : "Patient Notification Center"}
               </h2>
               <p className="cm-notification-header__subtitle">
-                Clinical care alerts, cold-chain tracking, and proactive reminders
+                {detectedRole === "doctor"
+                  ? "Practice queue alerts, consultation requests, roster sync & clinical updates"
+                  : detectedRole === "organization"
+                  ? "Facility bookings, affiliated doctor availability & diagnostic queues"
+                  : "Clinical care alerts, cold-chain tracking, and proactive reminders"}
               </p>
             </div>
           </div>
@@ -408,7 +536,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("visit")}
           >
             <Calendar size={14} />
-            Visits & Consults
+            {detectedRole === "doctor" ? "Consultations" : detectedRole === "organization" ? "Appointments" : "Visits & Consults"}
           </button>
           <button
             type="button"
@@ -418,7 +546,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("tracking")}
           >
             <Truck size={14} />
-            Sample Tracking
+            {detectedRole === "doctor" ? "Roster Sync" : detectedRole === "organization" ? "Doctor Roster" : "Sample Tracking"}
           </button>
           <button
             type="button"
@@ -428,7 +556,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("medication")}
           >
             <Pill size={14} />
-            Medications
+            {detectedRole === "doctor" ? "e-Prescriptions" : detectedRole === "organization" ? "Services" : "Medications"}
           </button>
           <button
             type="button"
@@ -438,7 +566,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("biomarker")}
           >
             <Activity size={14} />
-            Biomarkers & Care
+            {detectedRole === "doctor" ? "Credentials" : detectedRole === "organization" ? "Facility" : "Biomarkers & Care"}
           </button>
         </div>
 
@@ -451,7 +579,11 @@ export function PatientNotificationCenter({
               </div>
               <h3 className="cm-notification-empty__title">All caught up!</h3>
               <p className="cm-notification-empty__text">
-                No active notifications in this category. Your appointments, prescriptions, and health records are up to date.
+                {detectedRole === "doctor"
+                  ? "No pending practice alerts in this category. Your consultation queue and credentials are up to date."
+                  : detectedRole === "organization"
+                  ? "No active alerts in this category. Facility schedules and appointments are up to date."
+                  : "No active notifications in this category. Your appointments, prescriptions, and health records are up to date."}
               </p>
             </div>
           ) : (
@@ -510,14 +642,34 @@ export function PatientNotificationCenter({
         <div className="cm-notification-footer">
           <div className="cm-notification-footer__telemetry">
             <Sparkles size={14} />
-            <span>AI Care Engine — Continuous Health Guardian Active</span>
+            <span>
+              {detectedRole === "doctor"
+                ? "Workstation Telemetry — Real-time Practice Queue & NMC e-Rx Active"
+                : detectedRole === "organization"
+                ? "Operations Telemetry — Reception OPD & Walk-in Queue Active"
+                : "AI Care Engine — Continuous Health Guardian Active"}
+            </span>
           </div>
           <button
             type="button"
             className="cm-notification-footer__btn"
-            onClick={() => handleActionClick("#sample-tracking")}
+            onClick={() => {
+              if (detectedRole === "doctor") {
+                handleActionClick("/dashboard/doctor");
+              } else if (detectedRole === "organization") {
+                handleActionClick("/dashboard/organization");
+              } else {
+                handleActionClick("#sample-tracking");
+              }
+            }}
           >
-            <span>Track Phlebotomist</span>
+            <span>
+              {detectedRole === "doctor"
+                ? "Open Workstation"
+                : detectedRole === "organization"
+                ? "Manage Roster"
+                : "Track Phlebotomist"}
+            </span>
             <ExternalLink size={14} />
           </button>
         </div>

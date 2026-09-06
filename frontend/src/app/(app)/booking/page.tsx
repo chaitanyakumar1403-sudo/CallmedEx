@@ -110,6 +110,10 @@ function BookingPageContent() {
   const planTypeParam = searchParams.get("plan_type");
   const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
   const priorityParam = searchParams.get("priority"); // "urgent" — from the diagnostics "priority slot" checkbox
+  const doctorParam = searchParams.get("doctor");
+  const doctorNameParam = searchParams.get("name");
+  const doctorSpecParam = searchParams.get("spec");
+  const doctorFeeParam = searchParams.get("fee");
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
@@ -230,12 +234,37 @@ function BookingPageContent() {
       router.push("/dashboard/patient#dental-directory-section");
       return;
     }
-    const targetType = typeParam || (orgParam ? "lab" : serviceParam ? "lab" : packageParam ? "lab" : "");
+    const targetType = typeParam || (doctorParam ? "doctor" : orgParam ? "lab" : serviceParam ? "lab" : packageParam ? "lab" : "");
     if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];
       if (validTypes.includes(targetType)) {
         setBookingType(targetType);
-        if (orgParam) {
+        if (doctorParam) {
+          const docObj = {
+            id: doctorParam,
+            doctor_id: doctorParam,
+            name: doctorNameParam || "Doctor",
+            specialization: doctorSpecParam || "General Medicine",
+            fee: Number(doctorFeeParam) || 500,
+            consultation_fee: Number(doctorFeeParam) || 500,
+          };
+          setSelectedDoctor(docObj);
+          setStep(4);
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/doctor/${doctorParam}/presentation`)
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.success && data.doctor) {
+                setSelectedDoctor((prev: any) => ({
+                  ...(prev || {}),
+                  ...data.doctor,
+                  id: doctorParam,
+                  doctor_id: doctorParam,
+                  fee: Number(doctorFeeParam) || data.doctor.consultation_fee || 500,
+                }));
+              }
+            })
+            .catch(() => {});
+        } else if (orgParam) {
           // For lab-with-org: set the org and go to step 2 (test selection).
           // The org-services fetch below populates the org name and timings.
           setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Provider" });
@@ -247,7 +276,28 @@ function BookingPageContent() {
         }
       }
     }
-  }, [typeParam, orgParam, serviceParam, packageParam, bookingType, router]);
+  }, [typeParam, doctorParam, doctorNameParam, doctorSpecParam, doctorFeeParam, orgParam, serviceParam, packageParam, bookingType, router]);
+
+  // Live load presentation details if credentialsModalDoc opens without bio/fee justification
+  useEffect(() => {
+    if (!credentialsModalDoc) return;
+    const docId = credentialsModalDoc.id || credentialsModalDoc.doctor_id;
+    if (docId && (!credentialsModalDoc.bio || !credentialsModalDoc.fee_justification)) {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/doctor/${docId}/presentation`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.doctor) {
+            setCredentialsModalDoc((prev: any) => ({
+              ...prev,
+              ...data.doctor,
+              bio: data.doctor.bio || prev?.bio,
+              fee_justification: data.doctor.fee_justification || prev?.fee_justification,
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [credentialsModalDoc]);
 
   // Auto-add package and any 30% discounted add-ons to selectedTests when arriving from /packages page
   useEffect(() => {
@@ -1977,6 +2027,28 @@ function BookingPageContent() {
                       <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
                         {selectedDoctor ? selectedDoctor.name : selectedOrg?.organization_name || selectedOrg?.name || (selectedTests.length > 0 ? `${selectedTests.length} test(s) selected` : "Appointment")}
                       </div>
+                      {selectedDoctor && (
+                        <div style={{ marginTop: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => setCredentialsModalDoc(selectedDoctor)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#0284c7",
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: 0,
+                            }}
+                          >
+                            <ShieldCheck size={13} /> View Doctor Profile &amp; Tariff Justification
+                          </button>
+                        </div>
+                      )}
                       {pricing.tier === "premium" && (
                         <div style={{ fontSize: "0.75rem", color: "#5b21b6", marginTop: 4 }}>
                           ⭐ Premium slot: +₹{pricing.surcharge} surcharge

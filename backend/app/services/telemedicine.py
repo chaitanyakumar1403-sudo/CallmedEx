@@ -499,29 +499,48 @@ class TelemedicineService:
             return []
 
         try:
-            # `available_for_online` is a signup checkbox nobody revisits. A
-            # doctor who later published online availability blocks and an
-            # online tariff on their workstation is offering video consults
-            # whatever that stale flag says, so the flag is no longer a filter
-            # — the published set below decides.
             query = (
                 supabase.table("doctors")
                 .select("*, users!inner(id, full_name, email, mobile, city, district, state)")
                 .eq("verification_status", "verified")
             )
-            if specialization:
-                # Case-insensitive: the table holds "general medicine" while
-                # the UI chip reads "General Medicine", and an equality match
-                # returned nothing for every specialization filter.
-                query = query.ilike("specialization", f"%{specialization}%")
 
-            result = query.execute()
+            result = query.limit(200 if specialization else 100).execute()
             rows = result.data or []
+
+            # Semantic specialization matching using aliases
+            if specialization:
+                from app.routers.provider_management import matches_specialty
+                rows = [d for d in rows if matches_specialty(d.get("specialization", ""), specialization)]
 
             from app.services import provider_modes
             published = provider_modes.resolve_modes([d.get("user_id") for d in rows])
 
             fees = SupabaseFees.online_fees([d.get("user_id") for d in rows])
+
+            # Batch load presentation data (bio and fee justification) from documents
+            doc_user_ids = [d.get("user_id") for d in rows if d.get("user_id")]
+            presentation_map: dict[str, dict[str, str]] = {}
+            if doc_user_ids:
+                try:
+                    pres_res = (
+                        supabase.table("documents")
+                        .select("user_id, verification_notes")
+                        .in_("user_id", doc_user_ids)
+                        .eq("document_type", "provider_presentation")
+                        .execute()
+                    )
+                    for row in (pres_res.data or []):
+                        try:
+                            notes = json.loads(row.get("verification_notes") or "{}")
+                            presentation_map[row["user_id"]] = {
+                                "bio": notes.get("bio", ""),
+                                "fee_justification": notes.get("fee_justification", ""),
+                            }
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.warning(f"Could not load provider presentations for telemed: {e}")
 
             doctors = []
             for d in rows:
@@ -531,16 +550,17 @@ class TelemedicineService:
                 ):
                     continue
                 user = d.get("users", {})
+                pres = presentation_map.get(uid, {})
                 doctors.append({
                     "doctor_id": user.get("id"),
                     "name": user.get("full_name", "Unknown"),
                     "specialization": d.get("specialization", ""),
                     "qualification": d.get("qualification", ""),
                     "experience_years": d.get("years_of_experience", 0),
-                    # The workstation's Consultation Tariffs tab writes
-                    # consultation_fees; doctors.consultation_fee is the stale
-                    # signup value and showed every doctor as free.
                     "consultation_fee": fees.get(uid, d.get("consultation_fee", 0)),
+                    "hospital_clinic_name": d.get("hospital_clinic_name", ""),
+                    "bio": pres.get("bio") or d.get("bio") or "",
+                    "fee_justification": pres.get("fee_justification") or d.get("fee_justification") or "",
                     "languages": d.get("languages_spoken", ["English"]),
                     "city": user.get("city", ""),
                     "district": user.get("district", ""),

@@ -867,27 +867,92 @@ export default function OrganizationDashboard() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {orgDoctors.map(doc => {
                       const user = doc.users || {};
+                      const avail = doc.availability || [];
+                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                      const shiftsMap: Record<string, number[]> = {};
+                      avail.forEach((a: any) => {
+                        const time = `${a.start_time?.slice(0, 5)} - ${a.end_time?.slice(0, 5)}`;
+                        if (!shiftsMap[time]) shiftsMap[time] = [];
+                        if (!shiftsMap[time].includes(a.day_of_week)) shiftsMap[time].push(a.day_of_week);
+                      });
+                      const formattedShifts = Object.entries(shiftsMap).map(([time, days]) => {
+                        days.sort((a, b) => a - b);
+                        const daysLabel = days.length === 7 ? "All Days" : days.length === 6 && !days.includes(0) ? "Mon – Sat" : days.map(d => dayNames[d]).join(", ");
+                        return { time, daysLabel };
+                      });
+
                       return (
                         <div key={doc.id} style={{
-                          display: "flex", justifyContent: "space-between", alignItems: "center",
-                          padding: "14px 16px", backgroundColor: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+                          padding: "16px", backgroundColor: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0",
+                          display: "flex", flexDirection: "column", gap: 12,
                         }}>
-                          <div>
-                            <div style={{ fontWeight: 700, color: "#1e293b" }}>{user.full_name || "Doctor"}</div>
-                            <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                              {doc.specialization || "General"} • ₹{doc.consultation_fee || 0}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontWeight: 700, color: "#1e293b", fontSize: "1rem" }}>
+                                  {user.full_name || "Doctor"}
+                                </span>
+                                <span style={{
+                                  fontSize: "0.68rem", fontWeight: 800, padding: "2px 8px", borderRadius: 999,
+                                  background: "#dcfce7", color: "#15803d", letterSpacing: "0.03em",
+                                }}>
+                                  {user.verification_status === "verified" || doc.verification_status === "verified" ? "✓ NMC VERIFIED" : "REGISTERED"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: "0.82rem", color: "#475569", marginTop: 2 }}>
+                                {doc.specialization || "General Medicine"} · {doc.qualification || user.qualification || "MBBS"}
+                              </div>
+                              <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 1 }}>{user.email}</div>
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{user.email}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>Walk-in Fee</div>
+                                <div style={{ fontWeight: 800, color: "#059669", fontSize: "1rem" }}>₹{doc.consultation_fee || 500}</div>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveDoctor(doc.doctor_user_id)}
+                                style={{
+                                  backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
+                                  padding: "6px 12px", borderRadius: 6, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
-                          <button
-                            onClick={() => handleRemoveDoctor(doc.doctor_user_id)}
-                            style={{
-                              backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
-                              padding: "6px 14px", borderRadius: 6, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
-                            }}
-                          >
-                            Remove
-                          </button>
+
+                          {/* Synced Walk-in Schedule from Doctor Workstation */}
+                          <div style={{
+                            padding: "10px 12px", borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0",
+                            fontSize: "0.78rem",
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: formattedShifts.length > 0 ? 6 : 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "#166534" }}>
+                                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }}></span>
+                                <span>Live Walk-in Practice Schedule (Synced)</span>
+                              </div>
+                              <span style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 600 }}>
+                                {avail.length > 0 ? `${avail.length} Active Weekly Blocks` : "No slots set"}
+                              </span>
+                            </div>
+
+                            {formattedShifts.length > 0 ? (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                {formattedShifts.map((shift, idx) => (
+                                  <div key={idx} style={{
+                                    padding: "3px 8px", background: "white", borderRadius: 6, border: "1px solid #86efac",
+                                    color: "#166534", fontWeight: 600, fontSize: "0.74rem",
+                                  }}>
+                                    📅 {shift.daysLabel}: <span style={{ fontWeight: 700 }}>{shift.time}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ color: "#64748b", fontSize: "0.75rem", fontStyle: "italic" }}>
+                                Doctor has not published walk-in hours for this facility yet. When updated in doctor workstation, they reflect here automatically.
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
