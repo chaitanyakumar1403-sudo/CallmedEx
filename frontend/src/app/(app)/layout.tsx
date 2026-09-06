@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { AppBar } from "@/components/ui";
 import { ToastProvider } from "@/components/ui/Toast";
 import FloatingCareTrigger from "@/app/components/FloatingCareTrigger";
+import MasterRoleTeleporterHUD from "@/app/components/MasterRoleTeleporterHUD";
 
 /**
  * App routes layout with auth guard and toast notifications.
@@ -78,6 +79,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppBar role="" />
         <main id="main">{children}</main>
         <FloatingCareTrigger iconType="message" />
+        <MasterRoleTeleporterHUD />
       </AuthGuard>
     </ToastProvider>
   );

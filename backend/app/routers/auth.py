@@ -16,7 +16,7 @@ from app.models.schemas import (
     ForgotPasswordRequest, VerifyResetOTPRequest, ResetPasswordRequest,
     SendOTPRequest, VerifyOTPRequest, RefreshTokenRequest,
     BiometricRegisterRequest, BiometricChallengeRequest, BiometricChallengeResponse,
-    BiometricVerifyRequest,
+    BiometricVerifyRequest, MasterSwitchRequest,
 )
 from app.utils.security import (
     hash_password, verify_password, create_access_token,
@@ -761,7 +761,7 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
-    """Authenticate user and return JWT token."""
+    """Authenticate user and return JWT token. Supports master owner persona targeting."""
     user = _get_user_by_email(credentials.email)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -776,27 +776,177 @@ async def login(credentials: UserLogin):
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token_version = user.get("token_version", 1)
+    target_user = user
+    is_master_persona = False
+    master_owner = None
+
+    # Detect platform owner account (admin role or accounts with provisioned personas)
+    if user.get("role") == "admin" or user.get("owner_email") == credentials.email:
+        master_owner = credentials.email
+
+    # If the master owner specifies a target role (e.g. dentist, patient, physiotherapist),
+    # dynamically authenticate as the provisioned persona for that role.
+    if master_owner and credentials.role:
+        req_role = credentials.role.lower().strip()
+        if req_role != user.get("role"):
+            if supabase:
+                try:
+                    persona_res = (
+                        supabase.table("users")
+                        .select("*")
+                        .eq("owner_email", master_owner)
+                        .eq("role", req_role)
+                        .limit(1)
+                        .execute()
+                    )
+                    if persona_res.data and len(persona_res.data) > 0:
+                        target_user = persona_res.data[0]
+                        is_master_persona = True
+                except Exception as e:
+                    logger.warning(f"Error fetching master persona for role {req_role}: {e}")
+
+    token_version = target_user.get("token_version", 1)
     token_claims = {
-        "sub": user["id"],
-        "email": user["email"],
-        "role": user["role"],
-        "name": user["full_name"],
+        "sub": target_user["id"],
+        "email": target_user["email"],
+        "role": target_user["role"],
+        "name": target_user["full_name"],
+    }
+    if master_owner:
+        token_claims["master_owner"] = master_owner
+
+    token = create_access_token(token_claims, token_version=token_version)
+    refresh_token = create_refresh_token(token_claims, token_version=token_version)
+
+    user_payload = {
+        "id": target_user["id"],
+        "full_name": target_user["full_name"],
+        "email": target_user["email"],
+        "role": target_user["role"],
+    }
+    if master_owner:
+        user_payload["master_owner"] = master_owner
+        user_payload["is_owner"] = True
+
+    return TokenResponse(
+        access_token=token,
+        refresh_token=refresh_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=user_payload,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MASTER OWNER ROLE SWITCHER & AUDIT
+# ═══════════════════════════════════════════════════════════════════════════
+
+@router.post("/master-switch", response_model=TokenResponse)
+async def master_switch(
+    req: MasterSwitchRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Allow master owner to switch into any verified persona dashboard with 1 click.
+    """
+    master_owner = current_user.get("master_owner") or (
+        current_user.get("email") if current_user.get("role") == "admin" else None
+    )
+    if not master_owner:
+        raise HTTPException(
+            status_code=403,
+            detail="Master switch is only permitted for platform owner / administrator accounts.",
+        )
+
+    target_role = req.target_role.lower().strip()
+    target_user = None
+
+    if target_role == "admin":
+        target_user = _get_user_by_email(master_owner)
+    elif supabase:
+        try:
+            res = (
+                supabase.table("users")
+                .select("*")
+                .eq("owner_email", master_owner)
+                .eq("role", target_role)
+                .limit(1)
+                .execute()
+            )
+            if res.data and len(res.data) > 0:
+                target_user = res.data[0]
+        except Exception as e:
+            logger.error(f"Error finding master persona for {target_role}: {e}")
+
+    if not target_user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No verified persona found for role '{target_role}'. Please run master_dev_provision.py.",
+        )
+
+    token_version = target_user.get("token_version", 1)
+    token_claims = {
+        "sub": target_user["id"],
+        "email": target_user["email"],
+        "role": target_user["role"],
+        "name": target_user["full_name"],
+        "master_owner": master_owner,
     }
     token = create_access_token(token_claims, token_version=token_version)
     refresh_token = create_refresh_token(token_claims, token_version=token_version)
+
+    LegalService.log_audit(
+        actor_id=current_user.get("sub", target_user["id"]),
+        action="master.role_switched",
+        entity_type="session",
+        entity_id=target_user["id"],
+        details={
+            "master_owner": master_owner,
+            "switched_to_role": target_role,
+            "persona_name": target_user["full_name"],
+        },
+    )
 
     return TokenResponse(
         access_token=token,
         refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         user={
-            "id": user["id"],
-            "full_name": user["full_name"],
-            "email": user["email"],
-            "role": user["role"],
+            "id": target_user["id"],
+            "full_name": target_user["full_name"],
+            "email": target_user["email"],
+            "role": target_user["role"],
+            "master_owner": master_owner,
+            "is_owner": True,
         },
     )
+
+
+@router.get("/master-personas")
+async def get_master_personas(current_user: dict = Depends(get_current_user)):
+    """
+    Get all active personas provisioned for the platform owner.
+    """
+    master_owner = current_user.get("master_owner") or (
+        current_user.get("email") if current_user.get("role") == "admin" else None
+    )
+    if not master_owner:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not supabase:
+        return {"success": True, "personas": []}
+
+    res = (
+        supabase.table("users")
+        .select("id, full_name, email, role, is_active, registration_status")
+        .eq("owner_email", master_owner)
+        .execute()
+    )
+    return {
+        "success": True,
+        "master_owner": master_owner,
+        "personas": res.data or [],
+    }
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

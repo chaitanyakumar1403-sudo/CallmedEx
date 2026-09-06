@@ -360,6 +360,11 @@ class ProviderScopeUpdateRequest(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    role: Optional[str] = None
+
+
+class MasterSwitchRequest(BaseModel):
+    target_role: str
 
 
 class ForgotPasswordRequest(BaseModel):

@@ -27,8 +27,10 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
+import Clinical3DIcon, { Clinical3DIconName } from '@/components/ui/Clinical3DIcon';
 
 const LOCATION_MAP = LOCATIONS as Record<string, string[]>;
 const INDIAN_STATES = Object.keys(LOCATION_MAP).sort();
@@ -520,6 +522,58 @@ export default function AdminDashboard() {
     } catch { /* silent */ }
   };
 
+  const handleTeleport = async (targetRole: string, targetSlug: string) => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/auth/master-switch`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ target_role: targetRole }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Failed to switch to ${targetRole}`);
+      }
+
+      const data = await res.json();
+      localStorage.setItem("token", data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem("refreshToken", data.refresh_token);
+      }
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      toast.success(`Teleported to ${targetRole} console`, {
+        description: `Now inspecting as ${data.user.full_name}`,
+      });
+
+      router.push(`/dashboard/${targetSlug}`);
+      setTimeout(() => {
+        window.location.href = `/dashboard/${targetSlug}`;
+      }, 150);
+    } catch (err: any) {
+      toast.error("Teleport Failed", { description: err.message });
+    }
+  };
+
+  const MASTER_PERSONAS_LIST: { role: string; slug: string; label: string; name: string; badge: string; icon: Clinical3DIconName }[] = [
+    { role: 'doctor', slug: 'doctor', label: 'Doctor Workstation', name: 'Dr. Latchireddi SA Naidu', badge: 'MBBS, PGDCCP (NI)', icon: 'stethoscope' },
+    { role: 'dentist', slug: 'dentist', label: 'Dental Clinic Console', name: 'Dr. Anita Rao', badge: 'BDS, MDS Oral Surgery', icon: 'dental' },
+    { role: 'physiotherapist', slug: 'physiotherapist', label: 'Physiotherapy Console', name: 'Dr. Vikram Reddy', badge: 'BPT, MPT Neuro & Ortho', icon: 'physio' },
+    { role: 'patient', slug: 'patient', label: 'Patient Portal', name: 'Rahul Sharma', badge: 'Active Patient (ABHA Linked)', icon: 'patient' },
+    { role: 'organization', slug: 'organization', label: 'Organization Command', name: 'Visakha Multispeciality Clinics', badge: 'Verified Polyclinic', icon: 'hospital' },
+    { role: 'phlebotomist', slug: 'phlebotomist', label: 'Phlebotomist Mobile', name: 'Rajesh Verma', badge: 'Full-time (25km Salaried)', icon: 'phlebo' },
+    { role: 'pharmacy', slug: 'pharmacy', label: 'Pharmacy Fulfillment', name: 'CallMedex Prime Pharmacy', badge: '24x7 Retail Pharmacy', icon: 'pharmacy' },
+    { role: 'dietitian', slug: 'dietitian', label: 'Clinical Dietitian', name: 'Dr. Sneha Patel', badge: 'M.Sc Clinical Nutrition', icon: 'dietitian' },
+    { role: 'nurse', slug: 'nurse', label: 'Nurse Care Hub', name: 'Sister Priya Sharma', badge: 'B.Sc Critical Care Nursing', icon: 'nurse' },
+    { role: 'staff', slug: 'staff', label: 'Clinical Ops Desk', name: 'Kavitha Rao', badge: 'Admissions & Front Desk', icon: 'staff' },
+    { role: 'processing_center', slug: 'processing-center', label: 'Processing Center', name: 'Vizag Central Hub', badge: 'NABL Reference Lab', icon: 'diagnostics' },
+    { role: 'admin', slug: 'admin', label: 'Super Admin Console', name: 'Chaitanya Kumar', badge: 'Master Owner', icon: 'shield' },
+  ];
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
@@ -575,6 +629,74 @@ export default function AdminDashboard() {
         {/* ════════════════════════════════════════════════════════════ */}
         {activeTab === 'overview' && (
           <>
+            {/* 👑 Master Platform Inspector & Direct Launcher */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0f1d33 0%, #1e3a8a 60%, #0369a1 100%)",
+                borderRadius: "var(--cm-radius)",
+                padding: "24px",
+                color: "white",
+                marginBottom: 24,
+                boxShadow: "0 10px 30px -5px rgba(15, 29, 51, 0.3)",
+                border: "1.5px solid rgba(56, 189, 248, 0.3)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#38bdf8", background: "rgba(56, 189, 248, 0.15)", padding: "4px 10px", borderRadius: 20, marginBottom: 8 }}>
+                    <span>👑</span> Platform Creator &amp; Master Owner Hub
+                  </div>
+                  <h2 style={{ fontSize: "1.35rem", fontWeight: 850, color: "white", margin: "0 0 4px" }}>
+                    Universal Developer Role Teleporter
+                  </h2>
+                  <p style={{ margin: 0, fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.8)" }}>
+                    Master Account: <strong style={{ color: "#ffffff" }}>chaitanyakumarf11@gmail.com</strong> · 12 of 12 Dashboards Verified &amp; Verification-Bypassed
+                  </p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "0.75rem", background: "#10b981", color: "white", padding: "4px 12px", borderRadius: 20, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <CheckCircle2 size={13} /> Bypass Active
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+                {MASTER_PERSONAS_LIST.map((item) => (
+                  <button
+                    key={item.role}
+                    type="button"
+                    onClick={() => handleTeleport(item.role, item.slug)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "10px 14px",
+                      borderRadius: 12,
+                      background: "rgba(255, 255, 255, 0.08)",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      color: "white",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      backdropFilter: "blur(8px)",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)"}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255, 255, 255, 0.12)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                      <Clinical3DIcon name={item.icon} size={18} />
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 750, color: "white" }}>{item.label}</div>
+                      <div style={{ fontSize: "0.72rem", color: "#93c5fd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.name}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* KPI Grid */}
             <div className="cm-kpi-grid">
               <KPICard icon={<Users size={22} />} label="Total Users" value={m.total_users || 0} color="#2563eb" onClick={() => { setActiveTab('users'); setUserRoleFilter('all'); }} />

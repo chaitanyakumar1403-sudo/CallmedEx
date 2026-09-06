@@ -18,7 +18,7 @@ import {
   ArrowRight,
   Lock,
 } from "lucide-react";
-import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
+import Clinical3DIcon, { Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
 import { storeSession } from "@/lib/sessionKeeper";
 
 export default function LoginPage() {
@@ -31,11 +31,17 @@ export default function LoginPage() {
 
   const setDemoAccount = (email: string) => {
     if (emailRef.current) emailRef.current.value = email;
-    if (passwordRef.current) passwordRef.current.value = "Demo@123456";
+    if (passwordRef.current) passwordRef.current.value = "Callmedex@123";
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const launchMasterRole = (targetRole: string) => {
+    if (emailRef.current) emailRef.current.value = "chaitanyakumarf11@gmail.com";
+    if (passwordRef.current) passwordRef.current.value = "Callmedex@123";
+    handleSubmit(undefined, targetRole);
+  };
+
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>, roleOverride?: string) => {
+    if (e) e.preventDefault();
     setLoading(true);
     setError("");
 
@@ -44,10 +50,14 @@ export default function LoginPage() {
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+      const bodyPayload: any = { email, password };
+      if (roleOverride) {
+        bodyPayload.role = roleOverride;
+      }
       const res = await fetch(`${apiBase}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const rawText = await res.text();
@@ -177,52 +187,55 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Quick Demo Fillers for testing */}
+          {/* Master Developer & Role Teleporter Hub */}
           <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 18 }}>
-            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em", marginBottom: 12 }}>
-              Quick Demo Accounts
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>👑</span> Master Developer &amp; Role Launcher
+              </div>
+              <span style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", background: "var(--cm-surface-2)", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>
+                Zero-Lock Verification
+              </span>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setDemoAccount("doctor@callmedex.in")}
-                className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
-              >
-                <Clinical3DIcon name="stethoscope" size={20} /> Doctor
-              </button>
-              <button
-                type="button"
-                onClick={() => setDemoAccount("patient@callmedex.in")}
-                className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
-              >
-                <Clinical3DIcon name="patient" size={20} /> Patient
-              </button>
-              <button
-                type="button"
-                onClick={() => setDemoAccount("nurse@callmedex.in")}
-                className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
-              >
-                <Clinical3DIcon name="nurse" size={20} /> Nurse
-              </button>
-              <button
-                type="button"
-                onClick={() => setDemoAccount("dietitian@callmedex.in")}
-                className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
-              >
-                <Clinical3DIcon name="dietitian" size={20} /> Dietitian
-              </button>
-              <button
-                type="button"
-                onClick={() => setDemoAccount("physio@callmedex.in")}
-                className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px" }}
-              >
-                <Clinical3DIcon name="physio" size={20} /> Physio
-              </button>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+              {([
+                { role: "doctor", label: "Doctor", icon: "stethoscope" },
+                { role: "dentist", label: "Dentist", icon: "dental" },
+                { role: "physiotherapist", label: "Physio", icon: "physio" },
+                { role: "patient", label: "Patient", icon: "patient" },
+                { role: "organization", label: "Organization", icon: "hospital" },
+                { role: "phlebotomist", label: "Phlebo", icon: "phlebo" },
+                { role: "pharmacy", label: "Pharmacy", icon: "pharmacy" },
+                { role: "dietitian", label: "Dietitian", icon: "dietitian" },
+                { role: "nurse", label: "Nurse", icon: "nurse" },
+                { role: "staff", label: "Staff", icon: "staff" },
+                { role: "processing_center", label: "Lab Center", icon: "diagnostics" },
+                { role: "admin", label: "Super Admin", icon: "shield" },
+              ] as { role: string; label: string; icon: Clinical3DIconName }[]).map((item) => (
+                <button
+                  key={item.role}
+                  type="button"
+                  onClick={() => launchMasterRole(item.role)}
+                  className="cm-btn cm-btn--secondary cm-btn--sm"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "7px 10px",
+                    fontSize: "0.8rem",
+                    justifyContent: "flex-start",
+                    borderRadius: 10,
+                  }}
+                  title={`Launch into ${item.label} dashboard instantly`}
+                >
+                  <Clinical3DIcon name={item.icon} size={18} />
+                  <span style={{ fontWeight: 700 }}>{item.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", marginTop: 8 }}>
+              Clicking any role authenticates via master credentials (<strong style={{ color: "var(--cm-ink-2)" }}>chaitanyakumarf11@gmail.com</strong>) and launches that dashboard directly.
             </div>
           </div>
         </div>
