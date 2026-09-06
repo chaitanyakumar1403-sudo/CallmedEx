@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Icon } from "./Icon";
 import { Bell, LogOut, User } from "./icons";
 import { Button } from "./Button";
+import { PatientNotificationCenter } from "@/app/components/PatientNotificationCenter";
 
 /**
  * The one bar on app routes. Replaces the marketing utility bar + public navbar
@@ -17,6 +18,8 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
   const pathname = usePathname();
   const [resolvedRole, setResolvedRole] = useState(role || "");
   const [resolvedUser, setResolvedUser] = useState(userName || "");
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(3);
 
   useEffect(() => {
     if (role) {
@@ -59,9 +62,28 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
       <a className="cm-appbar__brand" href="/">CallMedex</a>
       {resolvedRole && <span className="cm-appbar__role">{resolvedRole}</span>}
       <span className="cm-appbar__spacer" />
-      <Button variant="ghost" iconOnly aria-label="Notifications">
-        <Icon as={Bell} size={20} />
-      </Button>
+      <div className="cm-appbar__notification-wrap">
+        <Button
+          variant="ghost"
+          iconOnly
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+          onClick={() => setIsNotificationsOpen(true)}
+        >
+          <Icon as={Bell} size={20} />
+          {unreadCount > 0 && (
+            <span className="cm-appbar__badge">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Button>
+      </div>
+
+      <PatientNotificationCenter
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        onUnreadCountChange={(count) => setUnreadCount(count)}
+      />
+
       {resolvedUser && (
         <span className="cm-appbar__user">
           <Icon as={User} size={16} />

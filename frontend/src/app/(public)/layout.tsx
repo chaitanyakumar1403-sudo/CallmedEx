@@ -1,5 +1,6 @@
 import SmartNavbar from "../components/SmartNavbar";
-import { Phone, ShieldAlert, Droplet, ShieldCheck, MessageSquare } from "lucide-react";
+import FloatingCareTrigger from "../components/FloatingCareTrigger";
+import { Phone, ShieldAlert, Droplet, ShieldCheck } from "lucide-react";
 
 export default function PublicLayout({
   children,
@@ -78,13 +79,8 @@ export default function PublicLayout({
         </div>
       </footer>
 
-      {/* Chat Widget */}
-      <div className="chat-widget">
-        <button className="chat-widget__btn" aria-label="Chat with clinical coordinator" style={{ display: "grid", placeItems: "center" }}>
-          <MessageSquare size={20} color="#ffffff" />
-          <span className="chat-widget__pulse"></span>
-        </button>
-      </div>
+      {/* Production-Level Clinical Care Notification Beacon & Coordinator Trigger */}
+      <FloatingCareTrigger iconType="message" />
     </>
   );
 }

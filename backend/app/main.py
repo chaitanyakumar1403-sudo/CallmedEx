@@ -356,6 +356,38 @@ async def patient_savings_alias(current_user: dict = Depends(auth.get_current_us
     from app.routers.pharmacy_orders import get_patient_generic_savings
     return await get_patient_generic_savings(current_user)
 
+# Direct Communications Notifications Alias
+@app.get("/api/communications/notifications")
+async def communications_notifications_alias(
+    limit: int = 50,
+    unread_only: bool = False,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    from app.services.notification_engine import NotificationEngine
+    notifications = await NotificationEngine.get_user_notifications(
+        user_id=current_user["sub"],
+        limit=limit,
+        unread_only=unread_only,
+    )
+    return {"success": True, "notifications": notifications}
+
+
+@app.post("/api/communications/notifications/read-all")
+async def communications_notifications_read_all_alias(
+    current_user: dict = Depends(auth.get_current_user),
+):
+    from app.services.notification_engine import NotificationEngine
+    return await NotificationEngine.mark_all_read(current_user["sub"])
+
+
+@app.post("/api/communications/notifications/{notification_id}/read")
+async def communications_notifications_read_alias(
+    notification_id: str,
+    current_user: dict = Depends(auth.get_current_user),
+):
+    from app.services.notification_engine import NotificationEngine
+    return await NotificationEngine.mark_read(notification_id, current_user["sub"])
+
 
 # ─── Health Check ─────────────────────────────────────────────────────────
 @app.get("/api/health")

@@ -133,8 +133,12 @@ class NotificationEngine:
         if unread_only:
             query = query.neq("status", "read")
 
-        result = query.execute()
-        return result.data or []
+        try:
+            result = query.execute()
+            return result.data or []
+        except Exception as e:
+            logger.warning(f"Failed to fetch user notifications: {e}")
+            return []
 
     @staticmethod
     async def mark_read(notification_id: str, user_id: str) -> dict:
@@ -142,13 +146,41 @@ class NotificationEngine:
         if not supabase:
             return {"success": True}
 
-        now = datetime.now(timezone.utc).isoformat()
-        supabase.table("notifications").update({
-            "status": "read",
-            "read_at": now,
-        }).eq("id", notification_id).eq("user_id", user_id).execute()
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            supabase.table("notifications").update({
+                "status": "read",
+                "read_at": now,
+            }).eq("id", notification_id).eq("user_id", user_id).execute()
+            return {"success": True}
+        except Exception as e:
+            logger.warning(f"Failed to mark notification {notification_id} as read: {e}")
+            return {"success": True}
 
-        return {"success": True}
+    @staticmethod
+    async def mark_all_read(user_id: str) -> dict:
+        """Mark all in-app notifications for a user as read."""
+        if not supabase:
+            return {"success": True, "count": 0}
+
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            res = (
+                supabase.table("notifications")
+                .update({
+                    "status": "read",
+                    "read_at": now,
+                })
+                .eq("user_id", user_id)
+                .neq("status", "read")
+                .execute()
+            )
+
+            count = len(res.data) if res and res.data else 0
+            return {"success": True, "count": count}
+        except Exception as e:
+            logger.warning(f"Failed to mark all notifications read for user {user_id}: {e}")
+            return {"success": True, "count": 0}
 
     # ─── Channel Handlers ─────────────────────────────────────────────
 

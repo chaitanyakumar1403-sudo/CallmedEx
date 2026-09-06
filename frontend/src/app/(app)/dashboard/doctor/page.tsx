@@ -7,6 +7,8 @@ import ProviderSchedulePanel from "../components/ProviderSchedulePanel";
 import { useRouter } from "next/navigation";
 import DashboardShell from "../components/DashboardShell";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
+import DoctorClinicalAnalytics3D from "../components/DoctorClinicalAnalytics3D";
+import DoctorVerificationModal from "../components/DoctorVerificationModal";
 import {
   Calendar,
   Clock,
@@ -17,7 +19,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Stethoscope,
-  DollarSign,
+  IndianRupee,
   Activity,
   FileText,
   ShieldCheck,
@@ -61,6 +63,7 @@ export default function DoctorDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [showVerifModal, setShowVerifModal] = useState(false);
 
   // Active Live Telemedicine Waiting Room Queue (/api/telemed/active)
   const [activeConsultations, setActiveConsultations] = useState<any[]>([]);
@@ -375,7 +378,7 @@ export default function DoctorDashboard() {
     { id: "erx_studio", label: "e-Prescription Pad", icon: FileText },
     { id: "tariffs", label: "Consultation Tariffs", icon: CreditCard },
     { id: "home_visits", label: "Home Visits", icon: Home },
-    { id: "revenue", label: "Revenue & Payouts", icon: DollarSign },
+    { id: "revenue", label: "Revenue & Payouts", icon: IndianRupee },
     { id: "profile", label: "Doctor Profile", icon: User },
   ];
 
@@ -475,7 +478,12 @@ export default function DoctorDashboard() {
           <div className="cm-metric-card__meta">Daily direct settlement</div>
         </div>
 
-        <div className="cm-metric-card" onClick={() => setActiveTab("profile")} style={{ cursor: "pointer" }}>
+        <div
+          className="cm-metric-card"
+          onClick={() => setShowVerifModal(true)}
+          style={{ cursor: "pointer", position: "relative" }}
+          title="Click to view NMC Credential Audit & Live Status"
+        >
           <div className="cm-metric-card__label">
             <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "#0284c7" }} /> Clinical Status
           </div>
@@ -500,7 +508,7 @@ export default function DoctorDashboard() {
             </span>
           </div>
           <div className="cm-metric-card__meta">
-            {isVerified ? "NMC Verified Practitioner" : "Under NMC Credential Review"}
+            {isVerified ? "NMC Verified Practitioner" : "Click to view pending items"}
           </div>
         </div>
       </div>
@@ -794,7 +802,7 @@ export default function DoctorDashboard() {
                 </span>
               </div>
               <h3 className="cm-widget-title">
-                <DollarSign size={20} />
+                <IndianRupee size={20} />
                 <span>Practice Consultation Tariffs</span>
               </h3>
               <p className="cm-widget-subtitle">
@@ -891,7 +899,7 @@ export default function DoctorDashboard() {
             {/* Customize Practice Fee Form */}
             <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
               <h4 style={{ margin: "0 0 4px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
-                <DollarSign size={16} style={{ color: "#0284c7" }} />
+                <IndianRupee size={16} style={{ color: "#0284c7" }} />
                 <span>Customize Practice Fee</span>
               </h4>
               <p style={{ margin: "0 0 16px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
@@ -1549,7 +1557,7 @@ export default function DoctorDashboard() {
           {/* Transaction Ledger Table */}
           <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
             <h4 style={{ margin: "0 0 14px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-              <DollarSign size={18} style={{ color: "#0284c7" }} />
+              <IndianRupee size={18} style={{ color: "#0284c7" }} />
               <span>Settlement Ledger History</span>
             </h4>
             {earnings?.transactions && earnings.transactions.length > 0 ? (
@@ -1588,7 +1596,7 @@ export default function DoctorDashboard() {
               </div>
             ) : (
               <div style={{ padding: "36px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
-                <DollarSign size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
+                <IndianRupee size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
                 <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Financial Transactions Recorded Yet</div>
                 <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 440 }}>
                   As a newly registered doctor account, your settlement ledger will begin accruing daily payouts as soon as patients complete consultations.
@@ -1644,6 +1652,15 @@ export default function DoctorDashboard() {
               ))}
             </div>
           </div>
+
+          {/* 3D Realistic Clinical Appointments & Modalities Intelligence Hub */}
+          <DoctorClinicalAnalytics3D
+            bookings={todayBookings}
+            activeModality={modalityFilter}
+            onSelectModality={(m) => setModalityFilter(m)}
+            waitingCount={waitingCount}
+            homeVisitOnDuty={homeVisitOnDuty}
+          />
 
           {/* Deep Navy Glassmorphic Sub-Modality Filter Tabs */}
           <div
@@ -2257,6 +2274,16 @@ export default function DoctorDashboard() {
           />
         </div>
       )}
+
+      {/* Glassmorphic Doctor Verification & Credential Audit Modal */}
+      <DoctorVerificationModal
+        isOpen={showVerifModal}
+        onClose={() => setShowVerifModal(false)}
+        profile={profile}
+        onVerificationSuccess={() => {
+          fetchProfile();
+        }}
+      />
     </DashboardShell>
   );
 }

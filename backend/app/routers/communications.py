@@ -226,6 +226,15 @@ async def get_notifications(
     return {"success": True, "notifications": notifications}
 
 
+@router.post("/notifications/read-all")
+async def mark_all_notifications_read(
+    current_user: dict = Depends(get_current_user),
+):
+    """Mark all in-app notifications as read for current user."""
+    result = await NotificationEngine.mark_all_read(current_user["sub"])
+    return result
+
+
 @router.post("/notifications/{notification_id}/read")
 async def mark_notification_read(
     notification_id: str,
