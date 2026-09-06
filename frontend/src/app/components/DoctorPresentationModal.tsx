@@ -195,7 +195,17 @@ export default function DoctorPresentationModal({
             </span>
           </div>
 
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 800, margin: "0 0 6px", letterSpacing: "-0.01em" }}>
+          <h2
+            style={{
+              fontSize: "1.65rem",
+              fontWeight: 800,
+              color: "#ffffff",
+              margin: "0 0 6px",
+              letterSpacing: "-0.015em",
+              lineHeight: 1.25,
+              textShadow: "0 2px 10px rgba(0, 0, 0, 0.45)",
+            }}
+          >
             Dr. {doc.name?.replace(/^Dr\.\s*/i, "")}
           </h2>
 
