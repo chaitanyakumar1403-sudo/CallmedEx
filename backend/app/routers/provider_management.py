@@ -21,6 +21,8 @@ from app.services.scope_catalogs import (
     get_diagnostic_center_scope,
 )
 
+from app.utils.personas import is_test_persona
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers", tags=["Provider Management"])
 
@@ -1849,7 +1851,7 @@ async def search_doctors(
     try:
         query = (
             supabase.table("doctors")
-            .select("*, users!inner(id, full_name, email, city, district, state)")
+            .select("*, users!inner(id, full_name, email, city, district, state, owner_email, registrant_role)")
             .eq("verification_status", "verified")
         )
 
@@ -1859,7 +1861,7 @@ async def search_doctors(
         # Over-fetch so Python semantic specialization and mode resolution
         # do not drop valid matches through rigid SQL substrings.
         result = query.limit(200 if (consultation_mode or specialization) else limit).execute()
-        doctors = result.data or []
+        doctors = [d for d in (result.data or []) if not is_test_persona(d.get("users") or {})]
 
         if specialization:
             doctors = [d for d in doctors if matches_specialty(d.get("specialization", ""), specialization)]
@@ -1969,7 +1971,7 @@ async def get_doctor_presentation(doctor_id: str):
         # Match either by user_id or doctor id
         doc_res = (
             supabase.table("doctors")
-            .select("*, users!inner(id, full_name, email, city, district, state)")
+            .select("*, users!inner(id, full_name, email, city, district, state, owner_email, registrant_role)")
             .or_(f"user_id.eq.{doctor_id},id.eq.{doctor_id}")
             .limit(1)
             .execute()
@@ -1979,6 +1981,9 @@ async def get_doctor_presentation(doctor_id: str):
 
         doc = doc_res.data[0]
         user = doc.get("users", {})
+        if is_test_persona(user):
+            raise HTTPException(404, "Doctor not found")
+
         uid = user.get("id") or doc.get("user_id")
 
         # Fetch fees
@@ -2078,7 +2083,7 @@ async def search_providers(
         ) else query.eq("provider_type", t)
         if home_service is True:
             query = query.eq("home_service_enabled", True)
-        rows = query.limit(100).execute().data or []
+        rows = [r for r in (query.limit(100).execute().data or []) if not is_test_persona(r)]
 
         out = []
         for r in rows:

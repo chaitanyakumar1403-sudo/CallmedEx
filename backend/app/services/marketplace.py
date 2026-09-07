@@ -25,6 +25,7 @@ import uuid
 from typing import List, Optional
 
 from app.database import supabase
+from app.utils.personas import is_test_persona
 
 logger = logging.getLogger(__name__)
 
@@ -501,13 +502,14 @@ class MarketplaceService:
         if test:
             city_lower = (city or "").strip().lower()
             try:
-                # Fetch active and onboarding PCs (not paused)
+                # Fetch active and onboarding PCs (not paused), excluding developer test hubs
                 pcs = _rows(
                     supabase.table("processing_centers")
-                    .select("id, name, city, state, status")
+                    .select("id, code, name, city, state, status")
                     .neq("status", "paused")
                     .execute()
                 )
+                pcs = [pc for pc in pcs if pc.get("code") != "PC-VIZAG-01"]
                 if pcs:
                     pc_map = {pc["id"]: pc for pc in pcs}
                     # Fetch active service areas for these PCs from processing_center_areas table
@@ -904,10 +906,12 @@ class MarketplaceService:
         try:
             for o in _rows(
                 supabase.table("organizations")
-                .select("*, users!inner(id, full_name, address, city, district, state)")
+                .select("*, users!inner(id, full_name, email, owner_email, registrant_role, address, city, district, state)")
                 .eq("verification_status", "verified")
                 .execute()
             ):
+                if is_test_persona(o.get("users") or {}):
+                    continue
                 org_by_id[o["id"]] = o
         except Exception as e:
             logger.error(f"radiology: organizations read failed: {e}")
@@ -1128,10 +1132,12 @@ class MarketplaceService:
             try:
                 for d in _rows(
                     supabase.table("dentists")
-                    .select("*, users!inner(id, full_name, address, city, district, state, mobile)")
+                    .select("*, users!inner(id, full_name, email, owner_email, registrant_role, address, city, district, state, mobile)")
                     .eq("verification_status", "verified")
                     .execute()
                 ):
+                    if is_test_persona(d.get("users") or {}):
+                        continue
                     dentists_by_id[d["id"]] = d
             except Exception as e:
                 logger.error(f"dental: dentists read failed: {e}")
@@ -1140,6 +1146,8 @@ class MarketplaceService:
         for d in _local_profiles.get("dentists", []):
             uid = d.get("user_id")
             u = _local_users.get(uid) or {}
+            if is_test_persona(u):
+                continue
             if uid and d.get("id") not in dentists_by_id:
                 dentists_by_id[d.get("id") or uid] = {**d, "users": u}
 
@@ -1149,11 +1157,13 @@ class MarketplaceService:
             try:
                 for o in _rows(
                     supabase.table("organizations")
-                    .select("*, users!inner(id, full_name, address, city, district, state, mobile)")
+                    .select("*, users!inner(id, full_name, email, owner_email, registrant_role, address, city, district, state, mobile)")
                     .eq("organization_type", "dental_clinic")
                     .eq("verification_status", "verified")
                     .execute()
                 ):
+                    if is_test_persona(o.get("users") or {}):
+                        continue
                     dental_orgs[o["id"]] = o
             except Exception as e:
                 logger.error(f"dental: dental organizations read failed: {e}")

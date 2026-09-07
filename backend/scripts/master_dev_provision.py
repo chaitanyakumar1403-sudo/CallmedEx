@@ -241,7 +241,7 @@ def provision_all(master_email: str, master_password: str):
             "country": "India",
             "is_active": True,
             "registration_status": "active",
-            "registrant_role": "provider",
+            "registrant_role": "master_persona",
             "owner_email": master_email,
             "token_version": 1,
             "created_at": now_iso,
@@ -427,7 +427,7 @@ def provision_all(master_email: str, master_password: str):
                     "specialization": "Pediatric & Geriatric Difficult Vein Phlebotomy",
                     "years_of_experience": 6,
                     "certification_number": "CMLT-55120",
-                    "on_duty": True,
+                    "on_duty": False,
                     "current_lat": 17.7280,
                     "current_lng": 83.3080,
                     "per_collection_rate": 0.00,
@@ -543,6 +543,18 @@ def provision_all(master_email: str, master_password: str):
                 else:
                     pc_data["id"] = str(uuid.uuid4())
                     supabase.table("processing_centers").insert(pc_data).execute()
+
+            # For all provider roles: ensure provider_settings has is_listed = False
+            # so the provider_directory SQL view excludes them from public searches
+            if role in ["doctor", "dentist", "physiotherapist", "dietitian", "nurse", "phlebotomist", "pharmacy", "organization"]:
+                try:
+                    supabase.table("provider_settings").upsert({
+                        "provider_user_id": user_id,
+                        "is_listed": False,
+                        "home_service_enabled": False,
+                    }).execute()
+                except Exception as ps_err:
+                    print(f"  [!] Note on provider_settings for {role}: {ps_err}")
 
         except Exception as e:
             print(f"  [!] Note on profile {role}: {e}")

@@ -3,6 +3,7 @@ Phase 3: Pharmacy Delivery Engine (Dark Store Model)
 Matches prescriptions to the nearest verified pharmacy.
 """
 from app.database import supabase
+from app.utils.personas import is_test_persona
 import math
 
 def calculate_haversine(lat1, lon1, lat2, lon2):
@@ -30,12 +31,12 @@ class PharmacyService:
             
         # Fetch all active, verified pharmacies that do home delivery
         res = supabase.table("pharmacies") \
-            .select("id, user_id, service_radius_km") \
+            .select("id, user_id, service_radius_km, users!inner(id, city, email, owner_email, registrant_role)") \
             .eq("home_delivery", True) \
             .eq("verification_status", "verified") \
             .execute()
             
-        pharmacies = res.data
+        pharmacies = [p for p in (res.data or []) if not is_test_persona(p.get("users") or {})]
         if not pharmacies:
             return None
 

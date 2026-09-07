@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.pharmacy import PharmacyService
+from app.utils.personas import is_test_persona
 from app.models.schemas import PharmacyInventoryCreate, PharmacyInventoryUpdate
 from app.utils.db_helpers import _rows
 import uuid
@@ -31,7 +32,7 @@ async def search_pharmacies(
     try:
         query = (
             supabase.table("pharmacies")
-            .select("*, users!inner(id, full_name, city, district, state, address)")
+            .select("*, users!inner(id, full_name, city, district, state, address, email, owner_email, registrant_role)")
             .in_("verification_status", ["verified", "pending"])
         )
 
@@ -41,7 +42,7 @@ async def search_pharmacies(
             query = query.ilike("pharmacy_name", f"%{q}%")
 
         result = query.limit(limit).execute()
-        pharmacies_raw = result.data or []
+        pharmacies_raw = [p for p in (result.data or []) if not is_test_persona(p.get("users") or {})]
 
         enriched = []
         for p in pharmacies_raw:

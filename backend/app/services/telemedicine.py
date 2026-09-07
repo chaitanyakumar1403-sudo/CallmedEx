@@ -15,6 +15,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="google.generat
 import google.generativeai as genai
 from app.config import settings
 from app.database import supabase
+from app.utils.personas import is_test_persona
 
 logger = logging.getLogger(__name__)
 
@@ -501,12 +502,12 @@ class TelemedicineService:
         try:
             query = (
                 supabase.table("doctors")
-                .select("*, users!inner(id, full_name, email, mobile, city, district, state)")
+                .select("*, users!inner(id, full_name, email, mobile, city, district, state, owner_email, registrant_role)")
                 .eq("verification_status", "verified")
             )
 
             result = query.limit(200 if specialization else 100).execute()
-            rows = result.data or []
+            rows = [d for d in (result.data or []) if not is_test_persona(d.get("users") or {})]
 
             # Semantic specialization matching using aliases
             if specialization:

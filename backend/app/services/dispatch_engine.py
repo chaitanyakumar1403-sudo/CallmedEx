@@ -16,6 +16,7 @@ from app.config import settings
 from app.database import supabase
 from app.services.otp import OTPService
 from app.services.email import EmailService
+from app.utils.personas import is_test_persona
 
 logger = logging.getLogger(__name__)
 
@@ -406,6 +407,8 @@ class UniversalDispatchEngine:
 
             if ignore_radius or dist <= effective_radius:
                 user_data = p.get("users", {})
+                if is_test_persona(user_data) or is_test_persona(p):
+                    continue
                 candidates.append({
                     "user_id": user_id,
                     "name": user_data.get("full_name", p.get("full_name", "Unknown")),
@@ -490,7 +493,8 @@ class UniversalDispatchEngine:
             else:
                 return []
 
-            return result.data or []
+            rows = result.data or []
+            return [r for r in rows if not is_test_persona(r.get("users", {}))]
         except Exception as e:
             logger.warning(f"Fallback find failed for {provider_type}: {e}")
             return []

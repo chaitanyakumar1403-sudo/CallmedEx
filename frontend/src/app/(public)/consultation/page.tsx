@@ -169,6 +169,29 @@ function normalizeSearchDoctor(d: any): Doctor {
   };
 }
 
+// Defense-in-depth: Ensure master developer personas and test accounts are never displayed to patients
+function isInternalTestDoctor(d: any): boolean {
+  if (!d) return false;
+  const email = (d.email || d.user_email || d.users?.email || '').toLowerCase();
+  const ownerEmail = (d.owner_email || d.users?.owner_email || '').toLowerCase();
+  const regRole = (d.registrant_role || d.users?.registrant_role || '').toLowerCase();
+  if (email.endsWith('@callmedex.internal') || email.includes('.internal')) return true;
+  if (regRole === 'master_persona' || regRole === 'test_persona' || regRole === 'sandbox') return true;
+  if (ownerEmail === 'chaitanyakumarf11@gmail.com') return true;
+  return false;
+}
+
+function isInternalTestOrg(o: any): boolean {
+  if (!o) return false;
+  const email = (o.email || o.official_email || o.users?.email || '').toLowerCase();
+  const ownerEmail = (o.owner_email || o.users?.owner_email || '').toLowerCase();
+  const regRole = (o.registrant_role || o.users?.registrant_role || '').toLowerCase();
+  if (email.endsWith('@callmedex.internal') || email.includes('.internal')) return true;
+  if (regRole === 'master_persona' || regRole === 'test_persona' || regRole === 'sandbox') return true;
+  if (ownerEmail === 'chaitanyakumarf11@gmail.com') return true;
+  return false;
+}
+
 // Location match for the State → District filter, used only by the physical
 // modes (walk-in, home visit). Video consultation never calls this: a patient
 // in any state may consult any verified doctor.
@@ -266,7 +289,7 @@ function ConsultationContent() {
     try {
       if (mode === 'teleconsultation') {
         const result = await telemedAPI.listDoctors();
-        const docs = (result.doctors || []) as Doctor[];
+        const docs = ((result.doctors || []) as Doctor[]).filter((d) => !isInternalTestDoctor(d));
         cache.current[mode] = { doctors: docs, orgs: [] };
         setDoctors(docs);
         setOrgs([]);
@@ -281,11 +304,12 @@ function ConsultationContent() {
         ]);
         const seen = new Map<string, Doctor>();
         (inPerson.doctors || []).forEach((d: any) => {
+          if (isInternalTestDoctor(d)) return;
           const nd = normalizeSearchDoctor(d);
           if (nd.doctor_id) seen.set(nd.doctor_id, nd);
         });
         const walkinOrgs: OrgCard[] = (orgResult.organizations || [])
-          .filter((o: any) => WALKIN_ORG_TYPES.includes(o.organization_type))
+          .filter((o: any) => WALKIN_ORG_TYPES.includes(o.organization_type) && !isInternalTestOrg(o))
           .map((o: any) => ({
             id: o.id,
             name: o.organization_name || o.name || '',
@@ -303,16 +327,20 @@ function ConsultationContent() {
           discoveryAPI.searchDoctors({ consultation_mode: 'home_visit' }),
           discoveryAPI.searchProviders({ type: 'physiotherapy_center', home_service: true }),
         ]);
-        const docs = (homeDoctors.doctors || []).map(normalizeSearchDoctor);
-        const homeOrgs: OrgCard[] = (physioResult.providers || []).map((p: any) => ({
-          id: p.provider_user_id,
-          name: p.display_name || '',
-          organization_type: p.subtype || 'physiotherapy_center',
-          city: p.city || '',
-          state: p.state || '',
-          min_price: p.min_price,
-          home_service_enabled: p.home_service_enabled,
-        }));
+        const docs = (homeDoctors.doctors || [])
+          .filter((d: any) => !isInternalTestDoctor(d))
+          .map(normalizeSearchDoctor);
+        const homeOrgs: OrgCard[] = (physioResult.providers || [])
+          .filter((p: any) => !isInternalTestOrg(p))
+          .map((p: any) => ({
+            id: p.provider_user_id,
+            name: p.display_name || '',
+            organization_type: p.subtype || 'physiotherapy_center',
+            city: p.city || '',
+            state: p.state || '',
+            min_price: p.min_price,
+            home_service_enabled: p.home_service_enabled,
+          }));
         cache.current[mode] = { doctors: docs, orgs: homeOrgs };
         setDoctors(docs);
         setOrgs(homeOrgs);
