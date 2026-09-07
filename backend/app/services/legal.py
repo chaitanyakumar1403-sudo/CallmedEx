@@ -177,14 +177,18 @@ class LegalService:
     """Manages legal documents, MOU generation, and acceptance recording."""
 
     @staticmethod
-    def get_active_document(role: str) -> dict:
+    def get_active_document(role: str, subtype: Optional[str] = None) -> dict:
         """
-        Fetch the latest active MOU document for a specific role.
-        Falls back to hardcoded content if DB is unavailable.
+        Fetch the latest active MOU document for a specific role and optional subtype.
+        Loads full unabridged legal agreement from authentic docx files or database.
         """
+        from app.services.mou_loader import get_full_mou_text
+
         doc_type = ROLE_MOU_MAP.get(role)
         if not doc_type:
-            return LegalService._get_fallback(role)
+            return LegalService._get_fallback(role, subtype)
+
+        full_text = get_full_mou_text(role, subtype)
 
         if supabase:
             try:
@@ -198,22 +202,32 @@ class LegalService:
                     .execute()
                 )
                 if result.data:
-                    return result.data[0]
+                    doc = result.data[0]
+                    # Authentic unabridged docx from mous/ is the ground-truth legal agreement
+                    if full_text:
+                        doc["content_text"] = full_text
+                    return doc
             except Exception as e:
                 logger.warning(f"Failed to fetch legal document from DB: {e}")
 
-        return LegalService._get_fallback(role)
+        return LegalService._get_fallback(role, subtype)
 
     @staticmethod
-    def _get_fallback(role: str) -> dict:
-        """Return hardcoded fallback MOU content."""
-        fallback = FALLBACK_MOU.get(role, FALLBACK_MOU.get("staff"))
+    def _get_fallback(role: str, subtype: Optional[str] = None) -> dict:
+        """Return full authentic MOU content from docx or fallback."""
+        from app.services.mou_loader import get_full_mou_text
+        full_text = get_full_mou_text(role, subtype)
+        fallback = FALLBACK_MOU.get(role, FALLBACK_MOU.get("staff", {}))
+        
+        title = fallback.get("title") or f"{role.capitalize()} Official Memorandum of Understanding — CallMedex"
+        content = full_text if full_text else fallback.get("content", "")
+
         return {
             "id": str(uuid.uuid4()),
             "document_type": ROLE_MOU_MAP.get(role, "mou_generic"),
             "version": "v1.0",
-            "title": fallback["title"],
-            "content_text": fallback["content"],
+            "title": title,
+            "content_text": content,
             "content_url": None,
             "applicable_roles": [role],
             "is_active": True,

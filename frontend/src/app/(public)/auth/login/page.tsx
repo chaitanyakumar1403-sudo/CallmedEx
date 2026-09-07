@@ -8,17 +8,13 @@ import {
   HeartPulse,
   ShieldCheck,
   Zap,
-  MapPin,
   CheckCircle2,
-  Stethoscope,
-  User,
-  HeartHandshake,
-  Apple,
-  Activity,
   ArrowRight,
   Lock,
+  Sparkles,
+  ShieldAlert,
 } from "lucide-react";
-import Clinical3DIcon, { Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
+import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import { storeSession } from "@/lib/sessionKeeper";
 
 export default function LoginPage() {
@@ -28,17 +24,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-
-  const setDemoAccount = (email: string) => {
-    if (emailRef.current) emailRef.current.value = email;
-    if (passwordRef.current) passwordRef.current.value = "Callmedex@123";
-  };
-
-  const launchMasterRole = (targetRole: string) => {
-    if (emailRef.current) emailRef.current.value = "chaitanyakumarf11@gmail.com";
-    if (passwordRef.current) passwordRef.current.value = "Callmedex@123";
-    handleSubmit(undefined, targetRole);
-  };
 
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>, roleOverride?: string) => {
     if (e) e.preventDefault();
@@ -73,9 +58,7 @@ export default function LoginPage() {
         throw new Error(errorMsg || "Login failed");
       }
 
-      // storeSession also persists data.refresh_token, which was previously
-      // discarded — the whole reason every session died with "Invalid or
-      // expired token" exactly 60 minutes after login.
+      // storeSession persists data.token and data.refresh_token
       storeSession(data);
 
       const role = data.user.role;
@@ -93,7 +76,8 @@ export default function LoginPage() {
     <div
       style={{
         minHeight: "calc(100vh - 64px)",
-        background: "var(--cm-surface)",
+        background:
+          "radial-gradient(circle at 82% 28%, rgba(2, 132, 199, 0.12) 0%, transparent 45%), radial-gradient(circle at 18% 72%, rgba(56, 189, 248, 0.08) 0%, transparent 40%), var(--cm-surface)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -130,7 +114,7 @@ export default function LoginPage() {
               textTransform: "uppercase",
             }}
           >
-            <ShieldCheck size={14} /> Vizag Verified Healthcare Platform
+            <ShieldCheck size={14} /> Verified Healthcare Platform
           </div>
 
           <h1
@@ -187,99 +171,76 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Master Developer & Role Teleporter Hub */}
-          <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.06em", display: "flex", alignItems: "center", gap: 6 }}>
-                <span>👑</span> Master Developer &amp; Role Launcher
-              </div>
-              <span style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", background: "var(--cm-surface-2)", padding: "2px 8px", borderRadius: 8, fontWeight: 600 }}>
-                Zero-Lock Verification
+          {/* Enterprise Security & Regulatory Assurance */}
+          <div style={{ borderTop: "1px solid var(--cm-line)", paddingTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Sparkles size={16} style={{ color: "var(--cm-active)" }} />
+              <span style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Enterprise Clinical Grade Infrastructure
               </span>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
-              {([
-                { role: "doctor", label: "Doctor", icon: "stethoscope" },
-                { role: "dentist", label: "Dentist", icon: "dental" },
-                { role: "physiotherapist", label: "Physio", icon: "physio" },
-                { role: "patient", label: "Patient", icon: "patient" },
-                { role: "organization", label: "Organization", icon: "hospital" },
-                { role: "phlebotomist", label: "Phlebo", icon: "phlebo" },
-                { role: "pharmacy", label: "Pharmacy", icon: "pharmacy" },
-                { role: "dietitian", label: "Dietitian", icon: "dietitian" },
-                { role: "nurse", label: "Nurse", icon: "nurse" },
-                { role: "staff", label: "Staff", icon: "staff" },
-                { role: "processing_center", label: "Lab Center", icon: "diagnostics" },
-                { role: "admin", label: "Super Admin", icon: "shield" },
-              ] as { role: string; label: string; icon: Clinical3DIconName }[]).map((item) => (
-                <button
-                  key={item.role}
-                  type="button"
-                  onClick={() => launchMasterRole(item.role)}
-                  className="cm-btn cm-btn--secondary cm-btn--sm"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "7px 10px",
-                    fontSize: "0.8rem",
-                    justifyContent: "flex-start",
-                    borderRadius: 10,
-                  }}
-                  title={`Launch into ${item.label} dashboard instantly`}
-                >
-                  <Clinical3DIcon name={item.icon} size={18} />
-                  <span style={{ fontWeight: 700 }}>{item.label}</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: "0.7rem", color: "var(--cm-ink-3)", marginTop: 8 }}>
-              Clicking any role authenticates via master credentials (<strong style={{ color: "var(--cm-ink-2)" }}>chaitanyakumarf11@gmail.com</strong>) and launches that dashboard directly.
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "var(--cm-surface-2)",
+                  border: "1px solid var(--cm-line)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <CheckCircle2 size={16} style={{ color: "#22c55e", flexShrink: 0 }} />
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+                  ABDM &amp; FHIR R4 Compliant
+                </span>
+              </div>
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  background: "var(--cm-surface-2)",
+                  border: "1px solid var(--cm-line)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <ShieldCheck size={16} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+                  256-Bit Encrypted Gateway
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right: Modern Clinical White Login Card */}
+        {/* Right: Glassmorphic Login Card */}
         <div>
-          <div
-            className="cm-card"
-            style={{
-              background: "var(--cm-surface)",
-              borderRadius: "var(--cm-radius)",
-              border: "1px solid var(--cm-line)",
-              boxShadow: "0 20px 40px -15px rgba(0, 0, 0, 0.07)",
-              overflow: "hidden",
-            }}
-          >
-            {/* Top Navy Accent Stripe */}
-            <div
-              style={{
-                height: "4px",
-                width: "100%",
-                background: "var(--cm-navy)",
-              }}
-            />
+          <div className="cm-login-glass-card">
+            {/* Top Cyan Accent Stripe */}
+            <div className="cm-login-glass-stripe" />
 
-            <div style={{ padding: "36px 32px" }}>
+            <div style={{ padding: "38px 34px" }}>
               <div style={{ textAlign: "center", marginBottom: 28 }}>
-                <div
+                {/* 3D Glassmorphic Heart Logo Pod */}
+                <div className="cm-login-glass-heart">
+                  <HeartPulse size={34} className="cm-login-glass-heart-icon" />
+                </div>
+                <h2
                   style={{
-                    display: "inline-flex",
-                    padding: 14,
-                    borderRadius: "16px",
-                    background: "var(--cm-surface-2)",
-                    border: "1px solid var(--cm-line)",
-                    color: "var(--cm-navy)",
-                    marginBottom: 14,
+                    fontSize: "var(--cm-text-xl)",
+                    fontWeight: 800,
+                    color: "#ffffff",
+                    margin: "0 0 6px 0",
+                    letterSpacing: "-0.01em",
+                    textShadow: "0 2px 10px rgba(0, 0, 0, 0.4)",
                   }}
                 >
-                  <HeartPulse size={32} />
-                </div>
-                <h2 style={{ fontSize: "var(--cm-text-xl)", fontWeight: 800, color: "var(--cm-navy)", margin: "0 0 6px 0", letterSpacing: "-0.01em" }}>
                   Welcome to CallMedex
                 </h2>
-                <p style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", margin: 0 }}>
+                <p style={{ fontSize: "var(--cm-text-xs)", color: "#94a3b8", margin: 0 }}>
                   Enter your credentials to access your Command Center
                 </p>
               </div>
@@ -291,10 +252,10 @@ export default function LoginPage() {
                     marginBottom: 20,
                     fontSize: "var(--cm-text-xs)",
                     padding: "12px 14px",
-                    background: "var(--cm-urgent-surface)",
-                    border: "1px solid var(--cm-urgent-line)",
-                    color: "var(--cm-urgent)",
-                    borderRadius: "var(--cm-radius-sm)",
+                    background: "rgba(239, 68, 68, 0.18)",
+                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    color: "#fca5a5",
+                    borderRadius: "12px",
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
@@ -309,7 +270,13 @@ export default function LoginPage() {
                 <div style={{ marginBottom: 18 }}>
                   <label
                     htmlFor="login-email"
-                    style={{ display: "block", fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", marginBottom: 6 }}
+                    style={{
+                      display: "block",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "#cbd5e1",
+                      marginBottom: 6,
+                    }}
                   >
                     Email Address
                   </label>
@@ -320,17 +287,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="you@callmedex.in"
                     required
-                    style={{
-                      width: "100%",
-                      padding: "12px 14px",
-                      borderRadius: "var(--cm-radius-sm)",
-                      background: "#ffffff",
-                      border: "1px solid var(--cm-line-strong)",
-                      color: "var(--cm-ink)",
-                      fontSize: "var(--cm-text-sm)",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
+                    className="cm-login-glass-input"
                   />
                 </div>
 
@@ -338,13 +295,13 @@ export default function LoginPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <label
                       htmlFor="login-password"
-                      style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)" }}
+                      style={{ fontSize: "12px", fontWeight: 700, color: "#cbd5e1" }}
                     >
                       Password
                     </label>
                     <Link
                       href="/auth/forgot-password"
-                      style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", textDecoration: "none", fontWeight: 700 }}
+                      style={{ fontSize: "12px", color: "#38bdf8", textDecoration: "none", fontWeight: 700 }}
                     >
                       Forgot Password?
                     </Link>
@@ -357,17 +314,8 @@ export default function LoginPage() {
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your account password"
                       required
-                      style={{
-                        width: "100%",
-                        padding: "12px 44px 12px 14px",
-                        borderRadius: "var(--cm-radius-sm)",
-                        background: "#ffffff",
-                        border: "1px solid var(--cm-line-strong)",
-                        color: "var(--cm-ink)",
-                        fontSize: "var(--cm-text-sm)",
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      className="cm-login-glass-input"
+                      style={{ paddingRight: "44px" }}
                     />
                     <button
                       type="button"
@@ -386,7 +334,7 @@ export default function LoginPage() {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "var(--cm-ink-3)",
+                        color: "#94a3b8",
                       }}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -394,12 +342,12 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", marginBottom: 24, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                <div style={{ display: "flex", alignItems: "center", marginBottom: 24, fontSize: "12px", color: "#94a3b8" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input
                       type="checkbox"
                       defaultChecked
-                      style={{ accentColor: "var(--cm-active)", width: 16, height: 16, borderRadius: 4 }}
+                      style={{ accentColor: "#0284c7", width: 16, height: 16, borderRadius: 4 }}
                     />
                     Stay signed in for 30 days
                   </label>
@@ -408,14 +356,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="cm-btn cm-btn--primary cm-btn--lg"
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                  }}
+                  className="cm-login-glass-btn"
                 >
                   {loading ? (
                     "Authenticating..."
@@ -432,15 +373,15 @@ export default function LoginPage() {
                   textAlign: "center",
                   marginTop: 24,
                   paddingTop: 20,
-                  borderTop: "1px solid var(--cm-line)",
-                  fontSize: "var(--cm-text-xs)",
-                  color: "var(--cm-ink-3)",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                  fontSize: "12px",
+                  color: "#94a3b8",
                 }}
               >
                 New healthcare provider or patient?{" "}
                 <Link
                   href="/auth/signup"
-                  style={{ color: "var(--cm-active)", fontWeight: 700, textDecoration: "none" }}
+                  style={{ color: "#38bdf8", fontWeight: 700, textDecoration: "none" }}
                 >
                   Create Account
                 </Link>

@@ -72,7 +72,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-              <span className="cm-pill cm-pill--active">Vizag Command</span>
+              <span className="cm-pill cm-pill--active">Live Health Command</span>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>

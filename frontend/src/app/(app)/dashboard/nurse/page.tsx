@@ -258,7 +258,7 @@ export default function NurseDashboard() {
           <div>
             <div className="cm-kpi-card__label">Visits Completed</div>
             <div className="cm-kpi-card__value">14</div>
-            <div className="cm-kpi-card__subtitle">This week (Vizag Central)</div>
+            <div className="cm-kpi-card__subtitle">This week</div>
           </div>
           <div className="cm-kpi-card__icon cm-nurse-kpi-icon-waiting">
             <Calendar size={22} />

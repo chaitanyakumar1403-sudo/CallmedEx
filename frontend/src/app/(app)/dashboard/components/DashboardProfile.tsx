@@ -5,7 +5,7 @@ import { Icon, Panel, Pill } from "@/components/ui";
 import {
   Building2, Clock, FileText, FlaskConical, GraduationCap, Mail,
   MapPin, Package, Phone, Stethoscope, Syringe, User, Pencil, Check,
-  X, ShieldCheck, Sparkles, AlertCircle, CheckCircle2, Award, Lock
+  X, ShieldCheck, Sparkles, AlertCircle, CheckCircle2, Award, Lock, Download
 } from "@/components/ui/icons";
 import type { LucideIcon } from "@/components/ui/icons";
 
@@ -43,17 +43,23 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const [showMOUModal, setShowMOUModal] = useState(false);
   const [mouLoading, setMOULoading] = useState(false);
   const [mouData, setMOUData] = useState<any>(null);
+  const [selectedSubtype, setSelectedSubtype] = useState<string>("");
 
   if (!profile && !currentProfile) return null;
 
   const p = currentProfile || profile;
 
   // Open MOU Modal & fetch official details
-  const handleOpenMOU = async () => {
+  const handleOpenMOU = async (subtype?: string) => {
     setShowMOUModal(true);
     setMOULoading(true);
+    const activeSub = subtype !== undefined ? subtype : selectedSubtype;
+    if (subtype !== undefined) {
+      setSelectedSubtype(subtype);
+    }
     try {
-      const res = await fetch(`${apiBase}/api/providers/mou`, {
+      const url = `${apiBase}/api/providers/mou${activeSub ? `?subtype=${encodeURIComponent(activeSub)}` : ""}`;
+      const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -167,7 +173,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
             {/* View Agreed MOU Glassmorphic Button */}
             <button
               type="button"
-              onClick={handleOpenMOU}
+              onClick={() => handleOpenMOU()}
               className="cm-profile__mou-btn"
             >
               <Icon as={FileText} size={16} />
@@ -502,10 +508,10 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                 </div>
                 <div>
                   <h3 className="cm-mou-header-title">
-                    Memorandum of Understanding (MOU)
+                    {mouData?.document?.title || "Official Memorandum of Understanding (MOU)"}
                   </h3>
                   <div className="cm-mou-header-subtitle">
-                    CallMedex Healthcare Partner Agreement · Role: <span className="cm-mou-header-role">{role}</span>
+                    CallMedex Provider Agreement · Role: <span className="cm-mou-header-role">{role}</span> · Legal Document Store
                   </div>
                 </div>
               </div>
@@ -524,7 +530,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               {mouLoading ? (
                 <div className="cm-mou-loading">
                   <Icon as={Clock} size={24} />
-                  <div>Loading verified agreement text...</div>
+                  <div>Loading verified official agreement text...</div>
                 </div>
               ) : (
                 <>
@@ -536,48 +542,58 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                         <span>Digitally Accepted &amp; Legally Binding</span>
                       </div>
                       <div className="cm-mou-audit-meta">
-                        Practitioner: <strong>{p.full_name || "Enrolled Provider"}</strong>
+                        Practitioner / Facility: <strong>{p.full_name || p.organization_name || "Enrolled Provider"}</strong>
                       </div>
                     </div>
                     <div className="cm-mou-audit-meta-right">
                       <div>Document Version: <strong>{mouData?.document?.version || "v1.0"}</strong></div>
-                      <div>Status: <strong className="cm-mou-audit-status">ENFORCED</strong></div>
+                      <div>Effective Date: <strong>{mouData?.document?.effective_date || "2026-01-01"}</strong></div>
+                      <div>Status: <strong className="cm-mou-audit-status">ENFORCED &amp; BINDING</strong></div>
                     </div>
                   </div>
 
-                  {/* Agreement Terms Summary Cards */}
-                  <div className="cm-mou-grid">
-                    <div className="cm-mou-card">
-                      <div className="cm-mou-card__title">80/20 Revenue Share</div>
-                      <div className="cm-mou-card__desc">Practitioner retains 80% net earnings; 20% platform charge covers infrastructure.</div>
-                    </div>
-                    <div className="cm-mou-card">
-                      <div className="cm-mou-card__title">Daily Direct Settlement</div>
-                      <div className="cm-mou-card__desc">Batched daily clearing via IMPS/NEFT with zero processing fee deductions.</div>
-                    </div>
-                    <div className="cm-mou-card">
-                      <div className="cm-mou-card__title">Clinical Autonomy</div>
-                      <div className="cm-mou-card__desc">Full clinical independence to configure custom practice fees and shift availability.</div>
-                    </div>
-                  </div>
+                  {/* Subtype Selector (e.g. for Phlebotomists: Full-Time vs Part-Time; Organizations: Diagnostic vs ECG/X-Ray) */}
+                  {(role === "phlebotomist" || role === "organization") && (
+                    <div className="cm-mou-subtypes">
+                      {role === "phlebotomist" && [
+                        { id: "full_time", label: "Full-Time Phlebotomist Agreement" },
+                        { id: "part_time", label: "Part-Time Phlebotomist Agreement" },
+                      ].map((sub) => {
+                        const active = (selectedSubtype || "full_time") === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => handleOpenMOU(sub.id)}
+                            className={`cm-mou-subtype-btn ${active ? "cm-mou-subtype-btn--active" : ""}`}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
 
-                  {/* Full Text Content */}
+                      {role === "organization" && [
+                        { id: "diagnostic", label: "Diagnostic Services Agreement" },
+                        { id: "ecg_xray", label: "ECG & X-Ray Center Agreement" },
+                      ].map((sub) => {
+                        const active = (selectedSubtype || "diagnostic") === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => handleOpenMOU(sub.id)}
+                            className={`cm-mou-subtype-btn ${active ? "cm-mou-subtype-btn--active" : ""}`}
+                          >
+                            {sub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Complete Unabridged Text Content */}
                   <div className="cm-mou-content">
-                    {mouData?.document?.content_text ||
-                      `MEMORANDUM OF UNDERSTANDING (MOU)
-CALLMEDEX DIGITAL HEALTHCARE PLATFORM & HEALTHCARE PRACTITIONER
-
-1. SCOPE & CLINICAL AUTONOMY
-The Practitioner provides professional healthcare consultations (in-person clinic, teleconsultation, or home visits) in accordance with the Telemedicine Practice Guidelines 2026 and National Medical Commission (NMC) regulations. The Practitioner maintains sole clinical authority and judgment over patient diagnosis, treatment protocols, and prescription decisions.
-
-2. COMMERCIAL TARIFFS & 80/20 SETTLEMENT
-Practitioner receives 80% (eighty percent) of the gross consultation tariff billed to the patient. CallMedex retains 20% (twenty percent) as technology platform charges, covering encrypted WebRTC video, digital electronic prescription transmission, cloud medical records, and payment gateway infrastructure.
-
-3. SETTLEMENT DISPATCH
-Cleared earnings are settled directly to the Practitioner's verified bank account on a daily batch schedule with zero unauthorized processing deductions.
-
-4. CONFIDENTIALITY & EHR INTEGRITY
-Patient health records, consultations, diagnostic data, and prescriptions are strictly protected under India's Digital Personal Data Protection (DPDP) Act 2023 and ABDM standards.`}
+                    {mouData?.document?.content_text || "Document text currently unavailable."}
                   </div>
                 </>
               )}
@@ -587,15 +603,35 @@ Patient health records, consultations, diagnostic data, and prescriptions are st
             <div className="cm-mou-foot">
               <div className="cm-mou-foot-legal">
                 <Icon as={Lock} size={14} />
-                <span>CallMedex Legal Trust &amp; Compliance Protocol</span>
+                <span>CallMedex Legal Protocol · ABDM &amp; DPDP Act 2023 Compliant</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowMOUModal(false)}
-                className="cm-btn cm-btn--primary cm-btn--sm"
-              >
-                Close MOU Details
-              </button>
+              <div className="cm-mou-foot-actions">
+                {mouData?.document?.content_text && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const element = document.createElement("a");
+                      const file = new Blob([mouData.document.content_text], { type: "text/plain;charset=utf-8" });
+                      element.href = URL.createObjectURL(file);
+                      element.download = `${(mouData.document.title || `CallMedex_${role}_MOU`).replace(/[^a-zA-Z0-9_-]/g, "_")}.txt`;
+                      document.body.appendChild(element);
+                      element.click();
+                      document.body.removeChild(element);
+                    }}
+                    className="cm-btn cm-btn--secondary cm-btn--sm cm-mou-download-btn"
+                  >
+                    <Icon as={Download} size={14} />
+                    <span>Download Text</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowMOUModal(false)}
+                  className="cm-btn cm-btn--primary cm-btn--sm"
+                >
+                  Close MOU Details
+                </button>
+              </div>
             </div>
           </div>
         </div>

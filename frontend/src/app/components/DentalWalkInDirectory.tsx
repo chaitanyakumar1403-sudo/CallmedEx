@@ -736,30 +736,33 @@ export default function DentalWalkInDirectory({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1100,
-            padding: "20px",
+                      padding: "20px",
           }}
+          onClick={() => setBookingModal(null)}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: "white",
-              borderRadius: "14px",
+              background: "linear-gradient(135deg, #0b1329 0%, #172554 100%)",
+              borderRadius: "20px",
               padding: "28px",
               width: "100%",
               maxWidth: "520px",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+              boxShadow: "0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 35px rgba(56, 189, 248, 0.2)",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              color: "#f8fafc",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Clinical3DIcon name="dental" size={24} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "12px", background: "rgba(2, 132, 199, 0.2)", border: "1px solid rgba(56, 189, 248, 0.4)", display: "grid", placeItems: "center", color: "#38bdf8" }}>
+                  <Clinical3DIcon name="dental" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#ffffff" }}>
                     Schedule Dental Walk-In Visit
                   </h3>
-                  <p style={{ margin: "2px 0 0 0", fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>
+                  <p style={{ margin: "3px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
                     {bookingModal.offer.center_name}
                   </p>
                 </div>
@@ -767,51 +770,61 @@ export default function DentalWalkInDirectory({
               <button
                 type="button"
                 onClick={() => setBookingModal(null)}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cm-ink-3)" }}
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: "50%",
+                  width: 30,
+                  height: 30,
+                  cursor: "pointer",
+                  color: "#94a3b8",
+                  display: "grid",
+                  placeItems: "center",
+                }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Treatment Summary Pill */}
             <div
               style={{
-                backgroundColor: "var(--cm-surface-2)",
-                borderRadius: "8px",
-                padding: "12px 16px",
-                border: "1px solid var(--cm-line)",
-                marginBottom: "16px",
+                background: "rgba(15, 23, 42, 0.7)",
+                borderRadius: "12px",
+                padding: "14px 18px",
+                border: "1px solid rgba(56, 189, 248, 0.2)",
+                marginBottom: "18px",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>Procedure:</span>
-                <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "0.82rem", color: "#94a3b8" }}>Procedure:</span>
+                <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#ffffff" }}>
                   {bookingModal.service.name}
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>Attending Surgeon:</span>
-                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--cm-ink)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "0.82rem", color: "#94a3b8" }}>Attending Surgeon:</span>
+                <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#f1f5f9" }}>
                   {bookingModal.offer.doctor_name} ({bookingModal.offer.qualification})
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>Modality:</span>
-                <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#0284c7" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span style={{ fontSize: "0.82rem", color: "#94a3b8" }}>Modality:</span>
+                <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#38bdf8" }}>
                   100% In-Clinic Walk-In
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--cm-line)", paddingTop: "6px", marginTop: "6px" }}>
-                <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--cm-ink)" }}>Payable Fee:</span>
-                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-done)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid rgba(255, 255, 255, 0.1)", paddingTop: "8px", marginTop: "8px" }}>
+                <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#e2e8f0" }}>Payable Fee:</span>
+                <span style={{ fontSize: "1.15rem", fontWeight: 800, color: "#4ade80" }}>
                   ₹{bookingModal.offer.callmedex_price}
                 </span>
               </div>
             </div>
 
             {/* Preferred Walk-In Date */}
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.82rem", fontWeight: 700, color: "#e2e8f0" }}>
                 Preferred Appointment Date
               </label>
               <input
@@ -821,20 +834,22 @@ export default function DentalWalkInDirectory({
                 onChange={(e) => setBookingDate(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--cm-line-strong)",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
                   fontSize: "0.9rem",
-                  color: "var(--cm-ink)",
+                  background: "rgba(15, 23, 42, 0.8)",
+                  color: "#ffffff",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
                 required
               />
             </div>
 
             {/* Preferred Arrival Window */}
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.82rem", fontWeight: 700, color: "#e2e8f0" }}>
                 Preferred Arrival Window
               </label>
               <select
@@ -842,23 +857,25 @@ export default function DentalWalkInDirectory({
                 onChange={(e) => setBookingSlot(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--cm-line-strong)",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
                   fontSize: "0.9rem",
-                  color: "var(--cm-ink)",
+                  background: "rgba(15, 23, 42, 0.8)",
+                  color: "#ffffff",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
               >
-                <option value="Morning (10:00 AM - 01:00 PM)">Morning (10:00 AM - 01:00 PM)</option>
-                <option value="Afternoon (02:00 PM - 05:00 PM)">Afternoon (02:00 PM - 05:00 PM)</option>
-                <option value="Evening (05:00 PM - 08:30 PM)">Evening (05:00 PM - 08:30 PM)</option>
+                <option value="Morning (10:00 AM - 01:00 PM)" style={{ background: "#0f172a" }}>Morning (10:00 AM - 01:00 PM)</option>
+                <option value="Afternoon (02:00 PM - 05:00 PM)" style={{ background: "#0f172a" }}>Afternoon (02:00 PM - 05:00 PM)</option>
+                <option value="Evening (05:00 PM - 08:30 PM)" style={{ background: "#0f172a" }}>Evening (05:00 PM - 08:30 PM)</option>
               </select>
             </div>
 
             {/* Notes */}
-            <div style={{ marginBottom: "18px" }}>
-              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.85rem", fontWeight: 700, color: "var(--cm-ink)" }}>
+            <div style={{ marginBottom: "22px" }}>
+              <label style={{ display: "block", marginBottom: "6px", fontSize: "0.82rem", fontWeight: 700, color: "#e2e8f0" }}>
                 Notes for the Dentist (Optional)
               </label>
               <input
@@ -868,26 +885,28 @@ export default function DentalWalkInDirectory({
                 onChange={(e) => setBookingNotes(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--cm-line-strong)",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
                   fontSize: "0.9rem",
-                  color: "var(--cm-ink)",
+                  background: "rgba(15, 23, 42, 0.8)",
+                  color: "#ffffff",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
               />
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
               <button
                 type="button"
                 onClick={() => setBookingModal(null)}
                 style={{
-                  padding: "9px 18px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "var(--cm-surface-2)",
-                  color: "var(--cm-ink)",
+                  padding: "10px 18px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  background: "rgba(255, 255, 255, 0.06)",
+                  color: "#cbd5e1",
                   fontWeight: 700,
                   fontSize: "0.85rem",
                   cursor: "pointer",
@@ -900,13 +919,14 @@ export default function DentalWalkInDirectory({
                 onClick={handleBookWalkIn}
                 disabled={submittingBooking || !bookingDate}
                 style={{
-                  padding: "9px 22px",
-                  borderRadius: "8px",
+                  padding: "11px 24px",
+                  borderRadius: "10px",
                   border: "none",
-                  background: "var(--cm-navy)",
+                  background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
+                  boxShadow: "0 4px 15px rgba(2, 132, 199, 0.4)",
                   color: "#ffffff",
                   fontWeight: 700,
-                  fontSize: "0.85rem",
+                  fontSize: "0.88rem",
                   cursor: submittingBooking || !bookingDate ? "not-allowed" : "pointer",
                   opacity: submittingBooking || !bookingDate ? 0.6 : 1,
                 }}

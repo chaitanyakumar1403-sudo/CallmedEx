@@ -601,9 +601,6 @@ If you didn't request this, please ignore this email.
                         <p style="margin: 6px 0; color: #1e293b;"><strong>Service:</strong> {service_type}</p>
                         <p style="margin: 6px 0; color: #1e293b;"><strong>Scheduled Slot:</strong> {slot_time}</p>
                         <p style="margin: 6px 0; color: #1e293b;"><strong>Chief Complaint:</strong> {patient_notes}</p>
-                        <p style="margin: 6px 0; color: #16a34a; font-weight: bold;">
-                            <strong>Your 80% Net Take-Home:</strong> ₹{provider_net} (20% platform charge deducted)
-                        </p>
                     </div>
                     
                     <div style="margin: 24px 0;">
@@ -616,7 +613,7 @@ If you didn't request this, please ignore this email.
             </body>
             </html>
             """
-            text_content = f"New booking alert: {service_type} for {patient_name} at {slot_time}. 80% net remuneration: Rs.{provider_net}. Open console: {dashboard_url}"
+            text_content = f"New booking alert: {service_type} for {patient_name} at {slot_time}. Open console: {dashboard_url}"
         else:
             subject = f"CallMedex Booking Confirmed: {service_type}"
             portal_url = f"{settings.FRONTEND_URL}/dashboard/patient"

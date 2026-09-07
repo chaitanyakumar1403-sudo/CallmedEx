@@ -21,6 +21,8 @@ import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import RadiologyCentersSection from "@/app/components/RadiologyCentersSection";
 import DentalWalkInDirectory from "@/app/components/DentalWalkInDirectory";
+import { useFamilyHubStore } from "@/store/useFamilyHubStore";
+import { useHealthMatrixStore } from "@/store/useHealthMatrixStore";
 import {
   Mic,
   Shield,
@@ -50,6 +52,10 @@ import {
   MessageCircle,
   Star,
   AlertTriangle,
+  X,
+  Download,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 
 interface UserData {
@@ -118,6 +124,11 @@ export default function PatientDashboard() {
   const [patientOtp, setPatientOtp] = useState<string | null>(null);
   const [showLiveTracker, setShowLiveTracker] = useState(false);
   const [simStage, setSimStage] = useState<"searching" | "en_route" | "arrived">("en_route");
+
+  // KPI Interactive Modals
+  const [activeKpiModal, setActiveKpiModal] = useState<'upcoming' | 'completed' | 'prescriptions' | 'records' | null>(null);
+  const familyState = useFamilyHubStore();
+  const healthState = useHealthMatrixStore();
 
   // Industry-First Feature Modals
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -648,8 +659,12 @@ export default function PatientDashboard() {
   const name = user?.full_name || "Patient";
 
 
-  const upcomingCount = bookings.filter(b => ["confirmed", "pending_review", "slot_allotted"].includes(b.status)).length;
-  const completedCount = bookings.filter(b => b.status === "completed").length;
+  const upcomingBookings = bookings.filter(b => ["confirmed", "pending_review", "slot_allotted", "provider_accepted", "in_progress"].includes(b.status));
+  const upcomingCount = upcomingBookings.length;
+  const completedBookings = bookings.filter(b => b.status === "completed");
+  const completedCount = completedBookings.length;
+  const prescriptionsCount = familyState.medications?.length || 0;
+  const recordsCount = (healthState.biomarkers?.length || 0) + (healthState.riskScore?.trends?.length || 0);
   const allottedBookings = bookings.filter(b => b.status === "slot_allotted");
 
   // Respond to an allotted slot
@@ -767,8 +782,16 @@ export default function PatientDashboard() {
 
         <main className="cm-patient-content">
           {/* Modern KPI Stats — Top of Dashboard */}
+          {/* Modern KPI Stats — Top of Dashboard */}
           <div className="cm-kpi-grid">
-            <div className="cm-kpi-card">
+            <div
+              className="cm-kpi-card"
+              onClick={() => setActiveKpiModal("upcoming")}
+              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              title="Click to view upcoming appointments"
+            >
               <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.upcoming}</div>
@@ -780,7 +803,14 @@ export default function PatientDashboard() {
               </div>
             </div>
 
-            <div className="cm-kpi-card">
+            <div
+              className="cm-kpi-card"
+              onClick={() => setActiveKpiModal("completed")}
+              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              title="Click to view completed services & history"
+            >
               <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.completed}</div>
@@ -792,11 +822,18 @@ export default function PatientDashboard() {
               </div>
             </div>
 
-            <div className="cm-kpi-card">
+            <div
+              className="cm-kpi-card"
+              onClick={() => setActiveKpiModal("prescriptions")}
+              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              title="Click to view active prescriptions & refills"
+            >
               <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.prescriptions}</div>
-                <div className="cm-kpi-card__value">0</div>
+                <div className="cm-kpi-card__value">{prescriptionsCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
               </div>
               <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
@@ -804,11 +841,18 @@ export default function PatientDashboard() {
               </div>
             </div>
 
-            <div className="cm-kpi-card">
+            <div
+              className="cm-kpi-card"
+              onClick={() => setActiveKpiModal("records")}
+              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              title="Click to view health records & vitals"
+            >
               <div className="cm-kpi-card__accent" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.records}</div>
-                <div className="cm-kpi-card__value">0</div>
+                <div className="cm-kpi-card__value">{recordsCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
               </div>
               <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
@@ -816,6 +860,632 @@ export default function PatientDashboard() {
               </div>
             </div>
           </div>
+
+          {/* Interactive KPI Glassmorphic Modal */}
+          {activeKpiModal && (
+            <div
+              className="cm-overlay"
+              onClick={() => setActiveKpiModal(null)}
+              style={{ zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+            >
+              <div
+                className="cm-modal cm-modal--kpi"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                style={{
+                  background: "linear-gradient(135deg, #0b1329 0%, #172554 100%)",
+                  border: "1px solid rgba(56, 189, 248, 0.3)",
+                  boxShadow: "0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.15)",
+                  borderRadius: "20px",
+                  maxWidth: "840px",
+                  width: "94vw",
+                  maxHeight: "90vh",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                  color: "#f8fafc",
+                }}
+              >
+                {/* Modal Header */}
+                <div
+                  style={{
+                    padding: "20px 24px",
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "rgba(15, 23, 42, 0.4)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        background:
+                          activeKpiModal === "upcoming"
+                            ? "rgba(2, 132, 199, 0.2)"
+                            : activeKpiModal === "completed"
+                            ? "rgba(34, 197, 94, 0.2)"
+                            : activeKpiModal === "prescriptions"
+                            ? "rgba(245, 158, 11, 0.2)"
+                            : "rgba(139, 92, 246, 0.2)",
+                        border: `1px solid ${
+                          activeKpiModal === "upcoming"
+                            ? "rgba(56, 189, 248, 0.4)"
+                            : activeKpiModal === "completed"
+                            ? "rgba(74, 222, 128, 0.4)"
+                            : activeKpiModal === "prescriptions"
+                            ? "rgba(251, 191, 36, 0.4)"
+                            : "rgba(167, 139, 250, 0.4)"
+                        }`,
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      {activeKpiModal === "upcoming" && <Clinical3DIcon name="calendar" size={26} glow />}
+                      {activeKpiModal === "completed" && <Clinical3DIcon name="check" size={26} glow />}
+                      {activeKpiModal === "prescriptions" && <Clinical3DIcon name="pill" size={26} glow />}
+                      {activeKpiModal === "records" && <Clinical3DIcon name="chart" size={26} glow />}
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                        {activeKpiModal === "upcoming" && "Upcoming Consultations & Doorstep Healthcare"}
+                        {activeKpiModal === "completed" && "Completed Healthcare Services & History"}
+                        {activeKpiModal === "prescriptions" && "Active Prescriptions & Medicine Regimen"}
+                        {activeKpiModal === "records" && "Clinical Health Records & Diagnostic Biomarkers"}
+                      </h3>
+                      <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
+                        {activeKpiModal === "upcoming" && `${upcomingCount} active appointment${upcomingCount === 1 ? "" : "s"} scheduled`}
+                        {activeKpiModal === "completed" && `${completedCount} completed session${completedCount === 1 ? "" : "s"} verified`}
+                        {activeKpiModal === "prescriptions" && `${prescriptionsCount} tracked prescription item${prescriptionsCount === 1 ? "" : "s"}`}
+                        {activeKpiModal === "records" && `${recordsCount} diagnostic reading${recordsCount === 1 ? "" : "s"} on file`}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveKpiModal(null)}
+                    style={{
+                      background: "rgba(255, 255, 255, 0.08)",
+                      border: "1px solid rgba(255, 255, 255, 0.12)",
+                      color: "#cbd5e1",
+                      borderRadius: "50%",
+                      width: 32,
+                      height: 32,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                    }}
+                    aria-label="Close modal"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {/* Mode 1: Upcoming Appointments */}
+                  {activeKpiModal === "upcoming" && (
+                    <>
+                      {upcomingBookings.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {upcomingBookings.map((b) => (
+                            <div
+                              key={b.id}
+                              style={{
+                                background: "rgba(15, 23, 42, 0.7)",
+                                border: "1px solid rgba(56, 189, 248, 0.2)",
+                                borderRadius: 14,
+                                padding: "16px 18px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 10,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span
+                                    style={{
+                                      padding: "3px 10px",
+                                      borderRadius: 999,
+                                      fontSize: "0.75rem",
+                                      fontWeight: 700,
+                                      textTransform: "uppercase",
+                                      background:
+                                        b.status === "confirmed"
+                                          ? "rgba(34, 197, 94, 0.2)"
+                                          : b.status === "slot_allotted"
+                                          ? "rgba(245, 158, 11, 0.2)"
+                                          : "rgba(2, 132, 199, 0.2)",
+                                      color:
+                                        b.status === "confirmed"
+                                          ? "#4ade80"
+                                          : b.status === "slot_allotted"
+                                          ? "#fbbf24"
+                                          : "#38bdf8",
+                                      border: `1px solid ${
+                                        b.status === "confirmed"
+                                          ? "rgba(74, 222, 128, 0.3)"
+                                          : b.status === "slot_allotted"
+                                          ? "rgba(251, 191, 36, 0.3)"
+                                          : "rgba(56, 189, 248, 0.3)"
+                                      }`,
+                                    }}
+                                  >
+                                    {b.status.replace("_", " ")}
+                                  </span>
+                                  <span style={{ fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
+                                    {b.service_title || b.service_type?.replace(/_/g, " ").toUpperCase() || "Doctor Consultation"}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+                                  ID: <span style={{ fontFamily: "monospace", color: "#e2e8f0" }}>{b.id?.slice(0, 8)}</span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, fontSize: "0.85rem", color: "#cbd5e1" }}>
+                                <div>
+                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Date &amp; Slot</div>
+                                  <div style={{ fontWeight: 600, color: "#f1f5f9" }}>
+                                    {b.booking_date || b.scheduled_date || "Today"} · {b.slot_id?.split("|")[2] || b.time_slot || "Assigned Slot"}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Mode of Care</div>
+                                  <div style={{ fontWeight: 600, color: "#f1f5f9", textTransform: "capitalize" }}>
+                                    {b.consultation_mode || b.booking_kind || (b.notes?.includes("Home Visit") ? "Home Visit" : "In-Person Clinic")}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Assigned Provider</div>
+                                  <div style={{ fontWeight: 600, color: "#f1f5f9" }}>{b.provider_name || b.doctor_name || "CallMedex Clinician"}</div>
+                                </div>
+                              </div>
+
+                              {b.status === "slot_allotted" && (
+                                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRespondSlot(b.id, true)}
+                                    style={{
+                                      padding: "6px 14px",
+                                      borderRadius: 8,
+                                      background: "var(--cm-done)",
+                                      color: "#fff",
+                                      border: "none",
+                                      fontWeight: 700,
+                                      fontSize: "0.8rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    ✓ Accept Allotted Slot
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRespondSlot(b.id, false, "Reschedule requested by patient")}
+                                    style={{
+                                      padding: "6px 14px",
+                                      borderRadius: 8,
+                                      background: "rgba(255, 255, 255, 0.1)",
+                                      color: "#f87171",
+                                      border: "1px solid rgba(248, 113, 113, 0.3)",
+                                      fontWeight: 600,
+                                      fontSize: "0.8rem",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Request Different Time
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
+                          <Clinical3DIcon name="calendar" size={48} glow />
+                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No upcoming appointments scheduled</div>
+                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>Need medical care, home nursing, or diagnostic blood tests?</div>
+                          <a
+                            href="/booking"
+                            style={{
+                              display: "inline-block",
+                              marginTop: 18,
+                              padding: "10px 22px",
+                              borderRadius: 999,
+                              background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
+                              color: "#fff",
+                              textDecoration: "none",
+                              fontWeight: 700,
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            Book Doctor Consultation or Test →
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Mode 2: Completed Services */}
+                  {activeKpiModal === "completed" && (
+                    <>
+                      {completedBookings.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {completedBookings.map((b) => (
+                            <div
+                              key={b.id}
+                              style={{
+                                background: "rgba(15, 23, 42, 0.7)",
+                                border: "1px solid rgba(74, 222, 128, 0.2)",
+                                borderRadius: 14,
+                                padding: "16px 18px",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 12,
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span
+                                    style={{
+                                      padding: "2px 8px",
+                                      borderRadius: 999,
+                                      fontSize: "0.7rem",
+                                      fontWeight: 700,
+                                      background: "rgba(34, 197, 94, 0.2)",
+                                      color: "#4ade80",
+                                      border: "1px solid rgba(74, 222, 128, 0.3)",
+                                    }}
+                                  >
+                                    ✓ COMPLETED
+                                  </span>
+                                  <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}>
+                                    {b.service_title || b.service_type?.replace(/_/g, " ").toUpperCase() || "Healthcare Session"}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 4 }}>
+                                  Completed on:{" "}
+                                  {b.completed_at
+                                    ? new Date(b.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                                    : b.booking_date || "Past Session"}{" "}
+                                  · Provider: {b.provider_name || "Verified Practitioner"}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <a
+                                  href="/dashboard/patient/reports"
+                                  style={{
+                                    padding: "7px 14px",
+                                    borderRadius: 8,
+                                    background: "rgba(2, 132, 199, 0.2)",
+                                    color: "#38bdf8",
+                                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                                    textDecoration: "none",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  <FileText size={14} /> View Report
+                                </a>
+                                <a
+                                  href={`/booking?service=${b.service_type || ""}`}
+                                  style={{
+                                    padding: "7px 14px",
+                                    borderRadius: 8,
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    color: "#fff",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    textDecoration: "none",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Rebook Service
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
+                          <Clinical3DIcon name="check" size={48} glow />
+                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No completed sessions yet</div>
+                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>
+                            Your past medical consultations, diagnostic lab results, and home healthcare history will be safely cataloged here.
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Mode 3: Active Prescriptions */}
+                  {activeKpiModal === "prescriptions" && (
+                    <>
+                      {familyState.medications?.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {familyState.medications.map((m) => (
+                            <div
+                              key={m.id}
+                              style={{
+                                background: "rgba(15, 23, 42, 0.7)",
+                                border: "1px solid rgba(245, 158, 11, 0.2)",
+                                borderRadius: 14,
+                                padding: "16px 18px",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 12,
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontWeight: 800, fontSize: "1rem", color: "#fff" }}>{m.medicineName}</span>
+                                  <span
+                                    style={{
+                                      padding: "2px 8px",
+                                      borderRadius: 999,
+                                      fontSize: "0.7rem",
+                                      fontWeight: 600,
+                                      background: "rgba(255, 255, 255, 0.1)",
+                                      color: "#e2e8f0",
+                                    }}
+                                  >
+                                    {m.dosage}
+                                  </span>
+                                  {m.needsRefill && (
+                                    <span
+                                      style={{
+                                        padding: "2px 8px",
+                                        borderRadius: 999,
+                                        fontSize: "0.7rem",
+                                        fontWeight: 700,
+                                        background: "rgba(239, 68, 68, 0.2)",
+                                        color: "#f87171",
+                                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                                      }}
+                                    >
+                                      Refill Needed
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 4 }}>
+                                  Remaining supply: <strong style={{ color: "#f1f5f9" }}>{m.remainingPills} pills</strong> ·{" "}
+                                  {m.daysLeft !== null && m.daysLeft !== undefined ? `~${m.daysLeft} days remaining` : `${m.pillsPerDay} dose/day`}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <a
+                                  href="/dashboard/patient/pharmacy"
+                                  style={{
+                                    padding: "7px 14px",
+                                    borderRadius: 8,
+                                    background: "rgba(245, 158, 11, 0.2)",
+                                    color: "#fbbf24",
+                                    border: "1px solid rgba(251, 191, 36, 0.3)",
+                                    textDecoration: "none",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 700,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  <Pill size={14} /> 1-Click Refill
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveKpiModal(null);
+                                    setShowDrugShieldModal(true);
+                                  }}
+                                  style={{
+                                    padding: "7px 12px",
+                                    borderRadius: 8,
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    color: "#cbd5e1",
+                                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Verify Safety
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
+                          <Clinical3DIcon name="pill" size={48} glow />
+                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No active medication regimens recorded</div>
+                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>
+                            Keep track of your dosages, schedules, and prescription refills seamlessly.
+                          </div>
+                          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
+                            <a
+                              href="/dashboard/patient/pharmacy"
+                              style={{
+                                padding: "10px 20px",
+                                borderRadius: 999,
+                                background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                                color: "#fff",
+                                textDecoration: "none",
+                                fontWeight: 700,
+                                fontSize: "0.85rem",
+                              }}
+                            >
+                              Order from Partner Pharmacy →
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveKpiModal(null);
+                                setShowDrugShieldModal(true);
+                              }}
+                              style={{
+                                padding: "10px 18px",
+                                borderRadius: 999,
+                                background: "rgba(255, 255, 255, 0.1)",
+                                color: "#fff",
+                                border: "1px solid rgba(255, 255, 255, 0.2)",
+                                fontWeight: 600,
+                                fontSize: "0.85rem",
+                                cursor: "pointer",
+                              }}
+                            >
+                              CDSCO Drug Safety Guard
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Mode 4: Health Records & Biomarkers */}
+                  {activeKpiModal === "records" && (
+                    <div>
+                      {/* Health Intelligence Summary Strip */}
+                      <div
+                        style={{
+                          background: "rgba(139, 92, 246, 0.1)",
+                          border: "1px solid rgba(139, 92, 246, 0.3)",
+                          borderRadius: 14,
+                          padding: "16px 20px",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                          gap: 14,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>Total Vitals Recorded</div>
+                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>{recordsCount}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Clinical observations</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>Tracked Biomarkers</div>
+                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
+                            {healthState.riskScore?.distinctBiomarkers || healthState.biomarkers?.length || 0}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Distinct lab parameters</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>ABHA &amp; ABDM Sync</div>
+                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#4ade80", marginTop: 2 }}>Enacted</div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>DPDP Act 2023 Compliant</div>
+                        </div>
+                      </div>
+
+                      {healthState.biomarkers?.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {healthState.biomarkers.slice(0, 8).map((b, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                background: "rgba(15, 23, 42, 0.6)",
+                                border: "1px solid rgba(255, 255, 255, 0.08)",
+                                borderRadius: 10,
+                                padding: "12px 16px",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#fff" }}>{b.observationName || b.observationCode}</div>
+                                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Recorded: {b.recordedAt || "Recent"}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontWeight: 800, fontSize: "1rem", color: "#a78bfa" }}>
+                                  {b.valueNumber} <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "#94a3b8" }}>{b.unit}</span>
+                                </div>
+                                <div style={{ fontSize: "0.7rem", color: "#4ade80" }}>Normal range verified</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "30px 16px", color: "#94a3b8" }}>
+                          <Clinical3DIcon name="chart" size={40} glow />
+                          <div style={{ marginTop: 10, fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>Biomarker logs &amp; records ready</div>
+                          <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 4 }}>
+                            Book comprehensive preventive packages to log HbA1c, Lipid Profiles, and Renal function.
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+                        <a
+                          href="/dashboard/patient/reports"
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: 8,
+                            background: "rgba(139, 92, 246, 0.2)",
+                            color: "#c4b5fd",
+                            border: "1px solid rgba(167, 139, 250, 0.3)",
+                            textDecoration: "none",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <FileText size={14} /> Open Full Reports Archive
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div
+                  style={{
+                    padding: "16px 24px",
+                    borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    background: "rgba(15, 23, 42, 0.5)",
+                  }}
+                >
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
+                    <ShieldCheck size={14} color="#38bdf8" />
+                    <span>CallMedex Verified Healthcare Protocol</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveKpiModal(null)}
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: 8,
+                      background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
+                      color: "#fff",
+                      border: "none",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Phlebotomist Cold-Chain Radar */}
           {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && trackingData

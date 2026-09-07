@@ -902,23 +902,27 @@ export default function RadiologyCentersSection({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backgroundColor: "rgba(11, 19, 41, 0.75)",
+            backdropFilter: "blur(12px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 1000,
             padding: "16px",
           }}
+          onClick={() => setBookingModal(null)}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: "var(--cm-surface)",
-              borderRadius: "16px",
-              padding: "24px",
+              background: "linear-gradient(135deg, #0b1329 0%, #172554 100%)",
+              borderRadius: "20px",
+              padding: "26px",
               width: "100%",
-              maxWidth: "480px",
-              boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
-              border: "1px solid var(--cm-line)",
+              maxWidth: "500px",
+              boxShadow: "0 25px 60px -12px rgba(0,0,0,0.85), 0 0 35px rgba(56, 189, 248, 0.2)",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              color: "#f8fafc",
             }}
           >
             <div
@@ -926,70 +930,99 @@ export default function RadiologyCentersSection({
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "16px",
+                marginBottom: "18px",
               }}
             >
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: "1.15rem",
-                  fontWeight: 800,
-                  color: "var(--cm-ink)",
-                }}
-              >
-                Schedule Center Appointment
-              </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: "rgba(2, 132, 199, 0.2)",
+                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#38bdf8",
+                  }}
+                >
+                  <Activity size={20} />
+                </div>
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: "1.15rem",
+                    fontWeight: 800,
+                    color: "#ffffff",
+                  }}
+                >
+                  Schedule Center Appointment
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setBookingModal(null)}
                 style={{
-                  background: "transparent",
-                  border: "none",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: "50%",
+                  width: 30,
+                  height: 30,
                   cursor: "pointer",
-                  color: "var(--cm-ink-3)",
+                  color: "#94a3b8",
+                  display: "grid",
+                  placeItems: "center",
                 }}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Selected Service & Center Card */}
             <div
               style={{
-                backgroundColor: "var(--cm-surface-2)",
-                borderRadius: "10px",
-                padding: "14px",
+                background: "rgba(15, 23, 42, 0.7)",
+                borderRadius: "12px",
+                padding: "16px",
                 marginBottom: "18px",
-                border: "1px solid var(--cm-line)",
+                border: "1px solid rgba(56, 189, 248, 0.2)",
               }}
             >
               <div
                 style={{
-                  fontSize: "0.88rem",
+                  fontSize: "0.95rem",
                   fontWeight: 800,
-                  color: "var(--cm-ink)",
-                  marginBottom: "2px",
+                  color: "#ffffff",
+                  marginBottom: "4px",
                 }}
               >
                 {bookingModal.service.name}
               </div>
               <div
                 style={{
-                  fontSize: "0.8rem",
-                  color: "var(--cm-active)",
+                  fontSize: "0.85rem",
+                  color: "#38bdf8",
                   fontWeight: 700,
-                  marginBottom: "6px",
+                  marginBottom: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
+                <Building2 size={14} />
                 {bookingModal.offer.center_name}
               </div>
               <div
                 style={{
-                  fontSize: "0.75rem",
-                  color: "var(--cm-ink-3)",
-                  marginBottom: "10px",
+                  fontSize: "0.78rem",
+                  color: "#94a3b8",
+                  marginBottom: "12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                 }}
               >
+                <MapPin size={13} />
                 {bookingModal.offer.address}
               </div>
               <div
@@ -997,33 +1030,41 @@ export default function RadiologyCentersSection({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  borderTop: "1px solid var(--cm-line)",
-                  paddingTop: "8px",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                  paddingTop: "10px",
                 }}
               >
-                <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-2)" }}>
+                <span style={{ fontSize: "0.82rem", color: "#94a3b8" }}>
                   CallMedex Rate:
                 </span>
                 <span
                   style={{
-                    fontSize: "1.1rem",
+                    fontSize: "1.2rem",
                     fontWeight: 900,
-                    color: "var(--cm-navy)",
+                    color: "#4ade80",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
                   ₹{bookingModal.offer.callmedex_price}
+                  {bookingModal.offer.mrp > bookingModal.offer.callmedex_price && (
+                    <span style={{ fontSize: "0.8rem", color: "#64748b", textDecoration: "line-through", fontWeight: 500 }}>
+                      ₹{bookingModal.offer.mrp}
+                    </span>
+                  )}
                 </span>
               </div>
             </div>
 
             {/* Date Selection */}
-            <div style={{ marginBottom: "14px" }}>
+            <div style={{ marginBottom: "16px" }}>
               <label
                 style={{
                   display: "block",
                   fontSize: "0.82rem",
                   fontWeight: 700,
-                  color: "var(--cm-ink-2)",
+                  color: "#e2e8f0",
                   marginBottom: "6px",
                 }}
               >
@@ -1036,27 +1077,28 @@ export default function RadiologyCentersSection({
                 onChange={(e) => setBookingDate(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--cm-line)",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
                   fontSize: "0.9rem",
-                  background: "var(--cm-surface)",
-                  color: "var(--cm-ink)",
+                  background: "rgba(15, 23, 42, 0.8)",
+                  color: "#ffffff",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
                 required
               />
             </div>
 
             {/* Slot Selection */}
-            <div style={{ marginBottom: "20px" }}>
+            <div style={{ marginBottom: "22px" }}>
               <label
                 style={{
                   display: "block",
                   fontSize: "0.82rem",
                   fontWeight: 700,
-                  color: "var(--cm-ink-2)",
-                  marginBottom: "6px",
+                  color: "#e2e8f0",
+                  marginBottom: "8px",
                 }}
               >
                 Preferred Time Window
@@ -1070,18 +1112,19 @@ export default function RadiologyCentersSection({
                       type="button"
                       onClick={() => setBookingSlot(slot)}
                       style={{
-                        padding: "8px 6px",
-                        borderRadius: "8px",
+                        padding: "10px 6px",
+                        borderRadius: "10px",
                         border: isSlotSelected
-                          ? "1.5px solid var(--cm-navy)"
-                          : "1px solid var(--cm-line)",
+                          ? "1.5px solid #38bdf8"
+                          : "1px solid rgba(255, 255, 255, 0.1)",
                         background: isSlotSelected
-                          ? "var(--cm-active-surface)"
-                          : "var(--cm-surface-2)",
-                        color: isSlotSelected ? "var(--cm-navy)" : "var(--cm-ink-2)",
-                        fontSize: "0.75rem",
+                          ? "rgba(2, 132, 199, 0.25)"
+                          : "rgba(15, 23, 42, 0.6)",
+                        color: isSlotSelected ? "#38bdf8" : "#94a3b8",
+                        fontSize: "0.78rem",
                         fontWeight: 700,
                         cursor: "pointer",
+                        transition: "all 0.15s ease",
                       }}
                     >
                       {slot}
@@ -1092,17 +1135,17 @@ export default function RadiologyCentersSection({
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", gap: "12px" }}>
               <button
                 type="button"
                 onClick={() => setBookingModal(null)}
                 style={{
                   flex: 1,
-                  padding: "11px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--cm-line)",
-                  background: "var(--cm-surface)",
-                  color: "var(--cm-ink)",
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  background: "rgba(255, 255, 255, 0.06)",
+                  color: "#cbd5e1",
                   fontWeight: 700,
                   fontSize: "0.85rem",
                   cursor: "pointer",
@@ -1115,14 +1158,15 @@ export default function RadiologyCentersSection({
                 onClick={handleBookAppointment}
                 disabled={!bookingDate || submittingBooking}
                 style={{
-                  flex: 1.5,
-                  padding: "11px",
-                  borderRadius: "8px",
+                  flex: 1.6,
+                  padding: "12px",
+                  borderRadius: "10px",
                   border: "none",
-                  background: "var(--cm-navy)",
+                  background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
+                  boxShadow: "0 4px 15px rgba(2, 132, 199, 0.4)",
                   color: "#ffffff",
                   fontWeight: 800,
-                  fontSize: "0.85rem",
+                  fontSize: "0.88rem",
                   cursor: !bookingDate || submittingBooking ? "not-allowed" : "pointer",
                   opacity: !bookingDate || submittingBooking ? 0.6 : 1,
                 }}

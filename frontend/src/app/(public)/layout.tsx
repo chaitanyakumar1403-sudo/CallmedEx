@@ -25,7 +25,7 @@ export default function PublicLayout({
           </div>
           <div className="utility-bar__right">
             <span className="tagline-badge" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Vizag&apos;s Verified Healthcare Platform
+              <ShieldCheck size={14} style={{ color: "var(--cm-done)" }} /> Verified Healthcare Platform
             </span>
           </div>
         </div>

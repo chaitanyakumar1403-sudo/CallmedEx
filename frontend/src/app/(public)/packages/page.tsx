@@ -78,7 +78,7 @@ export default function PackagesPage() {
               marginBottom: 12,
             }}
           >
-            <ShieldCheck size={14} /> 100% Transparent Health Packages · Vizag Home Collection Included
+            <ShieldCheck size={14} /> 100% Transparent Health Packages · Doorstep Home Collection Included
           </div>
           <h1 style={{ fontSize: "2.4rem", fontWeight: 900, color: "#0f172a", margin: "0 0 8px" }}>
             Health Packages

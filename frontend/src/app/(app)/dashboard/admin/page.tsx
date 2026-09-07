@@ -570,7 +570,7 @@ export default function AdminDashboard() {
     { role: 'dietitian', slug: 'dietitian', label: 'Clinical Dietitian', name: 'Dr. Sneha Patel', badge: 'M.Sc Clinical Nutrition', icon: 'dietitian' },
     { role: 'nurse', slug: 'nurse', label: 'Nurse Care Hub', name: 'Sister Priya Sharma', badge: 'B.Sc Critical Care Nursing', icon: 'nurse' },
     { role: 'staff', slug: 'staff', label: 'Clinical Ops Desk', name: 'Kavitha Rao', badge: 'Admissions & Front Desk', icon: 'staff' },
-    { role: 'processing_center', slug: 'processing-center', label: 'Processing Center', name: 'Vizag Central Hub', badge: 'NABL Reference Lab', icon: 'diagnostics' },
+    { role: 'processing_center', slug: 'processing-center', label: 'Processing Center', name: 'Central Diagnostic Hub', badge: 'NABL Reference Lab', icon: 'diagnostics' },
     { role: 'admin', slug: 'admin', label: 'Super Admin Console', name: 'Chaitanya Kumar', badge: 'Master Owner', icon: 'shield' },
   ];
 

@@ -118,7 +118,7 @@ const ALL_MASTER_ROLES: MasterPersona[] = [
     role: "processing_center",
     slug: "processing-center",
     label: "Processing Center",
-    personaName: "Vizag Central Hub",
+    personaName: "Central Diagnostic Hub",
     badge: "NABL Molecular Lab",
     iconName: "diagnostics",
   },

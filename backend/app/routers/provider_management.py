@@ -755,14 +755,17 @@ async def apply_standard_tariffs(
 # ─── Provider MOU & Legal Agreement Viewer ───────────────────────────────────
 
 @router.get("/mou")
-async def get_provider_mou(current_user: dict = Depends(get_current_user)):
+async def get_provider_mou(
+    subtype: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Get official active MOU and legal acceptance details for the authenticated provider.
     Accessible from Doctor Profile and other provider profile workstations.
     """
     from app.services.legal import LegalService
     role = current_user.get("role", "doctor")
-    doc = LegalService.get_active_document(role)
+    doc = LegalService.get_active_document(role, subtype=subtype)
 
     acceptance = None
     if supabase:

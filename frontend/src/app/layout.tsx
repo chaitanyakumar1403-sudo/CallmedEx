@@ -26,7 +26,7 @@ const notoTelugu = Noto_Sans_Telugu({
 export const metadata: Metadata = {
   title: "CallMedex — India's AI-Native Healthcare Platform",
   description: "Book diagnostic tests, video consultations, pharmacy delivery, and home sample collection. ABHA-integrated, WhatsApp-native healthcare marketplace.",
-  keywords: "healthcare, diagnostics, telemedicine, pharmacy, ABHA, home collection, Vizag",
+  keywords: "healthcare, diagnostics, telemedicine, pharmacy, ABHA, home collection",
 };
 
 import { Toaster } from 'sonner';
