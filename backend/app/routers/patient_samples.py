@@ -66,7 +66,7 @@ ACTIVE_SAMPLE_STATUSES = (
 @router.get("/my-samples")
 async def my_samples(user: dict = Depends(get_current_user)):
     """Patient's samples with 5-step stage for the status rail."""
-    if user.get("role") != "patient":
+    if user.get("role") not in ("patient", "admin", "superadmin"):
         raise HTTPException(403, "Patients only.")
 
     patient_id = user.get("sub")

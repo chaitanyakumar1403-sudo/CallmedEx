@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Icon } from "./Icon";
-import { Bell, LogOut, User } from "./icons";
+import { Bell, LogOut, User, LayoutDashboard } from "./icons";
 import { Button } from "./Button";
 import { PatientNotificationCenter } from "@/app/components/PatientNotificationCenter";
 
@@ -20,6 +20,33 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
   const [resolvedUser, setResolvedUser] = useState(userName || "");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(3);
+
+  const getDashboardRoute = () => {
+    if (pathname?.includes("/dashboard/doctor")) return "/dashboard/doctor";
+    if (pathname?.includes("/dashboard/phlebotomist")) return "/dashboard/phlebotomist";
+    if (pathname?.includes("/dashboard/collection-point")) return "/dashboard/collection-point";
+    if (pathname?.includes("/dashboard/organization")) return "/dashboard/organization";
+    if (pathname?.includes("/dashboard/admin")) return "/dashboard/admin";
+    if (pathname?.includes("/dashboard/patient")) return "/dashboard/patient";
+
+    try {
+      const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u.role === "doctor") return "/dashboard/doctor";
+        if (u.role === "phlebotomist") return "/dashboard/phlebotomist";
+        if (u.role === "collection_point") return "/dashboard/collection-point";
+        if (u.role === "organization") return "/dashboard/organization";
+        if (u.role === "admin") return "/dashboard/admin";
+      }
+    } catch {}
+    return "/dashboard/patient";
+  };
+
+  const handleBrandClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push(getDashboardRoute());
+  };
 
   useEffect(() => {
     if (role) {
@@ -57,9 +84,13 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
     router.push("/auth/login");
   };
 
+  const isPatientRoute = pathname?.includes("/dashboard/patient");
+
   return (
     <header className="cm-appbar">
-      <a className="cm-appbar__brand" href="/">CallMedex</a>
+      <a className="cm-appbar__brand" href={getDashboardRoute()} onClick={handleBrandClick}>
+        CallMedex
+      </a>
       {resolvedRole && <span className="cm-appbar__role">{resolvedRole}</span>}
       <span className="cm-appbar__spacer" />
       <div className="cm-appbar__notification-wrap">
@@ -91,6 +122,15 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
           {resolvedUser}
         </span>
       )}
+      <Button
+        variant="ghost"
+        className={`cm-appbar__patient-nav ${isPatientRoute ? "cm-appbar__patient-nav--active" : ""}`}
+        onClick={() => router.push("/dashboard/patient")}
+        aria-label="Patient Dashboard"
+      >
+        <Icon as={LayoutDashboard} size={16} />
+        Patient Dashboard
+      </Button>
       <Button variant="ghost" onClick={logout}>
         <Icon as={LogOut} size={16} />
         Log out

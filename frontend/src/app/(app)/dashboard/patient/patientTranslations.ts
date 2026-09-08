@@ -42,6 +42,8 @@ export interface PatientTranslations {
     inTransit: string;
     verified: string;
     sentToLab: string;
+    step1_collected: string;
+    step2_whatsapp: string;
   };
   actionChips: {
     aiVoice: string;
@@ -197,6 +199,8 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       inTransit: "In Transit / Received",
       verified: "Verified",
       sentToLab: "Sent to Lab",
+      step1_collected: "Sample Collected",
+      step2_whatsapp: "Report Delivered to WhatsApp",
     },
     actionChips: {
       aiVoice: "AI Voice Scribe & Triage",
@@ -351,6 +355,8 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       inTransit: "రవాణాలో ఉంది / అందింది",
       verified: "ధృవీకరించబడింది",
       sentToLab: "ల్యాబ్‌కు పంపబడింది",
+      step1_collected: "నమూనా సేకరించబడింది",
+      step2_whatsapp: "రిపోర్ట్ వాట్సాప్‌కు పంపబడింది",
     },
     actionChips: {
       aiVoice: "AI వాయిస్ స్క్రిబ్ & ట్రయాజ్",
@@ -505,6 +511,8 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       inTransit: "पारगमन में / प्राप्त",
       verified: "सत्यापित",
       sentToLab: "लैब भेजा गया",
+      step1_collected: "नमूना एकत्रित",
+      step2_whatsapp: "रिपोर्ट व्हाट्सएप पर डिलीवर की गई",
     },
     actionChips: {
       aiVoice: "एआई वॉयस स्क्राइब व ट्राइएज",

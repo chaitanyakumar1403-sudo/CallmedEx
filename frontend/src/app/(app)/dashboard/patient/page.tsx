@@ -7,10 +7,10 @@ import PatientAIAdvisor from "../components/PatientAIAdvisor";
 import InteractiveBodyMap from "@/app/components/InteractiveBodyMap";
 import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
-import SampleStatusRail from "../components/SampleStatusRail";
+import { SampleTrackerModal } from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import FamilyMembersPanel from "../components/FamilyMembersPanel";
-import { bookingsAPI, dispatchAPI } from "@/lib/api";
+import { bookingsAPI, dispatchAPI, patientSamplesAPI } from "@/lib/api";
 import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { BiomarkerMatrix } from "../components/BiomarkerMatrix";
 import { DoctorBriefingModal } from "../components/DoctorBriefingModal";
@@ -56,6 +56,8 @@ import {
   Download,
   ArrowRight,
   ExternalLink,
+  TestTube,
+  FlaskConical,
 } from "lucide-react";
 
 interface UserData {
@@ -134,6 +136,8 @@ export default function PatientDashboard() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [showDrugShieldModal, setShowDrugShieldModal] = useState(false);
   const [showBriefingModal, setShowBriefingModal] = useState(false);
+  const [showSampleModal, setShowSampleModal] = useState(false);
+  const [activeSampleCount, setActiveSampleCount] = useState<number>(0);
 
   // Quick Reorder State
   const [showReorderModal, setShowReorderModal] = useState(false);
@@ -316,8 +320,22 @@ export default function PatientDashboard() {
       }
     };
 
+    const fetchSampleCount = async () => {
+      try {
+        const data = await patientSamplesAPI.getMySamples();
+        const active = (data.samples || []).filter((s: any) =>
+          s.is_active === true &&
+          !["cancelled", "completed", "delivered", "failed", "rejected"].includes(s.status) &&
+          !s.report_url
+        );
+        setActiveSampleCount(active.length);
+      } catch {
+        setActiveSampleCount(0);
+      }
+    };
+
     // Fetch all in parallel
-    Promise.all([fetchBookings(), fetchMe(), fetchPatientUpgradeData()]);
+    Promise.all([fetchBookings(), fetchMe(), fetchPatientUpgradeData(), fetchSampleCount()]);
   }, []);
 
   // Discover the dispatch_id for a scheduled (slot-booked) appointment once
@@ -694,6 +712,32 @@ export default function PatientDashboard() {
     (b.service_type === "home_collection" || (b.notes && b.notes.includes("Home Visit")))
   );
 
+  const triggerEmergencySOS = async () => {
+    if (!await customConfirm(t.emergencyConfirm)) return;
+    try {
+      let lat = 12.9716;
+      let lng = 77.5946;
+      let address = "Emergency Patient Location";
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) return reject(new Error("no geo"));
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, maximumAge: 60000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+        address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
+      } catch {}
+      const res = await dispatchAPI.triggerEmergencySOS({ lat, lng, address, note: "Patient 1-Tap SOS Beacon" });
+      if (res.data?.success || res.status === 200) {
+        toast.error("EMERGENCY BEACON BROADCAST: All nearby responders notified.");
+      } else {
+        toast.error("Emergency alert triggered. Please call 108/112 immediately.");
+      }
+    } catch {
+      toast.error("Emergency alert triggered. Please call 108/112.");
+    }
+  };
+
   return (
     // lang drives the :lang(te) rule that switches to Noto Sans Telugu and its
     // looser leading. Without it the selector changed strings but left Telugu
@@ -735,31 +779,7 @@ export default function PatientDashboard() {
           </a>
           <button
             type="button"
-            onClick={async () => {
-              if (!await customConfirm(t.emergencyConfirm)) return;
-              try {
-                let lat = 12.9716;
-                let lng = 77.5946;
-                let address = "Emergency Patient Location";
-                try {
-                  const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-                    if (!navigator.geolocation) return reject(new Error("no geo"));
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, maximumAge: 60000 });
-                  });
-                  lat = pos.coords.latitude;
-                  lng = pos.coords.longitude;
-                  address = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-                } catch {}
-                const res = await dispatchAPI.triggerEmergencySOS({ lat, lng, address, note: "Patient Header 1-Tap SOS" });
-                if (res.data?.success || res.status === 200) {
-                  toast.error("EMERGENCY BEACON BROADCAST: All nearby responders notified.");
-                } else {
-                  toast.error("Emergency alert triggered. Please call 108/112 immediately.");
-                }
-              } catch {
-                toast.error("Emergency alert triggered. Please call 108/112.");
-              }
-            }}
+            onClick={triggerEmergencySOS}
             style={{
               padding: "10px 18px", borderRadius: 999, border: "none",
               background: "var(--cm-urgent)", color: "#ffffff", fontWeight: 800,
@@ -1487,6 +1507,99 @@ export default function PatientDashboard() {
             </div>
           )}
 
+          {/* ── Centered Elongated Quick Actions Widget ── */}
+          <div id="quick-actions" className="cm-patient-quick-actions-bar" aria-label="Quick Actions">
+            {/* 1. Track Sample Progress */}
+            <button
+              type="button"
+              className="cm-quick-action-pill cm-quick-action-pill--primary"
+              onClick={() => setShowSampleModal(true)}
+              title="Track diagnostic sample collection and WhatsApp delivery status"
+            >
+              <TestTube size={16} />
+              <span>Track Sample Progress</span>
+              {activeSampleCount > 0 && (
+                <span className="cm-quick-action-dot" title={`${activeSampleCount} active specimen in transit`} />
+              )}
+            </button>
+
+            {/* 2. Book a Test */}
+            <a
+              href="/booking"
+              className="cm-quick-action-pill"
+              title="Book doorstep blood, urine, or pathology test"
+            >
+              <FlaskConical size={16} />
+              <span>Book a Test</span>
+            </a>
+
+            {/* 3. Emergency SOS */}
+            <button
+              type="button"
+              className="cm-quick-action-pill cm-quick-action-pill--urgent"
+              onClick={triggerEmergencySOS}
+              title="Broadcast 1-tap emergency beacon with GPS coordinates"
+            >
+              <AlertTriangle size={16} />
+              <span>Emergency SOS</span>
+            </button>
+
+            {/* 4. AI Voice Health */}
+            <button
+              type="button"
+              className="cm-quick-action-pill"
+              onClick={() => setShowVoiceModal(true)}
+              title="Instant AI voice triage and symptom assessment"
+            >
+              <Sparkles size={16} />
+              <span>AI Voice Health</span>
+            </button>
+
+            {/* 5. Drug Interaction Shield */}
+            <button
+              type="button"
+              className="cm-quick-action-pill"
+              onClick={() => setShowDrugShieldModal(true)}
+              title="Analyze prescription drug conflicts and generic cost savings"
+            >
+              <ShieldCheck size={16} />
+              <span>Drug Shield</span>
+            </button>
+
+            {/* 6. Doctor Briefing */}
+            {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
+              <button
+                type="button"
+                className="cm-quick-action-pill"
+                onClick={() => setShowBriefingModal(true)}
+                title="Generate clinical summary sheet with QR code for consultations"
+              >
+                <FileText size={16} />
+                <span>Doctor Briefing</span>
+              </button>
+            )}
+
+            {/* 7. Phlebo Radar */}
+            {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
+              <button
+                type="button"
+                className={`cm-quick-action-pill ${showLiveTracker ? "cm-quick-action-pill--active" : ""}`}
+                onClick={() => setShowLiveTracker(!showLiveTracker)}
+                title="Toggle live phlebotomist cold-chain dispatch radar"
+              >
+                <Truck size={16} />
+                <span>{showLiveTracker ? t.actionChips.phleboHide : "Phlebo Radar"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Interactive 2-Step Sample Tracker Modal */}
+          <SampleTrackerModal
+            isOpen={showSampleModal}
+            onClose={() => setShowSampleModal(false)}
+            lang={lang}
+          />
+
           {/* Phlebotomist Cold-Chain Radar */}
           {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && trackingData
             && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"]
@@ -1503,9 +1616,6 @@ export default function PatientDashboard() {
               otpPin={patientOtp ?? undefined}
             />
           )}
-
-          {/* ── Sample Status Tracking (Spec 3) ──────────────────── */}
-          <SampleStatusRail lang={lang} />
 
           {/* ── AI Preventive Care Advisor (OpenRouter AI) ────── */}
           <PatientAIAdvisor />
@@ -1528,85 +1638,6 @@ export default function PatientDashboard() {
               </div>
             )}
           </div>
-
-        {/* Industry-First Features Quick-Action Bar */}
-        <div className="cm-action-rail" style={{ marginBottom: 24 }}>
-          <button
-            type="button"
-            className="cm-action-chip"
-            style={{
-              borderColor: "var(--cm-active-line)",
-              color: "var(--cm-active)",
-              fontWeight: 700,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 16px",
-              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.08)"
-            }}
-            onClick={() => setShowVoiceModal(true)}
-          >
-            <Clinical3DIcon name="mic" size={22} glow />
-            {t.actionChips.aiVoice}
-          </button>
-          <button
-            type="button"
-            className="cm-action-chip"
-            style={{
-              borderColor: "var(--cm-done-line)",
-              color: "var(--cm-done)",
-              fontWeight: 700,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 16px",
-              boxShadow: "0 2px 8px rgba(5, 150, 105, 0.08)"
-            }}
-            onClick={() => setShowDrugShieldModal(true)}
-          >
-            <Clinical3DIcon name="shield" size={22} glow />
-            {t.actionChips.drugShield}
-          </button>
-          {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
-            <button
-              type="button"
-              className="cm-action-chip"
-              style={{
-                borderColor: showLiveTracker ? "var(--cm-active)" : "var(--cm-line-strong)",
-                background: showLiveTracker ? "var(--cm-active-surface)" : "var(--cm-surface)",
-                color: showLiveTracker ? "var(--cm-active)" : "var(--cm-ink)",
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 16px"
-              }}
-              onClick={() => setShowLiveTracker(!showLiveTracker)}
-            >
-              <Clinical3DIcon name="delivery" size={22} glow={showLiveTracker} />
-              {showLiveTracker ? t.actionChips.phleboHide : t.actionChips.phleboDemo}
-            </button>
-          )}
-          {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
-            <button
-              type="button"
-              className="cm-action-chip"
-              style={{
-                borderColor: "var(--cm-line-strong)",
-                color: "var(--cm-ink)",
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 16px"
-              }}
-              onClick={() => setShowBriefingModal(true)}
-            >
-              <Clinical3DIcon name="fileText" size={22} />
-              {t.actionChips.doctorBriefing}
-            </button>
-          )}
-        </div>
 
         {/* Doctor Briefing Modal */}
         {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (

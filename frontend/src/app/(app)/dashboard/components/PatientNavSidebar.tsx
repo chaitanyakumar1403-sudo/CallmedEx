@@ -3,11 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Package, FlaskConical, Stethoscope, Pill, Activity, Box,
+  Package, FlaskConical, Stethoscope, Pill, Box,
   Sparkles, Zap, ScanLine, Smile, Users, Calendar, ChevronRight,
-  Clock, HeartPulse, Compass, ShieldCheck
+  Clock, Compass, ShieldCheck
 } from "@/components/ui/icons";
-import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 
 interface NavItem {
   id: string;
@@ -16,19 +15,16 @@ interface NavItem {
   type: "anchor" | "route";
   target: string;
   badge?: string;
-  accentClass: string;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  // ── In-Page Sections (Smooth Teleport) ──
+const DASHBOARD_SECTIONS: NavItem[] = [
   {
-    id: "sample-tracking",
-    label: "Sample Tracking",
-    icon: Activity,
+    id: "quick-actions",
+    label: "Quick Actions",
+    icon: Zap,
     type: "anchor",
-    target: "#sample-tracking",
-    badge: "Live",
-    accentClass: "cm-nav-item--sky",
+    target: "#quick-actions",
+    badge: "Fast",
   },
   {
     id: "interactive-twin",
@@ -37,7 +33,6 @@ const NAV_ITEMS: NavItem[] = [
     type: "anchor",
     target: "#interactive-twin",
     badge: "3D",
-    accentClass: "cm-nav-item--cyan",
   },
   {
     id: "ai-health-advisor",
@@ -46,7 +41,6 @@ const NAV_ITEMS: NavItem[] = [
     type: "anchor",
     target: "#ai-health-advisor",
     badge: "AI",
-    accentClass: "cm-nav-item--indigo",
   },
   {
     id: "medicine-cabinet",
@@ -54,15 +48,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: Clock,
     type: "anchor",
     target: "#medicine-cabinet",
-    accentClass: "cm-nav-item--teal",
-  },
-  {
-    id: "quick-actions",
-    label: "Quick Actions",
-    icon: Zap,
-    type: "anchor",
-    target: "#quick-actions",
-    accentClass: "cm-nav-item--blue",
   },
   {
     id: "radiology-diagnostics",
@@ -70,7 +55,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: ScanLine,
     type: "anchor",
     target: "#radiology-diagnostics",
-    accentClass: "cm-nav-item--navy",
   },
   {
     id: "dental-clinics",
@@ -79,7 +63,6 @@ const NAV_ITEMS: NavItem[] = [
     type: "anchor",
     target: "#dental-clinics",
     badge: "Walk-in",
-    accentClass: "cm-nav-item--ocean",
   },
   {
     id: "family-circle",
@@ -87,7 +70,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: Users,
     type: "anchor",
     target: "#family-circle",
-    accentClass: "cm-nav-item--slate",
   },
   {
     id: "recent-bookings",
@@ -95,45 +77,39 @@ const NAV_ITEMS: NavItem[] = [
     icon: Calendar,
     type: "anchor",
     target: "#recent-bookings",
-    accentClass: "cm-nav-item--steel",
   },
 ];
 
-const SERVICE_ROUTES = [
+const CARE_SERVICES = [
   {
     label: "Health Packages",
     href: "/packages",
     icon: Package,
-    accentClass: "cm-nav-item--sky",
   },
   {
     label: "Book a Test",
     href: "/diagnostics",
     icon: FlaskConical,
-    accentClass: "cm-nav-item--cyan",
   },
   {
     label: "Consultation",
     href: "/consultation",
     icon: Stethoscope,
-    accentClass: "cm-nav-item--indigo",
   },
   {
     label: "Online Pharmacy",
     href: "/pharmacy",
     icon: Pill,
-    accentClass: "cm-nav-item--teal",
   },
 ];
 
 export default function PatientNavSidebar() {
-  const [activeSection, setActiveSection] = useState<string>("sample-tracking");
-  const [collapsedMobile, setCollapsedMobile] = useState<boolean>(false);
+  const [activeSection, setActiveSection] = useState<string>("quick-actions");
 
   useEffect(() => {
     const handleScroll = () => {
       const scrollPos = window.scrollY + 140;
-      for (const item of NAV_ITEMS) {
+      for (const item of DASHBOARD_SECTIONS) {
         if (item.type === "anchor") {
           const el = document.getElementById(item.id);
           if (el) {
@@ -168,59 +144,57 @@ export default function PatientNavSidebar() {
     }
   };
 
-  return (
-    <nav className="cm-patient-sidebar-widget" aria-label="Patient Dashboard Navigator">
-      {/* Widget Header with CallMedex Branding */}
-      <div className="cm-sidebar-header">
-        <div className="cm-sidebar-brand-badge">
-          <div className="cm-brand-3d-pulse-container" title="CallMedex Care Pulse">
-            <Clinical3DIcon name="care-pulse" size={24} className="cm-brand-3d-icon-base" />
-            <div className="cm-brand-3d-icon-ping" aria-hidden="true">
-              <Clinical3DIcon name="care-pulse" size={24} />
-            </div>
-          </div>
-          <span className="cm-sidebar-brand-text">CallMedex Care</span>
-        </div>
-        <span className="cm-sidebar-tagline">Quick Navigator</span>
-      </div>
+  const totalSections = DASHBOARD_SECTIONS.length;
 
-      {/* Group 1: Direct Services Navigation */}
-      <div className="cm-sidebar-group">
-        <div className="cm-sidebar-group-title">
-          <Compass size={13} />
-          <span>Care Services</span>
+  return (
+    <aside className="cm-provider-sidebar" aria-label="Patient Portal Navigation">
+      <div className="cm-provider-nav-widget cm-patient-sidebar-widget">
+        {/* Workspace Brand Header */}
+        <div className="cm-provider-nav-header">
+          <div className="cm-provider-nav-badge">
+            <span className="cm-provider-nav-dot" />
+            <span>PATIENT PORTAL</span>
+          </div>
+          <span className="cm-provider-nav-count">{totalSections} sections</span>
         </div>
-        <div className="cm-sidebar-nav-list">
-          {SERVICE_ROUTES.map((route) => {
+
+        {/* Group 1: Care Services Navigation */}
+        <div className="cm-provider-nav-section-title">
+          <Compass size={12} />
+          <span>CARE SERVICES</span>
+        </div>
+        <div className="cm-provider-nav-list" style={{ flex: "0 0 auto", marginBottom: 12 }}>
+          {CARE_SERVICES.map((route) => {
             const IconComponent = route.icon;
             return (
               <Link
                 key={route.href}
                 href={route.href}
-                className={`cm-sidebar-nav-btn ${route.accentClass}`}
+                className="cm-provider-nav-item"
               >
-                <span className="cm-sidebar-nav-icon">
-                  <IconComponent size={16} />
-                </span>
-                <span className="cm-sidebar-nav-label">{route.label}</span>
-                <ChevronRight size={13} className="cm-sidebar-nav-arrow" />
+                <div className="cm-provider-nav-item__left">
+                  <span className="cm-provider-nav-item__icon">
+                    <IconComponent size={16} />
+                  </span>
+                  <span className="cm-provider-nav-item__label">{route.label}</span>
+                </div>
+                <ChevronRight size={13} style={{ color: "#64748b" }} />
               </Link>
             );
           })}
         </div>
-      </div>
 
-      {/* Divider */}
-      <div className="cm-sidebar-divider" />
-
-      {/* Group 2: Dashboard Sections Jump */}
-      <div className="cm-sidebar-group">
-        <div className="cm-sidebar-group-title">
-          <Activity size={13} />
-          <span>Dashboard Sections</span>
+        {/* Group 2: In-Page Dashboard Teleport */}
+        <div className="cm-provider-nav-section-title">
+          <Zap size={12} />
+          <span>DASHBOARD SECTIONS</span>
         </div>
-        <div className="cm-sidebar-nav-list">
-          {NAV_ITEMS.map((item) => {
+        <nav
+          className="cm-provider-nav-list"
+          role="tablist"
+          aria-label="Dashboard sections"
+        >
+          {DASHBOARD_SECTIONS.map((item) => {
             const IconComponent = item.icon;
             const isActive = activeSection === item.id;
             return (
@@ -228,27 +202,34 @@ export default function PatientNavSidebar() {
                 key={item.id}
                 href={item.target}
                 onClick={(e) => handleSmoothScroll(e, item.id)}
-                className={`cm-sidebar-nav-btn ${item.accentClass} ${isActive ? "cm-sidebar-nav-btn--active" : ""}`}
+                className={`cm-provider-nav-item ${isActive ? "cm-provider-nav-item--active" : ""}`}
                 aria-current={isActive ? "true" : undefined}
               >
-                <span className="cm-sidebar-nav-icon">
-                  <IconComponent size={16} />
-                </span>
-                <span className="cm-sidebar-nav-label">{item.label}</span>
+                <div className="cm-provider-nav-item__left">
+                  <span className="cm-provider-nav-item__icon">
+                    <IconComponent size={16} />
+                  </span>
+                  <span className="cm-provider-nav-item__label">{item.label}</span>
+                </div>
                 {item.badge && (
-                  <span className="cm-sidebar-nav-badge">{item.badge}</span>
+                  <span className="cm-provider-nav-item__count">{item.badge}</span>
                 )}
               </a>
             );
           })}
+        </nav>
+
+        {/* Console Status Footer */}
+        <div className="cm-provider-nav-footer">
+          <div className="cm-provider-nav-footer-status">
+            <span className="cm-provider-status-dot" />
+            <span>Patient Care Portal Active</span>
+          </div>
+          <div className="cm-provider-nav-footer-legal">
+            <span>NABL &amp; ICMR Certified · ABDM M1/M2/M3</span>
+          </div>
         </div>
       </div>
-
-      {/* Patient Security Footer Badge */}
-      <div className="cm-sidebar-security-badge">
-        <ShieldCheck size={14} />
-        <span>NABL &amp; ICMR Certified Care</span>
-      </div>
-    </nav>
+    </aside>
   );
 }
