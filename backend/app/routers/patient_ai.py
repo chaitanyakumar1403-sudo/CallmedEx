@@ -6,6 +6,7 @@ personalized 3-section healthcare orchestration:
 2. Targeted Diagnostic Tests, Care Services & Doctor Consultations
 3. AI Care Guidance (Workouts, Diet & Nutrition Plan, Lifestyle Advice)
 """
+import asyncio
 import json
 import logging
 from typing import List, Optional
@@ -578,11 +579,15 @@ async def get_patient_ai_recommendations(
                 {"role": "user", "content": prompt}
             ]
 
-            response_text = client._call(
-                model=AI_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=3500,
+            response_text = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client._call,
+                    model=AI_MODEL,
+                    messages=messages,
+                    temperature=0.2,
+                    max_tokens=3500,
+                ),
+                timeout=4.5,
             )
 
             cleaned = response_text.strip()
