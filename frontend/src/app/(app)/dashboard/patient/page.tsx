@@ -129,6 +129,8 @@ export default function PatientDashboard() {
 
   // KPI Interactive Modals
   const [activeKpiModal, setActiveKpiModal] = useState<'upcoming' | 'completed' | 'prescriptions' | 'records' | null>(null);
+  const [recordsTab, setRecordsTab] = useState<"self" | "family">("self");
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>("all");
   const familyState = useFamilyHubStore();
   const healthState = useHealthMatrixStore();
 
@@ -676,13 +678,41 @@ export default function PatientDashboard() {
 
   const name = user?.full_name || "Patient";
 
+  // Calculate India Standard Time (Asia/Kolkata) date string YYYY-MM-DD
+  const getTodayIST = () => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+    } catch {
+      return new Date().toISOString().split("T")[0];
+    }
+  };
+  const todayIST = getTodayIST();
 
-  const upcomingBookings = bookings.filter(b => ["confirmed", "pending_review", "slot_allotted", "provider_accepted", "in_progress"].includes(b.status));
+  // Forensically exclude stale bookings that passed their scheduled date without being serviced
+  const upcomingBookings = bookings.filter(b => {
+    if (!["confirmed", "pending_review", "slot_allotted", "provider_accepted", "in_progress"].includes(b.status)) {
+      return false;
+    }
+    if (b.scheduled_date && b.scheduled_date < todayIST && !["provider_accepted", "in_progress"].includes(b.status)) {
+      return false;
+    }
+    return true;
+  });
   const upcomingCount = upcomingBookings.length;
   const completedBookings = bookings.filter(b => b.status === "completed");
   const completedCount = completedBookings.length;
   const prescriptionsCount = familyState.medications?.length || 0;
-  const recordsCount = (healthState.biomarkers?.length || 0) + (healthState.riskScore?.trends?.length || 0);
+  const conductedRecords = bookings.filter(b =>
+    b.status === "completed" ||
+    Boolean(b.report_url) ||
+    ["lab_test", "diagnostic", "radiology", "health_package"].includes(b.booking_type || b.service_type)
+  );
+  const recordsCount = conductedRecords.length || completedCount || (healthState.biomarkers?.length || 0);
   const allottedBookings = bookings.filter(b => b.status === "slot_allotted");
 
   // Respond to an allotted slot
@@ -1374,101 +1404,325 @@ export default function PatientDashboard() {
                     </>
                   )}
 
-                  {/* Mode 4: Health Records & Biomarkers */}
-                  {activeKpiModal === "records" && (
-                    <div>
-                      {/* Health Intelligence Summary Strip */}
-                      <div
-                        style={{
-                          background: "rgba(139, 92, 246, 0.1)",
-                          border: "1px solid rgba(139, 92, 246, 0.3)",
-                          borderRadius: 14,
-                          padding: "16px 20px",
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                          gap: 14,
-                          marginBottom: 16,
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>Total Vitals Recorded</div>
-                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>{recordsCount}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Clinical observations</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>Tracked Biomarkers</div>
-                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
-                            {healthState.riskScore?.distinctBiomarkers || healthState.biomarkers?.length || 0}
-                          </div>
-                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Distinct lab parameters</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: "0.75rem", color: "#a78bfa", textTransform: "uppercase", fontWeight: 700 }}>ABHA &amp; ABDM Sync</div>
-                          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#4ade80", marginTop: 2 }}>Enacted</div>
-                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>DPDP Act 2023 Compliant</div>
-                        </div>
-                      </div>
+                  {/* Mode 4: Health Records & Diagnostic Test Reports (Self vs Family Segmented) */}
+                  {activeKpiModal === "records" && (() => {
+                    const allTestRecords = bookings.filter(b =>
+                      b.status === "completed" ||
+                      Boolean(b.report_url) ||
+                      ["lab_test", "diagnostic", "radiology", "health_package"].includes(b.booking_type || b.service_type)
+                    );
 
-                      {healthState.biomarkers?.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          {healthState.biomarkers.slice(0, 8).map((b, idx) => (
-                            <div
-                              key={idx}
+                    const selfRecords = allTestRecords.filter(b => b.is_self !== false && !b.family_member_id);
+                    const familyRecords = allTestRecords.filter(b => b.is_self === false || Boolean(b.family_member_id));
+
+                    const displayedRecords = recordsTab === "self"
+                      ? selfRecords
+                      : (selectedFamilyMemberId === "all"
+                          ? familyRecords
+                          : familyRecords.filter(b => b.family_member_id === selectedFamilyMemberId));
+
+                    return (
+                      <div>
+                        {/* Segmented Control: Self vs Family Member */}
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          marginBottom: 16,
+                          background: "rgba(15, 23, 42, 0.7)",
+                          padding: "6px",
+                          borderRadius: 12,
+                          border: "1px solid rgba(255, 255, 255, 0.08)"
+                        }}>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => setRecordsTab("self")}
                               style={{
-                                background: "rgba(15, 23, 42, 0.6)",
-                                border: "1px solid rgba(255, 255, 255, 0.08)",
-                                borderRadius: 10,
-                                padding: "12px 16px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
+                                padding: "8px 18px",
+                                borderRadius: 8,
+                                border: "none",
+                                fontSize: "0.85rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                background: recordsTab === "self" ? "linear-gradient(135deg, #0ea5e9, #2563eb)" : "transparent",
+                                color: recordsTab === "self" ? "#fff" : "#94a3b8",
+                                boxShadow: recordsTab === "self" ? "0 4px 12px rgba(14, 165, 233, 0.3)" : "none"
                               }}
                             >
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#fff" }}>{b.observationName || b.observationCode}</div>
-                                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Recorded: {b.recordedAt || "Recent"}</div>
-                              </div>
-                              <div style={{ textAlign: "right" }}>
-                                <div style={{ fontWeight: 800, fontSize: "1rem", color: "#a78bfa" }}>
-                                  {b.valueNumber} <span style={{ fontSize: "0.75rem", fontWeight: 500, color: "#94a3b8" }}>{b.unit}</span>
-                                </div>
-                                <div style={{ fontSize: "0.7rem", color: "#4ade80" }}>Normal range verified</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "30px 16px", color: "#94a3b8" }}>
-                          <Clinical3DIcon name="chart" size={40} glow />
-                          <div style={{ marginTop: 10, fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>Biomarker logs &amp; records ready</div>
-                          <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 4 }}>
-                            Book comprehensive preventive packages to log HbA1c, Lipid Profiles, and Renal function.
+                              My Records ({selfRecords.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setRecordsTab("family")}
+                              style={{
+                                padding: "8px 18px",
+                                borderRadius: 8,
+                                border: "none",
+                                fontSize: "0.85rem",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                background: recordsTab === "family" ? "linear-gradient(135deg, #8b5cf6, #6366f1)" : "transparent",
+                                color: recordsTab === "family" ? "#fff" : "#94a3b8",
+                                boxShadow: recordsTab === "family" ? "0 4px 12px rgba(139, 92, 246, 0.3)" : "none"
+                              }}
+                            >
+                              Family Records ({familyRecords.length})
+                            </button>
                           </div>
-                        </div>
-                      )}
 
-                      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-                        <a
-                          href="/dashboard/patient/reports"
+                          {recordsTab === "family" && familyState.members.length > 0 && (
+                            <select
+                              value={selectedFamilyMemberId}
+                              onChange={(e) => setSelectedFamilyMemberId(e.target.value)}
+                              style={{
+                                background: "rgba(30, 41, 59, 0.9)",
+                                color: "#e2e8f0",
+                                border: "1px solid rgba(148, 163, 184, 0.2)",
+                                borderRadius: 8,
+                                padding: "6px 12px",
+                                fontSize: "0.8rem",
+                                outline: "none"
+                              }}
+                            >
+                              <option value="all">All Family Members</option>
+                              {familyState.members.map((m: any) => (
+                                <option key={m.id} value={m.id}>{m.fullName} ({m.relationship})</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        {/* Health Summary Strip */}
+                        <div
                           style={{
-                            padding: "8px 16px",
-                            borderRadius: 8,
-                            background: "rgba(139, 92, 246, 0.2)",
-                            color: "#c4b5fd",
-                            border: "1px solid rgba(167, 139, 250, 0.3)",
-                            textDecoration: "none",
-                            fontSize: "0.85rem",
-                            fontWeight: 600,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
+                            background: "rgba(14, 165, 233, 0.08)",
+                            border: "1px solid rgba(14, 165, 233, 0.2)",
+                            borderRadius: 14,
+                            padding: "14px 18px",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                            gap: 12,
+                            marginBottom: 16,
                           }}
                         >
-                          <FileText size={14} /> Open Full Reports Archive
-                        </a>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
+                              Conducted Tests
+                            </div>
+                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
+                              {displayedRecords.length}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                              {recordsTab === "self" ? "Personal records" : "Dependent records"}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
+                              Available Reports
+                            </div>
+                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
+                              {displayedRecords.filter(b => b.report_url || b.status === "completed").length}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>NABL &amp; CAP Verified</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
+                              ABDM PHR Sync
+                            </div>
+                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#4ade80", marginTop: 2 }}>Active</div>
+                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>HIP/HIU Connected</div>
+                          </div>
+                        </div>
+
+                        {/* Conducted Lab Tests & Diagnostic Reports List */}
+                        {displayedRecords.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "380px", overflowY: "auto", paddingRight: 4 }}>
+                            {displayedRecords.map((rec) => {
+                              const title = rec.test_names || rec.package_name || rec.service_name || rec.notes || "Comprehensive Lab Test";
+                              const center = rec.hospital_name || "CallMedex Pathology & Diagnostic Network";
+                              const date = rec.scheduled_date || (rec.created_at ? rec.created_at.split("T")[0] : "Recent");
+                              const isCompleted = rec.status === "completed";
+
+                              return (
+                                <div
+                                  key={rec.id}
+                                  style={{
+                                    background: "rgba(15, 23, 42, 0.7)",
+                                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                                    borderRadius: 12,
+                                    padding: "14px 16px",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    gap: 16,
+                                    transition: "border-color 0.2s ease",
+                                  }}
+                                >
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                      <span style={{ fontWeight: 700, fontSize: "0.92rem", color: "#fff" }}>
+                                        {title}
+                                      </span>
+                                      {rec.subject_name && !rec.is_self && (
+                                        <span style={{
+                                          fontSize: "0.68rem",
+                                          padding: "2px 8px",
+                                          borderRadius: 6,
+                                          background: "rgba(139, 92, 246, 0.2)",
+                                          color: "#c4b5fd",
+                                          border: "1px solid rgba(139, 92, 246, 0.3)"
+                                        }}>
+                                          {rec.subject_name} ({rec.subject_relationship || "Family"})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: "0.78rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: 12 }}>
+                                      <span>{center}</span>
+                                      <span>•</span>
+                                      <span>Date: {date}</span>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <span style={{
+                                      fontSize: "0.72rem",
+                                      fontWeight: 600,
+                                      padding: "4px 10px",
+                                      borderRadius: 20,
+                                      background: isCompleted ? "rgba(34, 197, 94, 0.15)" : "rgba(14, 165, 233, 0.15)",
+                                      color: isCompleted ? "#4ade80" : "#38bdf8",
+                                      border: isCompleted ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(14, 165, 233, 0.3)"
+                                    }}>
+                                      {isCompleted ? "Completed & Verified" : (rec.status || "Conducted")}
+                                    </span>
+
+                                    {/* Action 1: View / Download Report */}
+                                    {rec.report_url ? (
+                                      <a
+                                        href={rec.report_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          padding: "6px 12px",
+                                          borderRadius: 8,
+                                          background: "rgba(255, 255, 255, 0.08)",
+                                          color: "#e2e8f0",
+                                          border: "1px solid rgba(255, 255, 255, 0.15)",
+                                          textDecoration: "none",
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 5
+                                        }}
+                                      >
+                                        <Download size={13} /> Report
+                                      </a>
+                                    ) : (
+                                      <a
+                                        href={`/dashboard/patient/reports`}
+                                        style={{
+                                          padding: "6px 12px",
+                                          borderRadius: 8,
+                                          background: "rgba(255, 255, 255, 0.08)",
+                                          color: "#cbd5e1",
+                                          border: "1px solid rgba(255, 255, 255, 0.12)",
+                                          textDecoration: "none",
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 5
+                                        }}
+                                      >
+                                        <FileText size={13} /> View
+                                      </a>
+                                    )}
+
+                                    {/* Action 2: Book Again CTA */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReorderBooking(rec);
+                                        setShowReorderModal(true);
+                                      }}
+                                      style={{
+                                        padding: "6px 14px",
+                                        borderRadius: 8,
+                                        background: "linear-gradient(135deg, #0ea5e9, #0284c7)",
+                                        color: "#fff",
+                                        border: "none",
+                                        fontSize: "0.78rem",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 5
+                                      }}
+                                    >
+                                      <RefreshCw size={12} /> Book Again
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: "center", padding: "36px 16px", color: "#94a3b8" }}>
+                            <Clinical3DIcon name="chart" size={44} glow />
+                            <div style={{ marginTop: 12, fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>
+                              {recordsTab === "self" ? "No conducted test records found for Self" : "No test records found for Family Member"}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 4, maxWidth: "420px", margin: "4px auto 16px auto" }}>
+                              Book diagnostic panels, preventative full-body scans, or home sample collection to build your digital clinical health chart.
+                            </div>
+                            <a
+                              href="/booking"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "8px 18px",
+                                borderRadius: 8,
+                                background: "linear-gradient(135deg, #0ea5e9, #2563eb)",
+                                color: "#fff",
+                                textDecoration: "none",
+                                fontSize: "0.85rem",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <FlaskConical size={14} /> Book a Diagnostic Test
+                            </a>
+                          </div>
+                        )}
+
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
+                          <a
+                            href="/dashboard/patient/reports"
+                            style={{
+                              padding: "8px 16px",
+                              borderRadius: 8,
+                              background: "rgba(14, 165, 233, 0.15)",
+                              color: "#38bdf8",
+                              border: "1px solid rgba(56, 189, 248, 0.3)",
+                              textDecoration: "none",
+                              fontSize: "0.85rem",
+                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <FileText size={14} /> Open Full Reports Archive
+                          </a>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Modal Footer */}
@@ -1507,91 +1761,7 @@ export default function PatientDashboard() {
             </div>
           )}
 
-          {/* ── Centered Elongated Quick Actions Widget ── */}
-          <div id="quick-actions" className="cm-patient-quick-actions-bar" aria-label="Quick Actions">
-            {/* 1. Track Sample Progress */}
-            <button
-              type="button"
-              className="cm-quick-action-pill cm-quick-action-pill--primary"
-              onClick={() => setShowSampleModal(true)}
-              title="Track diagnostic sample collection and WhatsApp delivery status"
-            >
-              <TestTube size={16} />
-              <span>Track Sample Progress</span>
-              {activeSampleCount > 0 && (
-                <span className="cm-quick-action-dot" title={`${activeSampleCount} active specimen in transit`} />
-              )}
-            </button>
 
-            {/* 2. Book a Test */}
-            <a
-              href="/booking"
-              className="cm-quick-action-pill"
-              title="Book doorstep blood, urine, or pathology test"
-            >
-              <FlaskConical size={16} />
-              <span>Book a Test</span>
-            </a>
-
-            {/* 3. Emergency SOS */}
-            <button
-              type="button"
-              className="cm-quick-action-pill cm-quick-action-pill--urgent"
-              onClick={triggerEmergencySOS}
-              title="Broadcast 1-tap emergency beacon with GPS coordinates"
-            >
-              <AlertTriangle size={16} />
-              <span>Emergency SOS</span>
-            </button>
-
-            {/* 4. AI Voice Health */}
-            <button
-              type="button"
-              className="cm-quick-action-pill"
-              onClick={() => setShowVoiceModal(true)}
-              title="Instant AI voice triage and symptom assessment"
-            >
-              <Sparkles size={16} />
-              <span>AI Voice Health</span>
-            </button>
-
-            {/* 5. Drug Interaction Shield */}
-            <button
-              type="button"
-              className="cm-quick-action-pill"
-              onClick={() => setShowDrugShieldModal(true)}
-              title="Analyze prescription drug conflicts and generic cost savings"
-            >
-              <ShieldCheck size={16} />
-              <span>Drug Shield</span>
-            </button>
-
-            {/* 6. Doctor Briefing */}
-            {FEATURE_FLAGS.ENABLE_DOCTOR_BRIEFING && (
-              <button
-                type="button"
-                className="cm-quick-action-pill"
-                onClick={() => setShowBriefingModal(true)}
-                title="Generate clinical summary sheet with QR code for consultations"
-              >
-                <FileText size={16} />
-                <span>Doctor Briefing</span>
-              </button>
-            )}
-
-            {/* 7. Phlebo Radar */}
-            {FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && (
-              <button
-                type="button"
-                className={`cm-quick-action-pill ${showLiveTracker ? "cm-quick-action-pill--active" : ""}`}
-                onClick={() => setShowLiveTracker(!showLiveTracker)}
-                title="Toggle live phlebotomist cold-chain dispatch radar"
-              >
-                <Truck size={16} />
-                <span>{showLiveTracker ? t.actionChips.phleboHide : "Phlebo Radar"}</span>
-              </button>
-            )}
-          </div>
 
           {/* Interactive 2-Step Sample Tracker Modal */}
           <SampleTrackerModal
@@ -2024,238 +2194,7 @@ export default function PatientDashboard() {
           <InteractiveBodyMap />
         </div>
 
-        {/* Quick Actions */}
-        <div id="quick-actions">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontFamily: "var(--font-body)", fontSize: "1.35rem", color: "var(--cm-ink)", fontWeight: 800 }}>
-              {t.quickActions.title}
-            </h3>
-            <span style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", fontWeight: 600 }}>
-              {t.quickActions.subtitle}
-            </span>
-          </div>
 
-        <div className="cm-quick-grid">
-          {/* Urgent Home Collection */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("phlebotomist", "home_collection", "Blood Collection")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="droplet" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "phlebotomist" ? t.quickActions.requesting : t.quickActions.urgentHomeCollection}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.urgentHomeCollectionSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
-              {t.quickActions.urgentHomeCollectionTag}
-            </span>
-          </button>
-
-          {/* Urgent Home Doctor */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("doctor", "home_visit", "Home Doctor")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="stethoscope" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "doctor" ? t.quickActions.requesting : t.quickActions.urgentHomeDoctor}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.urgentHomeDoctorSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
-              {t.quickActions.urgentHomeDoctorTag}
-            </span>
-          </button>
-
-          {/* Urgent Home Nurse */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("nurse", "nursing_care", "Home Nurse")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-urgent)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="nurse" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "nurse" ? t.quickActions.requesting : t.quickActions.urgentHomeNurse}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.urgentHomeNurseSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-urgent-surface)", color: "var(--cm-urgent)", border: "1px solid var(--cm-urgent-line)" }}>
-              {t.quickActions.urgentHomeNurseTag}
-            </span>
-          </button>
-
-          {/* Urgent Medicine Delivery */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("pharmacy_delivery", "medicine_delivery", "Pharmacy Delivery")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-waiting)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="delivery" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "pharmacy_delivery" ? t.quickActions.requesting : t.quickActions.urgentPharmacy}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.urgentPharmacySub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)", border: "1px solid var(--cm-waiting-line)" }}>
-              {t.quickActions.urgentPharmacyTag}
-            </span>
-          </button>
-
-          {/* Urgent Home Dietitian */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("dietitian", "nutritional_assessment", "Home Dietitian")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="dietitian" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "dietitian" ? t.quickActions.requesting : t.quickActions.homeDietitian}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.homeDietitianSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
-              {t.quickActions.homeDietitianTag}
-            </span>
-          </button>
-
-          {/* Urgent Home Physiotherapist */}
-          <button
-            type="button"
-            onClick={() => openDispatchModal("physiotherapist", "physiotherapy", "Home Physiotherapist")}
-            disabled={requestingDispatch !== null}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="physio" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">
-                {requestingDispatch === "physiotherapist" ? t.quickActions.requesting : t.quickActions.homePhysio}
-              </h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.homePhysioSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
-              {t.quickActions.homePhysioTag}
-            </span>
-          </button>
-
-          {/* Video Consultation */}
-          <a href="/booking?type=video_consult" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-navy)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="video" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">{t.quickActions.videoConsult}</h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.videoConsultSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-surface-2)", color: "var(--cm-navy)", border: "1px solid var(--cm-line-strong)" }}>
-              {t.quickActions.videoConsultTag}
-            </span>
-          </a>
-
-          {/* AB-PMJAY Cashless */}
-          <a href="/dashboard/patient/pmjay" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-done)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="hospital" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">{t.quickActions.pmjay}</h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.pmjaySub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)" }}>
-              {t.quickActions.pmjayTag}
-            </span>
-          </a>
-
-          {/* AI Reports */}
-          <a href="/dashboard/patient/reports" className="cm-quick-card">
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="ai-report" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">{t.quickActions.aiReports}</h4>
-              <p className="cm-quick-card__subtitle">
-                {t.quickActions.aiReportsSub}
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
-              {t.quickActions.aiReportsTag}
-            </span>
-          </a>
-
-          {/* Dental Clinic (100% Walk-In Only) */}
-          <button
-            type="button"
-            onClick={() => {
-              const el = document.getElementById("dental-clinics");
-              if (el) el.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="cm-quick-card"
-          >
-            <div className="cm-quick-card__stripe" style={{ background: "var(--cm-active)" }} />
-            <div>
-              <div className="cm-quick-card__icon-disc" style={{ background: "transparent", width: 52, height: 52, padding: 0 }}>
-                <Clinical3DIcon name="dental" size={50} glow />
-              </div>
-              <h4 className="cm-quick-card__title">Dental Walk-In Care</h4>
-              <p className="cm-quick-card__subtitle">
-                19 Canonical procedures: RCT, scaling, crowns &amp; oral surgery.
-              </p>
-            </div>
-            <span className="cm-quick-card__tag" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)", border: "1px solid var(--cm-active-line)" }}>
-              100% Walk-In Only
-            </span>
-          </button>
-        </div>
-      </div>
 
         {/* Radiology & Diagnostic Imaging Centers (MRI, CT, Scans, CBC) */}
         <div id="radiology-diagnostics">

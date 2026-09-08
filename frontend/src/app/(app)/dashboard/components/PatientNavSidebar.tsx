@@ -19,14 +19,6 @@ interface NavItem {
 
 const DASHBOARD_SECTIONS: NavItem[] = [
   {
-    id: "quick-actions",
-    label: "Quick Actions",
-    icon: Zap,
-    type: "anchor",
-    target: "#quick-actions",
-    badge: "Fast",
-  },
-  {
     id: "interactive-twin",
     label: "Interactive 3D Twin",
     icon: Box,

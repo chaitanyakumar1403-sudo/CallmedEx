@@ -1166,6 +1166,147 @@ async def create_booking(
     )
 
 
+def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
+    """
+    Forensic Auto-Refutation / Cancellation for Stale & Past-Due Bookings:
+    When an appointment or diagnostic test was scheduled for yesterday or an earlier date
+    (or slot end time has passed) and was never accepted by a doctor/phlebotomist,
+    serviced, or completed, it must automatically be refuted/cancelled.
+    This permanently prevents yesterday's unattended bookings from lingering into today
+    as 'upcoming' or remaining unrefuted when no provider/phlebotomist picked them up.
+    """
+    if not supabase:
+        return 0
+
+    now_utc = datetime.now(timezone.utc)
+    # India Standard Time (UTC+5:30) is CallMedex primary operational timezone
+    now_ist = now_utc + timedelta(hours=5, minutes=30)
+    today_ist_str = now_ist.strftime("%Y-%m-%d")
+    now_iso = now_utc.isoformat()
+
+    try:
+        # Fetch active or unfulfilled bookings eligible for expiry check
+        query = (
+            supabase.table("bookings")
+            .select("*")
+            .in_("status", ["pending_review", "slot_allotted", "requested", "searching", "provider_notified", "confirmed"])
+        )
+        if patient_id:
+            query = query.eq("patient_id", patient_id)
+
+        res = query.execute()
+        candidates = res.data or []
+        if not candidates:
+            return 0
+
+        expired_count = 0
+        for b in candidates:
+            b_id = b.get("id")
+            if not b_id:
+                continue
+
+            status = b.get("status")
+            slot_date = None
+
+            # 1. Resolve scheduled date
+            slot_start = b.get("slot_start") or ""
+            if len(slot_start) >= 10:
+                slot_date = slot_start[:10]
+            elif b.get("preferred_date"):
+                slot_date = str(b.get("preferred_date"))[:10]
+            elif b.get("collection_date"):
+                slot_date = str(b.get("collection_date"))[:10]
+            elif b.get("slot_id") and "|" in str(b.get("slot_id")):
+                parts = str(b.get("slot_id")).split("|")
+                if len(parts) >= 2 and len(parts[1]) == 10 and parts[1].count("-") == 2:
+                    slot_date = parts[1]
+
+            is_past_due = False
+
+            # Condition A: Scheduled date strictly in the past (yesterday or older in IST)
+            if slot_date and slot_date < today_ist_str:
+                is_past_due = True
+            elif not slot_date:
+                # If no slot date at all, check if created > 24 hours ago
+                created_at_str = b.get("created_at") or ""
+                if created_at_str:
+                    try:
+                        c_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        if (now_utc - c_dt).total_seconds() > 86400:
+                            is_past_due = True
+                    except Exception:
+                        pass
+
+            if not is_past_due:
+                continue
+
+            # Condition B: For confirmed status, ensure no specimen was already collected or visit conducted
+            if status == "confirmed":
+                try:
+                    samples_res = (
+                        supabase.table("patient_samples")
+                        .select("id, status")
+                        .eq("booking_id", b_id)
+                        .in_("status", ["collected", "delivered_to_center", "analyzed", "verified"])
+                        .limit(1)
+                        .execute()
+                    )
+                    if samples_res.data and len(samples_res.data) > 0:
+                        # Specimens were collected; do not cancel
+                        continue
+                except Exception:
+                    pass
+
+            # Auto-refute and cancel this stale booking
+            reason = "Automatically cancelled: Scheduled appointment date passed without provider fulfillment/acceptance."
+            notes = ((b.get("notes") or "").strip() + f"\n[Auto-Refuted] {reason}").strip()
+
+            supabase.table("bookings").update({
+                "status": "cancelled",
+                "cancellation_reason": reason,
+                "notes": notes,
+                "updated_at": now_iso,
+            }).eq("id", b_id).execute()
+
+            # If an associated dispatch request is still open/unaccepted, cancel it as well
+            try:
+                supabase.table("dispatch_requests").update({
+                    "status": "cancelled",
+                    "cancel_reason": "Expired: Scheduled date passed without provider fulfillment",
+                    "updated_at": now_iso,
+                }).eq("booking_id", b_id).in_("status", ["searching", "provider_notified"]).execute()
+            except Exception as d_err:
+                logger.debug(f"Could not cancel dispatch for stale booking {b_id}: {d_err}")
+
+            _record_booking_history(
+                booking_id=b_id,
+                old_status=status,
+                new_status="cancelled",
+                changed_by="system_auto_expire",
+                notes=reason
+            )
+            expired_count += 1
+            logger.info(f"Auto-expired stale booking {b_id} (date={slot_date}, old_status={status})")
+
+        return expired_count
+    except Exception as e:
+        logger.error(f"auto_expire_stale_bookings error: {e}")
+        return 0
+
+
+@router.post("/auto-expire-stale", response_model=APIResponse)
+async def trigger_auto_expire_stale_bookings(
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin / system trigger to sweep and auto-refute stale past bookings."""
+    count = auto_expire_stale_bookings()
+    return APIResponse(
+        success=True,
+        message=f"Auto-refuted {count} stale bookings.",
+        data={"expired_count": count}
+    )
+
+
 @router.get("/my", response_model=APIResponse)
 async def get_my_bookings(
     current_user: dict = Depends(get_current_user),
@@ -1174,10 +1315,8 @@ async def get_my_bookings(
 ):
     """
     Get bookings for the authenticated user with pagination.
-
-    Query params:
-      - limit: Max bookings to return (default 50, max 200)
-      - offset: Number of bookings to skip (for pagination)
+    Automatically refutes and cancels any stale unserviced bookings from yesterday or older.
+    Enriches each booking with subject/family member details for the Health Records view.
     """
     user_id = current_user["sub"]
     limit = max(1, min(limit, 200))  # Clamp: 1-200
@@ -1187,6 +1326,9 @@ async def get_my_bookings(
         raise HTTPException(status_code=503, detail="Database connection unavailable")
 
     try:
+        # Forensic Guard: Sweep and auto-expire past unattended bookings for this patient
+        auto_expire_stale_bookings(user_id)
+
         # Get total count first
         count_result = (
             supabase.table("bookings")
@@ -1211,6 +1353,60 @@ async def get_my_bookings(
         raise HTTPException(status_code=500, detail="Failed to fetch bookings")
 
     sorted_bookings = [_strip_centre_identity(b) for b in sorted_bookings]
+
+    # Enrich bookings with family member / subject metadata for the Health Records view
+    b_ids = [b["id"] for b in sorted_bookings if b.get("id")]
+    if b_ids and supabase:
+        try:
+            subj_res = (
+                supabase.table("booking_subjects")
+                .select("id, booking_id, family_member_id")
+                .in_("booking_id", b_ids)
+                .execute()
+            )
+            subjects = subj_res.data or []
+            fm_ids = list({s["family_member_id"] for s in subjects if s.get("family_member_id")})
+            fm_map = {}
+            if fm_ids:
+                fm_res = (
+                    supabase.table("family_members")
+                    .select("id, full_name, relationship, is_self")
+                    .in_("id", fm_ids)
+                    .execute()
+                )
+                fm_map = {f["id"]: f for f in (fm_res.data or [])}
+
+            booking_subj_map = {}
+            for s in subjects:
+                fm = fm_map.get(s.get("family_member_id", ""))
+                if fm:
+                    booking_subj_map[s["booking_id"]] = {
+                        "subject_name": fm.get("full_name"),
+                        "relationship": fm.get("relationship", "Family"),
+                        "is_self": bool(fm.get("is_self")),
+                        "family_member_id": fm.get("id"),
+                    }
+                else:
+                    booking_subj_map[s["booking_id"]] = {
+                        "subject_name": "Self",
+                        "relationship": "Self",
+                        "is_self": True,
+                        "family_member_id": None,
+                    }
+
+            for b in sorted_bookings:
+                subj_info = booking_subj_map.get(b.get("id"))
+                if subj_info:
+                    b["subject_name"] = subj_info["subject_name"]
+                    b["subject_relationship"] = subj_info["relationship"]
+                    b["is_self"] = subj_info["is_self"]
+                    b["family_member_id"] = subj_info["family_member_id"]
+                else:
+                    b["is_self"] = True
+                    b["subject_name"] = "Self"
+                    b["subject_relationship"] = "Self"
+        except Exception as enrich_err:
+            logger.debug(f"Could not enrich bookings with subjects: {enrich_err}")
 
     return APIResponse(
         success=True,

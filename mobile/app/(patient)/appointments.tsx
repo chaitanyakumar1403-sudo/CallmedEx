@@ -73,6 +73,32 @@ export default function AppointmentsScreen() {
     }
   };
 
+  const getTodayIST = () => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
+  };
+  const todayIST = getTodayIST();
+
+  const isAppointmentPast = (a: any) => {
+    const statusUpper = (a.status || '').toUpperCase();
+    if (statusUpper === 'COMPLETED' || statusUpper === 'CANCELLED' || statusUpper === 'EXPIRED') {
+      return true;
+    }
+    const apptDate = a.date || a.scheduled_date;
+    if (apptDate && apptDate < todayIST && !['IN_PROGRESS', 'PROVIDER_ACCEPTED', 'STARTED'].includes(statusUpper)) {
+      return true;
+    }
+    return false;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <Header title="My Consultations" subtitle="Appointments & Telemedicine Schedule" />
@@ -136,7 +162,7 @@ export default function AppointmentsScreen() {
 
       <FlatList
         data={appointments.filter((a) =>
-          activeTab === 'upcoming' ? a.status !== 'COMPLETED' : a.status === 'COMPLETED'
+          activeTab === 'upcoming' ? !isAppointmentPast(a) : isAppointmentPast(a)
         )}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
@@ -144,63 +170,73 @@ export default function AppointmentsScreen() {
         ListEmptyComponent={
           <EmptyState
             title="No Appointments Found"
-            description="You have no scheduled appointments in this category."
+            description={
+              activeTab === 'upcoming'
+                ? "You have no scheduled upcoming appointments."
+                : "You have no past or completed appointments."
+            }
           />
         }
-        renderItem={({ item }) => (
-          <Card style={styles.card}>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.doctorName, { color: themeColors.textPrimary }]}>
-                  {item.doctor_name}
-                </Text>
-                <Text style={[styles.specialty, { color: themeColors.textSecondary }]}>
-                  {item.specialty} • {item.type}
-                </Text>
-                <Text style={[styles.dateText, { color: themeColors.accent.dark }]}>
-                  📅 {item.date}
-                </Text>
-                <Text style={[styles.feeText, { color: themeColors.textSecondary }]}>
-                  Consultation Fee: ₹{item.fee || 500}
-                </Text>
-              </View>
-              <Badge
-                label={item.status}
-                variant={
-                  item.status === 'CONFIRMED'
-                    ? 'success'
-                    : item.status === 'PENDING_PAYMENT'
-                    ? 'warning'
-                    : 'neutral'
-                }
-              />
-            </View>
+        renderItem={({ item }) => {
+          const isPast = isAppointmentPast(item);
+          const isStale = isPast && item.status !== 'COMPLETED';
+          const displayStatus = isStale ? 'EXPIRED' : item.status;
 
-            {item.status === 'PENDING_PAYMENT' && (
-              <View style={[styles.actionRow, { borderTopColor: themeColors.border }]}>
-                <Button
-                  title={`💳 Pay ₹${item.fee} to Confirm`}
-                  onPress={() => handlePayNow(item)}
-                  variant="primary"
-                  size="sm"
-                  style={{ flex: 1 }}
+          return (
+            <Card style={styles.card}>
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.doctorName, { color: themeColors.textPrimary }]}>
+                    {item.doctor_name}
+                  </Text>
+                  <Text style={[styles.specialty, { color: themeColors.textSecondary }]}>
+                    {item.specialty} • {item.type}
+                  </Text>
+                  <Text style={[styles.dateText, { color: themeColors.accent.dark }]}>
+                    📅 {item.date}
+                  </Text>
+                  <Text style={[styles.feeText, { color: themeColors.textSecondary }]}>
+                    Consultation Fee: ₹{item.fee || 500}
+                  </Text>
+                </View>
+                <Badge
+                  label={displayStatus}
+                  variant={
+                    displayStatus === 'CONFIRMED' || displayStatus === 'COMPLETED'
+                      ? 'success'
+                      : displayStatus === 'PENDING_PAYMENT'
+                      ? 'warning'
+                      : 'neutral'
+                  }
                 />
               </View>
-            )}
 
-            {item.type.includes('Video') && item.status === 'CONFIRMED' && (
-              <View style={[styles.actionRow, { borderTopColor: themeColors.border }]}>
-                <Button
-                  title="🎥 Join Video Room"
-                  onPress={() => handleJoinCall(item)}
-                  variant="accent"
-                  size="sm"
-                  style={{ flex: 1 }}
-                />
-              </View>
-            )}
-          </Card>
-        )}
+              {!isPast && item.status === 'PENDING_PAYMENT' && (
+                <View style={[styles.actionRow, { borderTopColor: themeColors.border }]}>
+                  <Button
+                    title={`💳 Pay ₹${item.fee} to Confirm`}
+                    onPress={() => handlePayNow(item)}
+                    variant="primary"
+                    size="sm"
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              )}
+
+              {!isPast && item.type?.includes('Video') && item.status === 'CONFIRMED' && (
+                <View style={[styles.actionRow, { borderTopColor: themeColors.border }]}>
+                  <Button
+                    title="🎥 Join Video Room"
+                    onPress={() => handleJoinCall(item)}
+                    variant="accent"
+                    size="sm"
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              )}
+            </Card>
+          );
+        }}
       />
 
       {/* Video Call Modal */}
