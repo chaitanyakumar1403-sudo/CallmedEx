@@ -4690,14 +4690,16 @@ input[type="radio"] {
 
 .cm-3d-hub__body {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  /* minmax(0, 1fr): a bare 1fr track keeps min-width:auto, so the canvas's
+     intrinsic width blows the column out and the scene gets clipped. */
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 0;
   min-height: 400px;
 }
 
 @media (max-width: 960px) {
   .cm-3d-hub__body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -4705,10 +4707,17 @@ input[type="radio"] {
   position: relative;
   min-height: 380px;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at center, rgba(14, 116, 144, 0.15) 0%, rgba(15, 23, 42, 0) 70%);
+}
+
+.cm-3d-viewport canvas {
+  display: block;
+  max-width: 100%;
 }
 
 .cm-3d-hud-overlay {

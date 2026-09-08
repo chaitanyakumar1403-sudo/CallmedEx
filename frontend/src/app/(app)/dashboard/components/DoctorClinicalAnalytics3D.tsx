@@ -1,19 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import {
-  Calendar,
-  Clock,
-  Home,
-  Video,
-  Activity,
-  RotateCw,
-  Sparkles,
-  Stethoscope,
-  ChevronRight,
-  TrendingUp,
-} from "lucide-react";
+import { Home, RotateCw, Sparkles, Stethoscope, TrendingUp, Video } from "lucide-react";
+
+type Modality = "all" | "walk_in" | "home_visit" | "online";
 
 interface BookingItem {
   id?: string;
@@ -27,10 +18,250 @@ interface BookingItem {
 
 interface Props {
   bookings: BookingItem[];
-  activeModality: "all" | "walk_in" | "home_visit" | "online";
-  onSelectModality: (modality: "all" | "walk_in" | "home_visit" | "online") => void;
+  activeModality: Modality;
+  onSelectModality: (modality: Modality) => void;
   waitingCount?: number;
   homeVisitOnDuty?: boolean;
+}
+
+/**
+ * Orbital ring layout, one per consultation modality. Each ring is a 3D arc gauge:
+ * the faint full torus is the 100% track, the bright thick arc is that modality's
+ * share of scheduled volume, and the orbiting beads are the individual consults.
+ */
+const RING_LAYOUT = [
+  {
+    modality: "walk_in" as const,
+    title: "WALK-IN OPD",
+    radius: 2.3,
+    tiltX: -0.22,
+    tiltY: 0,
+    y: 0.85,
+    color: 0x10b981,
+    css: "#34d399",
+    spin: 0.0042,
+    labelPos: [-1.95, 0.6, 2.0] as const,
+  },
+  {
+    modality: "home_visit" as const,
+    title: "HOME VISITS",
+    radius: 2.95,
+    tiltX: 0.2,
+    tiltY: 0.6,
+    y: 1.45,
+    color: 0xf59e0b,
+    css: "#fbbf24",
+    spin: -0.0032,
+    labelPos: [2.25, 1.6, 1.75] as const,
+  },
+  {
+    modality: "online" as const,
+    title: "TELECONSULTS",
+    radius: 3.55,
+    tiltX: -0.16,
+    tiltY: -0.7,
+    y: 2.05,
+    color: 0x38bdf8,
+    css: "#38bdf8",
+    spin: 0.0024,
+    labelPos: [-2.5, 2.75, 1.3] as const,
+  },
+];
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+function roundRectPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.lineTo(x + w - r, y);
+  g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r);
+  g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + r);
+  g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
+}
+
+/** Floating count chip drawn to a canvas texture — avoids shipping a 3D font loader. */
+function makeLabelSprite(title: string, value: string, cssColor: string): THREE.Sprite | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = 384;
+  canvas.height = 144;
+  const g = canvas.getContext("2d");
+  if (!g) return null;
+
+  roundRectPath(g, 5, 5, 374, 134, 26);
+  g.fillStyle = "rgba(8, 20, 38, 0.86)";
+  g.fill();
+  g.lineWidth = 4;
+  g.strokeStyle = cssColor;
+  g.stroke();
+
+  g.textAlign = "center";
+  g.font = '700 29px system-ui, -apple-system, "Segoe UI", sans-serif';
+  g.fillStyle = cssColor;
+  g.fillText(title, 192, 55);
+  g.font = '800 50px system-ui, -apple-system, "Segoe UI", sans-serif';
+  g.fillStyle = "#ffffff";
+  g.fillText(value, 192, 114);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(1.45, 0.54, 1);
+  return sprite;
+}
+
+/** Holographic attending-physician bust: coat silhouette, scrub cap, stethoscope. */
+function buildPhysician() {
+  const group = new THREE.Group();
+
+  const holoMat = new THREE.MeshStandardMaterial({
+    color: 0x8fd0f5,
+    emissive: 0x0ea5e9,
+    emissiveIntensity: 0.6,
+    roughness: 0.25,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0x7dd3fc,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.11,
+    depthWrite: false,
+  });
+  // Opaque so the medical props read clearly against the translucent coat.
+  const chromeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x67e8f9,
+    emissiveIntensity: 1.9,
+    roughness: 0.12,
+    metalness: 0.85,
+  });
+  const capMat = new THREE.MeshStandardMaterial({
+    color: 0x2dd4bf,
+    emissive: 0x0d9488,
+    emissiveIntensity: 0.9,
+    roughness: 0.4,
+    metalness: 0.2,
+  });
+
+  // White coat: human proportions — hem, waist, chest, shoulder taper, neck.
+  const coatGeo = new THREE.LatheGeometry(
+    [
+      [0.0, 0.0],
+      [0.56, 0.0],
+      [0.58, 0.12],
+      [0.55, 0.55],
+      [0.53, 0.95],
+      [0.58, 1.3],
+      [0.61, 1.56],
+      [0.46, 1.74],
+      [0.25, 1.84],
+      [0.14, 1.94],
+    ].map(([x, y]) => new THREE.Vector2(x, y)),
+    56
+  );
+  group.add(new THREE.Mesh(coatGeo, holoMat));
+  group.add(new THREE.Mesh(coatGeo, wireMat));
+
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.2, 20), holoMat);
+  neck.position.y = 1.99;
+  group.add(neck);
+
+  const headGeo = new THREE.SphereGeometry(0.31, 32, 24);
+  const head = new THREE.Mesh(headGeo, holoMat);
+  head.position.y = 2.3;
+  head.scale.set(1, 1.1, 0.95);
+  group.add(head);
+  const headWire = new THREE.Mesh(headGeo, wireMat);
+  headWire.position.copy(head.position);
+  headWire.scale.copy(head.scale);
+  group.add(headWire);
+
+  // Surgical scrub cap — the fastest visual cue that this is clinical staff.
+  const cap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.325, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2.5),
+    capMat
+  );
+  cap.position.y = 2.31;
+  cap.scale.set(1, 1.12, 0.97);
+  group.add(cap);
+
+  const mask = new THREE.Mesh(new THREE.SphereGeometry(0.2, 24, 16), chromeMat);
+  mask.position.set(0, 2.22, 0.14);
+  mask.scale.set(1.15, 0.78, 0.72);
+  group.add(mask);
+
+  const shoulderGeo = new THREE.SphereGeometry(0.22, 20, 16);
+  const armGeo = new THREE.CapsuleGeometry(0.115, 0.66, 6, 16);
+  for (const side of [-1, 1]) {
+    const shoulder = new THREE.Mesh(shoulderGeo, holoMat);
+    shoulder.position.set(side * 0.54, 1.63, 0);
+    group.add(shoulder);
+
+    // Sits outside the coat radius so the silhouette reads as arms, not a bell.
+    const arm = new THREE.Mesh(armGeo, holoMat);
+    arm.position.set(side * 0.67, 1.02, 0.0);
+    arm.rotation.z = side * 0.08;
+    group.add(arm);
+  }
+
+  // Coat lapels: a bright V on the chest.
+  const lapelGeo = new THREE.BoxGeometry(0.07, 0.52, 0.03);
+  for (const side of [-1, 1]) {
+    const lapel = new THREE.Mesh(lapelGeo, chromeMat);
+    lapel.position.set(side * 0.15, 1.3, 0.53);
+    lapel.rotation.set(0.12, 0, side * 0.3);
+    group.add(lapel);
+  }
+
+  // Stethoscope — the instant "this is a doctor" signal.
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.048, 12, 44), chromeMat);
+  loop.position.set(0, 1.79, 0.08);
+  loop.rotation.x = Math.PI / 2 - 0.34;
+  group.add(loop);
+
+  const tubeGeo = new THREE.CapsuleGeometry(0.033, 0.46, 4, 10);
+  for (const side of [-1, 1]) {
+    const tube = new THREE.Mesh(tubeGeo, chromeMat);
+    tube.position.set(side * 0.22, 1.38, 0.52);
+    tube.rotation.set(-0.24, 0, side * 0.36);
+    group.add(tube);
+  }
+  const chestPiece = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.05, 24), chromeMat);
+  chestPiece.position.set(0, 1.0, 0.62);
+  chestPiece.rotation.x = Math.PI / 2;
+  group.add(chestPiece);
+
+  // Coat badge: medical cross.
+  const badgeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x22c55e,
+    emissiveIntensity: 1.3,
+    roughness: 0.2,
+    metalness: 0.4,
+  });
+  const badge = new THREE.Group();
+  badge.add(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.055, 0.03), badgeMat));
+  badge.add(new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.17, 0.03), badgeMat));
+  badge.position.set(-0.3, 1.44, 0.5);
+  badge.rotation.y = -0.5;
+  group.add(badge);
+
+  return { group, chestPiece };
 }
 
 export default function DoctorClinicalAnalytics3D({
@@ -44,6 +275,20 @@ export default function DoctorClinicalAnalytics3D({
   const [isRotating, setIsRotating] = useState(true);
   const [hoveredModality, setHoveredModality] = useState<string | null>(null);
   const [timeHorizon, setTimeHorizon] = useState<"today" | "week" | "month">("today");
+
+  // Live values the render loop reads, so changing them never rebuilds the WebGL scene.
+  const rotatingRef = useRef(isRotating);
+  const activeRef = useRef(activeModality);
+  const selectRef = useRef(onSelectModality);
+  useEffect(() => {
+    rotatingRef.current = isRotating;
+  }, [isRotating]);
+  useEffect(() => {
+    activeRef.current = activeModality;
+  }, [activeModality]);
+  useEffect(() => {
+    selectRef.current = onSelectModality;
+  }, [onSelectModality]);
 
   // Multiplier for demo projection if roster is empty
   const horizonMultiplier = timeHorizon === "today" ? 1 : timeHorizon === "week" ? 5 : 18;
@@ -80,19 +325,29 @@ export default function DoctorClinicalAnalytics3D({
     return { walkIn, homeVisit, online, total };
   }, [bookings, horizonMultiplier]);
 
-  // Three.js Volumetric Scene Setup
+  const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0);
+
+  // Holographic physician core + orbital modality gauges
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    let width = container.clientWidth || 500;
-    let height = container.clientHeight || 380;
+    const width = container.clientWidth || 640;
+    const height = container.clientHeight || 400;
 
-    // 1. Scene, Camera, Renderer
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-    camera.position.set(0, 5.2, 9.8);
-    camera.lookAt(0, 0.8, 0);
+    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
+
+    // Pull the camera back on narrow viewports so the widest ring never clips.
+    const frameCamera = (aspect: number) => {
+      const vHalf = Math.tan(THREE.MathUtils.degToRad(38) / 2);
+      const distV = 2.7 / vHalf;
+      const distH = 4.6 / (vHalf * Math.max(aspect, 0.3));
+      // Elevated 3/4 view so the near-horizontal rings read as ellipses, not lines.
+      camera.position.set(0, 5.0, Math.min(20, Math.max(8.2, Math.max(distV, distH))));
+      camera.lookAt(0, 1.25, 0);
+    };
+    frameCamera(width / height);
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -100,269 +355,313 @@ export default function DoctorClinicalAnalytics3D({
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(width, height);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.1;
+      renderer.toneMappingExposure = 1.15;
       container.appendChild(renderer.domElement);
     } catch {
-      // Graceful WebGL failure
+      // Graceful WebGL failure — the sidebar still carries every number.
       return;
     }
 
-    // 2. Dynamic Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
-    scene.add(ambientLight);
+    const reduceMotion =
+      typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const motion = reduceMotion ? 0 : 1;
 
-    const dirLight = new THREE.DirectionalLight(0xe0f2fe, 1.8);
-    dirLight.position.set(6, 12, 8);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const dirLight = new THREE.DirectionalLight(0xe0f2fe, 1.4);
+    dirLight.position.set(5, 10, 7);
     scene.add(dirLight);
+    const rimLight = new THREE.PointLight(0x0284c7, 2.6, 26);
+    rimLight.position.set(-5, 3, 4);
+    scene.add(rimLight);
+    const warmLight = new THREE.PointLight(0xf59e0b, 1.4, 22);
+    warmLight.position.set(4, 1.6, -4);
+    scene.add(warmLight);
 
-    const fillLight = new THREE.PointLight(0x0284c7, 3.5, 20);
-    fillLight.position.set(-6, 4, 4);
-    scene.add(fillLight);
-
-    const goldLight = new THREE.PointLight(0xf59e0b, 2.5, 18);
-    goldLight.position.set(4, 2, -4);
-    scene.add(goldLight);
-
-    // 3. Platform Dais & Grid
     const rootGroup = new THREE.Group();
     scene.add(rootGroup);
 
-    // Dais base cylinder
-    const baseGeo = new THREE.CylinderGeometry(4.2, 4.4, 0.28, 48);
-    const baseMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.35,
-      metalness: 0.8,
-    });
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseMesh.position.y = -0.14;
-    rootGroup.add(baseMesh);
+    // Projector pad
+    const pad = new THREE.Mesh(
+      new THREE.CircleGeometry(1.15, 56),
+      new THREE.MeshBasicMaterial({
+        color: 0x0ea5e9,
+        transparent: true,
+        opacity: 0.16,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.y = -0.02;
+    rootGroup.add(pad);
 
-    // Glowing rim ring
-    const ringGeo = new THREE.TorusGeometry(4.25, 0.04, 16, 64);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    ringMesh.rotation.x = Math.PI / 2;
-    ringMesh.position.y = 0.01;
-    rootGroup.add(ringMesh);
+    const padRim = new THREE.Mesh(
+      new THREE.TorusGeometry(1.15, 0.02, 8, 72),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.75 })
+    );
+    padRim.rotation.x = -Math.PI / 2;
+    rootGroup.add(padRim);
 
-    // Inner concentric ring
-    const innerRingGeo = new THREE.TorusGeometry(2.4, 0.025, 16, 48);
-    const innerRingMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
-    const innerRingMesh = new THREE.Mesh(innerRingGeo, innerRingMat);
-    innerRingMesh.rotation.x = Math.PI / 2;
-    innerRingMesh.position.y = 0.02;
-    rootGroup.add(innerRingMesh);
 
-    // 4. Volumetric Modality Pillars
-    const maxCount = Math.max(stats.walkIn, stats.homeVisit, stats.online, 1);
-    const computeHeight = (val: number) => 0.8 + (val / maxCount) * 2.2;
+    // Physician hologram
+    const { group: physician, chestPiece } = buildPhysician();
+    physician.position.y = 0.16;
+    physician.scale.setScalar(1.2);
+    rootGroup.add(physician);
 
-    const interactiveMeshes: THREE.Mesh[] = [];
+    const scanRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.92, 0.013, 8, 72),
+      new THREE.MeshBasicMaterial({
+        color: 0x7dd3fc,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    scanRing.rotation.x = -Math.PI / 2;
+    rootGroup.add(scanRing);
 
-    // Helper to create pillar
-    const createPillar = (
-      name: "walk_in" | "home_visit" | "online",
-      x: number,
-      z: number,
-      colorHex: number,
-      emissiveHex: number,
-      heightVal: number
-    ) => {
+    // Orbital modality gauges
+    const counts: Record<string, number> = {
+      walk_in: stats.walkIn,
+      home_visit: stats.homeVisit,
+      online: stats.online,
+    };
+    const nodeGeo = new THREE.SphereGeometry(0.075, 14, 12);
+    const hitProxies: THREE.Mesh[] = [];
+    const labelGroup = new THREE.Group();
+    scene.add(labelGroup);
+
+    const rings = RING_LAYOUT.map((cfg) => {
+      const count = counts[cfg.modality] || 0;
+      const ratio = stats.total > 0 ? count / stats.total : 0;
+
       const group = new THREE.Group();
-      group.position.set(x, 0, z);
+      group.position.y = cfg.y;
+      // YXZ so tiltY swings the tilt direction around a ring that stays near-horizontal.
+      group.rotation.order = "YXZ";
+      group.rotation.set(-Math.PI / 2 + cfg.tiltX, cfg.tiltY, 0);
 
-      const radius = 0.65;
-      const geo = new THREE.CylinderGeometry(radius, radius, heightVal, 32);
-      const mat = new THREE.MeshStandardMaterial({
-        color: colorHex,
-        emissive: emissiveHex,
-        emissiveIntensity: 0.45,
-        roughness: 0.15,
-        metalness: 0.75,
+      const trackMat = new THREE.MeshBasicMaterial({
+        color: cfg.color,
+        transparent: true,
+        opacity: 0.26,
+        depthWrite: false,
       });
+      group.add(new THREE.Mesh(new THREE.TorusGeometry(cfg.radius, 0.016, 8, 128), trackMat));
 
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = heightVal / 2;
-      mesh.userData = { modality: name, baseHeight: heightVal, group };
-      group.add(mesh);
-      interactiveMeshes.push(mesh);
+      // Bright arc = this modality's share of the day's scheduled volume.
+      const arcLen = Math.max(0.18, ratio * Math.PI * 2);
+      const arcMat = new THREE.MeshBasicMaterial({
+        color: cfg.color,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+      });
+      group.add(new THREE.Mesh(new THREE.TorusGeometry(cfg.radius, 0.055, 10, 128, arcLen), arcMat));
 
-      // Top glowing cap
-      const capGeo = new THREE.CylinderGeometry(radius * 0.9, radius * 0.9, 0.06, 32);
-      const capMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const capMesh = new THREE.Mesh(capGeo, capMat);
-      capMesh.position.y = heightVal + 0.03;
-      group.add(capMesh);
+      // Orbiting consult beads, capped so a monthly projection stays readable.
+      const nodeCount = Math.min(14, Math.max(3, Math.round(ratio * 14) || 3));
+      const nodeMat = new THREE.MeshBasicMaterial({ color: cfg.color, transparent: true, opacity: 1 });
+      const nodes = new THREE.Group();
+      for (let i = 0; i < nodeCount; i += 1) {
+        const angle = (i / nodeCount) * Math.PI * 2;
+        const bead = new THREE.Mesh(nodeGeo, nodeMat);
+        bead.position.set(Math.cos(angle) * cfg.radius, Math.sin(angle) * cfg.radius, 0);
+        nodes.add(bead);
+      }
+      group.add(nodes);
 
-      // Top Emblem
-      if (name === "walk_in") {
-        const hBar = new THREE.BoxGeometry(0.5, 0.16, 0.14);
-        const vBar = new THREE.BoxGeometry(0.16, 0.5, 0.14);
-        const crossMat = new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          emissive: 0x10b981,
-          emissiveIntensity: 0.8,
-          roughness: 0.1,
-          metalness: 0.9,
-        });
-        const crossH = new THREE.Mesh(hBar, crossMat);
-        const crossV = new THREE.Mesh(vBar, crossMat);
-        const crossGroup = new THREE.Group();
-        crossGroup.add(crossH);
-        crossGroup.add(crossV);
-        crossGroup.position.y = heightVal + 0.5;
-        group.add(crossGroup);
-        mesh.userData.emblem = crossGroup;
-      } else if (name === "home_visit") {
-        const markerGeo = new THREE.OctahedronGeometry(0.32);
-        const markerMat = new THREE.MeshStandardMaterial({
-          color: 0xfef08a,
-          emissive: 0xf59e0b,
-          emissiveIntensity: 0.8,
-          roughness: 0.1,
-          metalness: 0.9,
-        });
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        marker.position.y = heightVal + 0.5;
-        group.add(marker);
-        mesh.userData.emblem = marker;
-      } else {
-        const tRingGeo = new THREE.TorusGeometry(0.35, 0.04, 12, 32);
-        const tRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-        const tRing1 = new THREE.Mesh(tRingGeo, tRingMat);
-        tRing1.rotation.x = Math.PI / 3;
-        const tRingGroup = new THREE.Group();
-        tRingGroup.add(tRing1);
-        tRingGroup.position.y = heightVal + 0.5;
-        group.add(tRingGroup);
-        mesh.userData.emblem = tRingGroup;
+      // Fat invisible torus gives the thin ring a forgiving hover/click target.
+      const proxy = new THREE.Mesh(
+        new THREE.TorusGeometry(cfg.radius, 0.3, 6, 48),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+      );
+      proxy.userData.modality = cfg.modality;
+      group.add(proxy);
+      hitProxies.push(proxy);
+
+      const label = makeLabelSprite(cfg.title, `${count} · ${Math.round(ratio * 100)}%`, cfg.css);
+      if (label) {
+        label.position.set(cfg.labelPos[0], cfg.labelPos[1], cfg.labelPos[2]);
+        labelGroup.add(label);
       }
 
       rootGroup.add(group);
-      return { group, mesh };
-    };
-
-    // Arrange in an equilateral triangle on the circular pedestal
-    const rDist = 2.3;
-    createPillar("walk_in", -rDist * 0.866, rDist * 0.5, 0x059669, 0x10b981, computeHeight(stats.walkIn));
-    createPillar("home_visit", rDist * 0.866, rDist * 0.5, 0xd97706, 0xf59e0b, computeHeight(stats.homeVisit));
-    createPillar("online", 0, -rDist * 0.9, 0x0284c7, 0x38bdf8, computeHeight(stats.online));
-
-    // Central aggregate floating crystal
-    const centerGeo = new THREE.IcosahedronGeometry(0.48, 0);
-    const centerMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.6,
-      roughness: 0.1,
-      metalness: 0.9,
-      wireframe: false,
+      return { modality: cfg.modality, group, trackMat, arcMat, nodeMat, nodes, label, spin: cfg.spin };
     });
-    const centerCrystal = new THREE.Mesh(centerGeo, centerMat);
-    centerCrystal.position.y = 1.3;
-    rootGroup.add(centerCrystal);
 
-    // 5. Interaction: Raycasting & Orbit
+    // Ambient dust for depth
+    const dustCount = 150;
+    const dustPos = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i += 1) {
+      const r = 3.4 + Math.random() * 3.6;
+      const theta = Math.random() * Math.PI * 2;
+      dustPos[i * 3] = Math.cos(theta) * r;
+      dustPos[i * 3 + 1] = Math.random() * 5.4 - 0.6;
+      dustPos[i * 3 + 2] = Math.sin(theta) * r;
+    }
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    const dust = new THREE.Points(
+      dustGeo,
+      new THREE.PointsMaterial({
+        color: 0x7dd3fc,
+        size: 0.045,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+      })
+    );
+    scene.add(dust);
+
+    // Pointer interaction
+    const domEl = renderer.domElement;
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2(-100, -100);
-    let isDragging = false;
-    let prevMouseX = 0;
+    const pointer = new THREE.Vector2(-100, -100);
+    let dragging = false;
+    let dragged = false;
+    let prevX = 0;
+    let prevY = 0;
+    let hovered: string | null = null;
 
-    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
-      isDragging = true;
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      prevMouseX = clientX;
-    };
-
-    const handlePointerMove = (e: MouseEvent | TouchEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-
-      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      if (isDragging) {
-        const deltaX = clientX - prevMouseX;
-        rootGroup.rotation.y += deltaX * 0.008;
-        prevMouseX = clientX;
+    const handlePointerDown = (e: PointerEvent) => {
+      dragging = true;
+      dragged = false;
+      prevX = e.clientX;
+      prevY = e.clientY;
+      try {
+        domEl.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture unsupported — drag still tracked via move/up */
       }
     };
 
-    const handlePointerUp = () => {
-      isDragging = false;
+    const handlePointerMove = (e: PointerEvent) => {
+      const rect = domEl.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      if (!dragging) return;
+      const dx = e.clientX - prevX;
+      const dy = e.clientY - prevY;
+      prevX = e.clientX;
+      prevY = e.clientY;
+      if (Math.abs(dx) + Math.abs(dy) > 3) dragged = true;
+      rootGroup.rotation.y += dx * 0.008;
+      // Vertical tilt on precise pointers only, so touch page-scrolling stays untouched.
+      if (e.pointerType !== "touch") {
+        rootGroup.rotation.x = THREE.MathUtils.clamp(rootGroup.rotation.x - dy * 0.005, -0.35, 0.5);
+      }
+    };
+
+    const endDrag = (e: PointerEvent) => {
+      dragging = false;
+      try {
+        domEl.releasePointerCapture(e.pointerId);
+      } catch {
+        /* nothing captured */
+      }
     };
 
     const handleClick = () => {
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(interactiveMeshes);
-      if (intersects.length > 0) {
-        const targetModality = intersects[0].object.userData.modality;
-        onSelectModality(targetModality);
-      }
+      if (dragged) return;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(hitProxies, false);
+      const target = hits[0]?.object.userData.modality as Modality | undefined;
+      if (target) selectRef.current(target);
     };
 
-    const domEl = renderer.domElement;
-    domEl.addEventListener("mousedown", handlePointerDown);
-    domEl.addEventListener("mousemove", handlePointerMove);
-    window.addEventListener("mouseup", handlePointerUp);
-    domEl.addEventListener("click", handleClick);
-    domEl.addEventListener("touchstart", handlePointerDown, { passive: true });
-    domEl.addEventListener("touchmove", handlePointerMove, { passive: true });
-    window.addEventListener("touchend", handlePointerUp);
+    const handlePointerLeave = () => {
+      pointer.set(-100, -100);
+    };
 
-    // 6. Animation Loop
-    let animId: number;
-    let clock = new THREE.Clock();
+    domEl.addEventListener("pointerdown", handlePointerDown);
+    domEl.addEventListener("pointermove", handlePointerMove);
+    domEl.addEventListener("pointerup", endDrag);
+    domEl.addEventListener("pointercancel", endDrag);
+    domEl.addEventListener("pointerleave", handlePointerLeave);
+    domEl.addEventListener("click", handleClick);
+
+    // Render loop
+    // Timer (not the deprecated Clock) clamps delta via the Page Visibility API,
+    // so a backgrounded dashboard tab does not jump on return.
+    const timer = new THREE.Timer();
+    timer.connect(document);
+    let animId = 0;
+    let running = true;
 
     const animate = () => {
+      if (!running) return;
       animId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
+      timer.update();
+      const t = timer.getElapsed();
 
-      // Auto rotation if enabled and not dragging
-      if (isRotating && !isDragging) {
-        rootGroup.rotation.y += 0.0035;
+      if (rotatingRef.current && !dragging) rootGroup.rotation.y += 0.0032 * motion;
+
+      physician.position.y = 0.16 + Math.sin(t * 1.1) * 0.045 * motion;
+      chestPiece.scale.setScalar(1 + Math.sin(t * 4.4) * 0.09 * motion);
+
+      const sweep = reduceMotion ? 0.5 : (t * 0.42) % 1;
+      scanRing.position.y = 0.25 + sweep * 2.75;
+      (scanRing.material as THREE.MeshBasicMaterial).opacity = 0.6 * Math.sin(sweep * Math.PI);
+
+      dust.rotation.y += 0.0006 * motion;
+
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(hitProxies, false);
+      const nextHover = (hits[0]?.object.userData.modality as string | undefined) ?? null;
+      if (nextHover !== hovered) {
+        hovered = nextHover;
+        setHoveredModality(nextHover);
       }
+      domEl.style.cursor = nextHover ? "pointer" : dragging ? "grabbing" : "grab";
 
-      // Emblems rotation & gentle float
-      interactiveMeshes.forEach((mesh) => {
-        if (mesh.userData.emblem) {
-          mesh.userData.emblem.rotation.y += 0.02;
-          mesh.userData.emblem.position.y =
-            mesh.userData.baseHeight + 0.5 + Math.sin(elapsedTime * 2.5) * 0.06;
+      const active = activeRef.current;
+      const focus = hovered ?? (active !== "all" ? active : null);
+
+      for (const ring of rings) {
+        const isFocus = focus === ring.modality;
+        const dim = focus !== null && !isFocus;
+
+        ring.nodes.rotation.z += ring.spin * motion * (isFocus ? 2.2 : 1);
+        ring.arcMat.opacity = lerp(ring.arcMat.opacity, isFocus ? 1 : dim ? 0.2 : 0.72, 0.12);
+        ring.trackMat.opacity = lerp(ring.trackMat.opacity, dim ? 0.09 : 0.26, 0.12);
+        ring.nodeMat.opacity = lerp(ring.nodeMat.opacity, dim ? 0.25 : 1, 0.12);
+        ring.group.scale.setScalar(lerp(ring.group.scale.x, isFocus ? 1.05 : 1, 0.12));
+
+        if (ring.label) {
+          const mat = ring.label.material as THREE.SpriteMaterial;
+          mat.opacity = lerp(mat.opacity, isFocus ? 1 : dim ? 0.35 : 0.92, 0.12);
         }
-      });
-
-      // Central crystal rotation
-      centerCrystal.rotation.x += 0.01;
-      centerCrystal.rotation.y += 0.015;
-      centerCrystal.position.y = 1.3 + Math.sin(elapsedTime * 2) * 0.08;
-
-      // Raycast hover highlighting
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(interactiveMeshes);
-      if (intersects.length > 0) {
-        const hit = intersects[0].object as THREE.Mesh;
-        const hitModality = hit.userData.modality;
-        setHoveredModality(hitModality);
-        domEl.style.cursor = "pointer";
-      } else {
-        setHoveredModality(null);
-        domEl.style.cursor = isDragging ? "grabbing" : "grab";
       }
 
       renderer.render(scene, camera);
     };
-
     animate();
 
-    // 7. Resize Observer
+    // WebGL contexts can be dropped by the driver on long-lived dashboard tabs.
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      running = false;
+      cancelAnimationFrame(animId);
+    };
+    const handleContextRestored = () => {
+      if (running) return;
+      running = true;
+      animate();
+    };
+    domEl.addEventListener("webglcontextlost", handleContextLost);
+    domEl.addEventListener("webglcontextrestored", handleContextRestored);
+
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const cr = entry.contentRect;
         if (cr.width > 0 && cr.height > 0) {
-          camera.aspect = cr.width / cr.height;
+          const aspect = cr.width / cr.height;
+          camera.aspect = aspect;
+          frameCamera(aspect);
           camera.updateProjectionMatrix();
           renderer.setSize(cr.width, cr.height);
         }
@@ -370,34 +669,45 @@ export default function DoctorClinicalAnalytics3D({
     });
     ro.observe(container);
 
-    // Cleanup
     return () => {
+      running = false;
       cancelAnimationFrame(animId);
+      timer.disconnect();
       ro.disconnect();
-      domEl.removeEventListener("mousedown", handlePointerDown);
-      domEl.removeEventListener("mousemove", handlePointerMove);
-      window.removeEventListener("mouseup", handlePointerUp);
+      domEl.removeEventListener("pointerdown", handlePointerDown);
+      domEl.removeEventListener("pointermove", handlePointerMove);
+      domEl.removeEventListener("pointerup", endDrag);
+      domEl.removeEventListener("pointercancel", endDrag);
+      domEl.removeEventListener("pointerleave", handlePointerLeave);
       domEl.removeEventListener("click", handleClick);
-      domEl.removeEventListener("touchstart", handlePointerDown);
-      domEl.removeEventListener("touchmove", handlePointerMove);
-      window.removeEventListener("touchend", handlePointerUp);
+      domEl.removeEventListener("webglcontextlost", handleContextLost);
+      domEl.removeEventListener("webglcontextrestored", handleContextRestored);
 
       scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) {
-          obj.geometry?.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m.dispose());
-          } else {
-            obj.material?.dispose();
-          }
+        const node = obj as unknown as {
+          isSprite?: boolean;
+          geometry?: THREE.BufferGeometry;
+          material?: THREE.Material | THREE.Material[];
+        };
+        // Sprite geometry is a shared three.js singleton — never dispose it.
+        if (node.geometry && !node.isSprite) node.geometry.dispose();
+        const mats = Array.isArray(node.material) ? node.material : node.material ? [node.material] : [];
+        for (const m of mats) {
+          (m as THREE.MeshBasicMaterial).map?.dispose();
+          m.dispose();
         }
       });
       renderer.dispose();
-      if (domEl.parentNode) {
-        domEl.parentNode.removeChild(domEl);
-      }
+      if (domEl.parentNode) domEl.parentNode.removeChild(domEl);
     };
-  }, [stats, isRotating, onSelectModality]);
+  }, [stats]);
+
+  const cardStyle: React.CSSProperties = {
+    width: "100%",
+    font: "inherit",
+    color: "inherit",
+    textAlign: "left",
+  };
 
   return (
     <div className="cm-3d-hub">
@@ -414,17 +724,18 @@ export default function DoctorClinicalAnalytics3D({
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "0 0 12px rgba(2, 132, 199, 0.4)",
+              flexShrink: 0,
             }}
           >
             <Sparkles size={18} style={{ color: "#fff" }} />
           </div>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span>3D Clinical Appointments Intelligence</span>
-              <span className="cm-3d-hub__badge">Live Volumetric Model</span>
+              <span className="cm-3d-hub__badge">Holographic Care Model</span>
             </div>
             <div style={{ fontSize: "0.78rem", color: "#94a3b8", fontWeight: 500, marginTop: 2 }}>
-              Interactive 3D representation of patient consults across Walk-In OPD, Home Visits, and Telemedicine
+              Holographic attending physician orbited by live consult rings — Walk-In OPD, Home Visits, Telemedicine
             </div>
           </div>
         </div>
@@ -439,7 +750,8 @@ export default function DoctorClinicalAnalytics3D({
             <button
               key={h.id}
               type="button"
-              onClick={() => setTimeHorizon(h.id as any)}
+              onClick={() => setTimeHorizon(h.id as "today" | "week" | "month")}
+              aria-pressed={timeHorizon === h.id}
               style={{
                 padding: "4px 10px",
                 borderRadius: 6,
@@ -460,12 +772,14 @@ export default function DoctorClinicalAnalytics3D({
 
       {/* Main Grid: 3D Viewport + Modality Intelligence Sidebar */}
       <div className="cm-3d-hub__body">
-        {/* 3D Canvas Viewport */}
-        <div className="cm-3d-viewport" ref={containerRef}>
+        {/* 3D Canvas Viewport — decorative; every figure is duplicated in the sidebar */}
+        <div className="cm-3d-viewport" ref={containerRef} aria-hidden="true">
           {/* Top-Left Status Overlay */}
           <div className="cm-3d-hud-overlay">
             <div className="cm-3d-hud-chip">
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }} />
+              <span
+                style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 6px #4ade80" }}
+              />
               {hoveredModality ? (
                 <span>
                   Focus:{" "}
@@ -474,7 +788,7 @@ export default function DoctorClinicalAnalytics3D({
                   </strong>
                 </span>
               ) : (
-                <span>Interactive 3D Turntable (Drag to Rotate)</span>
+                <span>Drag to orbit · Click a ring to filter</span>
               )}
             </div>
           </div>
@@ -490,11 +804,7 @@ export default function DoctorClinicalAnalytics3D({
               <RotateCw size={12} className={isRotating ? "animate-spin" : ""} />
               <span>{isRotating ? "Auto-Orbit On" : "Orbit Paused"}</span>
             </button>
-            <button
-              type="button"
-              className="cm-3d-control-btn"
-              onClick={() => onSelectModality("all")}
-            >
+            <button type="button" className="cm-3d-control-btn" onClick={() => onSelectModality("all")}>
               <span>Reset Selection</span>
             </button>
           </div>
@@ -503,103 +813,135 @@ export default function DoctorClinicalAnalytics3D({
         {/* Modality Breakdown Sidebar */}
         <div className="cm-3d-sidebar">
           {/* 1. Walk-In Clinic Consultations */}
-          <div
+          <button
+            type="button"
             className={`cm-3d-modality-card ${activeModality === "walk_in" ? "cm-3d-modality-card--active" : ""}`}
             onClick={() => onSelectModality("walk_in")}
+            aria-pressed={activeModality === "walk_in"}
+            style={cardStyle}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
                 className="cm-3d-modality-card__icon"
-                style={{ background: "rgba(16, 185, 129, 0.2)", border: "1px solid rgba(16, 185, 129, 0.4)", color: "#34d399" }}
+                style={{
+                  background: "rgba(16, 185, 129, 0.2)",
+                  border: "1px solid rgba(16, 185, 129, 0.4)",
+                  color: "#34d399",
+                }}
               >
                 <Stethoscope size={18} />
-              </div>
-              <div>
-                <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>
+              </span>
+              <span>
+                <span style={{ display: "block", fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>
                   Walk-In OPD
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                </span>
+                <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8" }}>
                   Solo Clinic &amp; Diagnostic Center
-                </div>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="cm-3d-modality-card__count">{stats.walkIn}</div>
-              <div style={{ fontSize: "10px", color: "#34d399", fontWeight: 700 }}>
-                {Math.round((stats.walkIn / stats.total) * 100)}% volume
-              </div>
-            </div>
-          </div>
+                </span>
+              </span>
+            </span>
+            <span style={{ textAlign: "right" }}>
+              <span className="cm-3d-modality-card__count" style={{ display: "block" }}>
+                {stats.walkIn}
+              </span>
+              <span style={{ display: "block", fontSize: "10px", color: "#34d399", fontWeight: 700 }}>
+                {pct(stats.walkIn)}% volume
+              </span>
+            </span>
+          </button>
 
           {/* 2. Doorstep Home Visits */}
-          <div
+          <button
+            type="button"
             className={`cm-3d-modality-card ${activeModality === "home_visit" ? "cm-3d-modality-card--active" : ""}`}
             onClick={() => onSelectModality("home_visit")}
+            aria-pressed={activeModality === "home_visit"}
+            style={cardStyle}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
                 className="cm-3d-modality-card__icon"
-                style={{ background: "rgba(245, 158, 11, 0.2)", border: "1px solid rgba(245, 158, 11, 0.4)", color: "#fbbf24" }}
+                style={{
+                  background: "rgba(245, 158, 11, 0.2)",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  color: "#fbbf24",
+                }}
               >
                 <Home size={18} />
-              </div>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>
-                    Home Visits
-                  </span>
+              </span>
+              <span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>Home Visits</span>
                   {homeVisitOnDuty && (
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
                   )}
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                </span>
+                <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8" }}>
                   Doorstep Clinical Dispatch
-                </div>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="cm-3d-modality-card__count">{stats.homeVisit}</div>
-              <div style={{ fontSize: "10px", color: "#fbbf24", fontWeight: 700 }}>
-                {Math.round((stats.homeVisit / stats.total) * 100)}% volume
-              </div>
-            </div>
-          </div>
+                </span>
+              </span>
+            </span>
+            <span style={{ textAlign: "right" }}>
+              <span className="cm-3d-modality-card__count" style={{ display: "block" }}>
+                {stats.homeVisit}
+              </span>
+              <span style={{ display: "block", fontSize: "10px", color: "#fbbf24", fontWeight: 700 }}>
+                {pct(stats.homeVisit)}% volume
+              </span>
+            </span>
+          </button>
 
           {/* 3. Online Teleconsultations */}
-          <div
+          <button
+            type="button"
             className={`cm-3d-modality-card ${activeModality === "online" ? "cm-3d-modality-card--active" : ""}`}
             onClick={() => onSelectModality("online")}
+            aria-pressed={activeModality === "online"}
+            style={cardStyle}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span
                 className="cm-3d-modality-card__icon"
-                style={{ background: "rgba(56, 189, 248, 0.2)", border: "1px solid rgba(56, 189, 248, 0.4)", color: "#38bdf8" }}
+                style={{
+                  background: "rgba(56, 189, 248, 0.2)",
+                  border: "1px solid rgba(56, 189, 248, 0.4)",
+                  color: "#38bdf8",
+                }}
               >
                 <Video size={18} />
-              </div>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>
-                    Teleconsults
-                  </span>
+              </span>
+              <span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#f1f5f9" }}>Teleconsults</span>
                   {waitingCount > 0 && (
-                    <span style={{ padding: "1px 6px", borderRadius: 9999, background: "#ef4444", fontSize: "9px", fontWeight: 800, color: "#fff" }}>
+                    <span
+                      style={{
+                        padding: "1px 6px",
+                        borderRadius: 9999,
+                        background: "#ef4444",
+                        fontSize: "9px",
+                        fontWeight: 800,
+                        color: "#fff",
+                      }}
+                    >
                       {waitingCount} live
                     </span>
                   )}
-                </div>
-                <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                </span>
+                <span style={{ display: "block", fontSize: "0.72rem", color: "#94a3b8" }}>
                   Encrypted HD Video Room
-                </div>
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="cm-3d-modality-card__count">{stats.online}</div>
-              <div style={{ fontSize: "10px", color: "#38bdf8", fontWeight: 700 }}>
-                {Math.round((stats.online / stats.total) * 100)}% volume
-              </div>
-            </div>
-          </div>
+                </span>
+              </span>
+            </span>
+            <span style={{ textAlign: "right" }}>
+              <span className="cm-3d-modality-card__count" style={{ display: "block" }}>
+                {stats.online}
+              </span>
+              <span style={{ display: "block", fontSize: "10px", color: "#38bdf8", fontWeight: 700 }}>
+                {pct(stats.online)}% volume
+              </span>
+            </span>
+          </button>
 
           {/* Aggregate Summary Ribbon */}
           <div
@@ -614,13 +956,20 @@ export default function DoctorClinicalAnalytics3D({
               alignItems: "center",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "12px", color: "#cbd5e1", fontWeight: 700 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "12px",
+                color: "#cbd5e1",
+                fontWeight: 700,
+              }}
+            >
               <TrendingUp size={14} style={{ color: "#38bdf8" }} />
               <span>Total Scheduled:</span>
             </div>
-            <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#38bdf8" }}>
-              {stats.total}
-            </span>
+            <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#38bdf8" }}>{stats.total}</span>
           </div>
         </div>
       </div>
