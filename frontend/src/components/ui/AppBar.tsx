@@ -60,7 +60,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
       } else if (pathname?.includes("/dashboard/organization")) {
         setResolvedRole("Organization Console");
       } else if (pathname?.includes("/dashboard/patient")) {
-        setResolvedRole("Patient Portal");
+        setResolvedRole("My Portal");
       }
 
       const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
@@ -70,7 +70,11 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
           setResolvedUser(u.full_name);
         }
         if (!role && !pathname?.includes("/dashboard/doctor") && u.role) {
-          setResolvedRole(`${u.role.charAt(0).toUpperCase() + u.role.slice(1)} Dashboard`);
+          if (pathname?.includes("/dashboard/patient") || u.role === "patient") {
+            setResolvedRole("My Portal");
+          } else {
+            setResolvedRole(`${u.role.charAt(0).toUpperCase() + u.role.slice(1)} Dashboard`);
+          }
         }
       }
     } catch {
@@ -126,10 +130,10 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         variant="ghost"
         className={`cm-appbar__patient-nav ${isPatientRoute ? "cm-appbar__patient-nav--active" : ""}`}
         onClick={() => router.push("/dashboard/patient")}
-        aria-label="Patient Dashboard"
+        aria-label="My Portal"
       >
         <Icon as={LayoutDashboard} size={16} />
-        Patient Dashboard
+        My Portal
       </Button>
       <Button variant="ghost" onClick={logout}>
         <Icon as={LogOut} size={16} />

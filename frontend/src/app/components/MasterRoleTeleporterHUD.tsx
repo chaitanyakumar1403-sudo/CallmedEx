@@ -37,7 +37,7 @@ const ALL_MASTER_ROLES: MasterPersona[] = [
   {
     role: "patient",
     slug: "patient",
-    label: "Patient Portal",
+    label: "My Portal",
     personaName: "Rahul Sharma",
     badge: "Active Patient",
     iconName: "patient",

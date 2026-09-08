@@ -139,13 +139,13 @@ export default function PatientNavSidebar() {
   const totalSections = DASHBOARD_SECTIONS.length;
 
   return (
-    <aside className="cm-provider-sidebar" aria-label="Patient Portal Navigation">
+    <aside className="cm-provider-sidebar" aria-label="My Portal Navigation">
       <div className="cm-provider-nav-widget cm-patient-sidebar-widget">
         {/* Workspace Brand Header */}
         <div className="cm-provider-nav-header">
           <div className="cm-provider-nav-badge">
             <span className="cm-provider-nav-dot" />
-            <span>PATIENT PORTAL</span>
+            <span>MY PORTAL</span>
           </div>
           <span className="cm-provider-nav-count">{totalSections} sections</span>
         </div>

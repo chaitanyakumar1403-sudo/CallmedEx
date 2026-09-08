@@ -106,6 +106,12 @@ class AIRecommendationsResponse(BaseModel):
     recommended_doctors: List[RecommendDoctorItem]
     recommended_services: List[RecommendServiceItem]
     care_guidance: CareGuidance
+    lifestyle_tips: Optional[List[str]] = Field(default_factory=list)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.lifestyle_tips and self.care_guidance and self.care_guidance.lifestyle_tips:
+            self.lifestyle_tips = list(self.care_guidance.lifestyle_tips)
 
 
 # ─── Helper: Compute BMI ─────────────────────────────────────────────────────
@@ -311,7 +317,8 @@ def _build_clinical_fallback(profile: PatientHealthProfileResponse, medications:
             "workouts": workouts,
             "diet_plan": diet,
             "lifestyle_tips": lifestyle_tips,
-        }
+        },
+        "lifestyle_tips": lifestyle_tips,
     }
 
 
