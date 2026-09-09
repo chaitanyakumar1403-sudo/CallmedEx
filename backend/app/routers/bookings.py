@@ -162,7 +162,8 @@ def _resolve_provider_fee(
         rows = _rows(
             supabase.table(table)
             .select("consultation_fee, home_visit_fee")
-            .eq("user_id", provider_user_id).limit(1).execute()
+            .or_(f"user_id.eq.{provider_user_id},id.eq.{provider_user_id}")
+            .limit(1).execute()
         )
     except Exception as e:
         logger.warning(
@@ -439,6 +440,50 @@ async def get_available_slots(
         raise HTTPException(status_code=500, detail="Internal server error while fetching slots")
 
 
+@router.get("/booked-slots", response_model=APIResponse)
+async def get_booked_slots(
+    provider_id: str,
+    date_str: str = Query(..., alias="date"),
+):
+    """Return all booked slot time strings for a provider on a given date."""
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database connection unavailable")
+    try:
+        target_ids = [provider_id]
+        try:
+            doc_res = _rows(
+                supabase.table("doctors").select("id, user_id").or_(f"id.eq.{provider_id},user_id.eq.{provider_id}").limit(1).execute()
+            )
+            if doc_res:
+                target_ids.extend([doc_res[0]["id"], doc_res[0]["user_id"]])
+        except Exception:
+            pass
+
+        active_bookings = _rows(
+            supabase.table("bookings")
+            .select("slot_id, slot_start")
+            .in_("provider_id", list(set(target_ids)))
+            .not_.in_("status", ["cancelled", "slot_rejected"])
+            .execute()
+        )
+        booked_times = []
+        for b in active_bookings:
+            slot_id = b.get("slot_id") or ""
+            parts = slot_id.split("|")
+            if len(parts) == 3 and parts[1] == date_str:
+                booked_times.append(parts[2])
+            elif b.get("slot_start") and b["slot_start"].startswith(date_str):
+                try:
+                    time_part = b["slot_start"].split("T")[1][:5]
+                    booked_times.append(time_part)
+                except Exception:
+                    pass
+        return APIResponse(success=True, message="Booked slots", data={"booked_slots": list(set(booked_times))})
+    except Exception as e:
+        logger.warning(f"Failed to fetch booked slots: {e}")
+        return APIResponse(success=True, message="Booked slots", data={"booked_slots": []})
+
+
 @router.post("", response_model=APIResponse)
 async def create_booking(
     booking: BookingCreate,
@@ -532,6 +577,21 @@ async def create_booking(
                     resolved_provider_id = org_row.data[0]["id"]
             except Exception as e:
                 logger.warning(f"organization lookup for allocation failed: {e}")
+
+    # Doctor resolution: if patient booked via doctors.id, resolve to doctors.user_id
+    if supabase and resolved_provider_id:
+        try:
+            doc_lookup = _rows(
+                supabase.table("doctors")
+                .select("id, user_id")
+                .eq("id", resolved_provider_id)
+                .limit(1).execute()
+            )
+            if doc_lookup and doc_lookup[0].get("user_id"):
+                resolved_provider_id = doc_lookup[0]["user_id"]
+                resolved_provider_type = "doctor"
+        except Exception as d_err:
+            logger.warning(f"Doctor profile lookup for booking failed: {d_err}")
 
     # The price is the provider's published rate, never the browser's claim.
     # Where no rate is published (organisations, which price through the
@@ -1090,6 +1150,17 @@ async def create_booking(
                             prov_row = _rows(
                                 supabase.table("users").select("id, full_name, email, role")
                                 .eq("id", org_user[0]["user_id"]).limit(1).execute()
+                            )
+                    if not prov_row:
+                        # Check doctors table
+                        doc_user = _rows(
+                            supabase.table("doctors").select("user_id")
+                            .eq("id", target_prov_id).limit(1).execute()
+                        )
+                        if doc_user and doc_user[0].get("user_id"):
+                            prov_row = _rows(
+                                supabase.table("users").select("id, full_name, email, role")
+                                .eq("id", doc_user[0]["user_id"]).limit(1).execute()
                             )
                     if prov_row and prov_row[0].get("email"):
                         EmailService.send_booking_alert_email(
@@ -1934,10 +2005,27 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
     day_end = f"{ist_today.isoformat()}T23:59:59+05:30"
 
     try:
+        doc_profile_id = None
+        if role == "doctor":
+            try:
+                doc_rows = _rows(
+                    supabase.table("doctors").select("id").eq("user_id", current_user["sub"]).execute()
+                )
+                if doc_rows and "slot_start" not in doc_rows[0]:
+                    doc_id = doc_rows[0].get("id")
+                    if doc_id and doc_id != current_user["sub"]:
+                        doc_profile_id = doc_id
+            except Exception:
+                pass
+
+        b_query = supabase.table("bookings").select("*")
+        if doc_profile_id:
+            b_query = b_query.or_(f"provider_id.eq.{current_user['sub']},provider_id.eq.{doc_profile_id}")
+        else:
+            b_query = b_query.eq("provider_id", current_user["sub"])
+
         bookings = _rows(
-            supabase.table("bookings")
-            .select("*")
-            .eq("provider_id", current_user["sub"])
+            b_query
             .gte("slot_start", day_start)
             .lte("slot_start", day_end)
             .order("slot_start")

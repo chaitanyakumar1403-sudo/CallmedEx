@@ -219,7 +219,10 @@ export default function DoctorDashboard() {
     fetchActiveTelemedQueue();
     fetchEarnings();
     fetchFees();
-    const interval = setInterval(fetchActiveTelemedQueue, 15000);
+    const interval = setInterval(() => {
+      fetchActiveTelemedQueue();
+      fetchTodayBookings();
+    }, 15000);
     return () => clearInterval(interval);
   }, [fetchProfile, fetchTodayBookings, fetchActiveTelemedQueue, fetchEarnings, fetchFees]);
 

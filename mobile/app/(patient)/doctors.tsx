@@ -63,62 +63,10 @@ export default function DoctorsScreen() {
       if (list && list.length > 0) {
         setDoctors(list);
       } else {
-        // Fallback realistic clinical directory
-        setDoctors([
-          {
-            id: 'doc-1',
-            name: 'Dr. Ramesh Sharma',
-            specialization: 'Cardiology',
-            qualification: 'MBBS, MD, DM (Cardiology) • AIIMS New Delhi',
-            experience: '16 yrs',
-            fee: 800,
-            rating: 4.9,
-            available: true,
-          },
-          {
-            id: 'doc-2',
-            name: 'Dr. Priya Nair',
-            specialization: 'General Physician',
-            qualification: 'MBBS, DNB (Family Medicine) • CMC Vellore',
-            experience: '9 yrs',
-            fee: 500,
-            rating: 4.8,
-            available: true,
-          },
-          {
-            id: 'doc-3',
-            name: 'Dr. Amit Patel',
-            specialization: 'Dermatology',
-            qualification: 'MBBS, MD (Dermatology, Venereology & Leprosy)',
-            experience: '12 yrs',
-            fee: 700,
-            rating: 4.9,
-            available: true,
-          },
-          {
-            id: 'doc-4',
-            name: 'Dr. Sunita Rao',
-            specialization: 'Pediatrics',
-            qualification: 'MBBS, DCH, MD (Pediatrics) • Manipal Hospital',
-            experience: '18 yrs',
-            fee: 750,
-            rating: 5.0,
-            available: true,
-          },
-          {
-            id: 'doc-5',
-            name: 'Dr. Vikram Seth',
-            specialization: 'Neurology',
-            qualification: 'MBBS, MD, DM (Neurology) • NIMHANS',
-            experience: '14 yrs',
-            fee: 1000,
-            rating: 4.9,
-            available: true,
-          },
-        ]);
+        setDoctors([]);
       }
     } catch {
-      // Offline fallback
+      setDoctors([]);
     } finally {
       setLoading(false);
     }

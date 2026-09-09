@@ -562,6 +562,26 @@ function BookingPageContent() {
     }
   }, [step, bookingType]);
 
+  // Fetch booked slots for the selected provider and date so already booked slots are locked
+  useEffect(() => {
+    const providerId = selectedOrg?.id || selectedDoctor?.id || "";
+    if (!providerId || !selectedDate) {
+      setBookedSlots([]);
+      return;
+    }
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${apiBase}/api/bookings/booked-slots?provider_id=${encodeURIComponent(providerId)}&date=${encodeURIComponent(selectedDate)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data?.booked_slots)) {
+          setBookedSlots(data.data.booked_slots);
+        } else {
+          setBookedSlots([]);
+        }
+      })
+      .catch(() => setBookedSlots([]));
+  }, [selectedDoctor?.id, selectedOrg?.id, selectedDate]);
+
   // Generate dynamic time slots based on organization's configured operating hours
   const getDynamicSlots = (dateStr: string): string[] => {
     const orgTimings = selectedOrg?.timings || [];
@@ -809,7 +829,10 @@ function BookingPageContent() {
 
   const isSlotBooked = (time: string) => {
     const providerId = selectedOrg?.id || selectedDoctor?.id || "";
-    return bookedSlots.includes(`${providerId}|${selectedDate}|${time}`);
+    return (
+      bookedSlots.includes(time) ||
+      bookedSlots.includes(`${providerId}|${selectedDate}|${time}`)
+    );
   };
 
   const getOrgTypeBadge = (type: string) => {

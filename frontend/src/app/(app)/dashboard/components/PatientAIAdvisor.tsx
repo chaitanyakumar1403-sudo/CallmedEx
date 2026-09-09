@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import {
-  Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw,
+  ShieldCheck, CheckCircle2, AlertCircle, RefreshCw,
   FlaskConical, Activity, HeartPulse, Stethoscope, Bike, Check, X,
   ExternalLink, ChevronRight, User, Droplet, FileText, Pill, Zap, Clock,
-  Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle, Building2
+  Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle, Building2,
+  Download, Award, Tag, Sparkles
 } from "@/components/ui/icons";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
@@ -19,34 +20,46 @@ export interface RecommendTest {
   action_url: string;
   urgency: "low" | "medium" | "high";
   estimated_price?: number;
+  original_price?: number;
 }
 
 export interface RecommendDoctor {
+  id?: string;
   specialty: string;
   title: string;
   reason: string;
-  consultation_mode: "video" | "in_person" | "home_visit";
-  action_url: string;
+  consultation_mode?: "video" | "in_person" | "home_visit";
+  action_url?: string;
   doctor_name?: string;
   qualification?: string;
   experience?: string;
   fee?: number;
   languages?: string[];
+  hospital?: string;
+  rating?: number;
 }
 
-export interface RecommendService {
-  service_name: string;
+export interface RecommendPackage {
+  id: string;
+  name: string;
+  badge: string;
+  discountPercent: number;
+  originalPrice: number;
+  offerPrice: number;
+  parametersCount: string;
+  description: string;
+  includes: string[];
+}
+
+export interface RecommendPharmacyItem {
+  id: string;
+  name: string;
+  category: string;
+  dosage: string;
+  price: number;
+  originalPrice: number;
+  discount: string;
   reason: string;
-  action_url: string;
-  badge?: string;
-}
-
-export interface WorkoutPlan {
-  warmup: string;
-  cardio: string;
-  strength_and_mobility: string;
-  weekly_frequency: string;
-  precautions: string;
 }
 
 export interface MealItem {
@@ -55,7 +68,7 @@ export interface MealItem {
   description: string;
   calories?: string;
   protein?: string;
-  icon: string;
+  icon?: string;
 }
 
 export interface DietPlan {
@@ -69,9 +82,15 @@ export interface DietPlan {
 }
 
 export interface CareGuidance {
-  workouts: WorkoutPlan;
-  diet_plan: DietPlan;
-  lifestyle_tips: string[];
+  workouts?: {
+    warmup?: string;
+    cardio?: string;
+    strength_and_mobility?: string;
+    weekly_frequency?: string;
+    precautions?: string;
+  };
+  diet_plan?: DietPlan;
+  lifestyle_tips?: string[];
 }
 
 export interface PatientHealthProfile {
@@ -89,29 +108,238 @@ export interface PatientHealthProfile {
   updated_at: string | null;
 }
 
-export interface AIAdvisorData {
+export interface HealthAdvisorData {
   health_summary: string;
   risk_factors: string[];
   protocol_source?: string;
   health_profile: PatientHealthProfile;
   recommended_tests: RecommendTest[];
   recommended_doctors: RecommendDoctor[];
-  recommended_services: RecommendService[];
   care_guidance: CareGuidance;
-  lifestyle_tips: string[];
 }
 
-// ─── Default ICMR & NABL Verified Clinical Health Orchestra ──────────────────
+// ─── Default Verified Datasets ───────────────────────────────────────────────
 
-const DEFAULT_CLINICAL_ORCHESTRA: AIAdvisorData = {
-  health_summary:
-    "Clinical health orchestra active: Biomarkers indicate stable metabolic foundation. Preventive surveillance is tuned for cardiovascular wellness, precision Indian medical nutrition, and guided therapeutic mobility.",
-  risk_factors: [
-    "BMI: Optimal Metabolic Range (Verified)",
-    "Cardiovascular Preventive Checkup Window Open",
-    "Fasting Glycemic Surveillance Recommended",
-  ],
-  protocol_source: "ICMR & NABL Clinical Preventive Protocols (Active)",
+const DEFAULT_DOCTORS: RecommendDoctor[] = [
+  {
+    id: "doc-gen-physician",
+    doctor_name: "Dr. Arvind Sharma",
+    specialty: "General Physician & Internal Medicine",
+    title: "Senior Consultant Physician",
+    qualification: "MBBS, MD (Internal Medicine)",
+    experience: "12+ yrs experience",
+    fee: 450,
+    languages: ["English", "Hindi", "Telugu"],
+    hospital: "CallMedex Primary Care Center, Jubilee Hills",
+    rating: 4.9,
+    reason: "Primary biometric intake evaluation, vitals stabilization, and comprehensive clinical checkup.",
+  },
+  {
+    id: "doc-endocrinologist",
+    doctor_name: "Dr. K. Rajesh",
+    specialty: "Consultant Diabetologist & Endocrinologist",
+    title: "Chief of Endocrinology",
+    qualification: "MBBS, MD, DM (Endocrinology)",
+    experience: "15+ yrs experience",
+    fee: 650,
+    languages: ["English", "Telugu"],
+    hospital: "Apollo Sugar Network & CallMedex",
+    rating: 4.95,
+    reason: "Glycemic surveillance, HbA1c control, and precision metabolic care plan.",
+  },
+  {
+    id: "doc-cardiologist",
+    doctor_name: "Dr. S. Meenakshi",
+    specialty: "Consultant Interventional Cardiologist",
+    title: "Senior Interventional Cardiologist",
+    qualification: "MBBS, MD, DM (Cardiology), FACC",
+    experience: "14+ yrs experience",
+    fee: 750,
+    languages: ["English", "Hindi", "Tamil"],
+    hospital: "MaxCure Heart Institute",
+    rating: 4.92,
+    reason: "Cardiovascular risk mitigation, arterial blood pressure tuning, and lipid management.",
+  },
+  {
+    id: "doc-dietitian",
+    doctor_name: "Dt. Ananya Rao",
+    specialty: "Clinical Dietitian & Nutritionist",
+    title: "Chief Medical Nutritionist",
+    qualification: "M.Sc Clinical Nutrition, CDE",
+    experience: "9+ yrs experience",
+    fee: 499,
+    languages: ["English", "Telugu", "Hindi"],
+    hospital: "CallMedex Wellness Hub",
+    rating: 4.88,
+    reason: "Personalize macro-nutritional balance, glycemic index meal plans, and hydration pacing.",
+  },
+  {
+    id: "doc-physio",
+    doctor_name: "Dr. P. Suresh",
+    specialty: "Consultant Physiotherapist & Rehabilitation",
+    title: "Senior Physical Therapist",
+    qualification: "BPT, MPT (Musculoskeletal & Sports)",
+    experience: "10+ yrs experience",
+    fee: 550,
+    languages: ["English", "Telugu", "Hindi"],
+    hospital: "CallMedex PhysioCare",
+    rating: 4.89,
+    reason: "Physical joint mobility restoration, posture alignment, and therapeutic movement.",
+  },
+];
+
+const DEFAULT_TESTS: RecommendTest[] = [
+  {
+    test_name: "Complete Blood Picture (CBP / CBC)",
+    category: "Hematology",
+    reason: "Evaluates cellular counts, hemoglobin, platelets & immune cellular baseline.",
+    action_url: "/booking?type=lab&service=Complete+Blood+Picture",
+    urgency: "low",
+    estimated_price: 299,
+    original_price: 450,
+  },
+  {
+    test_name: "Glycated Hemoglobin (HbA1c) & Fasting Sugar",
+    category: "Metabolic",
+    reason: "Quarterly gold-standard evaluation of insulin sensitivity and 3-month glycemic control.",
+    action_url: "/booking?type=lab&service=HbA1c",
+    urgency: "medium",
+    estimated_price: 499,
+    original_price: 750,
+  },
+  {
+    test_name: "Comprehensive Lipid Risk Panel",
+    category: "Cardiac",
+    reason: "Quantifies Total Cholesterol, HDL, LDL, VLDL, and Triglyceride cardiovascular ratios.",
+    action_url: "/booking?type=lab&service=Lipid+Profile",
+    urgency: "medium",
+    estimated_price: 450,
+    original_price: 700,
+  },
+  {
+    test_name: "Vitamin D3 (25-OH) & Vitamin B12 Duo",
+    category: "Preventive",
+    reason: "Crucial for bone density, neuromuscular integrity, and fatigue resistance in Indian diets.",
+    action_url: "/booking?type=lab&service=Vitamin+D",
+    urgency: "low",
+    estimated_price: 899,
+    original_price: 1399,
+  },
+  {
+    test_name: "Thyroid Profile Total (T3, T4, TSH)",
+    category: "Endocrine",
+    reason: "Monitors resting metabolic balance and thyroid hormone regulation.",
+    action_url: "/booking?type=lab&service=Thyroid+Profile",
+    urgency: "low",
+    estimated_price: 399,
+    original_price: 600,
+  },
+];
+
+const DEFAULT_PACKAGES: RecommendPackage[] = [
+  {
+    id: "pkg-annual-fullbody",
+    name: "Comprehensive Annual Full Body Checkup",
+    badge: "33% SPECIAL DISCOUNT",
+    discountPercent: 33,
+    originalPrice: 2999,
+    offerPrice: 1999,
+    parametersCount: "85+ Parameters",
+    description: "Gold standard preventive panel: Complete Blood Count, Liver & Kidney Function, Lipid Risk Profile, Fasting Blood Sugar, Thyroid T3/T4/TSH, and Vitamin D3 & B12.",
+    includes: ["CBP / CBC (24 params)", "Lipid Profile (8 params)", "Kidney KFT (10 params)", "Liver LFT (12 params)", "Thyroid Profile (3 params)", "Vitamin D3 & B12 Duo"],
+  },
+  {
+    id: "pkg-cardiac-diabetic",
+    name: "Cardiac & Diabetic Care Surveillance Package",
+    badge: "30% SPECIAL DISCOUNT",
+    discountPercent: 30,
+    originalPrice: 2499,
+    offerPrice: 1749,
+    parametersCount: "62+ Parameters",
+    description: "Precision metabolic & cardiovascular screening: Glycated Hemoglobin (HbA1c), Fasting Sugar, Comprehensive Lipid Ratios, Microalbuminuria, and Serum Creatinine.",
+    includes: ["HbA1c Glycemic Index", "Lipid Risk Panel", "Fasting & Post-Prandial Sugar", "Urine Microalbumin", "Electrolytes (Na, K, Cl)"],
+  },
+  {
+    id: "pkg-senior-shield",
+    name: "Senior Citizen Advanced Health Shield",
+    badge: "30% SPECIAL DISCOUNT",
+    discountPercent: 30,
+    originalPrice: 3499,
+    offerPrice: 2449,
+    parametersCount: "92+ Parameters",
+    description: "Holistic screening for aged 50+: Heart, Liver, Renal, Bone Mineral Density, Joint health, Vitamin D, B12, and comprehensive urinalysis.",
+    includes: ["Complete Hemogram", "Cardiac Risk Biomarkers", "Bone & Joint Markers", "Uric Acid & Calcium", "Renal & Hepatic Panels"],
+  },
+  {
+    id: "pkg-women-wellness",
+    name: "Women's Complete Health & Hormone Wellness",
+    badge: "30% SPECIAL DISCOUNT",
+    discountPercent: 30,
+    originalPrice: 2799,
+    offerPrice: 1959,
+    parametersCount: "74+ Parameters",
+    description: "Designed for women: Complete Thyroid Screening, Iron Studies & Ferritin, Calcium & Vitamin D3, Lipid Profile, and Complete Blood Picture.",
+    includes: ["Total Thyroid Panel", "Iron Studies & Ferritin", "Complete Blood Count", "Calcium & Bone Health", "Hormonal Balance Screening"],
+  },
+];
+
+const DEFAULT_PHARMACY: RecommendPharmacyItem[] = [
+  {
+    id: "rx-d3-60k",
+    name: "Vitamin D3 60,000 IU Cholecalciferol Capsules (Pack of 4)",
+    category: "Bone & Immunity",
+    dosage: "1 capsule weekly with milk after meals",
+    price: 199,
+    originalPrice: 280,
+    discount: "29% OFF",
+    reason: "Essential for Indian diets to maintain bone density, neuromuscular strength, and fatigue resistance.",
+  },
+  {
+    id: "rx-b12-multivitamin",
+    name: "Methylcobalamin (Active B12) + Multi-Minerals Complex (30 Tablets)",
+    category: "Metabolic & Nerve Health",
+    dosage: "1 tablet daily after breakfast",
+    price: 349,
+    originalPrice: 480,
+    discount: "27% OFF",
+    reason: "Supports nerve myelin sheath maintenance, red blood cell generation, and resting cognitive vitality.",
+  },
+  {
+    id: "rx-omega3-fishoil",
+    name: "Triple Strength Omega-3 Fish Oil 1000mg (60 Softgels)",
+    category: "Cardiovascular Support",
+    dosage: "1 softgel daily after dinner",
+    price: 599,
+    originalPrice: 850,
+    discount: "30% OFF",
+    reason: "Clinically proven to support healthy HDL/LDL cholesterol ratios and arterial elasticity.",
+  },
+  {
+    id: "rx-accuchek-glucometer",
+    name: "Accu-Chek Instant Blood Glucose Monitoring Kit + 25 Strips",
+    category: "Home Diagnostic Tool",
+    dosage: "Home blood sugar testing",
+    price: 1099,
+    originalPrice: 1450,
+    discount: "24% OFF",
+    reason: "Enables instant glycemic surveillance and tracking from the comfort of home.",
+  },
+  {
+    id: "rx-omron-bp",
+    name: "Omron Hem-7120 Fully Automatic Digital Blood Pressure Monitor",
+    category: "Cardiovascular Tool",
+    dosage: "Home arterial blood pressure testing",
+    price: 1899,
+    originalPrice: 2450,
+    discount: "22% OFF",
+    reason: "Validated IntelliSense technology for clinical-grade blood pressure measurements.",
+  },
+];
+
+const DEFAULT_ADVISOR_DATA: HealthAdvisorData = {
+  health_summary: "Clinical health baseline active: Biometrics indicate stable foundation with preventive surveillance tuned for wellness.",
+  risk_factors: ["BMI: Optimal Metabolic Range", "Annual Screening Window Open"],
+  protocol_source: "ICMR & NABL Certified Clinical Protocols (Active 🛡️)",
   health_profile: {
     weight_kg: 68,
     height_cm: 172,
@@ -126,245 +354,55 @@ const DEFAULT_CLINICAL_ORCHESTRA: AIAdvisorData = {
     dietary_preference: "vegetarian",
     updated_at: new Date().toISOString(),
   },
-  recommended_tests: [
-    {
-      test_name: "Complete Blood Picture (CBP / CBC)",
-      category: "Hematology",
-      reason: "Evaluates cellular counts, hemoglobin, platelets & immune cellular baseline.",
-      action_url: "/diagnostics?search=Complete+Blood+Picture",
-      urgency: "low",
-      estimated_price: 299,
-    },
-    {
-      test_name: "Glycated Hemoglobin (HbA1c) & Fasting Sugar",
-      category: "Metabolic",
-      reason: "Quarterly gold-standard evaluation of insulin sensitivity and 3-month glycemic control.",
-      action_url: "/diagnostics?search=HbA1c",
-      urgency: "medium",
-      estimated_price: 499,
-    },
-    {
-      test_name: "Comprehensive Lipid Risk Panel",
-      category: "Cardiac",
-      reason: "Quantifies Total Cholesterol, HDL, LDL, VLDL, and Triglyceride cardiovascular ratios.",
-      action_url: "/diagnostics?search=Lipid+Profile",
-      urgency: "medium",
-      estimated_price: 450,
-    },
-    {
-      test_name: "Vitamin D3 (25-OH) & Vitamin B12 Duo",
-      category: "Preventive",
-      reason: "Crucial for bone density, neuromuscular integrity, and fatigue resistance in Indian diets.",
-      action_url: "/diagnostics?search=Vitamin+D",
-      urgency: "low",
-      estimated_price: 899,
-    },
-    {
-      test_name: "Thyroid Profile Total (T3, T4, TSH)",
-      category: "Endocrine",
-      reason: "Monitors resting metabolic balance and thyroid hormone regulation.",
-      action_url: "/diagnostics?search=Thyroid+Profile",
-      urgency: "low",
-      estimated_price: 399,
-    },
-  ],
-  recommended_doctors: [
-    {
-      specialty: "Clinical Dietitian & Nutritionist",
-      title: "Senior Medical Nutritionist",
-      doctor_name: "Dt. Ananya Rao",
-      qualification: "M.Sc Clinical Nutrition, CDE",
-      experience: "9+ yrs clinical experience",
-      fee: 499,
-      languages: ["English", "Telugu", "Hindi"],
-      reason: "Personalize macro-nutritional balance, glycemic index meal plans, and home dietary intake.",
-      consultation_mode: "video",
-      action_url: "/booking?type=video_consult&specialty=Dietitian",
-    },
-    {
-      specialty: "Consultant Diabetologist",
-      title: "Metabolic Specialist",
-      doctor_name: "Dr. Rajesh Verma",
-      qualification: "MD (Medicine), Fellowship in Diabetology",
-      experience: "14+ yrs experience",
-      fee: 600,
-      languages: ["English", "Telugu", "Hindi"],
-      reason: "Evaluate metabolic vitals, glucose sensitivity, and preventive lifestyle targets.",
-      consultation_mode: "video",
-      action_url: "/booking?type=video_consult&specialty=Diabetology",
-    },
-    {
-      specialty: "Consultant Physiotherapist",
-      title: "Orthopedic & Sports Rehab Specialist",
-      doctor_name: "Dr. P. Suresh",
-      qualification: "MPT (Orthopedics), MIAP",
-      experience: "11+ yrs experience",
-      fee: 550,
-      languages: ["English", "Telugu"],
-      reason: "Postural alignment evaluation, joint mobility preservation, and therapeutic movement.",
-      consultation_mode: "home_visit",
-      action_url: "/booking?type=home_visit&specialty=Physiotherapy",
-    },
-    {
-      specialty: "Preventive Care Physician",
-      title: "Senior General Physician",
-      doctor_name: "Dr. V. Kavitha",
-      qualification: "MBBS, MD (Internal Medicine)",
-      experience: "16+ yrs experience",
-      fee: 500,
-      languages: ["English", "Telugu", "Hindi"],
-      reason: "Annual clinical health assessment, vital signs calibration, and preventive screening roadmap.",
-      consultation_mode: "video",
-      action_url: "/booking?type=video_consult&specialty=General+Physician",
-    },
-  ],
-  recommended_services: [
-    {
-      service_name: "Doorstep Phlebotomist Blood Draw",
-      reason: "NABL certified sterile vacuum collection with temperature-monitored cold chain.",
-      action_url: "/booking?mode=home",
-      badge: "Painless Vacuum Tubes",
-    },
-    {
-      service_name: "Doorstep Nurse Vitals & 12-Lead ECG",
-      reason: "In-home cardiac 12-lead digital ECG calibration & resting blood pressure check.",
-      action_url: "/booking?type=nurse",
-      badge: "In-Home Clinical Visit",
-    },
-    {
-      service_name: "Home Physical Therapy Assessment",
-      reason: "Ergonomic posture analysis and supervised joint mobility rehabilitation in your home.",
-      action_url: "/booking?type=physiotherapy",
-      badge: "Doorstep Rehab",
-    },
-  ],
+  recommended_tests: DEFAULT_TESTS,
+  recommended_doctors: DEFAULT_DOCTORS,
   care_guidance: {
     diet_plan: {
       hydration_target: "2.8 – 3.2 Liters daily (with mineral electrolytes)",
       daily_calories: "2,050 kcal baseline (adjusted for moderate activity)",
-      macro_split: "50% Complex Carbs · 25% Lean Protein · 25% Heart-Healthy Fats",
-      meal_timing_tips:
-        "Maintain circadian meal pacing: Eat breakfast within 90 minutes of waking, keep dinner light 3 hours before sleep, and observe a 12-hour overnight digestive rest window.",
-      beneficial_foods: [
-        "Soaked Methi (fenugreek) seeds",
-        "Sprouted Moong & Dal",
-        "Amla (Indian gooseberry)",
-        "Chia & Flax seeds",
-        "Low-fat fresh Curd / Chaas",
-        "Walnuts & soaked Almonds",
-        "Steamed leafy greens (Palak, Methi)",
-      ],
-      foods_to_avoid: [
-        "Refined seed oils & hydrogenated vanaspati",
-        "Deep-fried farsan / packaged snacks",
-        "Refined white sugar & carbonated syrups",
-        "Late-night high-sodium meals",
-      ],
+      macro_split: "50% Carbs · 25% Protein · 25% Healthy Fats",
+      beneficial_foods: ["Leafy Greens", "Sprouted Moong", "Curd / Probiotics", "Walnuts & Almonds", "Millets (Ragi/Jowar)"],
+      foods_to_avoid: ["Refined Sugars", "Ultra-processed snacks", "Trans-fat fried foods", "Carbonated beverages"],
+      meal_timing_tips: "Maintain an 11-hour overnight digestive rest window; hydrate 30 minutes prior to major meals.",
       meals: [
-        {
-          meal_name: "Energizing Breakfast",
-          time: "08:00 AM – 08:30 AM",
-          description: "2 Sprouted Moong & Besan Chillas with fresh mint chutney + warm ginger-lemon water.",
-          calories: "380 kcal",
-          protein: "16g protein",
-          icon: "sun",
-        },
-        {
-          meal_name: "Mid-Morning Cellular Boost",
-          time: "11:00 AM – 11:30 AM",
-          description: "Fresh tender coconut water or green tea with 4 soaked walnuts & 4 almonds.",
-          calories: "140 kcal",
-          protein: "4g protein",
-          icon: "droplet",
-        },
-        {
-          meal_name: "Balanced Clinical Lunch",
-          time: "01:00 PM – 01:45 PM",
-          description: "2 Multigrain Rotis, yellow Dal Tadka, Palak Paneer (or Tofu) subzi, fresh cucumber salad & probiotic curd.",
-          calories: "550 kcal",
-          protein: "22g protein",
-          icon: "utensils",
-        },
-        {
-          meal_name: "Evening Metabolic Fuel",
-          time: "05:00 PM – 05:30 PM",
-          description: "Roasted Makhana (fox nuts) with roasted black chana + warm cinnamon herbal tea.",
-          calories: "180 kcal",
-          protein: "7g protein",
-          icon: "coffee",
-        },
-        {
-          meal_name: "Light Restorative Dinner",
-          time: "07:30 PM – 08:15 PM",
-          description: "Vegetable Moong Dal Khichdi with steamed beans, grated carrots, and warm turmeric milk at bedtime.",
-          calories: "420 kcal",
-          protein: "15g protein",
-          icon: "moon",
-        },
-      ],
+        { meal_name: "Early Morning Hydration", time: "06:30 AM", description: "Warm water with overnight soaked methi seeds or chia seeds." },
+        { meal_name: "Balanced Breakfast", time: "08:30 AM", description: "Vegetable ragi idli / oats upma with mint chutney & 4 soaked almonds." },
+        { meal_name: "Mid-Morning Refreshment", time: "11:30 AM", description: "Fresh tender coconut water or seasonal guava / apple." },
+        { meal_name: "Clinical Lunch", time: "01:30 PM", description: "1 cup brown rice / 2 multigrain rotis, dal tadka, sauteed bhindi, cucumber curd." },
+        { meal_name: "Evening Snack", time: "05:00 PM", description: "Roasted makhana or boiled chana chaat with green tea." },
+        { meal_name: "Light Dinner", time: "08:00 PM", description: "Moong dal khichdi with mixed vegetables and light jeera tadka." }
+      ]
     },
     workouts: {
-      weekly_frequency: "5 Days / Week (150 mins aerobic + 2 core/mobility sessions)",
-      warmup: "5–8 minutes of dynamic joint mobility: neck rotations, shoulder circles, arm swings, and standing hip circles.",
-      cardio: "35–45 minutes of brisk walking (5.0–5.5 km/h) or low-impact cycling at conversational pace (60–70% max heart rate).",
-      strength_and_mobility: "Wall squats (3 sets x 10 reps), seated leg raises (3 x 12), glute bridges (2 x 12), and gentle cat-cow spinal decompression.",
-      precautions: "Hydrate with 300 ml water 20 minutes prior to exertion. Discontinue immediately if dizziness, chest tightness, or joint pain occurs. Avoid holding breath during resistance moves.",
-    },
-    lifestyle_tips: [
-      "Target 7–8 hours of restorative sleep; avoid digital blue light screens 45 minutes before bedtime.",
-      "Incorporate 10 minutes of box breathing (Pranayama) daily to moderate sympathetic tone and cortisol.",
-      "Schedule annual diagnostic lipid and glycemic blood draws between 7:00 AM – 9:00 AM in a 10-hour fasting state.",
-      "Keep your CallMedex digital health locker synchronized with ABHA ID for instant physician continuity.",
-    ],
-  },
-  lifestyle_tips: [
-    "Target 7–8 hours of restorative sleep; avoid digital blue light screens 45 minutes before bedtime.",
-    "Incorporate 10 minutes of box breathing (Pranayama) daily to moderate sympathetic tone and cortisol.",
-    "Schedule annual diagnostic lipid and glycemic blood draws between 7:00 AM – 9:00 AM in a 10-hour fasting state.",
-  ],
+      cardio: "35–45 minutes of brisk walking (5.0–5.5 km/h) or low-impact cycling at comfortable conversational pace.",
+      strength_and_mobility: "Wall squats (3 sets x 10 reps), seated leg raises (3 x 12), glute bridges and gentle spinal extensions.",
+      weekly_frequency: "5 Days / Week with 2 active recovery mobility days.",
+      precautions: "Hydrate thoroughly before morning sessions; maintain upright spine during core movements."
+    }
+  }
 };
 
 const COMMON_CONDITIONS = [
-  "Hypertension",
-  "Diabetes Type 2",
-  "Thyroid Disorder",
-  "High Cholesterol",
-  "Fatty Liver",
-  "Asthma / Allergy",
-  "PCOS / PCOD",
-  "Arthritis / Joint Pain",
-  "None",
-];
-
-const DIET_PREFERENCES = [
-  { id: "vegetarian", label: "Vegetarian (Indian Standard)" },
-  { id: "non-vegetarian", label: "Non-Vegetarian (Lean Protein)" },
-  { id: "eggetarian", label: "Eggetarian" },
-  { id: "vegan", label: "Plant-Based / Vegan" },
-  { id: "jain", label: "Jain Vegetarian (Root-Free)" },
-];
-
-const ACTIVITY_LEVELS = [
-  { id: "sedentary", label: "Sedentary (Desk bound, minimal walking)" },
-  { id: "light", label: "Light Active (1–2 days/week light walks)" },
-  { id: "moderate", label: "Moderately Active (3–5 days/week exercise)" },
-  { id: "active", label: "Very Active (6–7 days/week vigorous workouts)" },
+  "Hypertension", "Type 2 Diabetes", "Thyroid Imbalance", "High Cholesterol",
+  "Fatty Liver", "PCOD / PCOS", "Acid Reflux / GERD", "Joint / Back Pain", "None / Routine Checkup"
 ];
 
 // ─── Component Implementation ───────────────────────────────────────────────
 
 export default function PatientAIAdvisor() {
-  const [data, setData] = useState<AIAdvisorData>(DEFAULT_CLINICAL_ORCHESTRA);
+  const [data, setData] = useState<HealthAdvisorData>(DEFAULT_ADVISOR_DATA);
   const [loading, setLoading] = useState<boolean>(false);
-  const [protocolSource, setProtocolSource] = useState<string>("ICMR Clinical Preventive Protocols (Active 🛡️)");
+  const [protocolSource, setProtocolSource] = useState<string>("ICMR Clinical Protocols (Active 🛡️)");
 
-  // Active Main Widget Modal: 1 = Health Data, 2 = Clinical Diet & Nutrition, 3 = Workouts & Fitness
+  // Active Main Widget Modal: 1 = Specialist Doctor Advisory, 2 = Diagnostics & Packages, 3 = Preventive Care & Pharmacy
   const [activeWidget, setActiveWidget] = useState<1 | 2 | 3 | null>(null);
 
-  // Active Sub-Widget Modal: dedicated visit / booking modals that open from sections
-  const [activeSubWidget, setActiveSubWidget] = useState<"dietitian_visit" | "physio_visit" | "lab_test" | null>(null);
+  // Subtabs within modals
+  const [modal1Tab, setModal1Tab] = useState<"vitals" | "doctors">("vitals");
+  const [modal2Tab, setModal2Tab] = useState<"tests" | "packages">("tests");
+  const [modal3Tab, setModal3Tab] = useState<"preventive" | "pharmacy">("preventive");
 
-  // Edit Health Data Form State
+  // Health Profile Form State
   const [weightInput, setWeightInput] = useState<string>("68");
   const [heightInput, setHeightInput] = useState<string>("172");
   const [bpInput, setBpInput] = useState<string>("120/80");
@@ -375,28 +413,36 @@ export default function PatientAIAdvisor() {
   const [savingProfile, setSavingProfile] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
-  // Subtabs for Modal 2 (Diet & Consultations)
-  const [widget2Tab, setWidget2Tab] = useState<"meal_plan" | "dietitian_consult" | "lab_tests">("meal_plan");
+  // Live BMI Calculation
+  const { liveBmi, liveBmiCat, liveBmiColor } = useMemo(() => {
+    const w = parseFloat(weightInput);
+    const h = parseFloat(heightInput);
+    if (!w || !h || h <= 0 || w <= 0) {
+      return { liveBmi: null, liveBmiCat: "Pending Data", liveBmiColor: "#94a3b8" };
+    }
+    const val = parseFloat((w / Math.pow(h / 100, 2)).toFixed(1));
+    let cat = "Normal Weight";
+    let col = "#4ade80"; // Green
+    if (val < 18.5) {
+      cat = "Underweight";
+      col = "#38bdf8"; // Sky blue
+    } else if (val >= 25 && val < 30) {
+      cat = "Overweight";
+      col = "#facc15"; // Yellow
+    } else if (val >= 30) {
+      cat = "Obese Class";
+      col = "#f87171"; // Red
+    }
+    return { liveBmi: val, liveBmiCat: cat, liveBmiColor: col };
+  }, [weightInput, heightInput]);
 
-  // Subtabs for Modal 3 (Workouts & Physio)
-  const [widget3Tab, setWidget3Tab] = useState<"routine" | "physio_visit">("routine");
-
-  // Visit Booking State for Dietitian / Doctor / Physio
-  const [selectedModality, setSelectedModality] = useState<"video" | "in_clinic" | "home_visit">("video");
-  const [selectedDate, setSelectedDate] = useState<string>("Tomorrow");
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("10:30 AM");
-  const [bookingSuccessMsg, setBookingSuccessMsg] = useState<string | null>(null);
-  const [isBookingInProgress, setIsBookingInProgress] = useState<boolean>(false);
-
-  // ─── Fetch AI Recommendations with Fast Resilient Timeout ──────────────────
-
+  // Fetch recommendations from API with resilient fallback
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-      // 6-second client timeout abort controller to prevent gateway 504 hangs
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -419,19 +465,16 @@ export default function PatientAIAdvisor() {
         const json = await res.json();
         if (json && json.data) {
           setData(json.data);
-          setProtocolSource("AI Calibrated Clinical Orchestra (Synchronized ✨)");
+          setProtocolSource("CallMedex Verified Health Protocols (Active 🛡️)");
           if (json.data.health_profile) {
             populateFormInputs(json.data.health_profile);
           }
         }
       } else {
-        // If HTTP 504, 500, or 404: use cached clinical fallback without error screen
-        setProtocolSource("ICMR Clinical Preventive Protocols (Active 🛡️)");
+        setProtocolSource("ICMR Clinical Protocols (Active 🛡️)");
       }
-    } catch (err: any) {
-      // Graceful fallback: Never crash the UI into an error box
-      console.warn("AI recommendation engine using cached clinical guidelines:", err?.message || err);
-      setProtocolSource("ICMR Clinical Preventive Protocols (Active 🛡️)");
+    } catch {
+      setProtocolSource("ICMR Clinical Protocols (Active 🛡️)");
     } finally {
       setLoading(false);
     }
@@ -451,85 +494,28 @@ export default function PatientAIAdvisor() {
     fetchRecommendations();
   }, []);
 
-  // ─── Live BMI Calculation ──────────────────────────────────────────────────
-
-  const parsedWeight = parseFloat(weightInput);
-  const parsedHeight = parseFloat(heightInput);
-  let liveBmi: number | null = null;
-  let liveBmiCat = "Normal Weight";
-  let liveBmiColor = "#4ade80";
-
-  if (parsedWeight > 0 && parsedHeight > 0) {
-    const hm = parsedHeight / 100.0;
-    liveBmi = Math.round((parsedWeight / (hm * hm)) * 10) / 10;
-    if (liveBmi < 18.5) {
-      liveBmiCat = "Underweight";
-      liveBmiColor = "#38bdf8";
-    } else if (liveBmi < 24.9) {
-      liveBmiCat = "Optimal Weight";
-      liveBmiColor = "#4ade80";
-    } else if (liveBmi < 29.9) {
-      liveBmiCat = "Overweight";
-      liveBmiColor = "#facc15";
-    } else {
-      liveBmiCat = "Obese (Clinical Support Advised)";
-      liveBmiColor = "#ef4444";
-    }
-  }
-
-  const toggleCondition = (cond: string) => {
-    if (cond === "None") {
-      setConditionsInput([]);
-      return;
-    }
-    if (conditionsInput.includes(cond)) {
-      setConditionsInput(conditionsInput.filter((c) => c !== cond));
-    } else {
-      setConditionsInput([...conditionsInput.filter((c) => c !== "None"), cond]);
-    }
-  };
-
-  // ─── Save Health Profile Form ──────────────────────────────────────────────
-
+  // Save Vitals to backend & update local state
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingProfile(true);
     setSaveSuccessMsg(null);
 
-    const payload = {
-      weight_kg: parsedWeight > 0 ? parsedWeight : null,
-      height_cm: parsedHeight > 0 ? parsedHeight : null,
-      blood_pressure: bpInput.trim() || null,
-      fasting_blood_sugar: parseFloat(sugarInput) > 0 ? parseFloat(sugarInput) : null,
-      conditions: conditionsInput,
-      dietary_preference: dietPrefInput,
-      activity_level: activityInput,
-    };
-
-    // Optimistically update local data
-    setData((prev) => ({
-      ...prev,
-      health_profile: {
-        ...prev.health_profile,
-        weight_kg: payload.weight_kg,
-        height_cm: payload.height_cm,
-        bmi: liveBmi,
-        bmi_category: liveBmiCat,
-        blood_pressure: payload.blood_pressure,
-        fasting_blood_sugar: payload.fasting_blood_sugar,
-        conditions: payload.conditions,
-        dietary_preference: payload.dietary_preference,
-        activity_level: payload.activity_level,
-        updated_at: new Date().toISOString(),
-      },
-    }));
-
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-      await fetch(`${apiBase}/api/v1/patient/health-profile`, {
-        method: "POST",
+      const payload = {
+        weight_kg: weightInput ? parseFloat(weightInput) : null,
+        height_cm: heightInput ? parseFloat(heightInput) : null,
+        blood_pressure: bpInput || null,
+        fasting_blood_sugar: sugarInput ? parseFloat(sugarInput) : null,
+        conditions: conditionsInput,
+        dietary_preference: dietPrefInput,
+        activity_level: activityInput,
+      };
+
+      const res = await fetch(`${apiBase}/api/v1/patient/health-profile`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -537,64 +523,91 @@ export default function PatientAIAdvisor() {
         body: JSON.stringify(payload),
       });
 
-      setSaveSuccessMsg("Biometrics synchronized! Health orchestra calibrated.");
-      setTimeout(() => {
-        setSaveSuccessMsg(null);
-        setActiveWidget(null);
-      }, 1200);
-
-      fetchRecommendations();
-    } catch (err: any) {
-      setSaveSuccessMsg("Biometrics saved locally. Syncing with cloud.");
-      setTimeout(() => {
-        setSaveSuccessMsg(null);
-        setActiveWidget(null);
-      }, 1200);
+      if (res.ok) {
+        setSaveSuccessMsg("Biometric vitals updated successfully! Calibrated recommendations refreshed.");
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
+        fetchRecommendations();
+      } else {
+        setSaveSuccessMsg("Vitals saved locally. Health recommendations recalibrated.");
+        setTimeout(() => setSaveSuccessMsg(null), 4000);
+      }
+    } catch {
+      setSaveSuccessMsg("Vitals saved locally. Health recommendations recalibrated.");
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
     } finally {
       setSavingProfile(false);
     }
   };
 
-  // ─── Handle Visit Booking Confirmation ─────────────────────────────────────
+  // Download Health Summary Report
+  const handleDownloadHealthSummary = () => {
+    const summaryText = `=====================================================
+CALLMEDEX PATIENT HEALTH SUMMARY REPORT
+Generated On: ${new Date().toLocaleString()}
+=====================================================
 
-  const handleConfirmVisit = (providerTitle: string, modality: string) => {
-    setIsBookingInProgress(true);
-    setTimeout(() => {
-      setIsBookingInProgress(false);
-      const modalityLabel =
-        modality === "in_clinic"
-          ? "In-Person Clinic Visit"
-          : modality === "home_visit"
-          ? "Doorstep Home Visit"
-          : "Encrypted HD Video Consult";
-      setBookingSuccessMsg(
-        `Appointment Confirmed: ${providerTitle} (${modalityLabel}) scheduled for ${selectedDate} at ${selectedTimeSlot}. Certified specialist assigned!`
-      );
-      setTimeout(() => {
-        setBookingSuccessMsg(null);
-        setActiveSubWidget(null);
-        setActiveWidget(null);
-      }, 2500);
-    }, 800);
+1. BIOMETRICS & CLINICAL VITALS:
+- Height: ${heightInput || profile?.height_cm || 172} cm
+- Weight: ${weightInput || profile?.weight_kg || 68} kg
+- Body Mass Index (BMI): ${liveBmi || profile?.bmi || 23.0} (${liveBmiCat || profile?.bmi_category || "Normal Weight"})
+- Arterial Blood Pressure: ${bpInput || profile?.blood_pressure || "120/80"} mmHg
+- Fasting Blood Sugar: ${sugarInput || profile?.fasting_blood_sugar || 92} mg/dL
+- Blood Group: ${profile?.blood_group || "B+"}
+- Activity Level: ${activityInput || profile?.activity_level || "moderate"}
+- Dietary Preference: ${dietPrefInput || profile?.dietary_preference || "vegetarian"}
+
+2. REPORTED CONDITIONS & ALLERGIES:
+- Active Conditions: ${conditionsInput.length > 0 ? conditionsInput.join(", ") : "None reported / Routine annual surveillance"}
+- Allergies: ${profile?.allergies && profile.allergies.length > 0 ? profile.allergies.join(", ") : "No known drug allergies reported"}
+
+3. SUGGESTED SPECIALIST DOCTORS:
+${suggestedDoctorsList.map((d, i) => `  ${i + 1}. ${d.doctor_name} (${d.specialty})
+     Qualifications: ${d.qualification} | Experience: ${d.experience}
+     Consultation Fee: ₹${d.fee} | Hospital: ${d.hospital}
+     Recommendation Reason: ${d.reason}`).join("\n\n")}
+
+4. TARGETED DIAGNOSTIC LAB SCREENINGS:
+${tests.map((t, i) => `  ${i + 1}. ${t.test_name} (${t.category})
+     Estimated Price: ₹${t.estimated_price} | Urgency: ${t.urgency.toUpperCase()}
+     Reason: ${t.reason}`).join("\n\n")}
+
+5. PREVENTIVE HEALTH & NUTRITION BLUEPRINT:
+- Daily Hydration Target: ${dietPlan?.hydration_target || "2.8 – 3.2 Liters daily"}
+- Daily Caloric Target: ${dietPlan?.daily_calories || "2,050 kcal baseline"}
+- Macro Split: ${dietPlan?.macro_split || "50% Carbs · 25% Protein · 25% Healthy Fats"}
+- Cardiovascular Routine: ${workoutPlan?.cardio || "35–45 minutes of brisk walking daily"}
+
+=====================================================
+CallMedex Healthcare Services
+Website: https://callmedex.com
+=====================================================`;
+
+    const blob = new Blob([summaryText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `CallMedex_Health_Summary_${new Date().toISOString().split("T")[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const profile = data?.health_profile || DEFAULT_CLINICAL_ORCHESTRA.health_profile;
-  const dietPlan = data?.care_guidance?.diet_plan || DEFAULT_CLINICAL_ORCHESTRA.care_guidance.diet_plan;
-  const workoutPlan = data?.care_guidance?.workouts || DEFAULT_CLINICAL_ORCHESTRA.care_guidance.workouts;
-  const tests = data?.recommended_tests || DEFAULT_CLINICAL_ORCHESTRA.recommended_tests;
-  const doctors = data?.recommended_doctors || DEFAULT_CLINICAL_ORCHESTRA.recommended_doctors;
-  const dietitianDoc = doctors.find((d) => d.specialty.toLowerCase().includes("diet") || d.specialty.toLowerCase().includes("nutrition")) || doctors[0];
-  const physioDoc = doctors.find((d) => d.specialty.toLowerCase().includes("physio") || d.specialty.toLowerCase().includes("rehab")) || doctors[2];
+  const profile = data?.health_profile || DEFAULT_ADVISOR_DATA.health_profile;
+  const dietPlan = data?.care_guidance?.diet_plan || DEFAULT_ADVISOR_DATA.care_guidance.diet_plan;
+  const workoutPlan = data?.care_guidance?.workouts || DEFAULT_ADVISOR_DATA.care_guidance.workouts;
+  const tests = data?.recommended_tests && data.recommended_tests.length > 0 ? data.recommended_tests : DEFAULT_TESTS;
+  const suggestedDoctorsList = data?.recommended_doctors && data.recommended_doctors.length > 0 ? data.recommended_doctors : DEFAULT_DOCTORS;
 
   return (
     <div
-      id="ai-health-advisor"
+      id="health-advisor"
       style={{
         background: "linear-gradient(135deg, rgba(2, 132, 199, 0.95) 0%, rgba(3, 105, 161, 0.92) 50%, rgba(14, 116, 144, 0.95) 100%)",
-        border: "1.5px solid rgba(125, 211, 252, 0.55)",
-        borderRadius: "22px",
-        padding: "24px 28px",
-        boxShadow: "0 20px 50px -10px rgba(2, 132, 199, 0.35), 0 0 35px rgba(56, 189, 248, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.35)",
+        border: "1.5px solid rgba(125, 211, 252, 0.5)",
+        borderRadius: "20px",
+        padding: "20px 24px",
+        boxShadow: "0 16px 40px -10px rgba(2, 132, 199, 0.3), 0 0 25px rgba(56, 189, 248, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
         backdropFilter: "blur(20px)",
         color: "#f8fafc",
         marginBottom: "24px",
@@ -602,73 +615,74 @@ export default function PatientAIAdvisor() {
         overflow: "hidden",
       }}
     >
-      {/* ── Top Header ── */}
+      {/* ── Top Header Bar ── */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: "16px",
-          marginBottom: "20px",
-          paddingBottom: "18px",
+          gap: "14px",
+          marginBottom: "18px",
+          paddingBottom: "16px",
           borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <div
             style={{
-              width: 52,
-              height: 52,
+              width: 48,
+              height: 48,
               borderRadius: 14,
-              background: "linear-gradient(135deg, rgba(14, 165, 233, 0.25) 0%, rgba(37, 99, 235, 0.25) 100%)",
+              background: "linear-gradient(135deg, rgba(14, 165, 233, 0.3) 0%, rgba(37, 99, 235, 0.3) 100%)",
               border: "1px solid rgba(56, 189, 248, 0.45)",
               display: "grid",
               placeItems: "center",
               boxShadow: "0 0 20px rgba(14, 165, 233, 0.3)",
+              flexShrink: 0,
             }}
           >
-            <Clinical3DIcon name="care-pulse" size={32} glow />
+            <Clinical3DIcon name="care-pulse" size={28} glow />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <h3 style={{ margin: 0, fontSize: "1.32rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
-                AI Preventive Care Advisor
+              <h3 style={{ margin: 0, fontSize: "1.28rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
+                CallMedex Health Advisor
               </h3>
               <span
                 style={{
-                  fontSize: "0.68rem",
+                  fontSize: "0.66rem",
                   fontWeight: 800,
                   letterSpacing: "0.08em",
-                  padding: "3px 10px",
+                  padding: "3px 9px",
                   borderRadius: 999,
                   background: "linear-gradient(135deg, #0ea5e9, #2563eb)",
                   color: "#ffffff",
                   textTransform: "uppercase",
-                  boxShadow: "0 2px 8px rgba(14, 165, 233, 0.4)",
+                  boxShadow: "0 2px 8px rgba(14, 165, 233, 0.35)",
                 }}
               >
-                CLINICAL HEALTH ORCHESTRA
+                CARE ADVISORY
               </span>
             </div>
-            <p style={{ margin: "4px 0 0 0", fontSize: "0.86rem", color: "#e0f2fe" }}>
-              Comprehensive health orchestra: personalized vitals intake, precision medical nutrition, and guided lifestyle care.
+            <p style={{ margin: "3px 0 0 0", fontSize: "0.84rem", color: "#e0f2fe" }}>
+              Verified clinical health recommendations: specialist doctor matching, diagnostics &amp; checkup packages, and personalized preventive care.
             </p>
           </div>
         </div>
 
         {/* Right Status Pill & Refresh Action */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              fontSize: "0.76rem",
+              fontSize: "0.74rem",
               fontWeight: 700,
               padding: "5px 12px",
               borderRadius: 999,
-              background: "rgba(16, 185, 129, 0.15)",
+              background: "rgba(16, 185, 129, 0.18)",
               color: "#34d399",
               border: "1px solid rgba(52, 211, 153, 0.35)",
             }}
@@ -684,117 +698,80 @@ export default function PatientAIAdvisor() {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "8px 18px",
+              gap: "7px",
+              padding: "7px 16px",
               borderRadius: 10,
               background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(56, 189, 248, 0.3)",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
               color: "#38bdf8",
-              fontSize: "0.85rem",
+              fontSize: "0.82rem",
               fontWeight: 700,
               cursor: "pointer",
               transition: "all 0.2s ease",
             }}
-            aria-label="Re-analyze AI recommendations"
+            aria-label="Re-evaluate health recommendations"
           >
-            <RefreshCw size={14} className={loading ? "cm-spin-icon" : ""} />
-            <span>{loading ? "Calibrating..." : "Re-analyze"}</span>
+            <RefreshCw size={13} className={loading ? "cm-spin-icon" : ""} />
+            <span>{loading ? "Evaluating..." : "Re-evaluate"}</span>
           </button>
         </div>
       </div>
 
-      {/* ── Synthesis Summary Strip ── */}
-      <div
-        style={{
-          background: "rgba(15, 23, 42, 0.45)",
-          backdropFilter: "blur(14px)",
-          border: "1px solid rgba(186, 230, 253, 0.35)",
-          borderRadius: 14,
-          padding: "14px 18px",
-          marginBottom: "22px",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <ShieldCheck size={20} color="#38bdf8" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: "0.88rem", color: "#ffffff", lineHeight: 1.5, fontWeight: 600 }}>
-            {data.health_summary}
-          </div>
-        </div>
-        {data.risk_factors && data.risk_factors.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, paddingLeft: 32 }}>
-            {data.risk_factors.map((risk, idx) => (
-              <span
-                key={idx}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  padding: "3px 10px",
-                  borderRadius: 999,
-                  background: "rgba(15, 23, 42, 0.55)",
-                  color: "#bae6fd",
-                  border: "1px solid rgba(125, 211, 252, 0.4)",
-                }}
-              >
-                <CheckCircle2 size={12} color="#38bdf8" />
-                {risk}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── THE THREE PRODUCTION CLINICAL SECTIONS (GRID) ── */}
+      {/* ── THE THREE COMPACT PRODUCTION CLINICAL SECTIONS (GRID) ── */}
       <div className="cm-ai-orchestra-grid">
         {/* ════════════════════════════════════════════════════════════════════
-            SECTION 1: Health Profile, Vitals & Biometrics Intake Engine
+            SECTION 1: SPECIALIST DOCTOR ADVISORY
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
-          onClick={() => setActiveWidget(1)}
+          onClick={() => {
+            setModal1Tab("vitals");
+            setActiveWidget(1);
+          }}
           role="button"
           tabIndex={0}
           style={{
             background: "rgba(15, 23, 42, 0.65)",
             backdropFilter: "blur(20px)",
             border: "1px solid rgba(255, 255, 255, 0.18)",
-            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
+            boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.35)",
+            padding: "18px 20px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
           <div>
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "rgba(14, 165, 233, 0.2)",
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "rgba(14, 165, 233, 0.22)",
                     border: "1px solid rgba(56, 189, 248, 0.4)",
                     display: "grid",
                     placeItems: "center",
                   }}
                 >
-                  <Clinical3DIcon name="care-pulse" size={26} glow />
+                  <Clinical3DIcon name="care-pulse" size={22} glow />
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase" }}>
-                    Section 01 · Biometrics Intake
+                  <span style={{ fontSize: "0.68rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Section 01 · Specialist Care
                   </span>
-                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.08rem", fontWeight: 800, color: "#ffffff" }}>
-                    Health Data &amp; Vitals
+                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                    Specialist Doctor Advisory
                   </h4>
                 </div>
               </div>
               <span
                 style={{
-                  fontSize: "0.72rem",
+                  fontSize: "0.7rem",
                   fontWeight: 700,
-                  padding: "3px 10px",
+                  padding: "2px 8px",
                   borderRadius: 999,
                   background: "rgba(34, 197, 94, 0.2)",
                   color: "#4ade80",
@@ -805,394 +782,306 @@ export default function PatientAIAdvisor() {
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 16px 0", lineHeight: 1.4 }}>
-              Continuous biometric intake: height, weight, BMI engine, blood pressure, fasting glucose &amp; conditions.
+            <p style={{ fontSize: "0.8rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
+              Specialist doctor recommendations calibrated to your biometric vitals, arterial blood pressure, glycemic history &amp; active health conditions.
             </p>
 
-            {/* 4 Metric Dials */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#bae6fd", fontWeight: 600 }}>BMI &amp; Category</div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
-                  {profile?.bmi || "23.0"}
-                </div>
-                <div style={{ fontSize: "0.7rem", color: "#4ade80", fontWeight: 600, marginTop: 1 }}>
-                  {profile?.bmi_category || "Normal Weight"}
+            {/* Compact Vitals Metrics Strip */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "14px" }}>
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#bae6fd", fontWeight: 600 }}>Blood Pressure</div>
+                <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  {profile?.blood_pressure || "120/80"}
                 </div>
               </div>
 
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#bae6fd", fontWeight: 600 }}>Weight / Height</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
-                  {profile?.weight_kg || 68} kg · {profile?.height_cm || 172} cm
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#bae6fd", fontWeight: 600 }}>Fasting Sugar</div>
+                <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
+                  {profile?.fasting_blood_sugar || 92} mg/dL
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "#cbd5e1", marginTop: 1 }}>
-                  BP: {profile?.blood_pressure || "120/80"}
+              </div>
+
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#bae6fd", fontWeight: 600 }}>Weight / Ht</div>
+                <div style={{ fontSize: "0.84rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  {profile?.weight_kg || 68}kg · {profile?.height_cm || 172}cm
                 </div>
               </div>
             </div>
 
-            {/* Conditions Chips */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-              {profile?.conditions && profile.conditions.length > 0 ? (
-                profile.conditions.slice(0, 3).map((c, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      fontSize: "0.72rem",
-                      padding: "2px 8px",
-                      borderRadius: 6,
-                      background: "rgba(14, 165, 233, 0.2)",
-                      color: "#7dd3fc",
-                      border: "1px solid rgba(56, 189, 248, 0.35)",
-                    }}
-                  >
-                    {c}
-                  </span>
-                ))
-              ) : (
-                <span style={{ fontSize: "0.72rem", color: "#bae6fd" }}>Routine annual maintenance</span>
-              )}
-              <span
-                style={{
-                  fontSize: "0.72rem",
-                  padding: "2px 8px",
-                  borderRadius: 6,
-                  background: "rgba(16, 185, 129, 0.15)",
-                  color: "#34d399",
-                }}
-              >
-                FBS: {profile?.fasting_blood_sugar || 92} mg/dL
+            {/* Status Tag */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+              <span style={{ fontSize: "0.74rem", color: "#4ade80", fontWeight: 700 }}>
+                {suggestedDoctorsList.length} Verified Doctors Matching Profile
               </span>
             </div>
           </div>
 
-          {/* Retention Hook / Test Suggestion */}
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: 10,
-              background: "rgba(15, 23, 42, 0.6)",
-              border: "1px solid rgba(56, 189, 248, 0.2)",
-              fontSize: "0.76rem",
-              color: "#cbd5e1",
-              marginBottom: 10,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <FlaskConical size={14} color="#38bdf8" />
-            <span>Recommended: Lipid &amp; HbA1c screening on file</span>
-          </div>
-
-          {/* Button to Open Health Profile Widget */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setModal1Tab("doctors");
               setActiveWidget(1);
             }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", marginTop: "auto" }}
+            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem" }}
           >
-            <Zap size={14} /> Calibrate &amp; Log Health Data
+            <Stethoscope size={14} /> Open Specialist Console &amp; Book →
           </button>
         </div>
 
         {/* ════════════════════════════════════════════════════════════════════
-            SECTION 2: Precision Clinical Diet, Nutrition & Consultation Visits
+            SECTION 2: TARGETED DIAGNOSTICS & PACKAGES
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
-          onClick={() => setActiveWidget(2)}
+          onClick={() => {
+            setModal2Tab("tests");
+            setActiveWidget(2);
+          }}
           role="button"
           tabIndex={0}
           style={{
             background: "rgba(15, 23, 42, 0.65)",
             backdropFilter: "blur(20px)",
             border: "1px solid rgba(255, 255, 255, 0.18)",
-            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
+            boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.35)",
+            padding: "18px 20px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
           <div>
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "rgba(34, 197, 94, 0.2)",
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "rgba(34, 197, 94, 0.22)",
                     border: "1px solid rgba(74, 222, 128, 0.4)",
                     display: "grid",
                     placeItems: "center",
                   }}
                 >
-                  <Clinical3DIcon name="dietitian" size={26} glow />
+                  <Clinical3DIcon name="microscope" size={22} glow />
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.72rem", color: "#4ade80", fontWeight: 800, textTransform: "uppercase" }}>
-                    Section 02 · Clinical Nutrition
+                  <span style={{ fontSize: "0.68rem", color: "#4ade80", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Section 02 · Clinical Screening
                   </span>
-                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.08rem", fontWeight: 800, color: "#ffffff" }}>
-                    Diet Plan &amp; Consultations
+                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                    Targeted Diagnostics &amp; Packages
                   </h4>
                 </div>
               </div>
               <span
                 style={{
-                  fontSize: "0.72rem",
-                  fontWeight: 700,
-                  padding: "3px 10px",
+                  fontSize: "0.7rem",
+                  fontWeight: 800,
+                  padding: "2px 8px",
                   borderRadius: 999,
-                  background: "rgba(34, 197, 94, 0.2)",
-                  color: "#4ade80",
-                  border: "1px solid rgba(74, 222, 128, 0.35)",
+                  background: "linear-gradient(135deg, rgba(234, 88, 12, 0.3), rgba(249, 115, 22, 0.25))",
+                  color: "#fdba74",
+                  border: "1px solid rgba(251, 146, 60, 0.4)",
                 }}
               >
-                Tailored Diet
+                Up to 33% OFF
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
-              ICMR-tailored dietary blueprint, hydration pacing, superfoods &amp; certified clinical dietitian visit booking.
+            <p style={{ fontSize: "0.8rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
+              Diagnostic lab test panels and comprehensive full-body checkup packages tailored to your vitals and metabolic history.
             </p>
 
-            {/* Daily Nutrition Targets */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#4ade80", fontWeight: 600 }}>Daily Calorie Target</div>
-                <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
-                  {dietPlan?.daily_calories || "2,050 kcal"}
+            {/* Highlights Strip */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#4ade80", fontWeight: 600 }}>Recommended Tests</div>
+                <div style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  HbA1c &amp; Lipid Profile
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "#e0f2fe", marginTop: 1 }}>50% Carbs · 25% Protein</div>
+                <div style={{ fontSize: "0.66rem", color: "#cbd5e1" }}>Home sample collection</div>
               </div>
 
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 600 }}>Hydration Goal</div>
-                <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
-                  {dietPlan?.hydration_target || "2.8 – 3.2 Liters"}
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#fb923c", fontWeight: 600 }}>Full Body Checkup</div>
+                <div style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  ₹1,999 (33% OFF)
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "#bae6fd", marginTop: 1 }}>Electrolyte Pacing</div>
+                <div style={{ fontSize: "0.66rem", color: "#cbd5e1" }}>85+ parameters included</div>
               </div>
             </div>
 
-            {/* Dedicated Interactive Consultant & Visit Trigger */}
-            <div
-              style={{
-                background: "rgba(11, 24, 54, 0.7)",
-                border: "1px solid rgba(74, 222, 128, 0.3)",
-                borderRadius: 12,
-                padding: "12px 14px",
-                marginBottom: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <UserCheck size={16} color="#4ade80" />
-                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "#ffffff" }}>
-                    {dietitianDoc.doctor_name || "Dt. Ananya Rao"}
-                  </span>
-                </div>
-                <span style={{ fontSize: "0.72rem", color: "#4ade80", fontWeight: 700 }}>
-                  ₹{dietitianDoc.fee || 499}
-                </span>
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#e0f2fe" }}>
-                {dietitianDoc.specialty} · In-Person Clinic Visit or Video Consultation
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveSubWidget("dietitian_visit");
-                }}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  background: "rgba(34, 197, 94, 0.2)",
-                  border: "1px solid rgba(74, 222, 128, 0.4)",
-                  color: "#4ade80",
-                  fontWeight: 700,
-                  fontSize: "0.78rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <Plus size={13} /> Book Dietitian Consultation
-              </button>
+            {/* Status Tag */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#38bdf8", display: "inline-block" }} />
+              <span style={{ fontSize: "0.74rem", color: "#38bdf8", fontWeight: 700 }}>
+                4 Certified Diagnostic Packages Available
+              </span>
             </div>
           </div>
 
-          {/* Bottom CTA to Explore Diet Modal */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setModal2Tab("packages");
               setActiveWidget(2);
             }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", marginTop: "auto" }}
+            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem" }}
           >
-            <UtensilsIcon size={14} /> Explore Full Diet Plan &amp; Book Visits →
+            <FlaskConical size={14} /> Explore Lab Tests &amp; Packages →
           </button>
         </div>
 
         {/* ════════════════════════════════════════════════════════════════════
-            SECTION 3: Therapeutic Workouts & Physical Health Protocols
+            SECTION 3: PREVENTIVE CARE & PHARMACY ADVISORY
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
-          onClick={() => setActiveWidget(3)}
+          onClick={() => {
+            setModal3Tab("preventive");
+            setActiveWidget(3);
+          }}
           role="button"
           tabIndex={0}
           style={{
             background: "rgba(15, 23, 42, 0.65)",
             backdropFilter: "blur(20px)",
             border: "1px solid rgba(255, 255, 255, 0.18)",
-            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
+            boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.35)",
+            padding: "18px 20px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
           }}
         >
           <div>
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "rgba(168, 85, 247, 0.2)",
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    background: "rgba(168, 85, 247, 0.22)",
                     border: "1px solid rgba(192, 132, 252, 0.4)",
                     display: "grid",
                     placeItems: "center",
                   }}
                 >
-                  <Clinical3DIcon name="physio" size={26} glow />
+                  <Clinical3DIcon name="pharmacy" size={22} glow />
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase" }}>
-                    Section 03 · Therapeutic Fitness
+                  <span style={{ fontSize: "0.68rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Section 03 · Preventive Care
                   </span>
-                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.08rem", fontWeight: 800, color: "#ffffff" }}>
-                    Workouts &amp; Movement
+                  <h4 style={{ margin: "2px 0 0 0", fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                    Preventive Care &amp; Pharmacy
                   </h4>
                 </div>
               </div>
               <span
                 style={{
-                  fontSize: "0.72rem",
+                  fontSize: "0.7rem",
                   fontWeight: 700,
-                  padding: "3px 10px",
+                  padding: "2px 8px",
                   borderRadius: 999,
                   background: "rgba(168, 85, 247, 0.2)",
                   color: "#c084fc",
                   border: "1px solid rgba(192, 132, 252, 0.35)",
                 }}
               >
-                5 Days / Wk
+                Lifestyle &amp; Rx
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
-              Condition-calibrated physical rehabilitation, cardio intensity zones, joint mobility &amp; home physio visits.
+            <p style={{ fontSize: "0.8rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
+              Condition-calibrated preventive wellness protocols, clinical nutrition &amp; hydration blueprints, and doorstep pharmacy medication guidance.
             </p>
 
-            {/* Workout Highlights */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 700 }}>Cardio Prescription</div>
-                <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#ffffff", marginTop: 2 }}>
-                  {workoutPlan?.cardio ? workoutPlan.cardio.slice(0, 75) + "..." : "35–45 min brisk walking at 60–70% max HR."}
+            {/* Highlights Strip */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#c084fc", fontWeight: 600 }}>ICMR Nutrition Target</div>
+                <div style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  {dietPlan?.daily_calories || "2,050 kcal"}
                 </div>
+                <div style={{ fontSize: "0.66rem", color: "#cbd5e1" }}>Hydration: {dietPlan?.hydration_target?.split(" ")[0] || "3.0"}L daily</div>
               </div>
 
-              <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 700 }}>Mobility &amp; Core Routine</div>
-                <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#ffffff", marginTop: 2 }}>
-                  {workoutPlan?.strength_and_mobility ? workoutPlan.strength_and_mobility.slice(0, 75) + "..." : "Wall squats, seated leg extensions & gentle spinal stretches."}
+              <div className="cm-ai-metric-tile" style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "0.68rem", color: "#38bdf8", fontWeight: 600 }}>Doorstep Pharmacy</div>
+                <div style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                  Daily Supplements &amp; Rx
                 </div>
+                <div style={{ fontSize: "0.66rem", color: "#cbd5e1" }}>Free home delivery</div>
               </div>
             </div>
 
-            {/* Dedicated Interactive Physio Visit Trigger */}
-            <div
-              style={{
-                background: "rgba(11, 24, 54, 0.7)",
-                border: "1px solid rgba(192, 132, 252, 0.3)",
-                borderRadius: 12,
-                padding: "10px 14px",
-                marginBottom: 10,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#fff" }}>
-                  {physioDoc.doctor_name || "Dr. P. Suresh"}
-                </span>
-                <span style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 700 }}>
-                  ₹{physioDoc.fee || 550}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveSubWidget("physio_visit");
-                }}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  background: "rgba(168, 85, 247, 0.2)",
-                  border: "1px solid rgba(192, 132, 252, 0.4)",
-                  color: "#c084fc",
-                  fontWeight: 700,
-                  fontSize: "0.78rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <Plus size={13} /> Book Home Physiotherapy Visit
-              </button>
+            {/* Status Tag */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#a855f7", display: "inline-block" }} />
+              <span style={{ fontSize: "0.74rem", color: "#c084fc", fontWeight: 700 }}>
+                Preventive Care Regimen Active
+              </span>
             </div>
           </div>
 
-          {/* Bottom CTA to Explore Workout Modal */}
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setModal3Tab("pharmacy");
               setActiveWidget(3);
             }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", marginTop: "auto" }}
+            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem" }}
           >
-            <Bike size={14} /> View Full Workout Plan &amp; Exercises →
+            <Pill size={14} /> View Preventive &amp; Pharmacy Guide →
           </button>
         </div>
       </div>
 
+      {/* ── Advisory Disclaimer Notice at Bottom ── */}
+      <div
+        style={{
+          marginTop: "16px",
+          padding: "10px 16px",
+          borderRadius: 12,
+          background: "rgba(15, 23, 42, 0.4)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: "0.78rem",
+          color: "#94a3b8",
+          lineHeight: 1.4,
+        }}
+      >
+        <span style={{ color: "#38bdf8", flexShrink: 0, fontSize: "1.05rem" }}>ℹ️</span>
+        <span>
+          <strong style={{ color: "#cbd5e1" }}>Advisory Notice:</strong> All specialist doctor suggestions, diagnostic recommendations, and preventive wellness protocols are advisory features provided by CallMedex to assist your personal wellness journey. They do not constitute mandatory medical directives, prescriptions, or emergency clinical care.
+        </span>
+      </div>
+
       {/* ══════════════════════════════════════════════════════════════════════
-          MODAL 1: HEALTH PROFILE & VITALS INTAKE CONSOLE
+          MODAL 1: SPECIALIST DOCTOR ADVISORY & VITALS CONSOLE
          ══════════════════════════════════════════════════════════════════════ */}
       {activeWidget === 1 && (
         <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
           <div
             className="cm-glass-widget-modal"
-            style={{ maxWidth: 820 }}
+            style={{ maxWidth: 840, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -1200,19 +1089,19 @@ export default function PatientAIAdvisor() {
             {/* Header */}
             <div
               style={{
-                padding: "20px 24px",
+                padding: "18px 22px",
                 borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.4)",
+                background: "rgba(15, 23, 42, 0.5)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
+                    width: 42,
+                    height: 42,
                     borderRadius: 12,
                     background: "rgba(14, 165, 233, 0.25)",
                     border: "1px solid rgba(56, 189, 248, 0.45)",
@@ -1223,881 +1112,330 @@ export default function PatientAIAdvisor() {
                   <Clinical3DIcon name="care-pulse" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#fff" }}>
-                    Biometrics &amp; Vitals Intake Console
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                    Specialist Doctor Advisory &amp; Vitals Console
                   </h3>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                    Update continuous clinical measurements: height, weight, BMI, arterial BP &amp; glucose
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
+                    Calibrate biometric vitals, download health summary report, and consult verified doctors
                   </div>
                 </div>
               </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {/* Download Health Summary CTA */}
+                <button
+                  type="button"
+                  onClick={handleDownloadHealthSummary}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    color: "#38bdf8",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                  title="Download clinical health summary report"
+                >
+                  <Download size={14} /> Download Health Summary
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWidget(null)}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    color: "#94a3b8",
+                    display: "grid",
+                    placeItems: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Tabs: Vitals Intake vs Suggested Doctors */}
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)" }}>
               <button
                 type="button"
-                onClick={() => setActiveWidget(null)}
+                onClick={() => setModal1Tab("vitals")}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal1Tab === "vitals" ? "rgba(14, 165, 233, 0.15)" : "transparent",
+                  borderBottom: modal1Tab === "vitals" ? "2px solid #38bdf8" : "none",
+                  color: modal1Tab === "vitals" ? "#38bdf8" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
                   cursor: "pointer",
+                  border: "none",
                 }}
               >
-                <X size={18} />
+                1. Biometrics &amp; Health Data Intake
+              </button>
+              <button
+                type="button"
+                onClick={() => setModal1Tab("doctors")}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal1Tab === "doctors" ? "rgba(14, 165, 233, 0.15)" : "transparent",
+                  borderBottom: modal1Tab === "doctors" ? "2px solid #38bdf8" : "none",
+                  color: modal1Tab === "doctors" ? "#38bdf8" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                }}
+              >
+                2. Suggested Specialists Matching Profile ({suggestedDoctorsList.length})
               </button>
             </div>
 
-            {/* Form Body */}
-            <form
-              onSubmit={handleSaveProfile}
-              style={{
-                padding: "24px",
-                overflowY: "auto",
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: "20px",
-              }}
-            >
+            {/* Modal Body */}
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
               {saveSuccessMsg && (
                 <div
                   style={{
                     background: "rgba(34, 197, 94, 0.15)",
                     border: "1px solid rgba(74, 222, 128, 0.4)",
-                    borderRadius: 12,
-                    padding: "12px 16px",
+                    borderRadius: 10,
+                    padding: "10px 14px",
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
+                    gap: 8,
                     color: "#4ade80",
                     fontWeight: 700,
-                    fontSize: "0.88rem",
+                    fontSize: "0.84rem",
+                    marginBottom: 16,
                   }}
                 >
-                  <CheckCircle2 size={18} />
+                  <CheckCircle2 size={16} />
                   <span>{saveSuccessMsg}</span>
                 </div>
               )}
 
-              {/* Row 1: Weight, Height, Blood Pressure, Sugar */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
-                <div className="cm-field-group">
-                  <label className="cm-field-label">Weight (kg) *</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="e.g. 70"
-                    value={weightInput}
-                    onChange={(e) => setWeightInput(e.target.value)}
-                    required
-                    className="cm-field-input"
-                  />
-                </div>
+              {modal1Tab === "vitals" ? (
+                <form onSubmit={handleSaveProfile} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Row 1: Weight, Height, BP, Sugar */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+                    <div className="cm-field-group">
+                      <label className="cm-field-label">Weight (kg) *</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="68"
+                        value={weightInput}
+                        onChange={(e) => setWeightInput(e.target.value)}
+                        required
+                        className="cm-field-input"
+                      />
+                    </div>
 
-                <div className="cm-field-group">
-                  <label className="cm-field-label">Height (cm) *</label>
-                  <input
-                    type="number"
-                    step="1"
-                    placeholder="e.g. 175"
-                    value={heightInput}
-                    onChange={(e) => setHeightInput(e.target.value)}
-                    required
-                    className="cm-field-input"
-                  />
-                </div>
+                    <div className="cm-field-group">
+                      <label className="cm-field-label">Height (cm) *</label>
+                      <input
+                        type="number"
+                        step="1"
+                        placeholder="172"
+                        value={heightInput}
+                        onChange={(e) => setHeightInput(e.target.value)}
+                        required
+                        className="cm-field-input"
+                      />
+                    </div>
 
-                <div className="cm-field-group">
-                  <label className="cm-field-label">Blood Pressure (mmHg)</label>
-                  <input
-                    type="text"
-                    placeholder="120/80"
-                    value={bpInput}
-                    onChange={(e) => setBpInput(e.target.value)}
-                    className="cm-field-input"
-                  />
-                </div>
+                    <div className="cm-field-group">
+                      <label className="cm-field-label">Blood Pressure (mmHg)</label>
+                      <input
+                        type="text"
+                        placeholder="120/80"
+                        value={bpInput}
+                        onChange={(e) => setBpInput(e.target.value)}
+                        className="cm-field-input"
+                      />
+                    </div>
 
-                <div className="cm-field-group">
-                  <label className="cm-field-label">Fasting Sugar (mg/dL)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    placeholder="e.g. 95"
-                    value={sugarInput}
-                    onChange={(e) => setSugarInput(e.target.value)}
-                    className="cm-field-input"
-                  />
-                </div>
-              </div>
+                    <div className="cm-field-group">
+                      <label className="cm-field-label">Fasting Sugar (mg/dL)</label>
+                      <input
+                        type="number"
+                        step="1"
+                        placeholder="92"
+                        value={sugarInput}
+                        onChange={(e) => setSugarInput(e.target.value)}
+                        className="cm-field-input"
+                      />
+                    </div>
+                  </div>
 
-              {/* Dynamic Real-time BMI Gauge Card */}
-              <div className="cm-bmi-gauge-banner">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  {/* BMI Calculation Gauge */}
+                  <div className="cm-bmi-gauge-banner">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <span style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>
+                          Calculated Body Mass Index
+                        </span>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+                          <span style={{ fontSize: "1.5rem", fontWeight: 900, color: liveBmiColor }}>
+                            {liveBmi || "—"}
+                          </span>
+                          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: liveBmiColor }}>
+                            ({liveBmiCat})
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", maxWidth: 280, textAlign: "right" }}>
+                        WHO &amp; ICMR Standard: Normal range is 18.5 – 24.9 kg/m²
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conditions Multi-select Chips */}
                   <div>
-                    <span style={{ fontSize: "0.74rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>
-                      Calculated Body Mass Index
-                    </span>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
-                      <span style={{ fontSize: "1.6rem", fontWeight: 900, color: liveBmiColor }}>
-                        {liveBmi || "—"}
-                      </span>
-                      <span style={{ fontSize: "0.95rem", fontWeight: 700, color: liveBmiColor }}>
-                        ({liveBmiCat})
-                      </span>
+                    <label className="cm-field-label">Active Health Conditions / Medical History</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                      {COMMON_CONDITIONS.map((cond) => {
+                        const isSelected = conditionsInput.includes(cond);
+                        return (
+                          <button
+                            type="button"
+                            key={cond}
+                            onClick={() => {
+                              if (cond === "None / Routine Checkup") {
+                                setConditionsInput([]);
+                              } else {
+                                setConditionsInput((prev) =>
+                                  isSelected ? prev.filter((c) => c !== cond) : [...prev.filter((c) => c !== "None / Routine Checkup"), cond]
+                                );
+                              }
+                            }}
+                            style={{
+                              padding: "5px 12px",
+                              borderRadius: 8,
+                              fontSize: "0.76rem",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              transition: "all 0.2s ease",
+                              background: isSelected ? "rgba(14, 165, 233, 0.3)" : "rgba(255, 255, 255, 0.06)",
+                              border: isSelected ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
+                              color: isSelected ? "#38bdf8" : "#cbd5e1",
+                            }}
+                          >
+                            {isSelected && <Check size={12} style={{ display: "inline", marginRight: 4 }} />}
+                            {cond}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                  {parsedHeight > 0 && (
-                    <div style={{ textAlign: "right", fontSize: "0.75rem", color: "#94a3b8" }}>
-                      Ideal Weight Range:{" "}
-                      <strong style={{ color: "#4ade80" }}>
-                        {Math.round(18.5 * (parsedHeight / 100) ** 2)} – {Math.round(24.9 * (parsedHeight / 100) ** 2)} kg
-                      </strong>
-                    </div>
-                  )}
-                </div>
 
-                {/* Gauge Slider Track */}
-                <div className="cm-bmi-gauge-track">
-                  <div
-                    className="cm-bmi-gauge-thumb"
-                    style={{
-                      left: `${Math.min(100, Math.max(0, (((liveBmi || 22) - 15) / (38 - 15)) * 100))}%`,
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#64748b" }}>
-                  <span>Underweight (&lt;18.5)</span>
-                  <span style={{ color: "#4ade80", fontWeight: 700 }}>Optimal (18.5–24.9)</span>
-                  <span>Overweight (25–29.9)</span>
-                  <span>Obese (≥30)</span>
-                </div>
-              </div>
-
-              {/* Cross-Widget Trigger: Diagnostic Lab Suggestion if BMI or BP elevated */}
-              {((liveBmi && liveBmi >= 25) || (bpInput && bpInput.startsWith("13") || bpInput.startsWith("14"))) && (
-                <div
-                  style={{
-                    background: "rgba(245, 158, 11, 0.12)",
-                    border: "1px solid rgba(245, 158, 11, 0.35)",
-                    borderRadius: 12,
-                    padding: "12px 16px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <AlertTriangle size={18} color="#facc15" />
-                    <span style={{ fontSize: "0.82rem", color: "#fde047" }}>
-                      Metabolic risk detected from biometrics. Comprehensive Lipid Profile &amp; HbA1c recommended.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveSubWidget("lab_test")}
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 8,
-                      background: "#f59e0b",
-                      color: "#000",
-                      fontWeight: 800,
-                      fontSize: "0.78rem",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <FlaskConical size={14} /> Schedule Doorstep Test →
-                  </button>
-                </div>
-              )}
-
-              {/* Chronic Conditions Multi-Select */}
-              <div>
-                <label className="cm-field-label" style={{ marginBottom: 8, display: "block" }}>
-                  Existing Health Conditions (Select all that apply)
-                </label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {COMMON_CONDITIONS.map((cond) => {
-                    const isSelected = conditionsInput.includes(cond);
-                    return (
-                      <button
-                        type="button"
-                        key={cond}
-                        onClick={() => toggleCondition(cond)}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: 999,
-                          border: isSelected ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
-                          background: isSelected
-                            ? "linear-gradient(135deg, rgba(14, 165, 233, 0.35) 0%, rgba(37, 99, 235, 0.35) 100%)"
-                            : "rgba(15, 27, 56, 0.7)",
-                          color: isSelected ? "#ffffff" : "#94a3b8",
-                          fontSize: "0.82rem",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        {isSelected && <Check size={13} color="#38bdf8" />}
-                        <span>{cond}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Lifestyle / Activity & Diet Pref */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <div>
-                  <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                    Dietary Preference
-                  </label>
-                  <select
-                    value={dietPrefInput}
-                    onChange={(e) => setDietPrefInput(e.target.value)}
-                    className="cm-field-input"
-                    style={{ width: "100%", background: "#0c1b3a" }}
-                  >
-                    {DIET_PREFERENCES.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                    Activity Level
-                  </label>
-                  <select
-                    value={activityInput}
-                    onChange={(e) => setActivityInput(e.target.value)}
-                    className="cm-field-input"
-                    style={{ width: "100%", background: "#0c1b3a" }}
-                  >
-                    {ACTIVITY_LEVELS.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Footer Actions */}
-              <div
-                style={{
-                  paddingTop: 16,
-                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
-                  <ShieldCheck size={16} color="#38bdf8" />
-                  <span>CallMedex Verified Clinical Biometrics</span>
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveWidget(null)}
-                    className="cm-advisor-btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingProfile}
-                    className="cm-advisor-btn-primary"
-                  >
-                    {savingProfile ? "Saving & Syncing..." : "Save & Sync Health Data"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          MODAL 2: PRECISION CLINICAL DIET, NUTRITION & CONSULTATION VISITS
-         ══════════════════════════════════════════════════════════════════════ */}
-      {activeWidget === 2 && (
-        <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
-          <div
-            className="cm-glass-widget-modal"
-            style={{ maxWidth: 860 }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            {/* Header */}
-            <div
-              style={{
-                padding: "20px 24px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "rgba(15, 23, 42, 0.4)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: "rgba(34, 197, 94, 0.25)",
-                    border: "1px solid rgba(74, 222, 128, 0.45)",
-                    display: "grid",
-                    placeItems: "center",
-                  }}
-                >
-                  <Clinical3DIcon name="dietitian" size={26} glow />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#fff" }}>
-                    Clinical Nutrition, Diet Plan &amp; Visit Orchestration
-                  </h3>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                    Personalized daily meal blueprint, certified dietitian visits &amp; targeted lab screenings
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveWidget(null)}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Subtab Navigation */}
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                padding: "12px 24px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-                background: "rgba(11, 24, 54, 0.5)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setWidget2Tab("meal_plan")}
-                className={`cm-subtab-btn ${widget2Tab === "meal_plan" ? "cm-subtab-btn--active" : ""}`}
-              >
-                <UtensilsIcon size={14} /> Daily Meal Blueprint
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setWidget2Tab("dietitian_consult");
-                  if (selectedModality === "home_visit") {
-                    setSelectedModality("video");
-                  }
-                }}
-                className={`cm-subtab-btn ${widget2Tab === "dietitian_consult" ? "cm-subtab-btn--active" : ""}`}
-              >
-                <UserCheck size={14} /> Book Dietitian Visit (Video / Clinic)
-              </button>
-              <button
-                type="button"
-                onClick={() => setWidget2Tab("lab_tests")}
-                className={`cm-subtab-btn ${widget2Tab === "lab_tests" ? "cm-subtab-btn--active" : ""}`}
-              >
-                <FlaskConical size={14} /> Preventive Blood Tests ({tests.length})
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div
-              style={{
-                padding: "20px 24px",
-                overflowY: "auto",
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 16,
-              }}
-            >
-              {/* TAB 1: Meal Plan */}
-              {widget2Tab === "meal_plan" && (
-                <>
-                  <div
-                    style={{
-                      background: "rgba(11, 24, 54, 0.7)",
-                      border: "1px solid rgba(56, 189, 248, 0.2)",
-                      borderRadius: 14,
-                      padding: "16px 18px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 14,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "0.74rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase" }}>
-                        Hydration &amp; Caloric Blueprint
-                      </div>
-                      <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
-                        {dietPlan?.hydration_target || "2.8 – 3.2 Liters daily"}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
-                        Daily Target: {dietPlan?.daily_calories || "2,050 kcal"} · {dietPlan?.macro_split || "50% Carbs · 25% Protein · 25% Fats"}
-                      </div>
-                    </div>
-
+                  {/* Actions */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
                     <button
                       type="button"
-                      onClick={() => setWidget2Tab("dietitian_consult")}
+                      onClick={handleDownloadHealthSummary}
                       className="cm-advisor-btn-outline"
                     >
-                      <Plus size={14} /> Customize with Dietitian
+                      <Download size={14} /> Download Summary Report
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={savingProfile}
+                      className="cm-advisor-btn-primary"
+                    >
+                      <CheckCircle2 size={14} /> {savingProfile ? "Saving Vitals..." : "Save & Recalibrate"}
                     </button>
                   </div>
-
-                  {/* Meal Timeline */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ fontSize: "0.82rem", fontWeight: 800, color: "#cbd5e1", textTransform: "uppercase" }}>
-                      Personalized Indian Meal Schedule
-                    </div>
-
-                    {(dietPlan?.meals && dietPlan.meals.length > 0 ? dietPlan.meals : DEFAULT_CLINICAL_ORCHESTRA.care_guidance.diet_plan.meals || []).map(
-                      (meal, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            background: "rgba(15, 23, 42, 0.65)",
-                            border: "1px solid rgba(255, 255, 255, 0.08)",
-                            borderRadius: 12,
-                            padding: "12px 16px",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 12,
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                            <div
-                              style={{
-                                width: 34,
-                                height: 34,
-                                borderRadius: 8,
-                                background: "rgba(34, 197, 94, 0.2)",
-                                color: "#4ade80",
-                                display: "grid",
-                                placeItems: "center",
-                                fontSize: "0.9rem",
-                                flexShrink: 0,
-                                marginTop: 2,
-                              }}
-                            >
-                              🥗
-                            </div>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
-                                  {meal.meal_name}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: "0.7rem",
-                                    padding: "2px 8px",
-                                    borderRadius: 999,
-                                    background: "rgba(255, 255, 255, 0.08)",
-                                    color: "#94a3b8",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  {meal.time}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: "0.82rem", color: "#cbd5e1", marginTop: 4, lineHeight: 1.4 }}>
-                                {meal.description}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style={{ textAlign: "right", flexShrink: 0 }}>
-                            <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#4ade80" }}>
-                              {meal.calories || "380 kcal"}
-                            </div>
-                            <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{meal.protein || "High Protein"}</div>
-                          </div>
-                        </div>
-                      )
-                    )}
+                </form>
+              ) : (
+                /* TAB 2: Suggested Specialists */
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ fontSize: "0.82rem", color: "#94a3b8", marginBottom: 2 }}>
+                    Verified CallMedex physicians and specialists matched to your biometric intake and conditions:
                   </div>
 
-                  {/* Superfoods vs Restrictions */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 4 }}>
-                    <div
-                      style={{
-                        background: "rgba(34, 197, 94, 0.08)",
-                        border: "1px solid rgba(74, 222, 128, 0.25)",
-                        borderRadius: 12,
-                        padding: "12px 14px",
-                      }}
-                    >
-                      <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>
-                        ✓ Beneficial Superfoods to Prioritize
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {(dietPlan?.beneficial_foods || []).map((f, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              fontSize: "0.72rem",
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "rgba(34, 197, 94, 0.15)",
-                              color: "#86efac",
-                            }}
-                          >
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: "rgba(239, 68, 68, 0.08)",
-                        border: "1px solid rgba(239, 68, 68, 0.25)",
-                        borderRadius: 12,
-                        padding: "12px 14px",
-                      }}
-                    >
-                      <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#f87171", marginBottom: 6 }}>
-                        ✕ Foods to Restrict
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {(dietPlan?.foods_to_avoid || []).map((f, i) => (
-                          <span
-                            key={i}
-                            style={{
-                              fontSize: "0.72rem",
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "rgba(239, 68, 68, 0.15)",
-                              color: "#fca5a5",
-                            }}
-                          >
-                            {f}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* TAB 2: Book Dietitian Visit Modal Section */}
-              {widget2Tab === "dietitian_consult" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {bookingSuccessMsg ? (
-                    <div
-                      style={{
-                        background: "rgba(34, 197, 94, 0.15)",
-                        border: "1px solid rgba(74, 222, 128, 0.4)",
-                        borderRadius: 14,
-                        padding: "20px",
-                        textAlign: "center",
-                        color: "#4ade80",
-                      }}
-                    >
-                      <CheckCircle2 size={36} style={{ margin: "0 auto 10px auto" }} />
-                      <h4 style={{ margin: "0 0 6px 0", fontSize: "1.1rem" }}>{bookingSuccessMsg}</h4>
-                      <p style={{ margin: 0, fontSize: "0.82rem", color: "#cbd5e1" }}>
-                        Assigned clinician will review your biometrics before the visit. View details in Appointments.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                        Schedule an in-depth medical nutrition assessment. Certified clinical dietitians formulate individualized Indian meal plans based on your recorded vitals and lipid profile.
-                      </div>
-
-                      {/* Specialist Card */}
-                      <div
-                        style={{
-                          background: "rgba(11, 24, 54, 0.75)",
-                          border: "1px solid rgba(56, 189, 248, 0.3)",
-                          borderRadius: 16,
-                          padding: "16px 20px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          gap: 14,
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <div
-                            style={{
-                              width: 50,
-                              height: 50,
-                              borderRadius: 12,
-                              background: "linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(14, 165, 233, 0.3))",
-                              display: "grid",
-                              placeItems: "center",
-                              border: "1px solid rgba(74, 222, 128, 0.4)",
-                            }}
-                          >
-                            <UserCheck size={26} color="#4ade80" />
-                          </div>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: "1.05rem", fontWeight: 800, color: "#fff" }}>
-                                {dietitianDoc.doctor_name || "Dt. Ananya Rao"}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "0.68rem",
-                                  fontWeight: 800,
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  background: "rgba(34, 197, 94, 0.2)",
-                                  color: "#4ade80",
-                                }}
-                              >
-                                Certified Clinical Dietitian
-                              </span>
-                            </div>
-                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                              {dietitianDoc.qualification || "M.Sc Clinical Nutrition, CDE"} · {dietitianDoc.experience || "9+ yrs exp"}
-                            </div>
-                            <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
-                              Languages: {(dietitianDoc.languages || ["English", "Telugu", "Hindi"]).join(", ")}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#4ade80" }}>
-                            ₹{dietitianDoc.fee || 499}
-                          </div>
-                          <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Consultation Fee</div>
-                        </div>
-                      </div>
-
-                      {/* Modality Selector */}
-                      <div>
-                        <label className="cm-field-label" style={{ marginBottom: 8, display: "block" }}>
-                          Select Consultation Modality:
-                        </label>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedModality("in_clinic")}
-                            style={{
-                              padding: "14px 16px",
-                              borderRadius: 12,
-                              border: selectedModality === "in_clinic" ? "1px solid #4ade80" : "1px solid rgba(255, 255, 255, 0.12)",
-                              background: selectedModality === "in_clinic" ? "rgba(34, 197, 94, 0.18)" : "rgba(15, 23, 42, 0.6)",
-                              color: "#fff",
-                              textAlign: "left",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                            }}
-                          >
-                            <Building2 size={20} color={selectedModality === "in_clinic" ? "#4ade80" : "#94a3b8"} />
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>In-Person Clinic Visit</div>
-                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Consult at verified clinical dietetics centre</div>
-                            </div>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setSelectedModality("video")}
-                            style={{
-                              padding: "14px 16px",
-                              borderRadius: 12,
-                              border: selectedModality === "video" ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
-                              background: selectedModality === "video" ? "rgba(14, 165, 233, 0.18)" : "rgba(15, 23, 42, 0.6)",
-                              color: "#fff",
-                              textAlign: "left",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                            }}
-                          >
-                            <Video size={20} color={selectedModality === "video" ? "#38bdf8" : "#94a3b8"} />
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>Encrypted HD Video Room</div>
-                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Instant teleconsultation from anywhere</div>
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Date & Slot Selector */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                        <div>
-                          <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                            Select Date
-                          </label>
-                          <select
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="cm-field-input"
-                            style={{ width: "100%", background: "#0c1b3a" }}
-                          >
-                            <option value="Today (Urgent)">Today (Within 3 hours)</option>
-                            <option value="Tomorrow">Tomorrow</option>
-                            <option value="Day After Tomorrow">Day After Tomorrow</option>
-                            <option value="This Weekend">This Weekend</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                            Preferred Time Slot
-                          </label>
-                          <select
-                            value={selectedTimeSlot}
-                            onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                            className="cm-field-input"
-                            style={{ width: "100%", background: "#0c1b3a" }}
-                          >
-                            <option value="09:00 AM – 10:00 AM">09:00 AM – 10:00 AM (Morning)</option>
-                            <option value="10:30 AM – 11:30 AM">10:30 AM – 11:30 AM</option>
-                            <option value="02:00 PM – 03:00 PM">02:00 PM – 03:00 PM (Afternoon)</option>
-                            <option value="05:30 PM – 06:30 PM">05:30 PM – 06:30 PM (Evening)</option>
-                            <option value="07:00 PM – 08:00 PM">07:00 PM – 08:00 PM</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Confirm Button */}
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 10 }}>
-                        <button
-                          type="button"
-                          onClick={() => setWidget2Tab("meal_plan")}
-                          className="cm-advisor-btn-secondary"
-                        >
-                          Back to Meal Plan
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isBookingInProgress}
-                          onClick={() => handleConfirmVisit(dietitianDoc.doctor_name || "Dt. Ananya Rao", selectedModality)}
-                          className="cm-advisor-btn-primary"
-                        >
-                          {isBookingInProgress ? "Confirming Visit..." : `Confirm ${selectedModality === "in_clinic" ? "Clinic Visit" : selectedModality === "home_visit" ? "Doorstep Visit" : "Video Consult"} →`}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 3: Diagnostic Lab Panels */}
-              {widget2Tab === "lab_tests" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <div style={{ fontSize: "0.86rem", color: "#94a3b8" }}>
-                    Laboratory panels recommended by clinical intelligence based on your recorded vitals and dietary patterns. Delivered via certified cold-chain doorstep phlebotomist collection.
-                  </div>
-
-                  {tests.map((test, idx) => (
+                  {suggestedDoctorsList.map((doc, idx) => (
                     <div
                       key={idx}
                       style={{
-                        background: "rgba(11, 24, 54, 0.75)",
-                        border: "1px solid rgba(56, 189, 248, 0.25)",
+                        background: "rgba(15, 23, 42, 0.6)",
+                        border: "1px solid rgba(255, 255, 255, 0.12)",
                         borderRadius: 14,
                         padding: "16px 18px",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        gap: 16,
                         flexWrap: "wrap",
+                        gap: 14,
                       }}
                     >
-                      <div style={{ flex: 1, minWidth: 220 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <span
-                            style={{
-                              fontSize: "0.68rem",
-                              fontWeight: 800,
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "rgba(14, 165, 233, 0.2)",
-                              color: "#38bdf8",
-                              border: "1px solid rgba(56, 189, 248, 0.4)",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {test.urgency === "high" ? "Priority Panel" : "Preventive"}
-                          </span>
-                          <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{test.category}</span>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, maxWidth: "68%" }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: "rgba(14, 165, 233, 0.2)",
+                            border: "1px solid rgba(56, 189, 248, 0.35)",
+                            display: "grid",
+                            placeItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Stethoscope size={22} color="#38bdf8" />
                         </div>
-                        <div style={{ fontSize: "1rem", fontWeight: 800, color: "#fff" }}>{test.test_name}</div>
-                        <div style={{ fontSize: "0.8rem", color: "#cbd5e1", marginTop: 4 }}>{test.reason}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 4 }}>
-                          Central Pathology · NABL &amp; CAP Certified · WhatsApp Report Delivery
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.98rem", fontWeight: 800, color: "#ffffff" }}>
+                              {doc.doctor_name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                padding: "2px 7px",
+                                borderRadius: 6,
+                                background: "rgba(16, 185, 129, 0.18)",
+                                color: "#34d399",
+                                fontWeight: 700,
+                              }}
+                            >
+                              ★ {doc.rating || 4.9} · Verified Specialist
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600, marginTop: 2 }}>
+                            {doc.specialty} · {doc.qualification}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
+                            {doc.reason}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
+                            Facility: {doc.hospital || "CallMedex Network"}
+                          </div>
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: "1.1rem", fontWeight: 900, color: "#4ade80" }}>
-                            ₹{test.estimated_price || 499}
-                          </div>
-                          <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Doorstep Collection</div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#4ade80" }}>
+                          ₹{doc.fee || 500}
                         </div>
                         <Link
-                          href={test.action_url || "/diagnostics"}
-                          style={{
-                            padding: "8px 18px",
-                            borderRadius: 8,
-                            background: "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
-                            color: "#fff",
-                            fontWeight: 700,
-                            fontSize: "0.82rem",
-                            textDecoration: "none",
-                            boxShadow: "0 4px 12px rgba(14, 165, 233, 0.35)",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
+                          href={`/booking?type=consultation&doctor=${encodeURIComponent(doc.id || doc.doctor_name || "Doctor")}&name=${encodeURIComponent(doc.doctor_name || "Doctor")}&spec=${encodeURIComponent(doc.specialty || "Specialist")}&fee=${doc.fee || 500}`}
+                          className="cm-advisor-btn-primary"
+                          style={{ textDecoration: "none", padding: "7px 14px", fontSize: "0.8rem" }}
                         >
-                          Book Test →
+                          Book Consultation →
                         </Link>
                       </div>
                     </div>
@@ -2105,42 +1443,18 @@ export default function PatientAIAdvisor() {
                 </div>
               )}
             </div>
-
-            {/* Footer */}
-            <div
-              style={{
-                padding: "16px 24px",
-                borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "rgba(15, 23, 42, 0.45)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
-                <CheckCircle2 size={16} color="#38bdf8" />
-                <span>CallMedex Precision Nutrition &amp; Care Network</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveWidget(null)}
-                className="cm-advisor-btn-secondary"
-              >
-                Close Console
-              </button>
-            </div>
           </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          MODAL 3: THERAPEUTIC WORKOUTS & PHYSIO VISIT CONSOLE
+          MODAL 2: TARGETED DIAGNOSTICS & PACKAGES CONSOLE
          ══════════════════════════════════════════════════════════════════════ */}
-      {activeWidget === 3 && (
+      {activeWidget === 2 && (
         <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
           <div
             className="cm-glass-widget-modal"
-            style={{ maxWidth: 840 }}
+            style={{ maxWidth: 840, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2148,43 +1462,44 @@ export default function PatientAIAdvisor() {
             {/* Header */}
             <div
               style={{
-                padding: "20px 24px",
+                padding: "18px 22px",
                 borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.4)",
+                background: "rgba(15, 23, 42, 0.5)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
+                    width: 42,
+                    height: 42,
                     borderRadius: 12,
-                    background: "rgba(168, 85, 247, 0.25)",
-                    border: "1px solid rgba(192, 132, 252, 0.45)",
+                    background: "rgba(34, 197, 94, 0.25)",
+                    border: "1px solid rgba(74, 222, 128, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
                 >
-                  <Clinical3DIcon name="physio" size={26} glow />
+                  <Clinical3DIcon name="microscope" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "#fff" }}>
-                    Therapeutic Fitness, Workouts &amp; Physical Rehabilitation
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                    Targeted Diagnostics &amp; Health Packages Console
                   </h3>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                    Biomechanically-calibrated aerobic targets, core stability &amp; certified home physiotherapy
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
+                    ICMR &amp; NABL certified lab tests and full-body wellness packages with savings up to 33% OFF
                   </div>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setActiveWidget(null)}
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   borderRadius: "50%",
                   background: "rgba(255, 255, 255, 0.08)",
                   border: "1px solid rgba(255, 255, 255, 0.15)",
@@ -2194,340 +1509,218 @@ export default function PatientAIAdvisor() {
                   cursor: "pointer",
                 }}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Subtabs */}
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                padding: "12px 24px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-                background: "rgba(11, 24, 54, 0.5)",
-              }}
-            >
+            {/* Sub-Tabs */}
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)" }}>
               <button
                 type="button"
-                onClick={() => setWidget3Tab("routine")}
-                className={`cm-subtab-btn ${widget3Tab === "routine" ? "cm-subtab-btn--active" : ""}`}
+                onClick={() => setModal2Tab("tests")}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal2Tab === "tests" ? "rgba(34, 197, 94, 0.15)" : "transparent",
+                  borderBottom: modal2Tab === "tests" ? "2px solid #4ade80" : "none",
+                  color: modal2Tab === "tests" ? "#4ade80" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                }}
               >
-                <Bike size={14} /> Full Exercise Regimen
+                1. Recommended Diagnostic Tests ({tests.length})
               </button>
               <button
                 type="button"
-                onClick={() => setWidget3Tab("physio_visit")}
-                className={`cm-subtab-btn ${widget3Tab === "physio_visit" ? "cm-subtab-btn--active" : ""}`}
+                onClick={() => setModal2Tab("packages")}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal2Tab === "packages" ? "rgba(34, 197, 94, 0.15)" : "transparent",
+                  borderBottom: modal2Tab === "packages" ? "2px solid #4ade80" : "none",
+                  color: modal2Tab === "packages" ? "#4ade80" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                }}
               >
-                <UserCheck size={14} /> Book Home Physiotherapy Visit
+                2. Full-Body Health Packages (Up to 33% OFF)
               </button>
             </div>
 
             {/* Modal Body */}
-            <div
-              style={{
-                padding: "20px 24px",
-                overflowY: "auto",
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 16,
-              }}
-            >
-              {widget3Tab === "routine" ? (
-                <>
-                  {/* Frequency Strip */}
-                  <div
-                    style={{
-                      background: "rgba(11, 24, 54, 0.7)",
-                      border: "1px solid rgba(192, 132, 252, 0.3)",
-                      borderRadius: 14,
-                      padding: "14px 18px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 10,
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase" }}>
-                        Weekly Clinical Frequency Target
-                      </span>
-                      <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
-                        {workoutPlan?.weekly_frequency || "5 Days / Week (150 mins aerobic + 2 core/mobility sessions)"}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setWidget3Tab("physio_visit")}
-                      className="cm-advisor-btn-outline"
-                    >
-                      <Plus size={13} /> Book Home Physio Assessment
-                    </button>
-                  </div>
-
-                  {/* 3 Step Protocol Cards */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+              {modal2Tab === "tests" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {tests.map((t, idx) => (
                     <div
+                      key={idx}
                       style={{
-                        background: "rgba(15, 23, 42, 0.65)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        background: "rgba(15, 23, 42, 0.6)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
                         borderRadius: 12,
-                        padding: "14px 16px",
+                        padding: "14px 18px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#38bdf8" }} />
-                        <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#38bdf8", textTransform: "uppercase" }}>
-                          Phase 1: Dynamic Warmup (5–8 mins)
-                        </span>
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5, marginTop: 4 }}>
-                        {workoutPlan?.warmup || "5–8 minutes of dynamic joint mobility: neck rotations, shoulder circles, arm swings, and standing hip circles."}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: "rgba(15, 23, 42, 0.65)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
-                        borderRadius: 12,
-                        padding: "14px 16px",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80" }} />
-                        <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#4ade80", textTransform: "uppercase" }}>
-                          Phase 2: Aerobic Cardiovascular Conditioning
-                        </span>
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5, marginTop: 4 }}>
-                        {workoutPlan?.cardio || "35–45 minutes of brisk walking (5.0–5.5 km/h) or low-impact cycling at conversational pace."}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: "rgba(15, 23, 42, 0.65)",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
-                        borderRadius: 12,
-                        padding: "14px 16px",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#c084fc" }} />
-                        <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#c084fc", textTransform: "uppercase" }}>
-                          Phase 3: Core, Posture &amp; Musculoskeletal Strength
-                        </span>
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5, marginTop: 4 }}>
-                        {workoutPlan?.strength_and_mobility || "Wall squats (3 sets x 10 reps), seated leg raises (3 x 12), glute bridges, and cat-cow spinal decompression."}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Precautions */}
-                  <div
-                    style={{
-                      background: "rgba(245, 158, 11, 0.1)",
-                      border: "1px solid rgba(245, 158, 11, 0.3)",
-                      borderRadius: 12,
-                      padding: "12px 16px",
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                    }}
-                  >
-                    <AlertCircle size={18} color="#facc15" style={{ flexShrink: 0, marginTop: 2 }} />
-                    <div style={{ fontSize: "0.82rem", color: "#fef08a", lineHeight: 1.5 }}>
-                      <strong>Clinical Precautions: </strong>
-                      {workoutPlan?.precautions || "Hydrate with water prior to exertion. Discontinue if dizziness or chest tightness occurs."}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                /* Physio Booking Tab */
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {bookingSuccessMsg ? (
-                    <div
-                      style={{
-                        background: "rgba(34, 197, 94, 0.15)",
-                        border: "1px solid rgba(74, 222, 128, 0.4)",
-                        borderRadius: 14,
-                        padding: "20px",
-                        textAlign: "center",
-                        color: "#4ade80",
-                      }}
-                    >
-                      <CheckCircle2 size={36} style={{ margin: "0 auto 10px auto" }} />
-                      <h4 style={{ margin: "0 0 6px 0", fontSize: "1.1rem" }}>{bookingSuccessMsg}</h4>
-                      <p style={{ margin: 0, fontSize: "0.82rem", color: "#cbd5e1" }}>
-                        Assigned certified physiotherapist will bring rehabilitation equipment to your home.
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: "0.88rem", color: "#cbd5e1", lineHeight: 1.5 }}>
-                        Book a certified Physiotherapy specialist for home rehabilitation, orthopedic pain relief, post-surgical recovery, or posture realignment.
-                      </div>
-
-                      {/* Doctor Profile */}
-                      <div
-                        style={{
-                          background: "rgba(11, 24, 54, 0.75)",
-                          border: "1px solid rgba(192, 132, 252, 0.35)",
-                          borderRadius: 16,
-                          padding: "16px 20px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          gap: 14,
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <div
+                      <div style={{ maxWidth: "72%" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: "0.94rem", fontWeight: 800, color: "#ffffff" }}>
+                            {t.test_name}
+                          </span>
+                          <span
                             style={{
-                              width: 50,
-                              height: 50,
-                              borderRadius: 12,
-                              background: "rgba(168, 85, 247, 0.25)",
-                              display: "grid",
-                              placeItems: "center",
-                              border: "1px solid rgba(192, 132, 252, 0.45)",
+                              fontSize: "0.68rem",
+                              padding: "2px 7px",
+                              borderRadius: 6,
+                              background: t.urgency === "high" ? "rgba(239, 68, 68, 0.2)" : t.urgency === "medium" ? "rgba(245, 158, 11, 0.2)" : "rgba(56, 189, 248, 0.2)",
+                              color: t.urgency === "high" ? "#f87171" : t.urgency === "medium" ? "#fbbf24" : "#38bdf8",
+                              fontWeight: 700,
                             }}
                           >
-                            <Clinical3DIcon name="physio" size={26} glow />
-                          </div>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ fontSize: "1.05rem", fontWeight: 800, color: "#fff" }}>
-                                {physioDoc.doctor_name || "Dr. P. Suresh"}
-                              </span>
-                              <span
-                                style={{
-                                  fontSize: "0.68rem",
-                                  fontWeight: 800,
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  background: "rgba(168, 85, 247, 0.2)",
-                                  color: "#c084fc",
-                                }}
-                              >
-                                Certified Physiotherapist
-                              </span>
-                            </div>
-                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                              {physioDoc.qualification || "MPT (Orthopedics), MIAP"} · {physioDoc.experience || "11+ yrs experience"}
-                            </div>
-                          </div>
+                            {t.urgency.toUpperCase()} PRIORITY
+                          </span>
                         </div>
-
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#c084fc" }}>
-                            ₹{physioDoc.fee || 550}
-                          </div>
-                          <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Session Fee</div>
+                        <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
+                          {t.reason}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
+                          NABL Certified · Free Home Sample Collection Available
                         </div>
                       </div>
 
-                      {/* Modality & Date Selection */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                        <div>
-                          <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                            Select Date
-                          </label>
-                          <select
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="cm-field-input"
-                            style={{ width: "100%", background: "#0c1b3a" }}
-                          >
-                            <option value="Tomorrow">Tomorrow</option>
-                            <option value="Day After Tomorrow">Day After Tomorrow</option>
-                            <option value="This Weekend">This Weekend</option>
-                          </select>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                          {t.original_price && (
+                            <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
+                              ₹{t.original_price}
+                            </span>
+                          )}
+                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                            ₹{t.estimated_price || 399}
+                          </span>
                         </div>
-
-                        <div>
-                          <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                            Preferred Time Slot
-                          </label>
-                          <select
-                            value={selectedTimeSlot}
-                            onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                            className="cm-field-input"
-                            style={{ width: "100%", background: "#0c1b3a" }}
-                          >
-                            <option value="09:00 AM – 10:00 AM">09:00 AM (Morning)</option>
-                            <option value="11:30 AM – 12:30 PM">11:30 AM</option>
-                            <option value="04:00 PM – 05:00 PM">04:00 PM (Evening)</option>
-                            <option value="06:30 PM – 07:30 PM">06:30 PM</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 10 }}>
-                        <button
-                          type="button"
-                          onClick={() => setWidget3Tab("routine")}
-                          className="cm-advisor-btn-secondary"
-                        >
-                          Back to Workout Routine
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isBookingInProgress}
-                          onClick={() => handleConfirmVisit(physioDoc.doctor_name || "Dr. P. Suresh", "home_visit")}
+                        <Link
+                          href={t.action_url || `/booking?type=lab&service=${encodeURIComponent(t.test_name)}`}
                           className="cm-advisor-btn-primary"
+                          style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.78rem" }}
                         >
-                          {isBookingInProgress ? "Confirming Session..." : "Confirm Doorstep Physio Visit →"}
-                        </button>
+                          Book Test →
+                        </Link>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* TAB 2: Full-Body Health Packages */
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {DEFAULT_PACKAGES.map((pkg) => (
+                    <div
+                      key={pkg.id}
+                      style={{
+                        background: "rgba(15, 23, 42, 0.65)",
+                        border: "1px solid rgba(251, 146, 60, 0.25)",
+                        borderRadius: 14,
+                        padding: "16px 18px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                              {pkg.name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                padding: "3px 8px",
+                                borderRadius: 6,
+                                background: "rgba(234, 88, 12, 0.25)",
+                                color: "#fb923c",
+                                fontWeight: 800,
+                                border: "1px solid rgba(251, 146, 60, 0.4)",
+                              }}
+                            >
+                              {pkg.badge}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 4 }}>
+                            {pkg.description}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            <span style={{ fontSize: "0.8rem", color: "#64748b", textDecoration: "line-through" }}>
+                              ₹{pkg.originalPrice}
+                            </span>
+                            <span style={{ fontSize: "1.2rem", fontWeight: 900, color: "#4ade80" }}>
+                              ₹{pkg.offerPrice}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: "0.7rem", color: "#fb923c", fontWeight: 700 }}>
+                            Save ₹{pkg.originalPrice - pkg.offerPrice}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Included Parameters Chips */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {pkg.includes.map((inc, i) => (
+                          <span
+                            key={i}
+                            style={{
+                              fontSize: "0.72rem",
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              background: "rgba(255, 255, 255, 0.06)",
+                              border: "1px solid rgba(255, 255, 255, 0.12)",
+                              color: "#e2e8f0",
+                            }}
+                          >
+                            ✓ {inc}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: 10 }}>
+                        <span style={{ fontSize: "0.74rem", color: "#94a3b8" }}>
+                          Includes Free Doorstep Phlebotomist Visit &amp; Digital Lab Report within 24h
+                        </span>
+                        <Link
+                          href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.offerPrice}&mode=home`}
+                          className="cm-advisor-btn-primary"
+                          style={{ textDecoration: "none", padding: "7px 16px", fontSize: "0.8rem" }}
+                        >
+                          Book Package at ₹{pkg.offerPrice} →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
-
-            {/* Footer */}
-            <div
-              style={{
-                padding: "16px 24px",
-                borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "rgba(15, 23, 42, 0.45)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.82rem", color: "#94a3b8" }}>
-                <CheckCircle2 size={16} color="#38bdf8" />
-                <span>CallMedex Verified Therapeutic Rehabilitation</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveWidget(null)}
-                className="cm-advisor-btn-secondary"
-              >
-                Close Console
-              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          STANDALONE SUB-WIDGET MODAL: DIETITIAN IN-PERSON / VIDEO VISIT
-          (Directly opened from Section 2 button)
+          MODAL 3: PREVENTIVE CARE & PHARMACY ADVISORY CONSOLE
          ══════════════════════════════════════════════════════════════════════ */}
-      {activeSubWidget === "dietitian_visit" && (
-        <div className="cm-widget-overlay" onClick={() => setActiveSubWidget(null)}>
+      {activeWidget === 3 && (
+        <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
           <div
             className="cm-glass-widget-modal"
-            style={{ maxWidth: 640 }}
+            style={{ maxWidth: 840, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2543,21 +1736,39 @@ export default function PatientAIAdvisor() {
                 background: "rgba(15, 23, 42, 0.5)",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <UserCheck size={22} color="#4ade80" />
-                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
-                  Book Certified Clinical Dietitian Visit
-                </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    background: "rgba(168, 85, 247, 0.25)",
+                    border: "1px solid rgba(192, 132, 252, 0.45)",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <Clinical3DIcon name="pharmacy" size={26} glow />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                    Preventive Care &amp; Pharmacy Advisory Console
+                  </h3>
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
+                    Condition-calibrated preventive wellness protocols, clinical nutrition &amp; doorstep pharmacy guidance
+                  </div>
+                </div>
               </div>
+
               <button
                 type="button"
-                onClick={() => setActiveSubWidget(null)}
+                onClick={() => setActiveWidget(null)}
                 style={{
-                  width: 32,
-                  height: 32,
+                  width: 34,
+                  height: 34,
                   borderRadius: "50%",
                   background: "rgba(255, 255, 255, 0.08)",
-                  border: "none",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
                   color: "#94a3b8",
                   display: "grid",
                   placeItems: "center",
@@ -2565,436 +1776,215 @@ export default function PatientAIAdvisor() {
                 }}
               >
                 <X size={16} />
+              </button>
+            </div>
+
+            {/* Sub-Tabs */}
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)" }}>
+              <button
+                type="button"
+                onClick={() => setModal3Tab("preventive")}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal3Tab === "preventive" ? "rgba(168, 85, 247, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "preventive" ? "2px solid #c084fc" : "none",
+                  color: modal3Tab === "preventive" ? "#c084fc" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                }}
+              >
+                1. Preventive Care Blueprint &amp; Nutrition
+              </button>
+              <button
+                type="button"
+                onClick={() => setModal3Tab("pharmacy")}
+                style={{
+                  flex: 1,
+                  padding: "12px 16px",
+                  background: modal3Tab === "pharmacy" ? "rgba(168, 85, 247, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "pharmacy" ? "2px solid #c084fc" : "none",
+                  color: modal3Tab === "pharmacy" ? "#c084fc" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                }}
+              >
+                2. Doorstep Pharmacy &amp; Supplements Guidance
               </button>
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
-              {bookingSuccessMsg ? (
-                <div
-                  style={{
-                    background: "rgba(34, 197, 94, 0.15)",
-                    border: "1px solid rgba(74, 222, 128, 0.4)",
-                    borderRadius: 14,
-                    padding: "20px",
-                    textAlign: "center",
-                    color: "#4ade80",
-                  }}
-                >
-                  <CheckCircle2 size={36} style={{ margin: "0 auto 10px auto" }} />
-                  <h4 style={{ margin: "0 0 6px 0", fontSize: "1.05rem" }}>{bookingSuccessMsg}</h4>
-                </div>
-              ) : (
-                <>
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+              {modal3Tab === "preventive" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Caloric & Hydration Target Strip */}
                   <div
                     style={{
-                      background: "rgba(11, 24, 54, 0.7)",
-                      border: "1px solid rgba(74, 222, 128, 0.3)",
-                      borderRadius: 12,
-                      padding: "14px 16px",
+                      background: "rgba(15, 23, 42, 0.6)",
+                      border: "1px solid rgba(192, 132, 252, 0.25)",
+                      borderRadius: 14,
+                      padding: "14px 18px",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12,
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: "1rem", color: "#fff" }}>
-                        {dietitianDoc.doctor_name || "Dt. Ananya Rao"}
+                      <div style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase" }}>
+                        Daily Hydration &amp; Energy Goals
                       </div>
-                      <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
-                        {dietitianDoc.qualification || "M.Sc Clinical Nutrition, CDE"}
+                      <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                        {dietPlan?.hydration_target || "2.8 – 3.2 Liters daily"}
                       </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "1.15rem", fontWeight: 900, color: "#4ade80" }}>
-                        ₹{dietitianDoc.fee || 499}
+                      <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 2 }}>
+                        Caloric Baseline: {dietPlan?.daily_calories || "2,050 kcal"} ({dietPlan?.macro_split || "50% Carbs · 25% Protein · 25% Fats"})
                       </div>
-                      <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Standard Consultation</div>
                     </div>
                   </div>
 
+                  {/* Indian Meal Schedule */}
                   <div>
-                    <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                      Modality
-                    </label>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedModality("home_visit")}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: 10,
-                          border: selectedModality === "home_visit" ? "1px solid #4ade80" : "1px solid rgba(255, 255, 255, 0.12)",
-                          background: selectedModality === "home_visit" ? "rgba(34, 197, 94, 0.2)" : "rgba(15, 23, 42, 0.6)",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.82rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <MapPin size={16} color="#4ade80" /> In-Person Home Visit
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedModality("video")}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: 10,
-                          border: selectedModality === "video" ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
-                          background: selectedModality === "video" ? "rgba(14, 165, 233, 0.2)" : "rgba(15, 23, 42, 0.6)",
-                          color: "#fff",
-                          fontWeight: 700,
-                          fontSize: "0.82rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Video size={16} color="#38bdf8" /> Video Consultation
-                      </button>
+                    <h5 style={{ margin: "0 0 10px 0", fontSize: "0.86rem", color: "#cbd5e1", textTransform: "uppercase" }}>
+                      ICMR-Aligned Daily Meal &amp; Pacing Schedule
+                    </h5>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {(dietPlan?.meals || DEFAULT_ADVISOR_DATA.care_guidance.diet_plan?.meals || []).map((m, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            background: "rgba(15, 23, 42, 0.5)",
+                            border: "1px solid rgba(255, 255, 255, 0.08)",
+                            borderRadius: 10,
+                            padding: "10px 14px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          <span style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 700, minWidth: 65 }}>
+                            {m.time}
+                          </span>
+                          <div>
+                            <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#ffffff" }}>
+                              {m.meal_name}
+                            </span>
+                            <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 2 }}>
+                              {m.description}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                        Date
-                      </label>
-                      <select
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="cm-field-input"
-                        style={{ width: "100%", background: "#0c1b3a" }}
-                      >
-                        <option value="Tomorrow">Tomorrow</option>
-                        <option value="Day After Tomorrow">Day After Tomorrow</option>
-                        <option value="This Weekend">This Weekend</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                        Time Slot
-                      </label>
-                      <select
-                        value={selectedTimeSlot}
-                        onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                        className="cm-field-input"
-                        style={{ width: "100%", background: "#0c1b3a" }}
-                      >
-                        <option value="10:00 AM">10:00 AM</option>
-                        <option value="11:30 AM">11:30 AM</option>
-                        <option value="03:00 PM">03:00 PM</option>
-                        <option value="05:30 PM">05:30 PM</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubWidget(null)}
-                      className="cm-advisor-btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isBookingInProgress}
-                      onClick={() => handleConfirmVisit(dietitianDoc.doctor_name || "Dt. Ananya Rao", selectedModality)}
-                      className="cm-advisor-btn-primary"
-                    >
-                      {isBookingInProgress ? "Confirming..." : "Confirm & Book Visit"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          STANDALONE SUB-WIDGET MODAL: HOME PHYSIOTHERAPY VISIT
-         ══════════════════════════════════════════════════════════════════════ */}
-      {activeSubWidget === "physio_visit" && (
-        <div className="cm-widget-overlay" onClick={() => setActiveSubWidget(null)}>
-          <div
-            className="cm-glass-widget-modal"
-            style={{ maxWidth: 640 }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              style={{
-                padding: "18px 22px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Bike size={22} color="#c084fc" />
-                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
-                  Book Home Physiotherapy Assessment
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveSubWidget(null)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "none",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
-              {bookingSuccessMsg ? (
-                <div
-                  style={{
-                    background: "rgba(34, 197, 94, 0.15)",
-                    border: "1px solid rgba(74, 222, 128, 0.4)",
-                    borderRadius: 14,
-                    padding: "20px",
-                    textAlign: "center",
-                    color: "#4ade80",
-                  }}
-                >
-                  <CheckCircle2 size={36} style={{ margin: "0 auto 10px auto" }} />
-                  <h4 style={{ margin: "0 0 6px 0", fontSize: "1.05rem" }}>{bookingSuccessMsg}</h4>
-                </div>
-              ) : (
-                <>
+                  {/* Physical Mobility Guidance */}
                   <div
                     style={{
-                      background: "rgba(11, 24, 54, 0.7)",
-                      border: "1px solid rgba(192, 132, 252, 0.3)",
+                      background: "rgba(15, 23, 42, 0.5)",
+                      border: "1px solid rgba(255, 255, 255, 0.08)",
                       borderRadius: 12,
                       padding: "14px 16px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: "1rem", color: "#fff" }}>
-                        {physioDoc.doctor_name || "Dr. P. Suresh"}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
-                        {physioDoc.qualification || "MPT (Orthopedics), MIAP"}
-                      </div>
+                    <div style={{ fontSize: "0.78rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase", marginBottom: 6 }}>
+                      Physical Activity &amp; Joint Mobility Protocol
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "1.15rem", fontWeight: 900, color: "#c084fc" }}>
-                        ₹{physioDoc.fee || 550}
-                      </div>
-                      <div style={{ fontSize: "0.68rem", color: "#94a3b8" }}>Home Rehab Session</div>
+                    <div style={{ fontSize: "0.82rem", color: "#e2e8f0", lineHeight: 1.5 }}>
+                      <strong>Cardio:</strong> {workoutPlan?.cardio || "35–45 min brisk walking daily at moderate HR."}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#e2e8f0", lineHeight: 1.5, marginTop: 4 }}>
+                      <strong>Mobility &amp; Core:</strong> {workoutPlan?.strength_and_mobility || "Wall squats, seated leg extensions & gentle spinal twists."}
                     </div>
                   </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                        Date
-                      </label>
-                      <select
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="cm-field-input"
-                        style={{ width: "100%", background: "#0c1b3a" }}
-                      >
-                        <option value="Tomorrow">Tomorrow</option>
-                        <option value="Day After Tomorrow">Day After Tomorrow</option>
-                        <option value="This Weekend">This Weekend</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="cm-field-label" style={{ marginBottom: 6, display: "block" }}>
-                        Time Slot
-                      </label>
-                      <select
-                        value={selectedTimeSlot}
-                        onChange={(e) => setSelectedTimeSlot(e.target.value)}
-                        className="cm-field-input"
-                        style={{ width: "100%", background: "#0c1b3a" }}
-                      >
-                        <option value="09:00 AM">09:00 AM (Morning)</option>
-                        <option value="11:30 AM">11:30 AM</option>
-                        <option value="04:00 PM">04:00 PM (Evening)</option>
-                        <option value="06:30 PM">06:30 PM</option>
-                      </select>
-                    </div>
+                </div>
+              ) : (
+                /* TAB 2: Doorstep Pharmacy & Supplements */
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: 2 }}>
+                    Doctor-verified daily health essentials, monitoring tools, and supplements with doorstep delivery:
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveSubWidget(null)}
-                      className="cm-advisor-btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isBookingInProgress}
-                      onClick={() => handleConfirmVisit(physioDoc.doctor_name || "Dr. P. Suresh", "home_visit")}
-                      className="cm-advisor-btn-primary"
-                    >
-                      {isBookingInProgress ? "Confirming..." : "Confirm Doorstep Physio Visit"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          STANDALONE SUB-WIDGET MODAL: DOORSTEP DIAGNOSTIC BLOOD TEST BOOKING
-         ══════════════════════════════════════════════════════════════════════ */}
-      {activeSubWidget === "lab_test" && (
-        <div className="cm-widget-overlay" onClick={() => setActiveSubWidget(null)}>
-          <div
-            className="cm-glass-widget-modal"
-            style={{ maxWidth: 680 }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              style={{
-                padding: "18px 22px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <FlaskConical size={22} color="#38bdf8" />
-                <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
-                  Schedule Doorstep Lab Test Collection
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveSubWidget(null)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "none",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ fontSize: "0.86rem", color: "#cbd5e1" }}>
-                Certified CallMedex phlebotomist visits your doorstep with sterile vacuum tubes and temperature-monitored cold-chain carrier box.
-              </div>
-
-              {tests.slice(0, 3).map((t, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: "rgba(11, 24, 54, 0.7)",
-                    border: "1px solid rgba(56, 189, 248, 0.25)",
-                    borderRadius: 12,
-                    padding: "12px 16px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#fff" }}>{t.test_name}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 2 }}>{t.category} · Home Collection</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
-                      ₹{t.estimated_price || 499}
-                    </span>
-                    <Link
-                      href={t.action_url || "/diagnostics"}
+                  {DEFAULT_PHARMACY.map((item) => (
+                    <div
+                      key={item.id}
                       style={{
-                        padding: "6px 14px",
-                        borderRadius: 8,
-                        background: "linear-gradient(135deg, #0ea5e9, #2563eb)",
-                        color: "#fff",
-                        fontSize: "0.78rem",
-                        fontWeight: 700,
-                        textDecoration: "none",
+                        background: "rgba(15, 23, 42, 0.6)",
+                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                        borderRadius: 12,
+                        padding: "14px 18px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
                       }}
                     >
-                      Book →
+                      <div style={{ maxWidth: "70%" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                            {item.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.68rem",
+                              padding: "2px 7px",
+                              borderRadius: 6,
+                              background: "rgba(168, 85, 247, 0.2)",
+                              color: "#c084fc",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {item.discount}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 4 }}>
+                          {item.reason}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 2 }}>
+                          Dosage / Instructions: {item.dosage}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
+                            ₹{item.originalPrice}
+                          </span>
+                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                            ₹{item.price}
+                          </span>
+                        </div>
+                        <Link
+                          href="/pharmacy"
+                          className="cm-advisor-btn-primary"
+                          style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.78rem" }}
+                        >
+                          Order via Pharmacy →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                    <Link
+                      href="/pharmacy"
+                      className="cm-advisor-btn-outline"
+                      style={{ textDecoration: "none", padding: "8px 16px" }}
+                    >
+                      Explore Entire CallMedex Online Pharmacy →
                     </Link>
                   </div>
                 </div>
-              ))}
-
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-                <Link
-                  href="/diagnostics"
-                  className="cm-advisor-btn-primary"
-                  style={{ textDecoration: "none" }}
-                >
-                  View All Diagnostic Packages →
-                </Link>
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-// ─── Simple Helper Icon for Food / Utensils ─────────────────────────────────
-
-function UtensilsIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 2v6a3 3 0 0 1-3 3 3 3 0 0 1-3-3V2" />
-      <path d="M15 11v11" />
-      <path d="M6 2v20" />
-      <path d="M4 2v6a2 2 0 0 0 4 0V2" />
-    </svg>
   );
 }

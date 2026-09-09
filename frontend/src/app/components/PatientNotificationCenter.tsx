@@ -49,7 +49,7 @@ const PROACTIVE_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     id: "proactive-visit-1",
     title: "Video Teleconsultation Confirmed",
     message:
-      "Dr. Priya Sharma (Cardiology) is ready for your follow-up consultation today at 04:30 PM. Digital consultation room is provisioned with high-definition audio/video.",
+      "Your assigned Consultant Cardiologist is ready for your follow-up consultation today at 04:30 PM. Digital consultation room is provisioned with high-definition audio/video.",
     category: "visit",
     time: "10 mins ago",
     timestamp: Date.now() - 10 * 60 * 1000,
@@ -62,7 +62,7 @@ const PROACTIVE_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     id: "proactive-track-1",
     title: "Phlebotomist En Route (1.2 km away)",
     message:
-      "Certified phlebotomist Ramesh Kumar is en route with your pre-calibrated cold-chain collection kit (3.8°C verified). Please maintain 10-hour fasting for lipid evaluation.",
+      "Certified CallMedex Phlebotomist is en route with your pre-calibrated cold-chain collection kit (3.8°C verified). Please maintain 10-hour fasting for lipid evaluation.",
     category: "tracking",
     time: "24 mins ago",
     timestamp: Date.now() - 24 * 60 * 1000,

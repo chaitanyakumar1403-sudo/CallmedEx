@@ -27,12 +27,11 @@ const DASHBOARD_SECTIONS: NavItem[] = [
     badge: "3D",
   },
   {
-    id: "ai-health-advisor",
-    label: "AI Health Advisor",
+    id: "health-advisor",
+    label: "Health Advisor",
     icon: Sparkles,
     type: "anchor",
-    target: "#ai-health-advisor",
-    badge: "AI",
+    target: "#health-advisor",
   },
   {
     id: "medicine-cabinet",

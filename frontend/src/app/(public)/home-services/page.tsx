@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -182,6 +182,56 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
 
 export default function HomeServicesPage() {
   const [activeTab, setActiveTab] = useState<ServiceTab>("nursing");
+  const [registeredDoctors, setRegisteredDoctors] = useState<any[]>([]);
+  const [registeredNurses, setRegisteredNurses] = useState<any[]>([]);
+  const [registeredPharmacies, setRegisteredPharmacies] = useState<any[]>([]);
+  const [registeredPhlebotomists, setRegisteredPhlebotomists] = useState<any[]>([]);
+  const [, setLoadingProviders] = useState<boolean>(true);
+
+  useEffect(() => {
+    async function fetchRealProviders() {
+      setLoadingProviders(true);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      try {
+        const [docRes, nurseRes, pharmRes, phlebRes] = await Promise.all([
+          fetch(`${apiBase}/api/providers/search/doctors?consultation_mode=home_visit`).then(r => r.json()).catch(() => null),
+          fetch(`${apiBase}/api/providers/search/providers?type=nurse`).then(r => r.json()).catch(() => null),
+          fetch(`${apiBase}/api/providers/search/providers?type=pharmacy`).then(r => r.json()).catch(() => null),
+          fetch(`${apiBase}/api/providers/search/providers?type=phlebotomist`).then(r => r.json()).catch(() => null),
+        ]);
+
+        if (docRes?.success && Array.isArray(docRes?.doctors)) {
+          setRegisteredDoctors(docRes.doctors);
+        } else {
+          setRegisteredDoctors([]);
+        }
+
+        if (nurseRes?.success && Array.isArray(nurseRes?.providers)) {
+          setRegisteredNurses(nurseRes.providers);
+        } else {
+          setRegisteredNurses([]);
+        }
+
+        if (pharmRes?.success && Array.isArray(pharmRes?.providers)) {
+          setRegisteredPharmacies(pharmRes.providers);
+        } else {
+          setRegisteredPharmacies([]);
+        }
+
+        if (phlebRes?.success && Array.isArray(phlebRes?.providers)) {
+          setRegisteredPhlebotomists(phlebRes.providers);
+        } else {
+          setRegisteredPhlebotomists([]);
+        }
+      } catch (e) {
+        console.error("Error fetching live providers", e);
+      } finally {
+        setLoadingProviders(false);
+      }
+    }
+    fetchRealProviders();
+  }, []);
+
   const currentService = HOME_SERVICES[activeTab];
   const IconComponent = currentService.icon;
 
@@ -553,237 +603,212 @@ export default function HomeServicesPage() {
 
               {/* Provider Cards Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-                {activeTab === "nursing" && [
-                  {
-                    name: "Nurse Priya Nair",
-                    qual: "B.Sc Nursing, Critical Care",
-                    exp: "7 yrs exp",
-                    license: "APNC Verified #AP-N-4921",
-                    rating: "4.9 ★ (184 reviews)",
-                    spec: "Wound Care, IV Infusion, Catheterization",
-                    price: "₹350 onwards",
-                    url: "/booking?type=nurse&mode=home",
-                  },
-                  {
-                    name: "Nurse Rajesh Kumar",
-                    qual: "GNM, Emergency Care Specialist",
-                    exp: "9 yrs exp",
-                    license: "APNC Verified #AP-N-3814",
-                    rating: "4.9 ★ (210 reviews)",
-                    spec: "Geriatric Care, Injections, Ryle's Tube",
-                    price: "₹350 onwards",
-                    url: "/booking?type=nurse&mode=home",
-                  },
-                  {
-                    name: "Sister Ananya Rao",
-                    qual: "M.Sc Nursing, Pediatric & Post-Op",
-                    exp: "6 yrs exp",
-                    license: "APNC Verified #AP-N-5120",
-                    rating: "5.0 ★ (98 reviews)",
-                    spec: "Post-Op Dressing, Vitals & Nebulization",
-                    price: "₹350 onwards",
-                    url: "/booking?type=nurse&mode=home",
-                  },
-                ].map((nurse, idx) => (
-                  <div key={idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                {activeTab === "nursing" && (
+                  registeredNurses.length > 0 ? (
+                    registeredNurses.map((nurse, idx) => (
+                      <div key={nurse.provider_user_id || nurse.id || idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
                         <div>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{nurse.name}</div>
-                          <div style={{ fontSize: "0.8rem", color: "#475569", marginTop: 2 }}>{nurse.qual} · {nurse.exp}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{nurse.display_name || nurse.name || "Verified Nurse"}</div>
+                              <div style={{ fontSize: "0.8rem", color: "#475569", marginTop: 2 }}>{nurse.subtype || nurse.qualification || "Registered Clinical Nurse"}</div>
+                            </div>
+                            <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                              ✓ VERIFIED
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.74rem", color: "#0284c7", fontWeight: 700, marginBottom: 8 }}>
+                            {nurse.license_number ? `Reg #${nurse.license_number}` : "State Council Registered"}
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "#64748b", lineHeight: 1.4, marginBottom: 12 }}>
+                            <strong>Location:</strong> {[nurse.city, nurse.district, nurse.state].filter(Boolean).join(", ") || "Verified Doorstep Service"}
+                          </div>
                         </div>
-                        <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
-                          ✓ VERIFIED
-                        </span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Visit Charge</div>
+                            <div style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.95rem" }}>{nurse.min_price ? `₹${nurse.min_price}` : "₹350 onwards"}</div>
+                          </div>
+                          <Link href={`/booking?type=nurse&mode=home&provider=${nurse.provider_user_id || nurse.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
+                            <span>Book Nurse</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.74rem", color: "#0284c7", fontWeight: 700, marginBottom: 8 }}>
-                        {nurse.license}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#64748b", lineHeight: 1.4, marginBottom: 12 }}>
-                        <strong>Skills:</strong> {nurse.spec}
-                      </div>
+                    ))
+                  ) : (
+                    <div style={{ background: "#ffffff", border: "1.5px dashed #cbd5e1", borderRadius: 16, padding: "32px 24px", textAlign: "center", gridColumn: "1 / -1" }}>
+                      <ShieldCheck size={36} style={{ color: "#0284c7", margin: "0 auto 12px" }} />
+                      <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                        No Doorstep Nurses Currently Registered In Your Immediate Sector
+                      </h4>
+                      <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b", maxWidth: 480, marginInline: "auto" }}>
+                        CallMedex 24/7 Helpline coordinators are on standby for immediate manual nursing dispatch &amp; bedside assistance.
+                      </p>
+                      <a href="tel:18002255633" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0284c7", color: "white", padding: "10px 20px", borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: "0.88rem" }}>
+                        <PhoneCall size={16} />
+                        <span>Call Helpline: 1800-CALLMEDEX</span>
+                      </a>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                      <div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Visit Charge</div>
-                        <div style={{ fontWeight: 800, color: "#0369a1", fontSize: "0.95rem" }}>{nurse.price}</div>
-                      </div>
-                      <Link href={nurse.url} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
-                        <span>Book Nurse</span>
-                        <ChevronRight size={14} />
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
 
-                {activeTab === "doctor" && [
-                  {
-                    name: "Dr. K. Satyanarayana",
-                    spec: "General Medicine",
-                    qual: "MBBS, MD",
-                    exp: "14 yrs exp",
-                    license: "APMC Reg #AP-38102",
-                    rating: "4.9 ★ (340 visits)",
-                    fee: 1000,
-                    url: "/booking?type=home_doctor&doctor=doc_satya&fee=1000&name=Dr.+K.+Satyanarayana&spec=General+Medicine",
-                  },
-                  {
-                    name: "Dr. Sneha Reddy",
-                    spec: "Family Medicine & Diabetology",
-                    qual: "MBBS, DNB",
-                    exp: "10 yrs exp",
-                    license: "APMC Reg #AP-41908",
-                    rating: "5.0 ★ (280 visits)",
-                    fee: 1000,
-                    url: "/booking?type=home_doctor&doctor=doc_sneha&fee=1000&name=Dr.+Sneha+Reddy&spec=Family+Medicine",
-                  },
-                  {
-                    name: "Dr. V. Rama Rao",
-                    spec: "Consultant Physician & Geriatrics",
-                    qual: "MBBS, PGDGM",
-                    exp: "18 yrs exp",
-                    license: "APMC Reg #AP-29184",
-                    rating: "4.9 ★ (415 visits)",
-                    fee: 1200,
-                    url: "/booking?type=home_doctor&doctor=doc_ramarao&fee=1200&name=Dr.+V.+Rama+Rao&spec=Consultant+Physician",
-                  },
-                ].map((doc, idx) => (
-                  <div key={idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                {activeTab === "doctor" && (
+                  registeredDoctors.length > 0 ? (
+                    registeredDoctors.map((doc, idx) => (
+                      <div key={doc.id || idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
                         <div>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1.02rem" }}>{doc.name}</div>
-                          <div style={{ fontSize: "0.8rem", color: "#0369a1", fontWeight: 700, marginTop: 2 }}>{doc.spec}</div>
-                          <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: 1 }}>{doc.qual} · {doc.exp}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1.02rem" }}>
+                                {doc.name?.toLowerCase().startsWith("dr") ? doc.name : `Dr. ${doc.name}`}
+                              </div>
+                              <div style={{ fontSize: "0.8rem", color: "#0369a1", fontWeight: 700, marginTop: 2 }}>
+                                {doc.specialization || "General Medicine"}
+                              </div>
+                              <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: 1 }}>
+                                {doc.qualification || "MBBS"} {doc.experience_years ? `· ${doc.experience_years} yrs exp` : ""}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                              ✓ NMC VERIFIED
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.74rem", color: "#64748b", fontWeight: 600, marginBottom: 8 }}>
+                            {[doc.district || doc.city, doc.state].filter(Boolean).join(", ") || "Registered Practitioner"}
+                          </div>
                         </div>
-                        <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
-                          ✓ NMC VERIFIED
-                        </span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Home Visit Fee</div>
+                            <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.05rem" }}>
+                              ₹{doc.home_visit_fee || doc.consultation_fee || 1000}
+                            </div>
+                          </div>
+                          <Link href={`/booking?type=home_doctor&doctor=${doc.id}&fee=${doc.home_visit_fee || doc.consultation_fee || 1000}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization || '')}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
+                            <span>Book Visit</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.74rem", color: "#64748b", fontWeight: 600, marginBottom: 8 }}>
-                        {doc.license} · {doc.rating}
+                    ))
+                  ) : (
+                    <div style={{ background: "#ffffff", border: "1.5px dashed #cbd5e1", borderRadius: 16, padding: "32px 24px", textAlign: "center", gridColumn: "1 / -1" }}>
+                      <ShieldCheck size={36} style={{ color: "#0284c7", margin: "0 auto 12px" }} />
+                      <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                        No Doctors Available For Home Visits In Your Region Currently
+                      </h4>
+                      <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b", maxWidth: 480, marginInline: "auto" }}>
+                        You can consult verified doctors instantly online via Video Teleconsultation or call our 24/7 Helpline.
+                      </p>
+                      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+                        <Link href="/consultation?mode=teleconsultation" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0284c7", color: "white", padding: "10px 20px", borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: "0.88rem" }}>
+                          <span>Consult Doctor Online Now</span>
+                        </Link>
+                        <a href="tel:18002255633" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0f172a", color: "white", padding: "10px 20px", borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: "0.88rem" }}>
+                          <PhoneCall size={16} />
+                          <span>1800-CALLMEDEX</span>
+                        </a>
                       </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                      <div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Home Visit Fee</div>
-                        <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.05rem" }}>₹{doc.fee}</div>
-                      </div>
-                      <Link href={doc.url} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
-                        <span>Book Visit</span>
-                        <ChevronRight size={14} />
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  )
+                )}
 
-                {activeTab === "diagnostics" && [
-                  {
-                    name: "P. Sai Krishna",
-                    role: "Senior Phlebotomist",
-                    qual: "DMLT, NABL Certified Phlebotomy",
-                    exp: "6 yrs exp",
-                    license: "CallMedex Badge #PHL-891",
-                    highlights: "Barcoded Vacutainers, Cold-Chain Insulated Box",
-                    slots: "5:30 AM – 11:00 AM (30-min slots)",
-                    url: "/diagnostics?tab=home",
-                  },
-                  {
-                    name: "M. Divya",
-                    role: "Certified Clinical Phlebotomist",
-                    qual: "B.Sc MLT, Central Pathology Team",
-                    exp: "5 yrs exp",
-                    license: "CallMedex Badge #PHL-724",
-                    highlights: "Painless Pediatric & Geriatric Venipuncture Specialist",
-                    slots: "5:30 AM – 11:00 AM (30-min slots)",
-                    url: "/diagnostics?tab=home",
-                  },
-                ].map((phleb, idx) => (
-                  <div key={idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                {activeTab === "diagnostics" && (
+                  registeredPhlebotomists.length > 0 ? (
+                    registeredPhlebotomists.map((phleb, idx) => (
+                      <div key={phleb.id || idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
                         <div>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{phleb.name}</div>
-                          <div style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700 }}>{phleb.role}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{phleb.qual} · {phleb.exp}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{phleb.display_name || phleb.name || "Phlebotomist"}</div>
+                              <div style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700 }}>{phleb.subtype || "NABL Certified Phlebotomist"}</div>
+                            </div>
+                            <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                              ✓ NABL CERTIFIED
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "#475569", lineHeight: 1.4, marginBottom: 8 }}>
+                            Cold-Chain Insulated Transport &amp; Barcoded Vacutainers
+                          </div>
                         </div>
-                        <span style={{ fontSize: "0.72rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
-                          ✓ NABL CERTIFIED
-                        </span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Sample Collection</div>
+                            <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.95rem" }}>Free with Packages</div>
+                          </div>
+                          <Link href="/diagnostics?tab=home" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
+                            <span>Book Collection</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.78rem", color: "#475569", lineHeight: 1.4, marginBottom: 8 }}>
-                        {phleb.highlights}
-                      </div>
-                      <div style={{ fontSize: "0.74rem", color: "#0284c7", fontWeight: 600 }}>
-                        ⏰ Window: {phleb.slots}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                      <div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Sample Collection</div>
-                        <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.95rem" }}>Free with Packages</div>
-                      </div>
-                      <Link href={phleb.url} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
-                        <span>Book Collection</span>
-                        <ChevronRight size={14} />
+                    ))
+                  ) : (
+                    <div style={{ background: "#ffffff", border: "1.5px dashed #cbd5e1", borderRadius: 16, padding: "32px 24px", textAlign: "center", gridColumn: "1 / -1" }}>
+                      <ShieldCheck size={36} style={{ color: "#0284c7", margin: "0 auto 12px" }} />
+                      <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                        Central Phlebotomy Fleet &amp; NABL Accredited Sample Collection Active
+                      </h4>
+                      <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b", maxWidth: 480, marginInline: "auto" }}>
+                        Select from over 480+ lab tests and full-body health screening packages for doorstep morning collection.
+                      </p>
+                      <Link href="/diagnostics?tab=home" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0284c7", color: "white", padding: "10px 20px", borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: "0.88rem" }}>
+                        <span>Browse 480+ Lab Tests Directory</span>
+                        <ChevronRight size={16} />
                       </Link>
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
 
-                {activeTab === "pharmacy" && [
-                  {
-                    name: "PM Bharatiya Janaushadhi Kendra",
-                    reg: "Kendra #AP-VZ-018",
-                    license: "DL: 20B/21B-VZ-18294",
-                    pharmacist: "Ramesh B., D.Pharm (Registered Pharmacist)",
-                    highlight: "WHO-GMP Certified Generics, Same-day Doorstep Delivery",
-                    delivery: "2-4 Hours Express Dispatch",
-                    url: "/pharmacy",
-                  },
-                  {
-                    name: "CallMedex Network Central Pharmacy",
-                    reg: "Licensed Medical Store #AP-DL-09142",
-                    license: "DL: Form 20/21 Verified",
-                    pharmacist: "K. Swathi, M.Pharm (Clinical Pharmacist)",
-                    highlight: "Insulins, Oncology Biologics, Chronic Maintenance Packs & Surgical Gauze",
-                    delivery: "Same-Day Doorstep Handover",
-                    url: "/pharmacy",
-                  },
-                ].map((pharm, idx) => (
-                  <div key={idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                {activeTab === "pharmacy" && (
+                  registeredPharmacies.length > 0 ? (
+                    registeredPharmacies.map((pharm, idx) => (
+                      <div key={pharm.provider_user_id || pharm.id || idx} style={{ background: "#ffffff", border: "1.5px solid #e2e8f0", borderRadius: 16, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
                         <div>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{pharm.name}</div>
-                          <div style={{ fontSize: "0.78rem", color: "#059669", fontWeight: 700 }}>{pharm.reg}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "1rem" }}>{pharm.display_name || pharm.organization_name || pharm.name}</div>
+                              <div style={{ fontSize: "0.78rem", color: "#059669", fontWeight: 700 }}>
+                                {pharm.license_number ? `License #${pharm.license_number}` : "Licensed Retail Pharmacy"}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: "0.72rem", background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
+                              ✓ LICENSED
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: 6 }}>
+                            <strong>Location:</strong> {[pharm.city, pharm.district, pharm.state].filter(Boolean).join(", ") || "Doorstep Delivery"}
+                          </div>
                         </div>
-                        <span style={{ fontSize: "0.72rem", background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }}>
-                          ✓ LICENSED
-                        </span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                          <div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Speed</div>
+                            <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.9rem" }}>Same-Day Express</div>
+                          </div>
+                          <Link href="/pharmacy" style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #059669 0%, #047857 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
+                            <span>Order Doorstep</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                        </div>
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: 6 }}>
-                        <strong>Pharmacist:</strong> {pharm.pharmacist}
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: 8 }}>
-                        <strong>License:</strong> {pharm.license}
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: "#334155", lineHeight: 1.4 }}>
-                        {pharm.highlight}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
-                      <div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>Speed</div>
-                        <div style={{ fontWeight: 800, color: "#059669", fontSize: "0.9rem" }}>{pharm.delivery}</div>
-                      </div>
-                      <Link href={pharm.url} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "linear-gradient(135deg, #059669 0%, #047857 100%)", color: "white", padding: "8px 14px", borderRadius: 8, fontSize: "0.82rem", fontWeight: 700, textDecoration: "none" }}>
-                        <span>Order Doorstep</span>
-                        <ChevronRight size={14} />
+                    ))
+                  ) : (
+                    <div style={{ background: "#ffffff", border: "1.5px dashed #cbd5e1", borderRadius: 16, padding: "32px 24px", textAlign: "center", gridColumn: "1 / -1" }}>
+                      <ShieldCheck size={36} style={{ color: "#059669", margin: "0 auto 12px" }} />
+                      <h4 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#0f172a" }}>
+                        CallMedex Partner Pharmacy &amp; Jan Aushadhi Generic Medicine Network
+                      </h4>
+                      <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b", maxWidth: 480, marginInline: "auto" }}>
+                        Upload your doctor prescription for 1-click doorstep medicine dispatch and savings up to 70% on WHO-GMP certified generic drugs.
+                      </p>
+                      <Link href="/pharmacy" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#059669", color: "white", padding: "10px 20px", borderRadius: 10, textDecoration: "none", fontWeight: 700, fontSize: "0.88rem" }}>
+                        <span>Upload Prescription for Doorstep Delivery</span>
+                        <ChevronRight size={16} />
                       </Link>
                     </div>
-                  </div>
-                ))}
+                  )
+                )}
 
                 {activeTab === "packages" && [
                   {
