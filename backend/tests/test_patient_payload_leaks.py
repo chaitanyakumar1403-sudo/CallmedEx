@@ -209,8 +209,8 @@ async def test_patient_bookings_list_leaks_no_centre_identity(bookings_db):
         "provider_id": centre_id, "provider_type": "processing_center",
         "processing_center_id": centre_id,
         "service_type": "lab_test", "status": "confirmed",
-        "slot_start": "2026-07-29T08:00:00", "slot_end": "2026-07-29T08:30:00",
-        "created_at": "2026-07-28T00:00:00Z",
+        "slot_start": "2028-07-29T08:00:00", "slot_end": "2028-07-29T08:30:00",
+        "created_at": "2028-07-28T00:00:00Z",
     }]
 
     result = await get_my_bookings(current_user={"sub": patient_id})

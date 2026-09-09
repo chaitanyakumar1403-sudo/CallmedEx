@@ -6,6 +6,7 @@ import LocationPicker from "../../../components/LocationPicker";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
 import labTestCatalog from "@/data/lab-test-prices.json";
 import healthPackagesCatalog from "@/data/health-packages.json";
+import masterCatalog from "@/data/callmedex_master_catalog.json";
 import Clinical3DIcon, { type Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
 import {
   Stethoscope,
@@ -38,15 +39,34 @@ const NURSING_SERVICES = [
   { id: "general", name: "General Nursing", desc: "Vitals, basic care, assessments", duration: "1-2 hours" },
 ];
 
+// Helper to look up canonical test details from CallMedex master catalog
+function findMasterCatalogItem(idOrName: string) {
+  if (!idOrName) return null;
+  const lower = idOrName.toLowerCase().trim();
+  const allCategories = [
+    ...(masterCatalog.lab_tests || []),
+    ...(masterCatalog.xrays || []),
+    ...(masterCatalog.ultrasounds || []),
+    ...(masterCatalog.dopplers || []),
+    ...(masterCatalog.cardiology || []),
+  ];
+  return (
+    allCategories.find(
+      (item: any) =>
+        item.id?.toLowerCase() === lower || item.name?.toLowerCase() === lower
+    ) || null
+  );
+}
+
 // Standard fallback diagnostic tests if an organization hasn't listed custom items yet
 const DEFAULT_DIAGNOSTIC_TESTS = [
   { id: "std-1", name: "Complete Blood Count (CBC)", price: 250, description: "Total RBC, WBC, Hemoglobin & Platelets" },
   { id: "std-2", name: "Lipid Profile (Cholesterol)", price: 400, description: "Total Cholesterol, HDL, LDL, Triglycerides" },
-  { id: "std-3", name: "Thyroid Profile (T3/T4/TSH)", price: 550, description: "Comprehensive Thyroid Gland Function" },
+  { id: "std-3", name: "Thyroid Profile (T3/T4/TSH)", price: 350, description: "Comprehensive Thyroid Gland Function" },
   { id: "std-4", name: "HbA1c (Diabetes Monitoring)", price: 350, description: "3-Month Average Blood Glucose Level" },
   { id: "std-5", name: "Liver Function Test (LFT)", price: 450, description: "Bilirubin, SGOT, SGPT, Alkaline Phosphatase" },
-  { id: "std-6", name: "Kidney Function Test (KFT)", price: 400, description: "Urea, Creatinine, Uric Acid, Electrolytes" },
-  { id: "std-7", name: "Vitamin D & B12 Panel", price: 799, description: "Bone & Nervous System Vitamin Status" },
+  { id: "std-6", name: "Kidney Function Test (KFT)", price: 450, description: "Urea, Creatinine, Uric Acid, Electrolytes" },
+  { id: "std-7", name: "Vitamin D & B12 Panel", price: 999, description: "Bone & Nervous System Vitamin Status" },
 ];
 
 const DEFAULT_DIAGNOSTIC_PACKAGES = [
@@ -69,11 +89,25 @@ function getSlotPricing(_slot: string): SlotPricing {
   return { tier: "standard", label: "Standard", badge: "", surcharge: 0 };
 }
 
-// Generate 30-min time slots from 5:00 AM to 8:00 PM
+// Strictly 5:30 AM to 11:00 AM for all home sample collection services (30 min duration)
+const HOME_COLLECTION_SLOTS = [
+  "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"
+];
+
+// Walk-in diagnostic center slots: 7:00 AM to 8:30 PM (every 30 mins)
+const WALKIN_CENTRE_SLOTS = (() => {
+  const slots: string[] = [];
+  for (let h = 7; h <= 20; h++) {
+    slots.push(`${h.toString().padStart(2, "0")}:00`);
+    slots.push(`${h.toString().padStart(2, "0")}:30`);
+  }
+  return slots;
+})();
+
+// Standard slots for walk-in clinic visits and consultations (8:00 AM to 8:00 PM)
 const TIME_SLOTS = (() => {
   const slots: string[] = [];
-  // Start at 5:00 AM to include fasting slot
-  for (let h = 5; h <= 19; h++) {
+  for (let h = 8; h <= 19; h++) {
     slots.push(`${h.toString().padStart(2, "0")}:00`);
     slots.push(`${h.toString().padStart(2, "0")}:30`);
   }
@@ -104,7 +138,8 @@ function BookingPageContent() {
   const modeParam = searchParams.get("mode"); // "home" | "walkin" — from the diagnostics fulfilment card
   const priorityParam = searchParams.get("priority"); // "urgent" — from the diagnostics "priority slot" checkbox
   const doctorParam = searchParams.get("doctor");
-  const doctorNameParam = searchParams.get("name");
+  const nameParam = searchParams.get("name");
+  const doctorNameParam = nameParam;
   const doctorSpecParam = searchParams.get("spec");
   const doctorFeeParam = searchParams.get("fee");
 
@@ -179,6 +214,10 @@ function BookingPageContent() {
   const fetchDeepLinkedTest = useCallback(() => {
     if (!targetParam) return;
     setDeepLinkedLoading(true);
+
+    const isWalkin = modeParam === "walkin" || Boolean(orgParam);
+    const catalogMatch = findMasterCatalogItem(targetParam) || (nameParam ? { id: targetParam, name: nameParam, price: Number(priceParam) || 0, mrp: undefined, category: "Diagnostic Test" } : null);
+
     const url = new URL(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/marketplace/fulfilment`);
     url.searchParams.set("catalog_id", targetParam);
     if (labDistrict.trim()) url.searchParams.set("city", labDistrict.trim());
@@ -188,25 +227,57 @@ function BookingPageContent() {
       .then((r) => r.json())
       .then((data) => {
         if (data.test && data.fulfilment) {
+          const resolvedName = (nameParam && nameParam !== "lab_1") ? nameParam : (catalogMatch?.name || data.test.name);
+          const resolvedPrice = Number(priceParam) || catalogMatch?.price || data.fulfilment.price || 599;
           const test = {
-            name: data.test.name,
-            price: data.fulfilment.price || 599,
-            description: data.test.preparation || "",
+            id: targetParam,
+            name: resolvedName,
+            price: resolvedPrice,
+            description: data.test.preparation || catalogMatch?.category || "",
             catalog_id: targetParam,
-            walk_in_required: data.fulfilment.walk_in_required,
+            walk_in_required: isWalkin || data.fulfilment.walk_in_required,
+            isWalkin,
           };
           setDeepLinkedTest(test);
-          setSelectedTests((prev) => (prev.some((t) => t.name === test.name) ? prev : [...prev, test]));
+          setSelectedTests([test]);
+        } else if (catalogMatch) {
+          const test = {
+            id: targetParam,
+            name: (nameParam && nameParam !== "lab_1") ? nameParam : catalogMatch.name,
+            price: Number(priceParam) || catalogMatch.price,
+            description: catalogMatch.category || "",
+            catalog_id: targetParam,
+            walk_in_required: isWalkin,
+            isWalkin,
+          };
+          setDeepLinkedTest(test);
+          setSelectedTests([test]);
         } else {
           setDeepLinkedTest(null);
         }
       })
-      .catch(() => setDeepLinkedTest(null))
+      .catch(() => {
+        if (catalogMatch) {
+          const test = {
+            id: targetParam,
+            name: (nameParam && nameParam !== "lab_1") ? nameParam : catalogMatch.name,
+            price: Number(priceParam) || catalogMatch.price,
+            description: catalogMatch.category || "",
+            catalog_id: targetParam,
+            walk_in_required: isWalkin,
+            isWalkin,
+          };
+          setDeepLinkedTest(test);
+          setSelectedTests([test]);
+        } else {
+          setDeepLinkedTest(null);
+        }
+      })
       .finally(() => {
         setDeepLinkedLoading(false);
         setDeepLinkedChecked(true);
       });
-  }, [targetParam, labDistrict, modeParam]);
+  }, [targetParam, labDistrict, modeParam, nameParam, priceParam, orgParam]);
 
   useEffect(() => {
     if (step === 2 && bookingType === "lab" && targetParam && !deepLinkedChecked) {
@@ -233,13 +304,15 @@ function BookingPageContent() {
       if (validTypes.includes(targetType)) {
         setBookingType(targetType);
         if (doctorParam) {
+          const isHomeDoc = targetType === "home_doctor";
+          const initFee = Number(doctorFeeParam) || (isHomeDoc ? 1000 : 500);
           const docObj = {
             id: doctorParam,
             doctor_id: doctorParam,
             name: doctorNameParam || "Doctor",
             specialization: doctorSpecParam || "General Medicine",
-            fee: Number(doctorFeeParam) || 500,
-            consultation_fee: Number(doctorFeeParam) || 500,
+            fee: initFee,
+            consultation_fee: initFee,
           };
           setSelectedDoctor(docObj);
           setStep(4);
@@ -247,12 +320,18 @@ function BookingPageContent() {
             .then((r) => r.json())
             .then((data) => {
               if (data.success && data.doctor) {
+                const doc = data.doctor;
+                const resolvedFee = Number(doctorFeeParam) || (isHomeDoc
+                  ? (doc.home_visit_fee || doc.fees?.home_visit || 1000)
+                  : (doc.in_person_fee || doc.fees?.in_person || doc.consultation_fee || 500));
+
                 setSelectedDoctor((prev: any) => ({
                   ...(prev || {}),
-                  ...data.doctor,
+                  ...doc,
                   id: doctorParam,
                   doctor_id: doctorParam,
-                  fee: Number(doctorFeeParam) || data.doctor.consultation_fee || 500,
+                  fee: resolvedFee,
+                  consultation_fee: resolvedFee,
                 }));
               }
             })
@@ -262,14 +341,45 @@ function BookingPageContent() {
           // The org-services fetch below populates the org name and timings.
           setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Provider" });
           setStep(targetType === "lab" ? 2 : 3);
+          if (serviceParam) {
+            const catalogMatch = findMasterCatalogItem(serviceParam);
+            const resolvedName = (nameParam && nameParam !== "lab_1") ? nameParam : (catalogMatch?.name || serviceParam);
+            const resolvedPrice = Number(priceParam) || catalogMatch?.price || 3500;
+            const singleItem = {
+              id: serviceParam,
+              name: resolvedName,
+              price: resolvedPrice,
+              description: catalogMatch?.category || "Diagnostic Test",
+              walk_in_required: true,
+              isWalkin: true,
+            };
+            setSelectedTests([singleItem]);
+            setDeepLinkedTest(singleItem);
+          }
         } else {
           // Lab/diagnostics is partner-blind: there is no centre step to land
           // on, so this goes straight to "Choose Tests" at step 2.
           setStep(2);
+          if (serviceParam) {
+            const catalogMatch = findMasterCatalogItem(serviceParam);
+            const resolvedName = (nameParam && nameParam !== "lab_1") ? nameParam : (catalogMatch?.name || serviceParam);
+            const resolvedPrice = Number(priceParam) || catalogMatch?.price || 3500;
+            const isWalkin = modeParam === "walkin";
+            const singleItem = {
+              id: serviceParam,
+              name: resolvedName,
+              price: resolvedPrice,
+              description: catalogMatch?.category || "Diagnostic Test",
+              walk_in_required: isWalkin,
+              isWalkin,
+            };
+            setSelectedTests([singleItem]);
+            setDeepLinkedTest(singleItem);
+          }
         }
       }
     }
-  }, [typeParam, doctorParam, doctorNameParam, doctorSpecParam, doctorFeeParam, orgParam, serviceParam, packageParam, bookingType, router]);
+  }, [typeParam, doctorParam, doctorNameParam, doctorSpecParam, doctorFeeParam, orgParam, serviceParam, packageParam, bookingType, router, nameParam, priceParam, modeParam]);
 
   // Live load presentation details if credentialsModalDoc opens without bio/fee justification
   useEffect(() => {
@@ -1467,11 +1577,21 @@ function BookingPageContent() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: 700, color: "#0f172a" }}>{deepLinkedTest.name}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#0284c7" }}>
-                          {deepLinkedTest.walk_in_required ? "Walk-in — centre confirmed after booking" : "Home collection available"}
+                        <div style={{ fontSize: "0.78rem", color: (deepLinkedTest.isWalkin || modeParam === "walkin" || Boolean(orgParam)) ? "#059669" : "#0284c7", display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
+                          {(deepLinkedTest.isWalkin || modeParam === "walkin" || Boolean(orgParam)) ? (
+                            <>
+                              <MapPin size={13} style={{ color: "#059669" }} />
+                              <span style={{ fontWeight: 700 }}>Walk-in Test at Centre</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={13} />
+                              <span>{deepLinkedTest.walk_in_required ? "Walk-in — centre confirmed after booking" : "Home collection available"}</span>
+                            </>
+                          )}
                         </div>
                       </div>
-                      <div style={{ fontWeight: 700, color: "#059669" }}>₹{deepLinkedTest.price}</div>
+                      <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.1rem" }}>₹{deepLinkedTest.price}</div>
                     </div>
                   </div>
                 ) : (
@@ -1518,61 +1638,70 @@ function BookingPageContent() {
                 ? filteredTests.slice(0, 50)
                 : filteredTests;
 
+              const isSpecificTestOrWalkin = modeParam === "walkin" || Boolean(orgParam) || Boolean(serviceParam);
+
               return (
                 <>
-                  <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-                    {displayPackages.length > 0 ? displayPackages.map((pkg: any, i: number) => {
-                      const isSelected = selectedTests.some((t) => t.name === pkg.name);
-                      return (
-                        <div
-                          key={pkg.id || i}
-                          style={{
-                            padding: 14,
-                            cursor: "pointer",
-                            borderRadius: 10,
-                            border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
-                            backgroundColor: isSelected ? "#faf5ff" : "white",
-                            transition: "all 0.2s",
-                          }}
-                          onClick={() => toggleTest(pkg)}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <div
-                                style={{
-                                  width: 22,
-                                  height: 22,
-                                  borderRadius: 4,
-                                  border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
-                                  backgroundColor: isSelected ? "#805ad5" : "white",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: "0.75rem",
-                                  color: "white",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {isSelected ? "✓" : ""}
-                              </div>
-                              <div>
-                                <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
-                                <div style={{ fontSize: "0.72rem", color: "#718096" }}>
-                                  {pkg.tests_included ? pkg.tests_included.join(", ") : pkg.tests?.join(", ") || ""}
+                  {/* Health Packages are strictly omitted during walk-in diagnostic centre bookings or when booking a specific test */}
+                  {!isSpecificTestOrWalkin && (
+                    <>
+                      <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                        {displayPackages.length > 0 ? displayPackages.map((pkg: any, i: number) => {
+                          const isSelected = selectedTests.some((t) => t.name === pkg.name);
+                          return (
+                            <div
+                              key={pkg.id || i}
+                              style={{
+                                padding: 14,
+                                cursor: "pointer",
+                                borderRadius: 10,
+                                border: isSelected ? "2px solid #805ad5" : "2px solid #e2e8f0",
+                                backgroundColor: isSelected ? "#faf5ff" : "white",
+                                transition: "all 0.2s",
+                              }}
+                              onClick={() => toggleTest(pkg)}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <div
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      borderRadius: 4,
+                                      border: isSelected ? "2px solid #805ad5" : "2px solid #cbd5e0",
+                                      backgroundColor: isSelected ? "#805ad5" : "white",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: "0.75rem",
+                                      color: "white",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {isSelected ? "✓" : ""}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 700, color: "#1a2b4a" }}>{pkg.name}</div>
+                                    <div style={{ fontSize: "0.72rem", color: "#718096" }}>
+                                      {pkg.tests_included ? pkg.tests_included.join(", ") : pkg.tests?.join(", ") || ""}
+                                    </div>
+                                  </div>
                                 </div>
+                                <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price || pkg.base_price || 0}</div>
                               </div>
                             </div>
-                            <div style={{ fontWeight: 700, color: "#2f855a" }}>₹{pkg.price || pkg.base_price || 0}</div>
-                          </div>
-                        </div>
-                      );
-                    }) : (
-                      <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No health packages available.</p>
-                    )}
-                  </div>
+                          );
+                        }) : (
+                          <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>No health packages available.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
 
-                  <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>🔬 Individual Lab Tests</h4>
+                  <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>
+                    {isSpecificTestOrWalkin ? "🔬 Additional Tests (Optional)" : "🔬 Individual Lab Tests"}
+                  </h4>
 
                   {/* Search box for the large catalog */}
                   {!hasOrgCatalog && (
@@ -1881,10 +2010,21 @@ function BookingPageContent() {
             {/* ── Time Slot Picker (all booking types) ── */}
             {selectedDate && (() => {
               const closed = isDayClosed(selectedDate);
-              // Use dynamic slots for org-based bookings, full TIME_SLOTS for partner-blind
-              const dynamicSlots = (selectedOrg?.timings?.length > 0)
-                ? getDynamicSlots(selectedDate)
-                : TIME_SLOTS;
+              const isWalkin = modeParam === "walkin" || Boolean(orgParam);
+              const isHomeCollection = 
+                !isWalkin && (
+                  bookingType === "home_collection" || 
+                  modeParam === "home" || 
+                  (bookingType === "lab" && !selectedOrg?.id) ||
+                  Boolean(packageParam)
+                );
+
+              // Home collection is strictly 5:30 AM to 11:00 AM. Walk-ins use org operating hours or WALKIN_CENTRE_SLOTS.
+              const dynamicSlots = isHomeCollection
+                ? HOME_COLLECTION_SLOTS
+                : (selectedOrg?.timings?.length > 0
+                    ? getDynamicSlots(selectedDate)
+                    : (isWalkin ? WALKIN_CENTRE_SLOTS : TIME_SLOTS));
 
               if (closed) {
                 return (
@@ -1906,20 +2046,42 @@ function BookingPageContent() {
                 );
               }
 
-              // Categorise slots strictly into Morning (before 12:00) and Afternoon & Evening (12:00 onwards)
-              // No premium slot surcharge: 06:00, 06:30, 07:00 are standard morning slots
+              // Categorise slots: For home collection, all slots are morning fasting/collection slots (05:30 - 11:00).
               const morningSlots = dynamicSlots.filter((t) => {
                 const hour = parseInt(t.split(":")[0], 10);
                 return hour < 12;
               });
-              const afternoonEveningSlots = dynamicSlots.filter((t) => {
+              const afternoonEveningSlots = isHomeCollection ? [] : dynamicSlots.filter((t) => {
                 const hour = parseInt(t.split(":")[0], 10);
                 return hour >= 12;
               });
 
               return (
                 <>
-                  {/* Morning Slots (05:00 AM – 11:30 AM) */}
+                  {isWalkin && (
+                    <div style={{
+                      padding: "12px 16px",
+                      backgroundColor: "#f0fdf4",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: 12,
+                      marginBottom: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      fontSize: "0.85rem",
+                      color: "#166534",
+                    }}>
+                      <MapPin size={18} style={{ color: "#16a34a", flexShrink: 0 }} />
+                      <div>
+                        <div style={{ fontWeight: 700 }}>Diagnostic Centre Walk-in Hours: 7:00 AM – 8:30 PM</div>
+                        <div style={{ fontSize: "0.78rem", color: "#15803d", marginTop: 2 }}>
+                          Select your estimated arrival window. Walk-in tests are confirmed upon arrival at the facility.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Morning Slots */}
                   {morningSlots.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{
@@ -1931,7 +2093,7 @@ function BookingPageContent() {
                         alignItems: "center",
                         gap: 6
                       }}>
-                        <span style={{ fontSize: "1.1rem" }}>🌅</span> Morning Slots (5:00 AM – 11:30 AM)
+                        <span style={{ fontSize: "1.1rem" }}>🌅</span> {isHomeCollection ? "Home Sample Collection Window (5:30 AM – 11:00 AM Only)" : (isWalkin ? "Morning Walk-in Hours (7:00 AM – 11:30 AM)" : "Morning Slots (8:00 AM – 11:30 AM)")}
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {morningSlots.map((t) => {
@@ -1970,7 +2132,7 @@ function BookingPageContent() {
                     </div>
                   )}
 
-                  {/* Afternoon & Evening Slots (12:00 PM – 8:00 PM) */}
+                  {/* Afternoon & Evening Slots (12:00 PM – 8:30 PM) */}
                   {afternoonEveningSlots.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{
@@ -1982,7 +2144,7 @@ function BookingPageContent() {
                         alignItems: "center",
                         gap: 6
                       }}>
-                        <span style={{ fontSize: "1.1rem" }}>🌆</span> Afternoon &amp; Evening Slots (12:00 PM – 8:00 PM)
+                        <span style={{ fontSize: "1.1rem" }}>🌆</span> {isWalkin ? "Afternoon & Evening Walk-in Hours (12:00 PM – 8:30 PM)" : "Afternoon & Evening Slots (12:00 PM – 8:00 PM)"}
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {afternoonEveningSlots.map((t) => {

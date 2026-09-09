@@ -350,6 +350,52 @@ class MarketplaceService:
         return {pid: {**directory.get(pid, {}), **settings.get(pid, {})} for pid in provider_ids}
 
     @staticmethod
+    def _find_in_master_catalog(term: Optional[str]) -> Optional[dict]:
+        if not term:
+            return None
+        import os, json
+        candidates = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "frontend", "src", "data", "callmedex_master_catalog.json")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "callmedex_master_catalog.json")),
+            os.path.abspath("callmedex_master_catalog.json"),
+        ]
+        data = None
+        for p in candidates:
+            if os.path.isfile(p):
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    break
+                except Exception:
+                    pass
+        if not data:
+            return None
+
+        t_low = term.lower().strip()
+        all_items = (
+            data.get("lab_tests", [])
+            + data.get("xrays", [])
+            + data.get("ultrasounds", [])
+            + data.get("dopplers", [])
+            + data.get("cardiology", [])
+        )
+        for item in all_items:
+            if str(item.get("id", "")).lower() == t_low or str(item.get("name", "")).lower() == t_low:
+                price = float(item.get("price") or 0.0)
+                mrp = float(item.get("mrp") or (price * 1.25))
+                return {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "reference_mrp": mrp,
+                    "reference_offer_price": price,
+                    "mrp": mrp,
+                    "price": price,
+                    "typical_turnaround_hours": item.get("turnaround_hours") or 24,
+                    "preparation": "Standard lab preparation",
+                }
+        return None
+
+    @staticmethod
     def find_offers(
         catalog_id: Optional[str] = None,
         query: Optional[str] = None,
@@ -388,20 +434,26 @@ class MarketplaceService:
             if not test:
                 matches = MarketplaceService.search_catalog(catalog_id, limit=1)
                 test = matches[0] if matches else None
+            if not test:
+                test = MarketplaceService._find_in_master_catalog(catalog_id)
         elif query:
             matches = MarketplaceService.search_catalog(query, limit=1)
             test = matches[0] if matches else None
+            if not test:
+                test = MarketplaceService._find_in_master_catalog(query)
 
         # Synthesize a fallback test object if catalog_id or query was supplied but not found in DB
         if not test and (catalog_id or query):
-            test_title = str(catalog_id or query or "Lab Test").strip()
-            test = {
-                "id": catalog_id or query or "cat-default",
-                "name": test_title,
-                "mrp": 599.0,
-                "typical_turnaround_hours": 24,
-                "preparation": "Standard lab preparation",
-            }
+            test = MarketplaceService._find_in_master_catalog(catalog_id or query)
+            if not test:
+                test_title = str(catalog_id or query or "Lab Test").strip()
+                test = {
+                    "id": catalog_id or query or "cat-default",
+                    "name": test_title,
+                    "mrp": 599.0,
+                    "typical_turnaround_hours": 24,
+                    "preparation": "Standard lab preparation",
+                }
 
         services: List[dict] = []
         if not test:

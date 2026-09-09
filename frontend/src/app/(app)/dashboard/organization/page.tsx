@@ -25,8 +25,12 @@ import {
   Plus,
   Building2,
   Check,
-  Search
+  Search,
+  FileSpreadsheet,
+  Edit3,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { DIAGNOSTIC_CENTER_SCOPE_ITEMS, DIAGNOSTIC_SCOPE_CATEGORIES } from "@/data/diagnosticCenterScope";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -60,12 +64,22 @@ export default function OrganizationDashboard() {
     home_collection_surcharge: "",
   });
 
+  // Inline Service Price Editing
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editingPrice, setEditingPrice] = useState<string>("");
+  const [savingPrice, setSavingPrice] = useState(false);
+
   // Scope of Services Dialog
   const [showScopeDialog, setShowScopeDialog] = useState(false);
   const [scopeSearchQuery, setScopeSearchQuery] = useState("");
   const [scopeCategoryFilter, setScopeCategoryFilter] = useState<string>("all");
   const [selectedScopeServices, setSelectedScopeServices] = useState<Record<string, number>>({});
   const [bulkAdding, setBulkAdding] = useState(false);
+
+  // CSV & Excel Bulk Import State
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvParsedServices, setCsvParsedServices] = useState<Array<{ name: string; price: number; type: string; category?: string }>>([]);
+  const [importingCsv, setImportingCsv] = useState(false);
 
   // Packages, Timings & Stats
   const [orgPackages, setOrgPackages] = useState<any[]>([]);
@@ -211,8 +225,10 @@ export default function OrganizationDashboard() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file (JPEG, PNG).");
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isImage = file.type.startsWith("image/");
+    if (!isImage && !isPdf) {
+      setError("Please upload a valid license document (PDF, JPEG, or PNG).");
       return;
     }
     setVerifying(true);
@@ -231,16 +247,45 @@ export default function OrganizationDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        setVerificationResult({ success: true, ...data.data.extracted_data });
+        setVerificationResult({ success: true, ...(data.data?.extracted_data || data.data || {}) });
         setProfile((prev: any) => ({ ...prev, verification_status: "verified" }));
+        fetchProfile();
       } else {
-        setError(data.detail || "Verification failed.");
+        setError(data.detail || data.message || "Verification failed.");
       }
     } catch (e) {
       setError("Failed to connect to verification server.");
     } finally {
       setVerifying(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleInstantVerify = async () => {
+    setVerifying(true);
+    setError("");
+    setVerificationResult(null);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/verification/verify`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await res.json();
+      if (data.success && data.data?.status === "verified") {
+        setVerificationResult({ success: true, message: "Organization credentials verified successfully!" });
+        setProfile((prev: any) => ({ ...prev, verification_status: "verified" }));
+        fetchProfile();
+      } else {
+        setError(data.message || "Structural check could not automatically verify. Please ensure your license number is entered in profile or upload your license document.");
+      }
+    } catch {
+      setError("Failed to connect to verification server.");
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -330,6 +375,50 @@ export default function OrganizationDashboard() {
       fetchServices();
     } catch (e) {
       setStatusMsg("❌ Failed to remove service");
+    }
+  };
+
+  const handleStartEditService = (svc: any) => {
+    setEditingServiceId(svc.id);
+    setEditingPrice(String(svc.price));
+  };
+
+  const handleSaveServicePrice = async (svc: any) => {
+    const p = parseFloat(editingPrice);
+    if (isNaN(p) || p < 0) {
+      setStatusMsg("❌ Please enter a valid price");
+      return;
+    }
+    setSavingPrice(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/providers/org/services/${svc.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: svc.name,
+          description: svc.description || "",
+          price: p,
+          service_type: svc.service_type || "lab_test",
+          home_collection_available: svc.home_collection_available || false,
+          home_collection_surcharge: svc.home_collection_surcharge || 0,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStatusMsg("✅ Service price updated successfully");
+        setEditingServiceId(null);
+        fetchServices();
+      } else {
+        setStatusMsg(`❌ ${data.detail || data.message || "Failed to update price"}`);
+      }
+    } catch {
+      setStatusMsg("❌ Failed to update price");
+    } finally {
+      setSavingPrice(false);
     }
   };
 
@@ -529,6 +618,118 @@ export default function OrganizationDashboard() {
     }
   };
 
+  const handlePreApplyCallMedexTemplate = () => {
+    const initialSelected: Record<string, number> = {};
+    // Pre-populate all diagnostic center scope items (all 134 CallMedex tests across MRI, CT, Ultrasound, X-Ray, Blood)
+    DIAGNOSTIC_CENTER_SCOPE_ITEMS.forEach(item => {
+      initialSelected[item.id] = item.price;
+    });
+    setSelectedScopeServices(initialSelected);
+    setShowScopeDialog(true);
+    setStatusMsg("✨ Pre-selected all 134 CallMedex master tests across MRI, CT Scans, Ultrasound, X-Ray, and Blood Tests. Review and approve.");
+  };
+
+  const handleDownloadCsvTemplate = () => {
+    const sampleRows = [
+      { "Test Name": "Brain MRI (Plain)", "Category": "MRI Scans", "Price": 4500, "Type": "imaging" },
+      { "Test Name": "HRCT Chest", "Category": "CT Scans", "Price": 3500, "Type": "imaging" },
+      { "Test Name": "Ultrasound Whole Abdomen", "Category": "Ultrasound", "Price": 1200, "Type": "imaging" },
+      { "Test Name": "Digital Chest X-Ray (PA View)", "Category": "Digital X-Ray", "Price": 400, "Type": "imaging" },
+      { "Test Name": "Complete Blood Count (CBC)", "Category": "Blood Tests", "Price": 200, "Type": "lab_test" },
+      { "Test Name": "Lipid Profile", "Category": "Blood Tests", "Price": 500, "Type": "lab_test" },
+      { "Test Name": "Thyroid Profile (T3, T4, TSH)", "Category": "Blood Tests", "Price": 500, "Type": "lab_test" },
+      { "Test Name": "HbA1c Glycated Hemoglobin", "Category": "Blood Tests", "Price": 450, "Type": "lab_test" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Diagnostic_Tests_Template");
+    XLSX.writeFile(wb, "CallMedex_Diagnostic_Tests_Template.xlsx");
+    setStatusMsg("📥 Sample Diagnostic Tests Template downloaded successfully!");
+  };
+
+  const handleCsvFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+      const parsed: Array<{ name: string; price: number; type: string; category?: string }> = [];
+      for (const row of jsonData) {
+        const name = String(row["Test"] || row["Test Name"] || row["Name"] || row["Service"] || row["service_name"] || "").trim();
+        const price = parseFloat(row["Test Price"] || row["Price"] || row["Rate"] || row["tariff"] || 0);
+        const rawType = String(row["Type"] || row["type"] || "").toLowerCase();
+        const nameLower = name.toLowerCase();
+        const isScan = nameLower.includes("scan") || nameLower.includes("x-ray") || nameLower.includes("xray") || nameLower.includes("mri") || nameLower.includes("usg") || nameLower.includes("ct") || nameLower.includes("ultrasound") || nameLower.includes("doppler");
+        const type = rawType.includes("imag") || isScan ? "imaging" : "lab_test";
+
+        let detectedCategory = row["Category"] || row["category"] || "";
+        if (!detectedCategory) {
+          if (nameLower.includes("mri")) detectedCategory = "1.5T / 3.0T MRI Scans";
+          else if (nameLower.includes("ct") || nameLower.includes("computed")) detectedCategory = "Multi-Slice CT Scans";
+          else if (nameLower.includes("usg") || nameLower.includes("ultrasound") || nameLower.includes("sonography")) detectedCategory = "Ultrasound & 4D Fetal Scans";
+          else if (nameLower.includes("doppler")) detectedCategory = "Color Doppler Imaging";
+          else if (nameLower.includes("x-ray") || nameLower.includes("xray") || nameLower.includes("radiograph")) detectedCategory = "Digital X-Ray";
+          else if (nameLower.includes("ecg") || nameLower.includes("echo") || nameLower.includes("cardio")) detectedCategory = "Cardiology & 2D Echo";
+          else detectedCategory = "Blood & Pathology";
+        }
+
+        if (name && price > 0) {
+          parsed.push({
+            name,
+            price,
+            type,
+            category: detectedCategory
+          });
+        }
+      }
+      setCsvParsedServices(parsed);
+      setShowCsvModal(true);
+    } catch (err: any) {
+      console.error("CSV parse error:", err);
+      setStatusMsg("❌ Failed to parse file. Please upload a valid CSV or Excel spreadsheet.");
+    }
+  };
+
+  const handleConfirmCsvImport = async () => {
+    if (csvParsedServices.length === 0) return;
+    setImportingCsv(true);
+    try {
+      const token = getToken();
+      let count = 0;
+      for (const svc of csvParsedServices) {
+        try {
+          await fetch(`${apiBase}/api/providers/org/services`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              service_type: svc.type,
+              name: svc.name,
+              description: `Spreadsheet imported diagnostic service benchmarked at Rs. ${svc.price}`,
+              price: svc.price,
+              home_collection_available: false,
+              home_collection_surcharge: 0,
+            }),
+          });
+          count++;
+        } catch {
+          // continue
+        }
+      }
+      setStatusMsg(`✅ Successfully imported ${count} services from spreadsheet!`);
+      fetchServices();
+      setShowCsvModal(false);
+      setCsvParsedServices([]);
+    } catch {
+      setStatusMsg("❌ Failed to import services.");
+    } finally {
+      setImportingCsv(false);
+    }
+  };
+
   return (
     <DashboardShell
       role="organization"
@@ -562,17 +763,33 @@ export default function OrganizationDashboard() {
                   ❌ {error}
                 </div>
               )}
-              <input type="file" accept="image/png, image/jpeg, image/jpg" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileUpload} />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={verifying}
-                style={{
-                  backgroundColor: "#86198f", color: "white", border: "none",
-                  padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: "0.9rem",
-                }}
-              >
-                {verifying ? "⏳ AI is analyzing..." : "📸 Upload License for Instant Verification"}
-              </button>
+              <input type="file" accept="image/png, image/jpeg, image/jpg, application/pdf, .pdf" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileUpload} />
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={verifying}
+                  style={{
+                    backgroundColor: "#86198f", color: "white", border: "none",
+                    padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: "0.9rem",
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                  }}
+                >
+                  <UploadCloud size={16} />
+                  {verifying ? "⏳ AI is analyzing..." : "Upload License (PDF / Image)"}
+                </button>
+                <button
+                  onClick={handleInstantVerify}
+                  disabled={verifying}
+                  style={{
+                    backgroundColor: "#0284c7", color: "white", border: "none",
+                    padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: "0.9rem",
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  {verifying ? "⏳ Verifying..." : "Quick Verify Credentials"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -966,25 +1183,120 @@ export default function OrganizationDashboard() {
         {/* ═══ SERVICES TAB ═══ */}
         {currentTab === "services" && (
           <div>
+            {/* CallMedex Recommended Prices & Walk-in Pre-applied Template Banner */}
+            <div style={{
+              background: "linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(3, 105, 161, 0.12) 100%)",
+              border: "1.5px solid rgba(56, 189, 248, 0.35)",
+              borderRadius: 14,
+              padding: "20px 24px",
+              marginBottom: 24,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 20,
+              flexWrap: "wrap",
+              boxShadow: "0 4px 16px rgba(2, 132, 199, 0.08)",
+            }}>
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: "1.25rem" }}>✨</span>
+                  <h4 style={{ margin: 0, color: "#0369a1", fontSize: "1.05rem", fontWeight: 800 }}>
+                    CallMedex Recommended Walk-In Tariffs Template
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", backgroundColor: "#e0f2fe", color: "#0284c7", padding: "2px 8px", borderRadius: 6, fontWeight: 700 }}>
+                    Pre-Agreed Benchmark Rates
+                  </span>
+                </div>
+                <p style={{ margin: 0, color: "#475569", fontSize: "0.86rem", lineHeight: 1.5 }}>
+                  Expand your diagnostic center business with verified walk-in appointments. Offer Blood Tests, Digital X-Rays, MRI, CT Scans, Ultrasound &amp; Dopplers at CallMedex benchmark rates, or customize your own center pricing anytime.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handlePreApplyCallMedexTemplate}
+                  style={{
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    color: "white",
+                    border: "none",
+                    padding: "10px 18px",
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                  }}
+                >
+                  <Sparkles size={15} /> Apply CallMedex Template
+                </button>
+
+                <label
+                  style={{
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    border: "1.5px solid #cbd5e1",
+                    padding: "10px 16px",
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <FileSpreadsheet size={15} style={{ color: "#059669" }} />
+                  <span>Import CSV / Excel</span>
+                  <input
+                    type="file"
+                    accept=".csv, .xlsx, .xls"
+                    style={{ display: "none" }}
+                    onChange={handleCsvFileUpload}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadCsvTemplate}
+                  style={{
+                    background: "#f8fafc",
+                    color: "#334155",
+                    border: "1.5px solid #cbd5e1",
+                    padding: "10px 16px",
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s ease",
+                  }}
+                  title="Download sample spreadsheet template for bulk pricing upload"
+                >
+                  <Download size={15} style={{ color: "#0284c7" }} />
+                  <span>Download Template</span>
+                </button>
+              </div>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Add Service Form */}
               <div style={{ backgroundColor: "white", borderRadius: 12, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, color: "#475569", fontSize: "1rem" }}>Add Service / Test</h3>
+                  <h3 style={{ margin: 0, color: "#475569", fontSize: "1rem" }}>Add Individual Service / Test</h3>
                   <button onClick={() => setShowScopeDialog(true)} type="button" style={{
                     backgroundColor: "#f0f9ff", color: "#0284c7", border: "1px solid #bae6fd",
                     padding: "6px 12px", borderRadius: 6, fontWeight: 600, cursor: "pointer", fontSize: "0.8rem",
                   }}>
-                    Select Scope of Services
+                    Browse Full Scope ({DIAGNOSTIC_CENTER_SCOPE_ITEMS.length})
                   </button>
                 </div>
                 <form onSubmit={handleAddService}>
-                  {isDiagnosticCentre && (
-                    <div style={{ padding: "10px 14px", borderRadius: 8, backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", marginBottom: 16, fontSize: "0.82rem", color: "#1e40af", display: "flex", alignItems: "center", gap: 8 }}>
-                      <Sparkles size={16} />
-                      <span>Diagnostic Centers operate under canonical scope (33 MRI, 31 CT, 11 Scans, CBC &amp; Cultures). Use <strong>Select Scope of Services</strong> for 1-click provisioning at benchmark tariffs.</span>
-                    </div>
-                  )}
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ display: "block", marginBottom: 6, fontWeight: 600, color: "#475569", fontSize: "0.85rem" }}>Service Type</label>
                     <select
@@ -992,8 +1304,8 @@ export default function OrganizationDashboard() {
                       onChange={e => setAddSvcForm({ ...addSvcForm, service_type: e.target.value })}
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: "0.9rem" }}
                     >
-                      <option value="imaging">Radiology &amp; Imaging</option>
-                      <option value="lab_test">Lab Test {isDiagnosticCentre ? "(CBC / Cultures Only)" : ""}</option>
+                      <option value="imaging">Radiology &amp; Imaging (MRI, CT, X-Ray, USG)</option>
+                      <option value="lab_test">Blood &amp; Lab Tests (NABL Calibrated)</option>
                       {!isDiagnosticCentre && <option value="health_package">Health Package</option>}
                       {!isDiagnosticCentre && <option value="procedure">Clinical Procedure</option>}
                       {!isDiagnosticCentre && <option value="consultation">Consultation</option>}
@@ -1077,30 +1389,101 @@ export default function OrganizationDashboard() {
                       <div key={svc.id} style={{
                         display: "flex", justifyContent: "space-between", alignItems: "center",
                         padding: "14px 16px", backgroundColor: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+                        gap: 12,
                       }}>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, color: "#1e293b" }}>
                             {svcTypeLabel[svc.service_type] || svc.service_type} — {svc.name}
                           </div>
-                          <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>
-                            ₹{svc.price}
-                            {svc.home_collection_available && (
-                              <span style={{ marginLeft: 8, color: "#059669" }}>🏠 Home: +₹{svc.home_collection_surcharge}</span>
-                            )}
-                          </div>
+                          {editingServiceId === svc.id ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>₹</span>
+                              <input
+                                type="number"
+                                value={editingPrice}
+                                onChange={e => setEditingPrice(e.target.value)}
+                                style={{
+                                  width: 90,
+                                  padding: "4px 8px",
+                                  borderRadius: 6,
+                                  border: "1.5px solid #0284c7",
+                                  fontSize: "0.85rem",
+                                  fontWeight: 700,
+                                  outline: "none",
+                                }}
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                disabled={savingPrice}
+                                onClick={() => handleSaveServicePrice(svc)}
+                                style={{
+                                  backgroundColor: "#059669",
+                                  color: "white",
+                                  border: "none",
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {savingPrice ? "Saving..." : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingServiceId(null)}
+                                style={{
+                                  backgroundColor: "#e2e8f0",
+                                  color: "#475569",
+                                  border: "none",
+                                  padding: "4px 8px",
+                                  borderRadius: 6,
+                                  fontSize: "0.75rem",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>
+                              <strong style={{ color: "#0f172a" }}>₹{svc.price}</strong>
+                              {svc.home_collection_available && (
+                                <span style={{ marginLeft: 8, color: "#059669" }}>🏠 Home: +₹{svc.home_collection_surcharge}</span>
+                              )}
+                            </div>
+                          )}
                           {svc.description && (
                             <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 2 }}>{svc.description}</div>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoveService(svc.id)}
-                          style={{
-                            backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
-                            padding: "6px 14px", borderRadius: 6, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
-                          }}
-                        >
-                          Remove
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {editingServiceId !== svc.id && (
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditService(svc)}
+                              style={{
+                                backgroundColor: "#f0f9ff", color: "#0284c7", border: "1px solid #bae6fd",
+                                padding: "6px 12px", borderRadius: 6, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              <Edit3 size={13} />
+                              Edit Price
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveService(svc.id)}
+                            style={{
+                              backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
+                              padding: "6px 14px", borderRadius: 6, fontSize: "0.8rem", fontWeight: 600, cursor: "pointer",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1306,6 +1689,100 @@ export default function OrganizationDashboard() {
                         {bulkAdding ? "Provisioning..." : `Provision Selected (${Object.keys(selectedScopeServices).length})`}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── CSV / Excel Bulk Import Preview Modal ─── */}
+            {showCsvModal && (
+              <div style={{
+                position: "fixed", inset: 0, zIndex: 9999,
+                backgroundColor: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(8px)",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+              }}>
+                <div style={{
+                  backgroundColor: "#ffffff", borderRadius: 16, width: "100%", maxWidth: 680,
+                  maxHeight: "85vh", display: "flex", flexDirection: "column",
+                  boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)", border: "1px solid #e2e8f0", padding: 24
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "1.15rem", color: "#0f172a", fontWeight: 800 }}>
+                        Spreadsheet Import Preview
+                      </h3>
+                      <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+                        Found <strong style={{ color: "#0284c7" }}>{csvParsedServices.length}</strong> valid diagnostic services and tariffs to import.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCsvModal(false)}
+                      style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                    >
+                      <XCircle size={22} />
+                    </button>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 16 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                      <thead>
+                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
+                          <th style={{ padding: "10px 14px", color: "#475569" }}>Test Name</th>
+                          <th style={{ padding: "10px 14px", color: "#475569" }}>Category</th>
+                          <th style={{ padding: "10px 14px", color: "#475569" }}>Type</th>
+                          <th style={{ padding: "10px 14px", color: "#475569", textAlign: "right" }}>Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvParsedServices.slice(0, 100).map((svc, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "8px 14px", fontWeight: 600, color: "#1e293b" }}>{svc.name}</td>
+                            <td style={{ padding: "8px 14px", color: "#64748b" }}>{svc.category || "General"}</td>
+                            <td style={{ padding: "8px 14px" }}>
+                              <span style={{
+                                fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                background: svc.type === "imaging" ? "#fdf4ff" : "#f0fdf4",
+                                color: svc.type === "imaging" ? "#a21caf" : "#15803d"
+                              }}>
+                                {svc.type === "imaging" ? "Radiology" : "Lab Test"}
+                              </span>
+                            </td>
+                            <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>₹{svc.price}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {csvParsedServices.length > 100 && (
+                      <div style={{ padding: 8, textAlign: "center", color: "#64748b", fontSize: "0.75rem", background: "#f8fafc" }}>
+                        ...and {csvParsedServices.length - 100} more items.
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCsvModal(false)}
+                      style={{
+                        padding: "8px 18px", backgroundColor: "#f1f5f9", color: "#475569",
+                        border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: "0.85rem"
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={importingCsv}
+                      onClick={handleConfirmCsvImport}
+                      style={{
+                        padding: "8px 22px", backgroundColor: "#0284c7", color: "white",
+                        border: "none", borderRadius: 8, fontWeight: 700, cursor: importingCsv ? "not-allowed" : "pointer",
+                        fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 6
+                      }}
+                    >
+                      {importingCsv ? "Importing..." : `Confirm & Import (${csvParsedServices.length})`}
+                    </button>
                   </div>
                 </div>
               </div>

@@ -330,7 +330,12 @@ function TherapyBookingInner() {
             {ROLES.map((r) => (
               <button
                 key={r.value}
-                onClick={() => setRole(r.value)}
+                onClick={() => {
+                  setRole(r.value);
+                  if (r.value === "dietitian" && mode === "home_visit") {
+                    setMode("online");
+                  }
+                }}
                 style={{
                   padding: "10px 20px",
                   borderRadius: 999,
@@ -351,14 +356,18 @@ function TherapyBookingInner() {
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
-            {MODES.map((m) => {
-              const isSelected = mode === m.value;
-              const iconName = m.value === "online" ? "video" : m.value === "home_visit" ? "nurse" : "hospital";
-              return (
-                <button
-                  key={m.value}
-                  onClick={() => setMode(m.value)}
+          {/* Mode Selection — Dietitians are strictly Online or In-Person Walk-in */}
+          {(() => {
+            const availableModes = MODES.filter((m) => !(role === "dietitian" && m.value === "home_visit"));
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12 }}>
+                {availableModes.map((m) => {
+                  const isSelected = mode === m.value;
+                  const iconName = m.value === "online" ? "video" : m.value === "home_visit" ? "nurse" : "hospital";
+                  return (
+                    <button
+                      key={m.value}
+                      onClick={() => setMode(m.value)}
                   style={{
                     textAlign: "left",
                     padding: 18,
@@ -376,9 +385,11 @@ function TherapyBookingInner() {
                   <div style={{ fontWeight: 700, color: "#0f172a", marginTop: 4, fontSize: "0.95rem" }}>{m.label}</div>
                   <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>{m.blurb}</div>
                 </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
           {mode !== "online" && (
             <div style={{ marginTop: 18 }}>

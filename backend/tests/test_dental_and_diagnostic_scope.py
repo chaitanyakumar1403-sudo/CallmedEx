@@ -140,10 +140,10 @@ def test_diagnostic_center_service_allowlist_gate():
     assert is_allowed_diagnostic_center_service("CBC", "lab_test") is True
     assert is_allowed_diagnostic_center_service("CULTURES", "lab_test") is True
 
-    # Prohibited Blood Tests
-    assert is_allowed_diagnostic_center_service("Liver Function Test (LFT)", "lab_test") is False
-    assert is_allowed_diagnostic_center_service("Lipid Profile", "lab_test") is False
-    assert is_allowed_diagnostic_center_service("Thyroid Profile (T3, T4, TSH)", "lab_test") is False
+    # Allowed Blood Tests across full master lab catalog
+    assert is_allowed_diagnostic_center_service("Liver Function Test (LFT)", "lab_test") is True
+    assert is_allowed_diagnostic_center_service("Lipid Profile", "lab_test") is True
+    assert is_allowed_diagnostic_center_service("Thyroid Profile (T3, T4, TSH)", "lab_test") is True
 
     # Prohibited packages
     assert is_allowed_diagnostic_center_service("Full Body Master Checkup", "health_package") is False

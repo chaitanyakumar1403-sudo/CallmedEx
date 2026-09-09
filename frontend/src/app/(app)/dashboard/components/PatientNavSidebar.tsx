@@ -42,21 +42,6 @@ const DASHBOARD_SECTIONS: NavItem[] = [
     target: "#medicine-cabinet",
   },
   {
-    id: "radiology-diagnostics",
-    label: "Radiology & Scans",
-    icon: ScanLine,
-    type: "anchor",
-    target: "#radiology-diagnostics",
-  },
-  {
-    id: "dental-clinics",
-    label: "Dental & Oral Care",
-    icon: Smile,
-    type: "anchor",
-    target: "#dental-clinics",
-    badge: "Walk-in",
-  },
-  {
     id: "family-circle",
     label: "Family Care Circle",
     icon: Users,

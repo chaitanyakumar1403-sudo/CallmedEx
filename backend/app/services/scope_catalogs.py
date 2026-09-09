@@ -724,6 +724,9 @@ def is_allowed_diagnostic_center_service(name: str, service_type: str = "") -> b
     if not clean_name:
         return False
 
+    if service_type in ("health_package", "package") or "package" in clean_name or "checkup" in clean_name:
+        return False
+
     norm_name = clean_name.replace(" ", "").replace("-", "").replace("_", "").replace("&", "and")
 
     # Check against all allowed scan categories in DIAGNOSTIC_CENTER_SCOPE
@@ -744,9 +747,16 @@ def is_allowed_diagnostic_center_service(name: str, service_type: str = "") -> b
                 if clean_name.startswith(cat) and any(w in it_name for w in clean_name.split()[1:]):
                     return True
 
-    # Check Blood tests restriction: strictly CBC and CULTURES only
-    allowed_blood = {"cbc", "cultures", "complete blood count", "blood culture", "culture & sensitivity", "culture"}
-    if any(ab in clean_name for ab in allowed_blood):
+    # Blood & Pathology Tests: Canonical lab tests, hematology, biochemistry, and hormone panels
+    if service_type in ("lab_test", "diagnostic") or any(
+        kw in clean_name for kw in [
+            "blood", "test", "cbc", "profile", "count", "serum", "urine", "culture",
+            "glucose", "thyroid", "lipid", "liver", "renal", "kidney", "hba1c",
+            "creatinine", "vitamin", "iron", "calcium", "hemoglobin", "platelet",
+            "bilirubin", "cholesterol", "panel", "screen", "antigen", "antibody",
+            "tsh", "electrolytes", "wbc", "rbc", "esr", "crp", "scan", "xray", "mri", "ct", "echo", "doppler"
+        ]
+    ):
         return True
 
     return False

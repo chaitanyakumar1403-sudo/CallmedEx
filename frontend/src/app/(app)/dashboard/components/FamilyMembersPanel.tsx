@@ -94,7 +94,19 @@ export default function FamilyMembersPanel() {
   }
 
   return (
-    <div className="cm-stack" style={{ marginBottom: "var(--cm-6)" }}>
+    <div
+      className="cm-stack cm-family-panel-glass"
+      style={{
+        marginBottom: "var(--cm-6)",
+        background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.88) 100%)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        border: "1px solid rgba(224, 242, 254, 0.95)",
+        borderRadius: "20px",
+        padding: "24px",
+        boxShadow: "0 10px 30px -5px rgba(2, 132, 199, 0.08), 0 1px 0 0 rgba(255, 255, 255, 0.9) inset",
+      }}
+    >
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
@@ -229,8 +241,13 @@ export default function FamilyMembersPanel() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                background: "rgba(255, 255, 255, 0.9)",
+                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(226, 232, 240, 0.9)",
+                borderRadius: "14px",
                 borderLeft: m.is_self ? "4px solid var(--cm-done)" : "4px solid var(--cm-active)",
-                transition: "transform 0.15s ease",
+                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.05)",
+                transition: "all 0.2s ease",
               }}
             >
               <div style={{ flex: 1 }}>

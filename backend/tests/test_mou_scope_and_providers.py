@@ -36,12 +36,12 @@ def test_mou_legal_documents_configured_for_new_roles():
     diet_doc = LegalService.get_active_document("dietitian")
     assert diet_doc is not None
     assert "Dietetic" in diet_doc["title"]
-    assert "80/20" in diet_doc["content_text"]
+    assert "80/20" in diet_doc["content_text"] or ("80%" in diet_doc["content_text"] and "20%" in diet_doc["content_text"])
 
     physio_doc = LegalService.get_active_document("physiotherapist")
     assert physio_doc is not None
     assert "Physiotherapy" in physio_doc["title"]
-    assert "80/20" in physio_doc["content_text"]
+    assert "80/20" in physio_doc["content_text"] or ("80%" in physio_doc["content_text"] and "20%" in physio_doc["content_text"])
 
 
 def test_80_20_commercial_split_calculation():

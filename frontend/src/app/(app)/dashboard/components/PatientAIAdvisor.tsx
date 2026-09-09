@@ -7,7 +7,7 @@ import {
   Sparkles, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, RefreshCw,
   FlaskConical, Activity, HeartPulse, Stethoscope, Bike, Check, X,
   ExternalLink, ChevronRight, User, Droplet, FileText, Pill, Zap, Clock,
-  Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle
+  Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle, Building2
 } from "@/components/ui/icons";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
@@ -178,8 +178,8 @@ const DEFAULT_CLINICAL_ORCHESTRA: AIAdvisorData = {
       fee: 499,
       languages: ["English", "Telugu", "Hindi"],
       reason: "Personalize macro-nutritional balance, glycemic index meal plans, and home dietary intake.",
-      consultation_mode: "home_visit",
-      action_url: "/booking?type=home_visit&specialty=Dietitian",
+      consultation_mode: "video",
+      action_url: "/booking?type=video_consult&specialty=Dietitian",
     },
     {
       specialty: "Consultant Diabetologist",
@@ -382,7 +382,7 @@ export default function PatientAIAdvisor() {
   const [widget3Tab, setWidget3Tab] = useState<"routine" | "physio_visit">("routine");
 
   // Visit Booking State for Dietitian / Doctor / Physio
-  const [selectedModality, setSelectedModality] = useState<"home_visit" | "video">("home_visit");
+  const [selectedModality, setSelectedModality] = useState<"video" | "in_clinic" | "home_visit">("video");
   const [selectedDate, setSelectedDate] = useState<string>("Tomorrow");
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("10:30 AM");
   const [bookingSuccessMsg, setBookingSuccessMsg] = useState<string | null>(null);
@@ -561,8 +561,14 @@ export default function PatientAIAdvisor() {
     setIsBookingInProgress(true);
     setTimeout(() => {
       setIsBookingInProgress(false);
+      const modalityLabel =
+        modality === "in_clinic"
+          ? "In-Person Clinic Visit"
+          : modality === "home_visit"
+          ? "Doorstep Home Visit"
+          : "Encrypted HD Video Consult";
       setBookingSuccessMsg(
-        `Appointment Confirmed: ${providerTitle} (${modality === "home_visit" ? "In-Person Home Visit" : "Encrypted Video Consult"}) scheduled for ${selectedDate} at ${selectedTimeSlot}. Certified specialist assigned!`
+        `Appointment Confirmed: ${providerTitle} (${modalityLabel}) scheduled for ${selectedDate} at ${selectedTimeSlot}. Certified specialist assigned!`
       );
       setTimeout(() => {
         setBookingSuccessMsg(null);
@@ -584,11 +590,12 @@ export default function PatientAIAdvisor() {
     <div
       id="ai-health-advisor"
       style={{
-        background: "linear-gradient(145deg, #07132b 0%, #0c2352 50%, #071736 100%)",
-        border: "1px solid rgba(56, 189, 248, 0.32)",
+        background: "linear-gradient(135deg, rgba(2, 132, 199, 0.95) 0%, rgba(3, 105, 161, 0.92) 50%, rgba(14, 116, 144, 0.95) 100%)",
+        border: "1.5px solid rgba(125, 211, 252, 0.55)",
         borderRadius: "22px",
         padding: "24px 28px",
-        boxShadow: "0 20px 50px -10px rgba(0, 0, 0, 0.65), 0 0 35px rgba(14, 165, 233, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15)",
+        boxShadow: "0 20px 50px -10px rgba(2, 132, 199, 0.35), 0 0 35px rgba(56, 189, 248, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.35)",
+        backdropFilter: "blur(20px)",
         color: "#f8fafc",
         marginBottom: "24px",
         position: "relative",
@@ -605,7 +612,7 @@ export default function PatientAIAdvisor() {
           gap: "16px",
           marginBottom: "20px",
           paddingBottom: "18px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -644,7 +651,7 @@ export default function PatientAIAdvisor() {
                 CLINICAL HEALTH ORCHESTRA
               </span>
             </div>
-            <p style={{ margin: "4px 0 0 0", fontSize: "0.86rem", color: "#94a3b8" }}>
+            <p style={{ margin: "4px 0 0 0", fontSize: "0.86rem", color: "#e0f2fe" }}>
               Comprehensive health orchestra: personalized vitals intake, precision medical nutrition, and guided lifestyle care.
             </p>
           </div>
@@ -699,16 +706,18 @@ export default function PatientAIAdvisor() {
       {/* ── Synthesis Summary Strip ── */}
       <div
         style={{
-          background: "rgba(14, 165, 233, 0.09)",
-          border: "1px solid rgba(56, 189, 248, 0.25)",
+          background: "rgba(15, 23, 42, 0.45)",
+          backdropFilter: "blur(14px)",
+          border: "1px solid rgba(186, 230, 253, 0.35)",
           borderRadius: 14,
           padding: "14px 18px",
           marginBottom: "22px",
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <ShieldCheck size={20} color="#38bdf8" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: "0.88rem", color: "#e2e8f0", lineHeight: 1.5, fontWeight: 500 }}>
+          <div style={{ fontSize: "0.88rem", color: "#ffffff", lineHeight: 1.5, fontWeight: 600 }}>
             {data.health_summary}
           </div>
         </div>
@@ -725,9 +734,9 @@ export default function PatientAIAdvisor() {
                   fontWeight: 600,
                   padding: "3px 10px",
                   borderRadius: 999,
-                  background: "rgba(56, 189, 248, 0.12)",
-                  color: "#7dd3fc",
-                  border: "1px solid rgba(56, 189, 248, 0.25)",
+                  background: "rgba(15, 23, 42, 0.55)",
+                  color: "#bae6fd",
+                  border: "1px solid rgba(125, 211, 252, 0.4)",
                 }}
               >
                 <CheckCircle2 size={12} color="#38bdf8" />
@@ -749,8 +758,10 @@ export default function PatientAIAdvisor() {
           role="button"
           tabIndex={0}
           style={{
-            background: "linear-gradient(145deg, #091a38 0%, #0f2b5c 60%, #091b3d 100%)",
-            border: "1px solid rgba(56, 189, 248, 0.3)",
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
           }}
         >
           <div>
@@ -794,14 +805,14 @@ export default function PatientAIAdvisor() {
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#94a3b8", margin: "0 0 16px 0", lineHeight: 1.4 }}>
+            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 16px 0", lineHeight: 1.4 }}>
               Continuous biometric intake: height, weight, BMI engine, blood pressure, fasting glucose &amp; conditions.
             </p>
 
             {/* 4 Metric Dials */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
               <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 600 }}>BMI &amp; Category</div>
+                <div style={{ fontSize: "0.72rem", color: "#bae6fd", fontWeight: 600 }}>BMI &amp; Category</div>
                 <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#38bdf8", marginTop: 2 }}>
                   {profile?.bmi || "23.0"}
                 </div>
@@ -811,11 +822,11 @@ export default function PatientAIAdvisor() {
               </div>
 
               <div className="cm-ai-metric-tile">
-                <div style={{ fontSize: "0.72rem", color: "#94a3b8", fontWeight: 600 }}>Weight / Height</div>
+                <div style={{ fontSize: "0.72rem", color: "#bae6fd", fontWeight: 600 }}>Weight / Height</div>
                 <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
                   {profile?.weight_kg || 68} kg · {profile?.height_cm || 172} cm
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 1 }}>
+                <div style={{ fontSize: "0.7rem", color: "#cbd5e1", marginTop: 1 }}>
                   BP: {profile?.blood_pressure || "120/80"}
                 </div>
               </div>
@@ -831,16 +842,16 @@ export default function PatientAIAdvisor() {
                       fontSize: "0.72rem",
                       padding: "2px 8px",
                       borderRadius: 6,
-                      background: "rgba(14, 165, 233, 0.15)",
+                      background: "rgba(14, 165, 233, 0.2)",
                       color: "#7dd3fc",
-                      border: "1px solid rgba(56, 189, 248, 0.25)",
+                      border: "1px solid rgba(56, 189, 248, 0.35)",
                     }}
                   >
                     {c}
                   </span>
                 ))
               ) : (
-                <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Routine annual maintenance</span>
+                <span style={{ fontSize: "0.72rem", color: "#bae6fd" }}>Routine annual maintenance</span>
               )}
               <span
                 style={{
@@ -898,8 +909,10 @@ export default function PatientAIAdvisor() {
           role="button"
           tabIndex={0}
           style={{
-            background: "linear-gradient(145deg, #091a38 0%, #0f2b5c 60%, #091b3d 100%)",
-            border: "1px solid rgba(56, 189, 248, 0.3)",
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
           }}
         >
           <div>
@@ -943,7 +956,7 @@ export default function PatientAIAdvisor() {
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#94a3b8", margin: "0 0 14px 0", lineHeight: 1.4 }}>
+            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
               ICMR-tailored dietary blueprint, hydration pacing, superfoods &amp; certified clinical dietitian visit booking.
             </p>
 
@@ -954,7 +967,7 @@ export default function PatientAIAdvisor() {
                 <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
                   {dietPlan?.daily_calories || "2,050 kcal"}
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: 1 }}>50% Carbs · 25% Protein</div>
+                <div style={{ fontSize: "0.68rem", color: "#e0f2fe", marginTop: 1 }}>50% Carbs · 25% Protein</div>
               </div>
 
               <div className="cm-ai-metric-tile">
@@ -962,7 +975,7 @@ export default function PatientAIAdvisor() {
                 <div style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
                   {dietPlan?.hydration_target || "2.8 – 3.2 Liters"}
                 </div>
-                <div style={{ fontSize: "0.68rem", color: "#38bdf8", marginTop: 1 }}>Electrolyte Pacing</div>
+                <div style={{ fontSize: "0.68rem", color: "#bae6fd", marginTop: 1 }}>Electrolyte Pacing</div>
               </div>
             </div>
 
@@ -990,8 +1003,8 @@ export default function PatientAIAdvisor() {
                   ₹{dietitianDoc.fee || 499}
                 </span>
               </div>
-              <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-                {dietitianDoc.specialty} · In-Person Home Visit or Video Room
+              <div style={{ fontSize: "0.75rem", color: "#e0f2fe" }}>
+                {dietitianDoc.specialty} · In-Person Clinic Visit or Video Consultation
               </div>
               <button
                 type="button"
@@ -1014,7 +1027,7 @@ export default function PatientAIAdvisor() {
                   gap: 6,
                 }}
               >
-                <Plus size={13} /> Book Certified Dietitian Visit
+                <Plus size={13} /> Book Dietitian Consultation
               </button>
             </div>
           </div>
@@ -1042,8 +1055,10 @@ export default function PatientAIAdvisor() {
           role="button"
           tabIndex={0}
           style={{
-            background: "linear-gradient(145deg, #091a38 0%, #0f2b5c 60%, #091b3d 100%)",
-            border: "1px solid rgba(56, 189, 248, 0.3)",
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            boxShadow: "0 12px 36px -6px rgba(0, 0, 0, 0.35)",
           }}
         >
           <div>
@@ -1087,7 +1102,7 @@ export default function PatientAIAdvisor() {
               </span>
             </div>
 
-            <p style={{ fontSize: "0.82rem", color: "#94a3b8", margin: "0 0 14px 0", lineHeight: 1.4 }}>
+            <p style={{ fontSize: "0.82rem", color: "#e0f2fe", margin: "0 0 14px 0", lineHeight: 1.4 }}>
               Condition-calibrated physical rehabilitation, cardio intensity zones, joint mobility &amp; home physio visits.
             </p>
 
@@ -1605,10 +1620,15 @@ export default function PatientAIAdvisor() {
               </button>
               <button
                 type="button"
-                onClick={() => setWidget2Tab("dietitian_consult")}
+                onClick={() => {
+                  setWidget2Tab("dietitian_consult");
+                  if (selectedModality === "home_visit") {
+                    setSelectedModality("video");
+                  }
+                }}
                 className={`cm-subtab-btn ${widget2Tab === "dietitian_consult" ? "cm-subtab-btn--active" : ""}`}
               >
-                <UserCheck size={14} /> Book Dietitian Visit (Home/Video)
+                <UserCheck size={14} /> Book Dietitian Visit (Video / Clinic)
               </button>
               <button
                 type="button"
@@ -1900,12 +1920,12 @@ export default function PatientAIAdvisor() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                           <button
                             type="button"
-                            onClick={() => setSelectedModality("home_visit")}
+                            onClick={() => setSelectedModality("in_clinic")}
                             style={{
                               padding: "14px 16px",
                               borderRadius: 12,
-                              border: selectedModality === "home_visit" ? "1px solid #4ade80" : "1px solid rgba(255, 255, 255, 0.12)",
-                              background: selectedModality === "home_visit" ? "rgba(34, 197, 94, 0.18)" : "rgba(15, 23, 42, 0.6)",
+                              border: selectedModality === "in_clinic" ? "1px solid #4ade80" : "1px solid rgba(255, 255, 255, 0.12)",
+                              background: selectedModality === "in_clinic" ? "rgba(34, 197, 94, 0.18)" : "rgba(15, 23, 42, 0.6)",
                               color: "#fff",
                               textAlign: "left",
                               cursor: "pointer",
@@ -1914,10 +1934,10 @@ export default function PatientAIAdvisor() {
                               gap: 12,
                             }}
                           >
-                            <MapPin size={20} color={selectedModality === "home_visit" ? "#4ade80" : "#94a3b8"} />
+                            <Building2 size={20} color={selectedModality === "in_clinic" ? "#4ade80" : "#94a3b8"} />
                             <div>
-                              <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>In-Person Home Visit</div>
-                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Certified Dietitian visits your home</div>
+                              <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>In-Person Clinic Visit</div>
+                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Consult at verified clinical dietetics centre</div>
                             </div>
                           </button>
 
@@ -1999,7 +2019,7 @@ export default function PatientAIAdvisor() {
                           onClick={() => handleConfirmVisit(dietitianDoc.doctor_name || "Dt. Ananya Rao", selectedModality)}
                           className="cm-advisor-btn-primary"
                         >
-                          {isBookingInProgress ? "Confirming Visit..." : `Confirm ${selectedModality === "home_visit" ? "Doorstep Visit" : "Video Consult"} →`}
+                          {isBookingInProgress ? "Confirming Visit..." : `Confirm ${selectedModality === "in_clinic" ? "Clinic Visit" : selectedModality === "home_visit" ? "Doorstep Visit" : "Video Consult"} →`}
                         </button>
                       </div>
                     </>

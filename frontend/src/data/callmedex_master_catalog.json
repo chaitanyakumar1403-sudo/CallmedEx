@@ -1,0 +1,5808 @@
+{
+  "lab_tests": [
+    {
+      "id": "lab_1",
+      "name": "1,25 Dihydroxy Vitamin D",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3500.0,
+      "mrp": 4375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_2",
+      "name": "17 Alpha Hydroxy Progesteron",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_3",
+      "name": "17 Hydroxy Corticosteroids, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_4",
+      "name": "17-Ketosteroids, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 10000.0,
+      "mrp": 12500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_5",
+      "name": "25 Hydroxy Vitamin D",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_6",
+      "name": "5 Hydroxy Indole Acetic Acid, 24 Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_7",
+      "name": "Absolute Eosinophil Count (AEC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_8",
+      "name": "Absolute Lymphocyte Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_9",
+      "name": "Absolute Monocyte Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_10",
+      "name": "Absolute Neutrophil Count (ANC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_11",
+      "name": "Acetone (Ketone), Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_12",
+      "name": "Acetylcholine Receptor Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3270.0,
+      "mrp": 4088,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_13",
+      "name": "Activated Partial Thromboplastin Time (APTT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_14",
+      "name": "Activated Protein C (APC) Resistance Test,Plasma",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4590.0,
+      "mrp": 5738,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_15",
+      "name": "Acute Leukemia Diagnostic Panel",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 12240.0,
+      "mrp": 15300,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_16",
+      "name": "ADA, Ascitic fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_17",
+      "name": "ADA, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_18",
+      "name": "ADA, cyst aspiration fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_19",
+      "name": "ADA, Guided Aspirate",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_20",
+      "name": "ADA, Pericardial Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_21",
+      "name": "ADA, Peritoneal Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_22",
+      "name": "ADA, Pleural fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_23",
+      "name": "ADA, PUS",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_24",
+      "name": "ADA, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_25",
+      "name": "ADA, Synovial Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_26",
+      "name": "Adrenaline (Epinephrine),urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_27",
+      "name": "Adreno Corticotrophic Horomone (ACTH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1800.0,
+      "mrp": 2250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_28",
+      "name": "AFB Culture- Biopsy",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_29",
+      "name": "AFB Culture, Conventional Method",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1020.0,
+      "mrp": 1275,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_30",
+      "name": "AFB Stain, Sputum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 450.0,
+      "mrp": 562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_31",
+      "name": "AFB Stain, Sputum - 1st Sample",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 450.0,
+      "mrp": 562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_32",
+      "name": "Albumin, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_33",
+      "name": "Albumin, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_34",
+      "name": "Albumin, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 110.0,
+      "mrp": 138,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_35",
+      "name": "Alkaline Phosphatase (ALP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 170.0,
+      "mrp": 212,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_36",
+      "name": "Alkaline Phosphatase with bone Fraction (Ostase)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_37",
+      "name": "Alpha Feto Protein (AFP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1050.0,
+      "mrp": 1312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_38",
+      "name": "Alpha Feto Protein (AFP), CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_39",
+      "name": "ALT (SGPT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_40",
+      "name": "Ammonia",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1020.0,
+      "mrp": 1275,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_41",
+      "name": "Amylase, Cyst Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_42",
+      "name": "Amylase, Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_43",
+      "name": "Amylase, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_44",
+      "name": "ANA Profile",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3500.0,
+      "mrp": 4375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_45",
+      "name": "ANA PROFILE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3500.0,
+      "mrp": 4375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_46",
+      "name": "Angiotensing Converting Enzyme (ACE)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2800.0,
+      "mrp": 3500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_47",
+      "name": "Angiotensing Converting Enzyme (ACE),CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3500.0,
+      "mrp": 4375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_48",
+      "name": "Anti DNase B, serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1840.0,
+      "mrp": 2300,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_49",
+      "name": "Anti ds DNA",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_50",
+      "name": "Anti Neutrophil Cytoplasmic Antibody (ANCA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2350.0,
+      "mrp": 2938,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_51",
+      "name": "Anti Nuclear Antibodies (ANA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_52",
+      "name": "Anti Streptolisin O (ASO)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_53",
+      "name": "Anti Thrombin III Activity",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_54",
+      "name": "Anti Thrombin III Antigen",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_55",
+      "name": "Anti Thyroid Anti Bodies/TPO/2/ATG",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2700.0,
+      "mrp": 3375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_56",
+      "name": "Anti Thyroid Peroxidase (Anti Tpo), Microsomal Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2800.0,
+      "mrp": 3500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_57",
+      "name": "APLA PROFILE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6000.0,
+      "mrp": 7500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_58",
+      "name": "Apolipoprotein - B",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_59",
+      "name": "AST (SGOT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_60",
+      "name": "B Type Natriuretic Peptide (BNP)(NT-Pro)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3270.0,
+      "mrp": 4088,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_61",
+      "name": "Bence Jones Proteins, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_62",
+      "name": "Beta 2 Microglobulin, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1800.0,
+      "mrp": 2250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_63",
+      "name": "Beta HCG, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_64",
+      "name": "Beta-2-Glycoprotein I IgG Antibody Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_65",
+      "name": "Beta-2-Glycoprotein I IgM Antibody Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_66",
+      "name": "Bicarbonate",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_67",
+      "name": "Bile Acids-Total, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_68",
+      "name": "Bile Salts and Bile Pigments , Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_69",
+      "name": "Bilirubin, (Total,Direct,Indirect)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_70",
+      "name": "Bilirubin, Direct",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_71",
+      "name": "Bilirubin, Total",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_72",
+      "name": "Biochemical analysis, Ascitic fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_73",
+      "name": "Biochemical analysis, Peritoneal fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_74",
+      "name": "BIOPSY (Large)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_75",
+      "name": "BIOPSY MEDIUM",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_76",
+      "name": "Bleeding Time",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 30.0,
+      "mrp": 38,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_77",
+      "name": "Blood Culture and Sensitivity - 1st Report",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1350.0,
+      "mrp": 1688,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_78",
+      "name": "Blood Culture and Sensitivity - 2nd Report",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1350.0,
+      "mrp": 1688,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_79",
+      "name": "Blood Culture and Sensitivity - Final Report",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1350.0,
+      "mrp": 1688,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_80",
+      "name": "Blood Grouping and Rh Typing",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_81",
+      "name": "Blood Urea Nitrogen (BUN)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_82",
+      "name": "Bun Creatinine Ratio",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_83",
+      "name": "C- Peptide",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1640.0,
+      "mrp": 2050,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_84",
+      "name": "C1 Esterase Inhibitor, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_85",
+      "name": "CA - 125",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_86",
+      "name": "CA 15.3",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_87",
+      "name": "CA 19.9",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_88",
+      "name": "CA-125 Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_89",
+      "name": "Calcitonin (Thyrocalcitonin),Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_90",
+      "name": "Calcium, Ionized",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 700.0,
+      "mrp": 875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_91",
+      "name": "Calcium, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_92",
+      "name": "Calcium, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_93",
+      "name": "Calcium/Creatinine Ratio, Urine spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 620.0,
+      "mrp": 775,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_94",
+      "name": "C-ANCA",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2100.0,
+      "mrp": 2625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_95",
+      "name": "Carbamezepine (Tegretol)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_96",
+      "name": "Carcino Embroynic Antigen (CEA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_97",
+      "name": "Cardiolipin IgA Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_98",
+      "name": "Cardiolipin IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_99",
+      "name": "Cardiolipin IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1250.0,
+      "mrp": 1562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_100",
+      "name": "Cardiolipin Profile",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3270.0,
+      "mrp": 4088,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_101",
+      "name": "Catecholamines, Urine 24Hrs",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7900.0,
+      "mrp": 9875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_102",
+      "name": "CB NAAT Sputum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_103",
+      "name": "CBC",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_104",
+      "name": "CBP WITH ESR",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 650.0,
+      "mrp": 812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_105",
+      "name": "CD 4 & CD 8 Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_106",
+      "name": "CD 4 Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_107",
+      "name": "CD3, CD 4 & CD 8 Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2700.0,
+      "mrp": 3375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_108",
+      "name": "Cell count & cell type, Ascitic Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_109",
+      "name": "Cell count & cell type, Bronchial Wash",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_110",
+      "name": "Cell count & cell type, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_111",
+      "name": "Cell count & cell type, fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_112",
+      "name": "Cell count & cell type, Guided Aspirate Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_113",
+      "name": "Cell count & cell type,Dialysis Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_114",
+      "name": "Centromere Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_115",
+      "name": "Ceruloplasmin(Copper Oxidase), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_116",
+      "name": "Chikungunya IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_117",
+      "name": "Chlamydia Trachomatis IgA Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_118",
+      "name": "Chlorides, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_119",
+      "name": "Chlorides, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_120",
+      "name": "Chlorides, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_121",
+      "name": "Cholesterol,Total",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_122",
+      "name": "Cholinesterase- Acetyl, Plasma",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_123",
+      "name": "Chyle, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_124",
+      "name": "Citrate, Urine 24 H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_125",
+      "name": "Clotting Time",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 30.0,
+      "mrp": 38,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_126",
+      "name": "Cobalt, Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_127",
+      "name": "COLLAGEN PROFILE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6900.0,
+      "mrp": 8625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_128",
+      "name": "COLLAGEN PROFILE ADVANCED",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6900.0,
+      "mrp": 8625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_129",
+      "name": "Complement-3",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_130",
+      "name": "Complement-4",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_131",
+      "name": "Complete Blood Picture (CBP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_132",
+      "name": "Complete Urine Examination (CUE)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 160.0,
+      "mrp": 200,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_133",
+      "name": "Coombs Test - Direct (DCT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_134",
+      "name": "Coombs Test - Indirect (ICT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_135",
+      "name": "Copper, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1840.0,
+      "mrp": 2300,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_136",
+      "name": "Copper, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_137",
+      "name": "Cortisol (4 PM)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_138",
+      "name": "Cortisol (8 AM)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_139",
+      "name": "Cortisol ,Free Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_140",
+      "name": "CPK- MB",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_141",
+      "name": "C-Reactive Proteins (CRP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_142",
+      "name": "Creatine Kinase (CPK)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 600.0,
+      "mrp": 750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_143",
+      "name": "Creatinine Clearance Test, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 620.0,
+      "mrp": 775,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_144",
+      "name": "Creatinine, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 120.0,
+      "mrp": 150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_145",
+      "name": "Creatinine, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_146",
+      "name": "Creatinine, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_147",
+      "name": "Creatinine-GFR by MDRD",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_148",
+      "name": "Cryptococcus Antigen, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_149",
+      "name": "CSF ANALYSIS ANURADHA NEURO",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6020.0,
+      "mrp": 7525,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_150",
+      "name": "CT BOTH TEMPORAL BONES",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7000.0,
+      "mrp": 8750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_151",
+      "name": "CT GUIDED BIOPSY",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7500.0,
+      "mrp": 9375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_152",
+      "name": "CT REPORT (SECOND OPINION)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_153",
+      "name": "CT STRYKER PROTOCOL",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 9500.0,
+      "mrp": 11875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_154",
+      "name": "Culture & Sensitivity , Tracheal secretion",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 570.0,
+      "mrp": 712,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_155",
+      "name": "Culture and Sensitivity , Biopsy",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_156",
+      "name": "Culture and Sensitivity, Ascitic Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_157",
+      "name": "Culture and Sensitivity, Bronchial Wash",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_158",
+      "name": "Culture and Sensitivity, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_159",
+      "name": "Culture and Sensitivity, cyst aspiration Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_160",
+      "name": "Culture and Sensitivity, Ear/Eye Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_161",
+      "name": "Culture and Sensitivity, Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_162",
+      "name": "Culture and Sensitivity, Guided Aspirate",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_163",
+      "name": "Culture and Sensitivity, Nasal Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_164",
+      "name": "Culture and Sensitivity, Pleural Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_165",
+      "name": "Culture and Sensitivity, Pus",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_166",
+      "name": "Culture and Sensitivity, Pus Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_167",
+      "name": "Culture and Sensitivity, Sputum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_168",
+      "name": "Culture and Sensitivity, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_169",
+      "name": "Culture and Sensitivity, Synovial Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_170",
+      "name": "Culture and Sensitivity, Throat Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 700.0,
+      "mrp": 875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_171",
+      "name": "Culture and Sensitivity, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_172",
+      "name": "Culture and Sensitivity,Urethral Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_173",
+      "name": "Culture and Sensitivity,Vaginal Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_174",
+      "name": "Culture and Sensitivity,Wound Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_175",
+      "name": "Culture and Sensivity ,Cervical swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_176",
+      "name": "Cyclic Citrullinated Peptide (CCP) Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1900.0,
+      "mrp": 2375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_177",
+      "name": "Cytology, Ascitic Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_178",
+      "name": "Cytology, Papsmear",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_179",
+      "name": "Cytology, Papsmear",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_180",
+      "name": "Cytology, Papsmear by LBC Method",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_181",
+      "name": "D-Dimer",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_182",
+      "name": "Dehydro Epiandrosterone Sulphate (DHEA-S)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_183",
+      "name": "Dengue Antigen NS1 (ELISA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_184",
+      "name": "Dengue Ig G & Ig M - Rapid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_185",
+      "name": "Dengue IgG IgM NS1 (Rapid)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_186",
+      "name": "Dengue Serology",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_187",
+      "name": "Di HydroTestosterone (DHT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_188",
+      "name": "Differential Count (DC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_189",
+      "name": "Double Marker Test",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_190",
+      "name": "Double Marker Test Graph",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_191",
+      "name": "EEGUSG PACKAGE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2400.0,
+      "mrp": 3000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_192",
+      "name": "Electrolytes, 24H Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_193",
+      "name": "Electrolytes, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 450.0,
+      "mrp": 562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_194",
+      "name": "Electrolytes, Urine spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 450.0,
+      "mrp": 562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_195",
+      "name": "Erythrocyte Sedimentation Rate (ESR)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_196",
+      "name": "Erythropoitin, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_197",
+      "name": "Estradiol (E2)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_198",
+      "name": "Estriol unconjugated (E3)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_199",
+      "name": "Factor-I (Fibrinogen) Activity",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_200",
+      "name": "Fat, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 210.0,
+      "mrp": 262,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_201",
+      "name": "FBS AND PPBS",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_202",
+      "name": "Ferritin, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_203",
+      "name": "FNAC Blind Procedure & Report",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_204",
+      "name": "Folic Acid, serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_205",
+      "name": "Follicular Stimulating Hormone (FSH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 650.0,
+      "mrp": 812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_206",
+      "name": "Free Beta HCG,Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1130.0,
+      "mrp": 1412,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_207",
+      "name": "Fungal Culture, Sputum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_208",
+      "name": "Fungal Stain, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_209",
+      "name": "G6PD , Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_210",
+      "name": "GAD 65 (Glutamic Acid Decorboxilase) Antibodies",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7550.0,
+      "mrp": 9438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_211",
+      "name": "Gamma GT (GGTP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_212",
+      "name": "Ganglioside Antibody,Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4000.0,
+      "mrp": 5000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_213",
+      "name": "Gene expert (xpert MTB)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_214",
+      "name": "Gene expert PUS",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_215",
+      "name": "Globulin Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_216",
+      "name": "Glucose Challenge Test (GCT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_217",
+      "name": "GLUCOSE TOLERANCE TEST (3 Samples)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_218",
+      "name": "Glucose, (RBS)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_219",
+      "name": "Glucose, Fasting (FBS)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_220",
+      "name": "Glucose, Post Lunch (PLBS)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_221",
+      "name": "Glycosylated Hb (HbA1C)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_222",
+      "name": "Grams Stain, Ascitic Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_223",
+      "name": "Grams Stain, Bronchial Wash",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_224",
+      "name": "Grams Stain, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_225",
+      "name": "Grams Stain, Pericardial Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_226",
+      "name": "Grams Stain, Pleural Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_227",
+      "name": "Grams Stain, Pus",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_228",
+      "name": "Grams Stain, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_229",
+      "name": "Grams Stain, Wound Swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_230",
+      "name": "GTT - 1st Hour Plasma Glucose",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 0.0,
+      "mrp": 0,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_231",
+      "name": "GTT -Fasting Plasma Glucose( 3 Samples )",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_232",
+      "name": "Haemogram",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_233",
+      "name": "Haptoglobin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3270.0,
+      "mrp": 4088,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_234",
+      "name": "HBV-DNA Detection (Qualitative)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_235",
+      "name": "HBV-DNA Quantification (Viral load)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5600.0,
+      "mrp": 7000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_236",
+      "name": "HCV Genotyping",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 8160.0,
+      "mrp": 10200,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_237",
+      "name": "HCV RNA Quantification (Viral load)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_238",
+      "name": "Hemoglobin (HB%)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_239",
+      "name": "Hemoglobin Electrophoresis",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1400.0,
+      "mrp": 1750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_240",
+      "name": "Hepatitis A Virus (HAV) IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_241",
+      "name": "Hepatitis A Virus Antibody, (IgG) Total",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_242",
+      "name": "Hepatitis B Core Antibody Toatl(HBcAb - Total)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_243",
+      "name": "Hepatitis B Core Antigen (HBcAg), IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_244",
+      "name": "Hepatitis B Envelope Antibody (HBeAb)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_245",
+      "name": "Hepatitis B Envelope Antigen (HBeAg )",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_246",
+      "name": "Hepatitis B Surface Antibody,Total (Anti Hbs Titre)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_247",
+      "name": "Hepatitis B surface Antigen (HBsAg)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_248",
+      "name": "Hepatitis B surface Antigen (HBsAg) - Elisa",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_249",
+      "name": "Hepatitis B Surface antigen (HBsAg) (CMIA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_250",
+      "name": "Hepatitis B surface Antigen (HBsAg) Screening (Rapid)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_251",
+      "name": "Hepatitis C Virus (HCV) Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1700.0,
+      "mrp": 2125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_252",
+      "name": "Hepatitis C Virus (HCV) Antibody - Elisa",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 720.0,
+      "mrp": 900,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_253",
+      "name": "Hepatitis C Virus Antibody (Anti HCV) Screening (Rapid)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_254",
+      "name": "Hepatitis C Virus(HCV Anitibody)  (CLIA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_255",
+      "name": "Hepatitis E Virus (HEV) IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_256",
+      "name": "Hepatitis E Virus (HEV) IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_257",
+      "name": "Herpes Simplex Virus I & II - IgG",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_258",
+      "name": "High Sensitivity - CRP (HS-CRP)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 980.0,
+      "mrp": 1225,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_259",
+      "name": "Histopathology ( Medium )",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_260",
+      "name": "Histopathology (Extra Large)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_261",
+      "name": "Histopathology (Large)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_262",
+      "name": "Histopathology (Small)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_263",
+      "name": "HIV 1& 2 Ag/Ab (4th generation)  (CMIA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_264",
+      "name": "HIV ELISA",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_265",
+      "name": "HIV I & II Antibody Screening (Rapid)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_266",
+      "name": "HIV P-24 Antigen",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_267",
+      "name": "HIV-1-RNA Quantification (Viral Load)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_268",
+      "name": "HLA - B27",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3300.0,
+      "mrp": 4125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_269",
+      "name": "HLA - B27 By PCR",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_270",
+      "name": "HLA - Cross Match",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6120.0,
+      "mrp": 7650,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_271",
+      "name": "Homocysteine-Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 950.0,
+      "mrp": 1188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_272",
+      "name": "Homogentisic Acid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_273",
+      "name": "HPV-DNA detection (Qualitative)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3800.0,
+      "mrp": 4750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_274",
+      "name": "HSV I & II IgG & IgM antibodies",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_275",
+      "name": "Immunoglobulin IgA",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_276",
+      "name": "Immunoglobulin IgG",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_277",
+      "name": "Immunoglobulin IgM",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_278",
+      "name": "Immunoglobulin Profile, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_279",
+      "name": "Insulin - Fasting serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_280",
+      "name": "Insulin - Post ,Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_281",
+      "name": "Insulin Antibody, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_282",
+      "name": "Insulin like Growth factor(IGF)-1(Somatomedin C)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4400.0,
+      "mrp": 5500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_283",
+      "name": "Intact Parathyroid Hormone (iPTH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2250.0,
+      "mrp": 2812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_284",
+      "name": "INTERLEUKIN 6",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_285",
+      "name": "Iron",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_286",
+      "name": "Iron with TIBC",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 720.0,
+      "mrp": 900,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_287",
+      "name": "JAK-2 Mutation,Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7140.0,
+      "mrp": 8925,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_288",
+      "name": "Kappa & Lambda Light Chains- Free, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5610.0,
+      "mrp": 7012,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_289",
+      "name": "Kappa Light Chains- Free, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_290",
+      "name": "Karyotyping Whole Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4590.0,
+      "mrp": 5738,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_291",
+      "name": "KOH Examination, Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_292",
+      "name": "KOH Examination, Nasal swab",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_293",
+      "name": "KOH Examination, Sputum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_294",
+      "name": "KOH Examination, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_295",
+      "name": "Lactate",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_296",
+      "name": "Lactate Dehydrogenase (LDH), Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_297",
+      "name": "Lactate Dehydrogenase (LDH), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_298",
+      "name": "LC-1 (Liver Cytosolic Antigen type-1)Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_299",
+      "name": "Legionella Antigen Detection, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2660.0,
+      "mrp": 3325,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_300",
+      "name": "Leishmania Antibody-IgG(Kala Azar)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_301",
+      "name": "Leptin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6120.0,
+      "mrp": 7650,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_302",
+      "name": "Leptospira Detection,Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_303",
+      "name": "Leptospira Detection,CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_304",
+      "name": "Leptospira IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_305",
+      "name": "Leptospira IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_306",
+      "name": "Levetiracetam, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_307",
+      "name": "Lipase serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 550.0,
+      "mrp": 688,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_308",
+      "name": "Lipase,Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 800.0,
+      "mrp": 1000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_309",
+      "name": "Lipase,Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 820.0,
+      "mrp": 1025,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_310",
+      "name": "Lipid Profile",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_311",
+      "name": "Lipoprotein-(a)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_312",
+      "name": "Lithium",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 820.0,
+      "mrp": 1025,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_313",
+      "name": "Liver Function Test (LFT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_314",
+      "name": "LKM I Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_315",
+      "name": "Lupus Anticoagulants (LAC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3270.0,
+      "mrp": 4088,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_316",
+      "name": "Luteinizing Hormone (LH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_317",
+      "name": "Lyme (Borrelia Burgdorferi) Antibody IgM",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_318",
+      "name": "Lyme (Borrelia Burgdorferi)Antibody IgG",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_319",
+      "name": "Magnesium",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 610.0,
+      "mrp": 762,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_320",
+      "name": "Magnesium 24Hrs Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_321",
+      "name": "MCH",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_322",
+      "name": "Measels (Rubeola) IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_323",
+      "name": "Metanephrine, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3300.0,
+      "mrp": 4125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_324",
+      "name": "Metanephrine-Free,Plasma",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_325",
+      "name": "Meth haemoglobin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_326",
+      "name": "Microalbumin, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_327",
+      "name": "Microalbumin/Creatinine ratio, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 620.0,
+      "mrp": 775,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_328",
+      "name": "Mitochondrial Antibody (AMA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2250.0,
+      "mrp": 2812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_329",
+      "name": "MRI CARDIAC WITH CONTRAST",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 12500.0,
+      "mrp": 15625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_330",
+      "name": "MRI LEFT KNEE JOINT",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5000.0,
+      "mrp": 6250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_331",
+      "name": "Mullerian Inhibiting Substance (AMH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2100.0,
+      "mrp": 2625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_332",
+      "name": "Mumps IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_333",
+      "name": "Mumps IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_334",
+      "name": "Musk Antibody,Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6630.0,
+      "mrp": 8288,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_335",
+      "name": "Mycobacterium TB DNA Detection",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2250.0,
+      "mrp": 2812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_336",
+      "name": "Mycoplasma Pneumoniae IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3200.0,
+      "mrp": 4000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_337",
+      "name": "Mycoplasma Pneumoniae IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3200.0,
+      "mrp": 4000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_338",
+      "name": "Nasal Smear for Eosinophil Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_339",
+      "name": "Natural Killer Cells (NKC), Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_340",
+      "name": "Neuronal Antibody Profile",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 11220.0,
+      "mrp": 14025,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_341",
+      "name": "NIPT",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 40000.0,
+      "mrp": 50000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_342",
+      "name": "Occult Blood, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_343",
+      "name": "Oligoclonal band By IEF, CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_344",
+      "name": "ORTHOPANTOMOGRAM (OPG)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 480.0,
+      "mrp": 600,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_345",
+      "name": "Osmolality, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 820.0,
+      "mrp": 1025,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_346",
+      "name": "Osmolality, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 820.0,
+      "mrp": 1025,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_347",
+      "name": "Osmotic Fragility Test",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_348",
+      "name": "Ova Cyst, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_349",
+      "name": "P-ANCA",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2100.0,
+      "mrp": 2625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_350",
+      "name": "PAPP - A",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1840.0,
+      "mrp": 2300,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_351",
+      "name": "Parathyroid Hormone (PTH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_352",
+      "name": "Peripheral Smear for Abnormal Cells",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_353",
+      "name": "Peripheral Smear For Malarial Parasites",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_354",
+      "name": "Peripheral Smear Study",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_355",
+      "name": "Phenytoin (Eptoin)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_356",
+      "name": "Phospholipid Antibody (IgG)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_357",
+      "name": "Phospholipid Antibody (IgM)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_358",
+      "name": "Phosphorous, 24Hrs Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_359",
+      "name": "Phosphorous, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_360",
+      "name": "Phosphorous, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_361",
+      "name": "Platelet Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_362",
+      "name": "Pneumocystis Carinii Detection, Fluid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_363",
+      "name": "PNH- Confirmation test, Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 8160.0,
+      "mrp": 10200,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_364",
+      "name": "Porphobilinogen (PBG), Quantitative Urine 24 H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_365",
+      "name": "POST PRANDIAL BLOOD SUGAR (PPBS)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_366",
+      "name": "Potassium Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 410.0,
+      "mrp": 512,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_367",
+      "name": "Potassium, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_368",
+      "name": "Potassium, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_369",
+      "name": "Potassium/Creatinine ratio, Urine spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_370",
+      "name": "Pregnancy Test, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_371",
+      "name": "Procalcitonin, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3460.0,
+      "mrp": 4325,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_372",
+      "name": "Progesterone",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_373",
+      "name": "Prolactin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 600.0,
+      "mrp": 750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_374",
+      "name": "Prostate Specific Antigen, Free",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_375",
+      "name": "Prostate Specific Antigen, Total (PSA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_376",
+      "name": "Protein Electrophoresis",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_377",
+      "name": "Protein Electrophoresis (Oligoclonal Bands), CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5610.0,
+      "mrp": 7012,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_378",
+      "name": "Protein Electrophoresis, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_379",
+      "name": "Protein Total with Albumin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_380",
+      "name": "Protein/Creatinine ratio, Urine 24 Hours",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_381",
+      "name": "Protein/Creatinine ratio, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_382",
+      "name": "Protein/Creatinine ratio, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_383",
+      "name": "Proteins Total, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_384",
+      "name": "Proteins, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_385",
+      "name": "Proteins, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_386",
+      "name": "Prothrombin Time (PT)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 450.0,
+      "mrp": 562,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_387",
+      "name": "Prothrombin Time With INR",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_388",
+      "name": "Pulmonary Function Test",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_389",
+      "name": "QBC for MP",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_390",
+      "name": "Quadraple marker",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3050.0,
+      "mrp": 3812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_391",
+      "name": "Quadruple Markar Graph",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3300.0,
+      "mrp": 4125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_392",
+      "name": "Rapid Malaria Test (PF)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_393",
+      "name": "Red Blood Cells Count (RBC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_394",
+      "name": "Reducing Substances, Stool",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_395",
+      "name": "RENAL FUNCTION TESTS",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1190.0,
+      "mrp": 1488,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_396",
+      "name": "Reticulocyte Count",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_397",
+      "name": "Rheumatoid Factor (RA Factor)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 480.0,
+      "mrp": 600,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_398",
+      "name": "Rheumatoid Factor IgM, Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1640.0,
+      "mrp": 2050,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_399",
+      "name": "RT PCR FOR COVID 19",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_400",
+      "name": "Rubella Antibodies (IgG & IgM)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_401",
+      "name": "Rubella IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_402",
+      "name": "Rubella IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_403",
+      "name": "SAR2 (COVID 19) IG G ANTIBODIES",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_404",
+      "name": "SARS 2 (COVID19) ANTIBODIES IG G, IG M QUANTITATIVE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_405",
+      "name": "Scrub Typhus Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_406",
+      "name": "Second Opinion, Slide",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_407",
+      "name": "Selenium, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_408",
+      "name": "Selenium, Urine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_409",
+      "name": "Semen  Analysis (CASA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_410",
+      "name": "Semen Analysis",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 300.0,
+      "mrp": 375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_411",
+      "name": "Semen Analysis (Casa Method)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_412",
+      "name": "Sex Hormone Binding Globulin (SHBG)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2550.0,
+      "mrp": 3188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_413",
+      "name": "Sickle Cell Test",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_414",
+      "name": "Small Bowel Enema",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_415",
+      "name": "Smear of Microfilaria Detection ,Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_416",
+      "name": "Smith IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2250.0,
+      "mrp": 2812,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_417",
+      "name": "Smooth Muscle Antibody (ASMA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1640.0,
+      "mrp": 2050,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_418",
+      "name": "Sodium, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_419",
+      "name": "Sodium, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_420",
+      "name": "Sodium, Urine Spot",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_421",
+      "name": "Soluble Liver Antigen (SLA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3640.0,
+      "mrp": 4550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_422",
+      "name": "Sono Mammography",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_423",
+      "name": "Stool Routine Examination",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_424",
+      "name": "SURGICAL PROFILE 1 Padmasri Ivf",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2429.0,
+      "mrp": 3036,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_425",
+      "name": "TB -PCR",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_426",
+      "name": "TB Quantiferon",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3680.0,
+      "mrp": 4600,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_427",
+      "name": "TB-Gold",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2900.0,
+      "mrp": 3625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_428",
+      "name": "Testosterone, Free",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1800.0,
+      "mrp": 2250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_429",
+      "name": "Testosterone, Total",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_430",
+      "name": "Thyroglobulin,Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2300.0,
+      "mrp": 2875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_431",
+      "name": "Thyroid Antibodies (TG,TPO)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2700.0,
+      "mrp": 3375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_432",
+      "name": "Thyroid Peroxidase Antibodies (TPO, Microsomal)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_433",
+      "name": "Thyroid Profile (T3,T4,TSH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_434",
+      "name": "Thyroid Stimulating Hormone (TSH)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_435",
+      "name": "Thyroxine, Free (F-T4)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_436",
+      "name": "Thyroxine, Total (T4)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_437",
+      "name": "Tissue Transglutaminase Antibody IgA, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_438",
+      "name": "Tissue Transglutaminase IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_439",
+      "name": "Torch Profile - 10",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3200.0,
+      "mrp": 4000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_440",
+      "name": "Torch Profile - 4 IgM",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2040.0,
+      "mrp": 2550,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_441",
+      "name": "Total IGE",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_442",
+      "name": "Total Iron Binding Capacity (TIBC)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 510.0,
+      "mrp": 638,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_443",
+      "name": "TOTAL LFT",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 750.0,
+      "mrp": 938,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_444",
+      "name": "Toxoplasma IgG Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 920.0,
+      "mrp": 1150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_445",
+      "name": "Toxoplasma IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 700.0,
+      "mrp": 875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_446",
+      "name": "Transferrin",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_447",
+      "name": "Transferrin Saturation",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 720.0,
+      "mrp": 900,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_448",
+      "name": "Treponema Pallidum Haemagglutination Assay (TPHA)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_449",
+      "name": "TRIDOT",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 250.0,
+      "mrp": 312,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_450",
+      "name": "Triglycerides",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_451",
+      "name": "Triidothyronine, Free (F-T3)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_452",
+      "name": "Triidothyronine, Total (T3)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_453",
+      "name": "Triple Marker",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3060.0,
+      "mrp": 3825,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_454",
+      "name": "Triple Marker Graph",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2900.0,
+      "mrp": 3625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_455",
+      "name": "Troponin-I",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_456",
+      "name": "Troponin-T",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_457",
+      "name": "Trus Guided Prostate Biopsy",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 7000.0,
+      "mrp": 8750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_458",
+      "name": "TSH Receptor Antibodies (LATS-TSI), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 5100.0,
+      "mrp": 6375,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_459",
+      "name": "Tuberculin Skin Test (Mantoux)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_460",
+      "name": "Typhi. IgM Antibody",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_461",
+      "name": "Urea, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 120.0,
+      "mrp": 150,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_462",
+      "name": "Urea, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 400.0,
+      "mrp": 500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_463",
+      "name": "Uric Acid, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_464",
+      "name": "Urine Cotinine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_465",
+      "name": "Urine Routine",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 100.0,
+      "mrp": 125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_466",
+      "name": "US THYROID",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_467",
+      "name": "USG THYROID",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_468",
+      "name": "Valproic Acid",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1230.0,
+      "mrp": 1538,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_469",
+      "name": "Vanillyl Mandelic Acid (VMA), Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3900.0,
+      "mrp": 4875,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_470",
+      "name": "VDRL (RPR), CSF",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 310.0,
+      "mrp": 388,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_471",
+      "name": "VDRL (RPR), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_472",
+      "name": "Vitamin -A (Retinol), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4590.0,
+      "mrp": 5738,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_473",
+      "name": "Vitamin B1 (Thaimine),Blood",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_474",
+      "name": "Vitamin B12 (Cyanocobalamine),Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1000.0,
+      "mrp": 1250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_475",
+      "name": "Vitamin B2 (Riboflavin), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_476",
+      "name": "Vitamin B6 (Pyridoxin), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3570.0,
+      "mrp": 4462,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_477",
+      "name": "Vitamin C (Ascorbic Acid)",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4080.0,
+      "mrp": 5100,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_478",
+      "name": "Vitamin E (Tocopherol), Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 4590.0,
+      "mrp": 5738,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_479",
+      "name": "Vitamin K1",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 6000.0,
+      "mrp": 7500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_480",
+      "name": "Weil Feilx Test",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 1530.0,
+      "mrp": 1912,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_481",
+      "name": "Western Blot Test For HIV- 1",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3700.0,
+      "mrp": 4625,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_482",
+      "name": "Widal Test, Slide Method",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 200.0,
+      "mrp": 250,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_483",
+      "name": "Zinc, Serum",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 3300.0,
+      "mrp": 4125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "lab_484",
+      "name": "Zinc, Urine 24H",
+      "category": "Blood & Pathology Tests",
+      "category_key": "blood_tests",
+      "price": 2570.0,
+      "mrp": 3212,
+      "turnaround_hours": 24
+    }
+  ],
+  "xrays": [
+    {
+      "id": "xray_1",
+      "name": "X - RAY BOTH  MASTOIDS",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_2",
+      "name": "X-RAY ABDOMEN",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_3",
+      "name": "X-RAY ANKLE LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_4",
+      "name": "X-RAY BLADDER ONE FILM",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_5",
+      "name": "X-RAY BOTH ELBOW JOINT AP",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 600.0,
+      "mrp": 750,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_6",
+      "name": "X-RAY BOTH KNEE JOINTS AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_7",
+      "name": "X-RAY BOTH KNEES AP / LAT (STANDING)",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 900.0,
+      "mrp": 1125,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_8",
+      "name": "X-RAY BOTH MASTOIDS LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 600.0,
+      "mrp": 750,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_9",
+      "name": "X-RAY CERVICAL SPINE CONE VIEW LATERAL",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_10",
+      "name": "X-RAY CERVICAL SPINE FLEXION/EXTENSION",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 550.0,
+      "mrp": 688,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_11",
+      "name": "X-RAY CERVICAL SPINE LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_12",
+      "name": "X-RAY CHEST AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_13",
+      "name": "X-RAY CHEST PA VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_14",
+      "name": "X-RAY DORSAL SPINE AP/LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_15",
+      "name": "X-RAY DORSO SPINE LAT.VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_16",
+      "name": "X-RAY ELBOW AP/LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_17",
+      "name": "X-RAY ELBOW JOINT LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_18",
+      "name": "X-RAY FOREARM AP / LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_19",
+      "name": "X-RAY GASTROGRAPHIC STUDY 20 ML",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 1100.0,
+      "mrp": 1375,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_20",
+      "name": "X-RAY HAND AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_21",
+      "name": "X-RAY HAND P.A VIEW (BONY AGE)",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_22",
+      "name": "X-RAY HAND PA (BONY AGE)",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_23",
+      "name": "X-RAY HIP AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_24",
+      "name": "X-RAY HIP AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_25",
+      "name": "X-RAY HIP JOINT AP&LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_26",
+      "name": "X-RAY HUMERUS AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_27",
+      "name": "X-RAY KNEE AP / LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_28",
+      "name": "X-RAY KUB",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_29",
+      "name": "X-RAY L S SPINE A P VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_30",
+      "name": "X-RAY LEFT ANKLE AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_31",
+      "name": "X-RAY LEFT KNEE JOINT AP & LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_32",
+      "name": "X-RAY LEG \u00a0AP/ LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_33",
+      "name": "X-RAY LUMBAR SACRAL AP/ LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_34",
+      "name": "X-RAY LUMBAR SACRAL SPINE LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_35",
+      "name": "X-RAY LUMBAR SPINE AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_36",
+      "name": "X-RAY LUMBAR SPINE AP/LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_37",
+      "name": "X-RAY LUMBAR SPINE EACH OBLIQUE VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_38",
+      "name": "X-RAY LUMBO - SACRAL SPINE FLEXION/EXTENSION",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_39",
+      "name": "X-RAY LUMBO SACRAL SPINE LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_40",
+      "name": "X-RAY MANDIBLE AP/OBLIQUE VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_41",
+      "name": "X-RAY MANDIBLE OBLIQUE DOUBLE",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_42",
+      "name": "X-RAY MANDIBLE OBLIQUE SINGLE",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_43",
+      "name": "X-RAY NASOPHARYNX",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_44",
+      "name": "X-RAY NASOPHARYNX  LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_45",
+      "name": "X-RAY PELVIS AP \u00a0FOR S.I. JOINTS",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_46",
+      "name": "X-RAY PELVIS EACH OBLIQUE VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_47",
+      "name": "X-RAY PELVIS WITH BOTH HIPS AP/LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_48",
+      "name": "X-RAY PELVIS WITH BOTH HIPS AP/LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_49",
+      "name": "X-RAY RIGHT FOOT AP / LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_50",
+      "name": "X-RAY RIGHT FOOT AP/OBLIQUE",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_51",
+      "name": "X-RAY RIGHT KNEE JOINT AP & LATERAL VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_52",
+      "name": "X-RAY SACRUM AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_53",
+      "name": "X-RAY SHOULDER AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_54",
+      "name": "X-ray Single Film Charges",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 50.0,
+      "mrp": 62,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_55",
+      "name": "X-RAY SKULL AP/LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_56",
+      "name": "X-RAY SOFT TISSUE NECK",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_57",
+      "name": "X-RAY STERNUM AP / LAT",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_58",
+      "name": "X-RAY TM JOINT AP / LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_59",
+      "name": "X-RAY T-TUBE CHOLANGIOGRAM",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_60",
+      "name": "X-RAY WRIST AP & LAT VIEWS",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 500.0,
+      "mrp": 625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_61",
+      "name": "X-RAY WRIST AP VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "xray_62",
+      "name": "X-RAY WRIST LAT VIEW",
+      "category": "Digital X-Rays",
+      "category_key": "xrays",
+      "price": 350.0,
+      "mrp": 438,
+      "turnaround_hours": 12
+    }
+  ],
+  "ultrasounds": [
+    {
+      "id": "usg_1",
+      "name": "ULTRASOUND INGUINAL REGION",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_2",
+      "name": "ULTRASOUND HAND",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_3",
+      "name": "Ultrasound Axilla",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_4",
+      "name": "ULTRASOUND ABDOMEN PELVIS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_5",
+      "name": "ULTRASOUND OF LOWER DORSAL & UPPER LUMBAR REGION",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2800.0,
+      "mrp": 3500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_6",
+      "name": "ULTRASOUND EYE",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_7",
+      "name": "ULTRASOUND UPPER ABDOMEN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_8",
+      "name": "Ultrasound Guided Diagnostic Peritoneal Fluid Aspiration",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_9",
+      "name": "Ultrasound Guided F.C. Puncture",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_10",
+      "name": "Ultrasound Swelling",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_11",
+      "name": "ULTRASOUND EARLY PREGNANCY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_12",
+      "name": "ULTRASOUND OF BREAST",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_13",
+      "name": "ULTRASOUND ANTENANTAL",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1300.0,
+      "mrp": 1625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_14",
+      "name": "ULTRASOUND WHOLE ABDOMEN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_15",
+      "name": "ULTRASOUND-TRANS VAGINAL SCAN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_16",
+      "name": "ULTRASOUND SOFT PARTS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_17",
+      "name": "ULTRASOUND TRANSRECTAL",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_18",
+      "name": "ULTRASOUND SCROTUM",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1800.0,
+      "mrp": 2250,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_19",
+      "name": "ULTRASOUND HRUS( High resolution Ultrasound)",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_20",
+      "name": "ULTRASOUND NEURO SONOGRAPHY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2000.0,
+      "mrp": 2500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_21",
+      "name": "ULTRASOUND MARKING",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_22",
+      "name": "ULTRASOUND BOTH BREAST",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1800.0,
+      "mrp": 2250,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_23",
+      "name": "ULTRASOUND GUIDED BIOPSY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 4500.0,
+      "mrp": 5625,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_24",
+      "name": "ULTRASOUND EMERGENCY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_25",
+      "name": "ULTRASOUND TIFFA",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2000.0,
+      "mrp": 2500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_26",
+      "name": "ULTRASOUND KUB",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_27",
+      "name": "ULTRASOUND \u00a0CHEST",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_28",
+      "name": "ULTRASOUNDSCANNING FOLICULAR STUDY-3 SITTINGS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 3000.0,
+      "mrp": 3750,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_29",
+      "name": "ULTRASOUND SCANNING \u00a0PELVIS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_30",
+      "name": "ULTRASOUND GUIDED ASCITIC FLUID ASPIRATION",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_31",
+      "name": "ULTRASOUND TRANS RECTAL (T.R.U.S)",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_32",
+      "name": "ULTRASOUND BOTH HIP JOINTS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_33",
+      "name": "ULTRASOUND ORBITS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_34",
+      "name": "ULTRASOUND OF LEFT LEG",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_35",
+      "name": "ULTRASOUND PERIANAL",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_36",
+      "name": "ULTRASOUND RIGHT THIGH",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_37",
+      "name": "ULTRASOUND OF RIGHT FOOT",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_38",
+      "name": "ULTRASOUND SHOULDER",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_39",
+      "name": "Ultrasound Guided Diagnostic Plueral Fluid Aspiration",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_40",
+      "name": "ULTRASOUND EMERGENCY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_41",
+      "name": "ULTRASOUNDSCANNING FOLICULAR STUDY-1 SITTINGS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1250.0,
+      "mrp": 1562,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_42",
+      "name": "ULTRASOUND TRANS VAGINAL",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_43",
+      "name": "ULTRASOUND PENIS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_44",
+      "name": "ULTRASOUND ABDOMEN & PELVIS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_45",
+      "name": "ULTRASOUND NECK",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_46",
+      "name": "ULTRASOUND ANKLE",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_47",
+      "name": "ULTRASOUND KUB (Male)",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_48",
+      "name": "ULTRASOUND PELVIS",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_49",
+      "name": "ULTRASOUND ANOMALY WITH PIH SCREENING",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2600.0,
+      "mrp": 3250,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_50",
+      "name": "ULTRASOUND OF RIGHT LEG",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_51",
+      "name": "ULTRASOUND LEFT FINGER",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_52",
+      "name": "ULTRASOUND LABIUM",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_53",
+      "name": "ULTRASOUND ABDOMEN FOR MEN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_54",
+      "name": "ULTRASOUND ROUTINE PREGNANCY (TVS)",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_55",
+      "name": "ULTRASOUND NT SCAN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_56",
+      "name": "ULTRASOUND ABDOMEN EMERGENCY",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_57",
+      "name": "ULTRASOUND OF LEFT WRIST JOINT",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_58",
+      "name": "ULTRASOUND ABDOMEN FOR WOMEN",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_59",
+      "name": "ULTRASOUND OF RIGHT KNEE JOINT",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1500.0,
+      "mrp": 1875,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_60",
+      "name": "ULTRASOUND LEFT HIP JOINT",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_61",
+      "name": "ULTRASOUND OF LEFT THIGH",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 1200.0,
+      "mrp": 1500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "usg_62",
+      "name": "ULTRASOUND OF BOTH FOOT",
+      "category": "Ultrasound Scans",
+      "category_key": "ultrasounds",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 12
+    }
+  ],
+  "dopplers": [
+    {
+      "id": "dop_1",
+      "name": "DOPPLER RENAL",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_2",
+      "name": "DOPPLER PERIPHERAL ARTERIAL (UNILATERAL)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_3",
+      "name": "DOPPLER STUDY OF BOTH LIMBS ARTERIAL & VENOUS SYSTEMS",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 8000.0,
+      "mrp": 10000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_4",
+      "name": "Doppler Upper Left Limb Arterial",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_5",
+      "name": "DOPPLER NECK VESSELS",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_6",
+      "name": "Doppler Lower Limb Single Arterial",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_7",
+      "name": "Doppler Uppler Limb Single Venous",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_8",
+      "name": "DOPPLER PELVIS",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2000.0,
+      "mrp": 2500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_9",
+      "name": "Doppler Upper Limb Single Arterial",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_10",
+      "name": "Doppler Trans-Vaginal (TVS)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_11",
+      "name": "DOPPLER PERIPHERAL ARTERIAL (BILATERAL)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 4400.0,
+      "mrp": 5500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_12",
+      "name": "DOPPLER ABDOMINAL (RENAL ILIAC)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_13",
+      "name": "DOPPLER HEPATO PORTAL",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_14",
+      "name": "DOPPLER TRANS-VAGINAL (TVS)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_15",
+      "name": "Doppler Renal Transplant",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_16",
+      "name": "DOPPLER PERIPHERAL VENOUS (BILATERAL)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 4400.0,
+      "mrp": 5500,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_17",
+      "name": "DOPPLER ANTENANTAL",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_18",
+      "name": "DOPPLER CAROTID",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_19",
+      "name": "Doppler Lower Limb Single Venous",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_20",
+      "name": "DOPPLER PERIPHERAL VENOUS (UNLATERAL)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_21",
+      "name": "DOPPLER ANTENATAL",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_22",
+      "name": "DOPPLER PENILE",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2500.0,
+      "mrp": 3125,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_23",
+      "name": "DOPPLER \u00a0SCROTAL",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_24",
+      "name": "DOPPLER PERIPHERAL VENOUS (UNLATERAL)",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_25",
+      "name": "ARTERIAL DOPPLER STUDY OF BOTH LOWER LIMBS",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 4000.0,
+      "mrp": 5000,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_26",
+      "name": "ARTERIAL DOPPLER OF RIGHT UPPER LIMB",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_27",
+      "name": "ARTERIAL DOPPLER STUDY OF LEFT LOWER LIMB",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    },
+    {
+      "id": "dop_28",
+      "name": "ARTERIAL DOPPLER STUDY OF RIGHT LOWER LIMB",
+      "category": "Doppler Studies",
+      "category_key": "dopplers",
+      "price": 2200.0,
+      "mrp": 2750,
+      "turnaround_hours": 24
+    }
+  ],
+  "cardiology": [
+    {
+      "id": "card_1",
+      "name": "2D ECHO",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_2",
+      "name": "TMT",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 1600.0,
+      "mrp": 2000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_3",
+      "name": "ECG",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 150.0,
+      "mrp": 188,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_4",
+      "name": "HOLTER 24 HRS",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 4000.0,
+      "mrp": 5000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_5",
+      "name": "HOLTER 48 HRS",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 5000.0,
+      "mrp": 6250,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_6",
+      "name": "HOLTER 72 HRS",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 6000.0,
+      "mrp": 7500,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_7",
+      "name": "HOLTER 5 DAYS",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 8000.0,
+      "mrp": 10000,
+      "turnaround_hours": 12
+    },
+    {
+      "id": "card_8",
+      "name": "HOLTER 7 DAYS",
+      "category": "Cardiology Diagnostics",
+      "category_key": "cardiology",
+      "price": 10000.0,
+      "mrp": 12500,
+      "turnaround_hours": 12
+    }
+  ]
+}

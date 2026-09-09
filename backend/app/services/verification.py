@@ -301,9 +301,26 @@ class VerificationService:
         db_status = "verified" if new_status == "verified" else ("flagged" if new_status.startswith("flagged") else ("pending" if new_status == "pending" else "rejected"))
         if supabase:
             now = datetime.now(timezone.utc).isoformat()
-            supabase.table(rules["table"]).update({
-                "verification_status": db_status,
-            }).eq("user_id", user_id).execute()
+            try:
+                supabase.table(rules["table"]).update({
+                    "verification_status": db_status,
+                }).eq("user_id", user_id).execute()
+            except Exception as e:
+                logger.error(f"[VERIFY] Failed to update {rules['table']}: {e}")
+
+            try:
+                supabase.table("users").update({
+                    "verification_status": db_status,
+                }).eq("id", user_id).execute()
+            except Exception as e:
+                logger.debug(f"[VERIFY] Failed to update users table: {e}")
+
+            try:
+                supabase.table("provider_directory").update({
+                    "verification_status": db_status,
+                }).eq("user_id", user_id).execute()
+            except Exception as e:
+                logger.debug(f"[VERIFY] Failed to update provider_directory table: {e}")
 
             audit_report = {
                 "role": role,
@@ -313,16 +330,29 @@ class VerificationService:
                 "verified_at": now,
                 "pipeline": "structural_only",
             }
-            supabase.table("documents").insert({
-                "id": str(uuid.uuid4()),
-                "user_id": user_id,
-                "document_type": "verification_report",
-                "file_url": "",
-                "file_name": "verification_report.json",
-                "verification_status": db_status,
-                "verification_notes": json.dumps(audit_report),
-                "uploaded_at": now,
-            }).execute()
+            try:
+                supabase.table("documents").insert({
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "document_type": "verification_report",
+                    "file_url": "",
+                    "file_name": "verification_report.json",
+                    "verification_status": db_status,
+                    "verification_notes": json.dumps(audit_report),
+                    "uploaded_at": now,
+                }).execute()
+            except Exception as e:
+                logger.debug(f"[VERIFY] Failed to insert verification document: {e}")
+
+        # In-memory local users sync
+        try:
+            from app.routers.auth import _local_users
+            for email, u in _local_users.items():
+                if u.get("id") == user_id:
+                    u["verification_status"] = db_status
+                    break
+        except Exception:
+            pass
 
         return {
             "success": True,
@@ -343,28 +373,56 @@ class VerificationService:
         if not rules:
             return None
         if supabase:
-            result = (
-                supabase.table(rules["table"])
-                .select("*")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            if result.data:
-                return result.data[0]
+            try:
+                result = (
+                    supabase.table(rules["table"])
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .execute()
+                )
+                if result.data and len(result.data) > 0:
+                    return result.data[0]
+            except Exception as e:
+                logger.debug(f"Could not read from role table {rules['table']}: {e}")
+
+            try:
+                res_u = supabase.table("users").select("*").eq("id", user_id).execute()
+                if res_u.data and len(res_u.data) > 0:
+                    return res_u.data[0]
+            except Exception:
+                pass
+
+        try:
+            from app.routers.auth import _local_users
+            for email, u in _local_users.items():
+                if u.get("id") == user_id:
+                    return u
+        except Exception:
+            pass
         return None
 
     @staticmethod
     async def _get_user_record(user_id: str) -> Optional[dict]:
         """Fetch the user record from the users table."""
         if supabase:
-            result = (
-                supabase.table("users")
-                .select("id, full_name, email")
-                .eq("id", user_id)
-                .execute()
-            )
-            if result.data:
-                return result.data[0]
+            try:
+                result = (
+                    supabase.table("users")
+                    .select("id, full_name, email, organization_name, license_number")
+                    .eq("id", user_id)
+                    .execute()
+                )
+                if result.data and len(result.data) > 0:
+                    return result.data[0]
+            except Exception:
+                pass
+        try:
+            from app.routers.auth import _local_users
+            for email, u in _local_users.items():
+                if u.get("id") == user_id:
+                    return u
+        except Exception:
+            pass
         return None
 
     @staticmethod
@@ -486,6 +544,30 @@ class VerificationService:
                 except Exception as e:
                     logger.error(f"[VERIFY] Failed to update {rules['table']} status for {user_id}: {e}")
 
+                try:
+                    supabase.table("users").update(
+                        {"verification_status": db_status}
+                    ).eq("id", user_id).execute()
+                except Exception as e:
+                    logger.debug(f"[VERIFY] Failed to update users table: {e}")
+
+                try:
+                    supabase.table("provider_directory").update(
+                        {"verification_status": db_status}
+                    ).eq("user_id", user_id).execute()
+                except Exception as e:
+                    logger.debug(f"[VERIFY] Failed to update provider_directory table: {e}")
+
+        # In-memory local users sync
+        try:
+            from app.routers.auth import _local_users
+            for email, u in _local_users.items():
+                if u.get("id") == user_id:
+                    u["verification_status"] = db_status
+                    break
+        except Exception:
+            pass
+
         logger.info(f"[VERIFY] Final status for {role} user={user_id}: {final_status}")
 
         return {"success": final_status == "verified", "status": final_status,
@@ -574,7 +656,7 @@ class VerificationService:
             result["checks"].append({"check": "license_number", "passed": True, "detail": f"License: {license_no}"})
         else:
             result["checks"].append({"check": "license_number", "passed": False, "detail": "License number missing or invalid"})
-        org_name = profile.get("organization_name", "")
+        org_name = profile.get("organization_name", "") or profile.get("full_name", "")
         if org_name and len(org_name) >= 2:
             result["checks"].append({"check": "organization_name", "passed": True, "detail": f"Organization: {org_name}"})
         else:

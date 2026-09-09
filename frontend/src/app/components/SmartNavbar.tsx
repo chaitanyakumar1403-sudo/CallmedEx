@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut } from "lucide-react";
+import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut, LayoutDashboard, Home, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface UserData {
@@ -191,6 +191,21 @@ export default function SmartNavbar() {
               <li><Link href="/diagnostics">Book a Test</Link></li>
               <li><Link href="/consultation">Consultation</Link></li>
               <li><Link href="/pharmacy">Pharmacy</Link></li>
+              <li>
+                <Link
+                  href="/home-services"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    color: "inherit",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Sparkles size={13} style={{ color: "#38bdf8" }} />
+                  <span>Home Services</span>
+                </Link>
+              </li>
             </>
           )}
         </ul>
@@ -203,39 +218,43 @@ export default function SmartNavbar() {
                   type="button"
                   onClick={() => setShowNotifications(!showNotifications)}
                   style={{
-                    background: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    borderRadius: "8px",
+                    background: "#f8fafc",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "10px",
                     padding: "8px",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#f8fafc",
+                    color: "#0f172a",
                     position: "relative",
                     minWidth: "40px",
                     minHeight: "40px",
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
+                    transition: "all 0.2s ease",
                   }}
                   aria-label="View notifications"
                 >
-                  <Bell size={18} />
+                  <Bell size={19} style={{ color: "#0f172a" }} />
                   {unreadCount > 0 && (
                     <span
                       style={{
                         position: "absolute",
                         top: -4,
                         right: -4,
-                        background: "var(--cm-urgent)",
+                        background: "#ef4444",
                         color: "#ffffff",
                         fontSize: "0.68rem",
                         fontWeight: 800,
-                        width: "18px",
+                        minWidth: "18px",
                         height: "18px",
-                        borderRadius: "50%",
+                        padding: "0 4px",
+                        borderRadius: "9999px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        border: "2px solid #0f172a",
+                        border: "2px solid #ffffff",
+                        boxShadow: "0 2px 6px rgba(239, 68, 68, 0.4)",
                       }}
                     >
                       {unreadCount}
@@ -394,12 +413,38 @@ export default function SmartNavbar() {
                 )}
               </div>
 
-              <Link href={getDashboardLink()} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: "0.75rem", backgroundColor: "var(--cm-active)", color: "white", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
-                  {roleLabel[user.role] || user.role}
-                </span>
-                {user.full_name?.split(" ")[0] || "User"}
-              </Link>
+              {user.role === "patient" ? (
+                <Link
+                  href="/dashboard/patient"
+                  className="cm-btn cm-btn--sm"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 7,
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    border: "1px solid rgba(56, 189, 248, 0.5)",
+                    borderRadius: 8,
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    fontSize: "0.82rem",
+                    padding: "6px 14px",
+                    boxShadow: "0 2px 10px rgba(2, 132, 199, 0.35)",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                  }}
+                  title="Open Patient Dashboard"
+                >
+                  <LayoutDashboard size={15} style={{ color: "#ffffff" }} />
+                  <span>Patient Dashboard</span>
+                </Link>
+              ) : (
+                <Link href={getDashboardLink()} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: "0.75rem", backgroundColor: "var(--cm-active)", color: "white", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+                    {roleLabel[user.role] || user.role}
+                  </span>
+                  {user.full_name?.split(" ")[0] || "User"}
+                </Link>
+              )}
               <button onClick={handleLogout} className="cm-btn cm-btn--primary cm-btn--sm" style={{ backgroundColor: "var(--cm-urgent)", borderColor: "var(--cm-urgent)" }}>
                 Logout
               </button>
@@ -535,6 +580,25 @@ export default function SmartNavbar() {
                   }}
                 >
                   Prescription Pharmacy
+                </Link>
+                <Link
+                  href="/home-services"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <Sparkles size={16} style={{ color: "var(--cm-active)" }} />
+                  Home Services Directory
                 </Link>
               </>
             )}

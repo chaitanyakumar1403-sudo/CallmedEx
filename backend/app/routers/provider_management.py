@@ -1479,6 +1479,34 @@ async def org_list_services(current_user: dict = Depends(get_current_user)):
         return {"success": True, "services": []}
 
 
+@router.get("/org/{org_id}/services")
+async def get_organization_public_services(org_id: str):
+    """Public endpoint for patients to view active services offered by a diagnostic centre/hospital."""
+    if not supabase:
+        return {"success": True, "services": []}
+    try:
+        org_result = (
+            supabase.table("organizations")
+            .select("id")
+            .or_(f"id.eq.{org_id},user_id.eq.{org_id}")
+            .execute()
+        )
+        target_org_id = org_result.data[0]["id"] if org_result.data else org_id
+
+        result = (
+            supabase.table("organization_services")
+            .select("*")
+            .eq("organization_id", target_org_id)
+            .eq("is_active", True)
+            .order("service_type")
+            .execute()
+        )
+        return {"success": True, "services": result.data or []}
+    except Exception as e:
+        logger.error(f"Error fetching public org services: {e}")
+        return {"success": True, "services": []}
+
+
 @router.delete("/org/services/{service_id}")
 async def org_remove_service(
     service_id: str,
@@ -1956,6 +1984,10 @@ async def search_doctors(
                 "district": user.get("district", ""),
                 "state": user.get("state", ""),
                 "fees": fees,
+                "consultation_fee": (fees.get("home_visit") if consultation_mode == "home_visit" else None) or fees.get("in_person") or fees.get("online") or doc.get("consultation_fee") or 500,
+                "home_visit_fee": fees.get("home_visit") or doc.get("home_visit_fee"),
+                "in_person_fee": fees.get("in_person") or doc.get("consultation_fee") or 500,
+                "online_fee": fees.get("online") or fees.get("teleconsultation") or 500,
                 "languages": doc.get("languages_spoken", ["English"]),
             })
 
@@ -2050,6 +2082,10 @@ async def get_doctor_presentation(doctor_id: str):
                 "bio": bio,
                 "fee_justification": fee_justification,
                 "fees": fees,
+                "consultation_fee": fees.get("in_person") or doc.get("consultation_fee") or 500,
+                "home_visit_fee": fees.get("home_visit") or doc.get("home_visit_fee"),
+                "in_person_fee": fees.get("in_person") or doc.get("consultation_fee") or 500,
+                "online_fee": fees.get("online") or fees.get("teleconsultation") or 500,
                 "verification_status": doc.get("verification_status", "verified"),
                 "city": user.get("city", ""),
                 "district": user.get("district", ""),

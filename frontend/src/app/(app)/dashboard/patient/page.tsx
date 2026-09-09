@@ -19,8 +19,6 @@ import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
-import RadiologyCentersSection from "@/app/components/RadiologyCentersSection";
-import DentalWalkInDirectory from "@/app/components/DentalWalkInDirectory";
 import { useFamilyHubStore } from "@/store/useFamilyHubStore";
 import { useHealthMatrixStore } from "@/store/useHealthMatrixStore";
 import {
@@ -1334,25 +1332,6 @@ export default function PatientDashboard() {
                                 >
                                   <Pill size={14} /> 1-Click Refill
                                 </a>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveKpiModal(null);
-                                    setShowDrugShieldModal(true);
-                                  }}
-                                  style={{
-                                    padding: "7px 12px",
-                                    borderRadius: 8,
-                                    background: "rgba(255, 255, 255, 0.08)",
-                                    color: "#cbd5e1",
-                                    border: "1px solid rgba(255, 255, 255, 0.12)",
-                                    fontSize: "0.8rem",
-                                    fontWeight: 600,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Verify Safety
-                                </button>
                               </div>
                             </div>
                           ))}
@@ -2195,16 +2174,6 @@ export default function PatientDashboard() {
         </div>
 
 
-
-        {/* Radiology & Diagnostic Imaging Centers (MRI, CT, Scans, CBC) */}
-        <div id="radiology-diagnostics">
-          <RadiologyCentersSection onBookingCreated={refreshBookings} lang={lang} />
-        </div>
-
-        {/* Dental Practice & Oral Care Walk-In Directory (19 Canonical Procedures) */}
-        <div id="dental-clinics">
-          <DentalWalkInDirectory onBookingCreated={refreshBookings} lang={lang} />
-        </div>
 
         {/* Family Members */}
         <div id="family-circle">

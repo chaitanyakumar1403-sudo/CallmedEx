@@ -98,7 +98,7 @@ async def get_my_scope(current_user: dict = Depends(get_current_user)):
             "consultation_fee": profile.get("consultation_fee", 400.0) if profile else 400.0,
             "home_visit_fee": profile.get("home_visit_fee", 800.0) if profile else 800.0,
             "available_for_online": profile.get("available_for_online", True) if profile else True,
-            "available_for_home_visit": profile.get("available_for_home_visit", True) if profile else True,
+            "available_for_home_visit": False if role == "dietitian" else (profile.get("available_for_home_visit", True) if profile else True),
             "commercial_split": _commercial_split(),
         },
     )
@@ -125,7 +125,7 @@ async def update_my_scope(
     if req.available_for_online is not None:
         update_data["available_for_online"] = req.available_for_online
     if req.available_for_home_visit is not None:
-        update_data["available_for_home_visit"] = req.available_for_home_visit
+        update_data["available_for_home_visit"] = False if role == "dietitian" else req.available_for_home_visit
 
     if supabase:
         try:

@@ -96,6 +96,43 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         CallMedex
       </a>
       {resolvedRole && <span className="cm-appbar__role">{resolvedRole}</span>}
+      <a
+        href="/about"
+        className="cm-appbar__home-link"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          marginLeft: "10px",
+          padding: "5px 12px",
+          borderRadius: "8px",
+          fontSize: "0.82rem",
+          fontWeight: 600,
+          color: "#94a3b8",
+          textDecoration: "none",
+          background: "rgba(255, 255, 255, 0.05)",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          transition: "all 0.2s ease",
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = "#ffffff";
+          e.currentTarget.style.borderColor = "rgba(56, 189, 248, 0.4)";
+          e.currentTarget.style.background = "rgba(2, 132, 199, 0.15)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = "#94a3b8";
+          e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+          e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+        }}
+        title="Return to CallMedex Home & About"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span>Home</span>
+      </a>
       <span className="cm-appbar__spacer" />
       <div className="cm-appbar__notification-wrap">
         <Button

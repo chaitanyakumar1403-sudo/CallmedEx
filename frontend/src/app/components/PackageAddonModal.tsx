@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from "react";
 import labTestsCatalog from "@/data/lab-test-prices.json";
 
+import masterCatalog from "@/data/callmedex_master_catalog.json";
+
 export interface HealthPackageItem {
   id: string;
   name: string;
@@ -33,14 +35,14 @@ interface PackageAddonModalProps {
   ) => void;
 }
 
-// Key imaging add-ons highlighted from CALL MedEx ONLINE.xls
+// Key imaging add-ons highlighted from CALL MedEx ONLINE.xls & callmedex_master_catalog.json
 const FEATURED_IMAGING_ADDONS = [
-  { name: "Ultrasound Scan (USG Abdomen & Pelvis)", mrp: 1600, price: 1200 },
+  { name: "Ultrasound Scan (USG Abdomen & Pelvis)", mrp: 1500, price: 1200 },
   { name: "ECG (12-Lead Electrocardiogram)", mrp: 400, price: 300 },
-  { name: "2D Echo (Echocardiography with Doppler)", mrp: 2200, price: 1600 },
-  { name: "TMT (Treadmill Stress Test)", mrp: 2500, price: 1800 },
-  { name: "Doppler Ultrasound Study", mrp: 2600, price: 1900 },
-  { name: "Digital Chest X-Ray (PA View)", mrp: 600, price: 450 },
+  { name: "2D Echo (Echocardiography with Doppler)", mrp: 2000, price: 1600 },
+  { name: "TMT (Treadmill Stress Test)", mrp: 2400, price: 1800 },
+  { name: "Color Doppler Study (Single Limb / Carotid)", mrp: 3200, price: 2500 },
+  { name: "Digital Chest X-Ray (PA View)", mrp: 650, price: 500 },
 ];
 
 export default function PackageAddonModal({
@@ -66,8 +68,26 @@ export default function PackageAddonModal({
 
   // All master catalog tests combined with featured imaging
   const allAvailableTests = useMemo(() => {
+    const catalogTests = (masterCatalog?.lab_tests || []).map((t: any) => ({
+      name: t.name,
+      mrp: t.mrp || Math.round((t.price || 0) * 1.25),
+      price: t.price || 0,
+    }));
+    const catalogImaging = [
+      ...(masterCatalog?.xrays || []),
+      ...(masterCatalog?.ultrasounds || []),
+      ...(masterCatalog?.dopplers || []),
+      ...(masterCatalog?.cardiology || []),
+    ].map((t: any) => ({
+      name: t.name,
+      mrp: t.mrp || Math.round((t.price || 0) * 1.25),
+      price: t.price || 0,
+    }));
+
     const combined = [
       ...FEATURED_IMAGING_ADDONS,
+      ...catalogTests,
+      ...catalogImaging,
       ...labTestsCatalog.map((t) => ({ name: t.name, mrp: t.mrp, price: t.price })),
     ];
     // Remove duplicates

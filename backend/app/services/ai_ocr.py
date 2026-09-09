@@ -189,7 +189,7 @@ class AIOCRService:
             genai.configure(api_key=settings.GEMINI_API_KEY)
 
             # Call Gemini Vision with modern model fallback strategy
-            model_names = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+            model_names = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
             response = None
             last_err = None
             for m_name in model_names:
@@ -333,7 +333,7 @@ class AadhaarOCRService:
             import google.generativeai as genai
             genai.configure(api_key=settings.GEMINI_API_KEY)
 
-            model_names = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+            model_names = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
             response = None
             last_err = None
             for m_name in model_names:
@@ -385,7 +385,7 @@ class AadhaarOCRService:
             import google.generativeai as genai
             genai.configure(api_key=settings.GEMINI_API_KEY)
 
-            model_names = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-flash-latest"]
+            model_names = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-flash-latest"]
             response = None
             last_err = None
             for m_name in model_names:

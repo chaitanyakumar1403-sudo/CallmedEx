@@ -19,6 +19,7 @@ import { telemedAPI, discoveryAPI } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import StateDistrictPicker from '@/components/StateDistrictPicker';
 import DoctorPresentationModal from '@/app/components/DoctorPresentationModal';
+import DentalWalkInDirectory from '@/app/components/DentalWalkInDirectory';
 import {
   Video,
   Building2,
@@ -29,9 +30,11 @@ import {
   ShieldCheck,
   Stethoscope,
   Sparkles,
+  Activity,
+  Apple,
 } from 'lucide-react';
 
-type ConsultMode = 'teleconsultation' | 'walkin' | 'home';
+type ConsultMode = 'teleconsultation' | 'walkin' | 'home' | 'dental' | 'physiotherapy' | 'dietitian';
 
 interface Doctor {
   doctor_id: string;
@@ -40,6 +43,14 @@ interface Doctor {
   qualification: string;
   experience_years: number;
   consultation_fee: number;
+  home_visit_fee?: number;
+  in_person_fee?: number;
+  online_fee?: number;
+  fees?: {
+    in_person?: number;
+    home_visit?: number;
+    online?: number;
+  };
   languages: string[];
   city: string;
   district?: string;
@@ -76,6 +87,13 @@ const SPECIALIZATIONS = [
   'Dentistry',
   'Ophthalmology',
   'Pulmonology',
+  'Physiotherapy',
+  'Clinical Nutrition & Dietetics',
+  'Gastroenterology',
+  'Oncology',
+  'Urology',
+  'Nephrology',
+  'Endocrinology',
 ];
 
 const SPECIALTY_ALIASES: Record<string, string[]> = {
@@ -91,6 +109,13 @@ const SPECIALTY_ALIASES: Record<string, string[]> = {
   dentistry: ['dent', 'oral', 'dentist'],
   ophthalmology: ['ophthal', 'eye', 'vision', 'ophthalmologist'],
   pulmonology: ['pulmo', 'chest', 'respiratory', 'lung', 'pulmonologist'],
+  physiotherapy: ['physio', 'physical therapy', 'rehab', 'bpt', 'mpt', 'kinesio'],
+  'clinical nutrition & dietetics': ['diet', 'dietitian', 'nutrition', 'nutritionist', 'food'],
+  gastroenterology: ['gastro', 'stomach', 'digestive', 'liver', 'hepatolog'],
+  oncology: ['onco', 'cancer', 'chemo', 'radiation'],
+  urology: ['uro', 'kidney', 'urinary', 'bladder', 'prostate'],
+  nephrology: ['nephro', 'dialysis', 'renal'],
+  endocrinology: ['endocrine', 'diabetes', 'thyroid', 'hormone'],
 };
 
 function matchesSpecialization(candidateSpec: string, selectedSpec: string): boolean {
@@ -100,20 +125,19 @@ function matchesSpecialization(candidateSpec: string, selectedSpec: string): boo
   if (!cand) return false;
   if (cand === sel || cand.includes(sel) || sel.includes(cand)) return true;
 
-  for (const [category, aliases] of Object.entries(SPECIALTY_ALIASES)) {
-    const catKey = category.toLowerCase().replace(/[^a-z]/g, '');
-    const selMatchesCat = catKey.includes(sel) || sel.includes(catKey) || aliases.some((a) => sel.includes(a) || a.includes(sel));
-    if (selMatchesCat) {
-      if (aliases.some((a) => cand.includes(a)) || cand.includes(catKey)) {
-        return true;
-      }
-    }
-  }
-  return false;
+  const aliases = SPECIALTY_ALIASES[selectedSpec.toLowerCase()] || [];
+  return aliases.some((a) => cand.includes(a.toLowerCase().replace(/[^a-z]/g, '')));
 }
 
 // Walk-in tab: the organization types a patient can physically visit.
-const WALKIN_ORG_TYPES = ['dental_clinic', 'physiotherapy_center', 'clinic', 'polyclinic', 'hospital'];
+const WALKIN_ORG_TYPES = [
+  'clinic',
+  'polyclinic',
+  'hospital',
+  'nursing_home',
+  'dental_clinic',
+  'physiotherapy_center',
+];
 
 const ORG_TYPE_LABEL: Record<string, string> = {
   dental_clinic: 'Dental Clinic',
@@ -137,8 +161,23 @@ const MODE_META: Record<ConsultMode, { title: string; subtitle: string; empty: s
   },
   home: {
     title: 'Home Doctor Visit',
-    subtitle: 'Verified doctors and physiotherapists who come to your doorstep',
+    subtitle: 'Verified doctors and physicians who come to your doorstep',
     empty: 'No home-visit providers found. Try a different location.',
+  },
+  dental: {
+    title: 'Dental Practice & Oral Care Clinics',
+    subtitle: 'Compare verified dental surgeons, consult BDS/MDS specialists, and book standardized dental treatments with transparent clinic pricing',
+    empty: 'No dental clinics found in this area.',
+  },
+  physiotherapy: {
+    title: 'Physiotherapy & Rehabilitation',
+    subtitle: 'Consult certified physiotherapists (BPT/MPT) for orthopedic, sports, neurological & post-op rehab',
+    empty: 'No physiotherapists found. Try changing location or filters.',
+  },
+  dietitian: {
+    title: 'Clinical Nutrition & Dietitians',
+    subtitle: 'Consult certified clinical nutritionists & dietitians for diabetes, weight management & therapeutic diets (Video / Clinic)',
+    empty: 'No clinical dietitians found. Try changing filters.',
   },
 };
 
@@ -149,14 +188,26 @@ function normSpec(value: string): string {
 // normalize /api/providers/search/doctors rows into the page's Doctor shape
 function normalizeSearchDoctor(d: any): Doctor {
   const fees = d.fees || {};
-  const fee = fees.in_person ?? fees.home_visit ?? fees.online ?? Object.values(fees)[0] ?? 0;
+  const inPersonFee = Number(fees.in_person ?? d.in_person_fee ?? d.consultation_fee ?? 500);
+  const homeVisitFee = Number(fees.home_visit ?? d.home_visit_fee ?? 1000);
+  const onlineFee = Number(fees.online ?? fees.teleconsultation ?? d.online_fee ?? inPersonFee);
+  const defaultFee = Number(d.consultation_fee ?? inPersonFee);
+
   return {
     doctor_id: d.id,
     name: d.name || '',
     specialization: d.specialization || '',
     qualification: d.qualification || '',
     experience_years: d.experience_years || 0,
-    consultation_fee: Number(fee) || 0,
+    consultation_fee: defaultFee,
+    home_visit_fee: homeVisitFee,
+    in_person_fee: inPersonFee,
+    online_fee: onlineFee,
+    fees: {
+      in_person: inPersonFee,
+      home_visit: homeVisitFee,
+      online: onlineFee,
+    },
     languages: d.languages || ['English'],
     city: d.city || '',
     district: d.district || '',
@@ -322,7 +373,7 @@ function ConsultationContent() {
         cache.current[mode] = { doctors: docs, orgs: walkinOrgs };
         setDoctors(docs);
         setOrgs(walkinOrgs);
-      } else {
+      } else if (mode === 'home') {
         const [homeDoctors, physioResult] = await Promise.all([
           discoveryAPI.searchDoctors({ consultation_mode: 'home_visit' }),
           discoveryAPI.searchProviders({ type: 'physiotherapy_center', home_service: true }),
@@ -344,6 +395,36 @@ function ConsultationContent() {
         cache.current[mode] = { doctors: docs, orgs: homeOrgs };
         setDoctors(docs);
         setOrgs(homeOrgs);
+      } else if (mode === 'physiotherapy') {
+        const [physioDocs, physioResult] = await Promise.all([
+          discoveryAPI.searchDoctors({ specialization: 'Physiotherapy' }).catch(() => ({ doctors: [] })),
+          discoveryAPI.searchProviders({ type: 'physiotherapy_center' }).catch(() => ({ providers: [] })),
+        ]);
+        const docs = (physioDocs.doctors || [])
+          .filter((d: any) => !isInternalTestDoctor(d))
+          .map(normalizeSearchDoctor);
+        const physioOrgs: OrgCard[] = (physioResult.providers || [])
+          .filter((p: any) => !isInternalTestOrg(p))
+          .map((p: any) => ({
+            id: p.provider_user_id || p.id,
+            name: p.display_name || p.name || 'Physiotherapy Centre',
+            organization_type: 'physiotherapy_center',
+            city: p.city || '',
+            state: p.state || '',
+            min_price: p.min_price || 600,
+            home_service_enabled: true,
+          }));
+        cache.current[mode] = { doctors: docs, orgs: physioOrgs };
+        setDoctors(docs);
+        setOrgs(physioOrgs);
+      } else if (mode === 'dietitian') {
+        const dietDocs = await discoveryAPI.searchDoctors({ specialization: 'Dietetics' }).catch(() => ({ doctors: [] }));
+        const docs = (dietDocs.doctors || [])
+          .filter((d: any) => !isInternalTestDoctor(d))
+          .map(normalizeSearchDoctor);
+        cache.current[mode] = { doctors: docs, orgs: [] };
+        setDoctors(docs);
+        setOrgs([]);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load providers');
@@ -352,7 +433,7 @@ function ConsultationContent() {
     }
   };
 
-  const needsLocation = consultMode !== 'teleconsultation';
+  const needsLocation = consultMode !== 'teleconsultation' && consultMode !== 'dietitian';
 
   const { filteredDoctors, filteredOrgs } = useMemo(() => {
     let docs = doctors;
@@ -386,10 +467,7 @@ function ConsultationContent() {
     if (needsLocation && (locState || district)) {
       // Walk-in and home visits are physical: a doctor in another district
       // cannot see this patient, so once a location is chosen the filter is
-      // STRICT. Showing everyone as a "fallback" was worse than an empty
-      // list — it advertised doctors in other states as bookable for a
-      // clinic visit. Video consultation never reaches this branch
-      // (needsLocation is false for it) and stays nationwide on purpose.
+      // STRICT.
       docs = docs.filter((d) => matchesLocation(d, locState, district));
       facilities = facilities.filter((o) => matchesLocation(o, locState, district));
     }
@@ -409,11 +487,18 @@ function ConsultationContent() {
     if (!requireAuth() || !doctor.available) return;
 
     if (consultMode === 'teleconsultation') {
-      router.push(`/consultation/${doctor.doctor_id}?name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+      const fee = doctor.online_fee ?? doctor.fees?.online ?? doctor.consultation_fee;
+      router.push(`/consultation/${doctor.doctor_id}?name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}`);
     } else if (consultMode === 'home') {
-      router.push(`/booking?type=home_doctor&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+      const fee = doctor.home_visit_fee ?? doctor.fees?.home_visit ?? 1000;
+      router.push(`/booking?type=home_doctor&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}`);
+    } else if (consultMode === 'physiotherapy') {
+      router.push(`/booking/therapy?role=physiotherapist&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}`);
+    } else if (consultMode === 'dietitian') {
+      router.push(`/booking/therapy?role=dietitian&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}`);
     } else {
-      router.push(`/booking?type=doctor&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${doctor.consultation_fee}`);
+      const fee = doctor.in_person_fee ?? doctor.fees?.in_person ?? doctor.consultation_fee;
+      router.push(`/booking?type=doctor&doctor=${doctor.doctor_id}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}`);
     }
   };
 
@@ -577,6 +662,106 @@ function ConsultationContent() {
       );
     }
 
+    if (mode === 'physiotherapy') {
+      return (
+        <div
+          className="glass-3d-symbol"
+          title="Physiotherapy"
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: 20,
+            flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(236, 254, 255, 0.8) 50%, rgba(207, 250, 254, 0.6) 100%)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            border: '1.5px solid rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 10px 24px -4px rgba(6, 182, 212, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(6, 182, 212, 0.12)',
+            display: 'grid',
+            placeItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 6,
+              right: 6,
+              height: '42%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+              borderRadius: '14px 14px 4px 4px',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #0891b2 0%, #0e7490 60%, #155e75 100%)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#ffffff',
+            }}
+          >
+            <Activity size={22} />
+          </div>
+        </div>
+      );
+    }
+
+    if (mode === 'dietitian') {
+      return (
+        <div
+          className="glass-3d-symbol"
+          title="Dietitian & Nutrition"
+          style={{
+            width: 68,
+            height: 68,
+            borderRadius: 20,
+            flexShrink: 0,
+            background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(254, 243, 199, 0.8) 50%, rgba(253, 230, 138, 0.6) 100%)',
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            border: '1.5px solid rgba(255, 255, 255, 0.9)',
+            boxShadow: '0 10px 24px -4px rgba(217, 119, 6, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.95), inset 0 -2px 5px rgba(217, 119, 6, 0.12)',
+            display: 'grid',
+            placeItems: 'center',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: 6,
+              right: 6,
+              height: '42%',
+              background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 100%)',
+              borderRadius: '14px 14px 4px 4px',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #d97706 0%, #b45309 60%, #78350f 100%)',
+              display: 'grid',
+              placeItems: 'center',
+              color: '#ffffff',
+            }}
+          >
+            <Apple size={22} />
+          </div>
+        </div>
+      );
+    }
+
     // Default: 'walkin' in-person visit
     return (
       <div
@@ -670,56 +855,7 @@ function ConsultationContent() {
           <p>{meta.subtitle}</p>
         </div>
 
-        {/* Individual physiotherapists and dietitians are booked by name, with
-            their own published slots per mode — this page lists doctors and
-            centres, so route those two roles to their own flow rather than
-            leaving them undiscoverable. */}
-        <div style={{
-          display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
-          justifyContent: 'center', marginBottom: 22, padding: '14px 18px',
-          background: 'var(--cm-surface-2)', border: '1px solid var(--cm-line)', borderRadius: 'var(--cm-radius)',
-        }}>
-          <span style={{ fontSize: '0.9rem', color: 'var(--cm-navy)', fontWeight: 600 }}>
-            Looking for a physiotherapist or dietitian?
-          </span>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <a
-              href="/booking/therapy?role=physiotherapist"
-              className="btn btn-primary btn-sm"
-              style={{
-                textDecoration: 'none',
-                backgroundColor: 'var(--cm-navy)',
-                color: '#ffffff',
-                fontWeight: 700,
-                borderRadius: '8px',
-                padding: '8px 16px',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              Consult a Physio
-            </a>
-            <a
-              href="/booking/therapy?role=dietitian"
-              className="btn btn-secondary btn-sm"
-              style={{
-                textDecoration: 'none',
-                backgroundColor: '#ffffff',
-                color: 'var(--cm-navy)',
-                border: '1.5px solid var(--cm-navy)',
-                fontWeight: 700,
-                borderRadius: '8px',
-                padding: '8px 16px',
-                display: 'inline-flex',
-                alignItems: 'center',
-              }}
-            >
-              Consult a Dietitian
-            </a>
-          </div>
-        </div>
-
-        {/* ── Mode Toggle (Glassmorphic CallMedex Design) ─────────────────────────────────────────── */}
+        {/* ── Mode Toggle (Glassmorphic CallMedex Design with all primary modalities) ── */}
         <div style={{
           display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28,
           background: 'rgba(255, 255, 255, 0.75)',
@@ -727,15 +863,25 @@ function ConsultationContent() {
           WebkitBackdropFilter: 'blur(16px)',
           borderRadius: 16,
           padding: 8,
-          maxWidth: 620,
+          maxWidth: 960,
           margin: '0 auto 28px',
           border: '1.5px solid rgba(2, 132, 199, 0.22)',
           boxShadow: '0 8px 32px -4px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
+          flexWrap: 'wrap',
         }}>
           {modeButton('teleconsultation', 'Video Consultation', Video)}
           {modeButton('walkin', 'Walk-in Visit', Stethoscope)}
-          {modeButton('home', 'Home Visit', Home)}
+          {modeButton('home', 'Doctor Home Visit', Home)}
+          {modeButton('dental', 'Dental Clinics', Sparkles)}
+          {modeButton('physiotherapy', 'Physiotherapy', Activity)}
+          {modeButton('dietitian', 'Dietitian', Apple)}
         </div>
+
+        {consultMode === 'dental' && (
+          <div style={{ marginTop: 24, marginBottom: 40 }}>
+            <DentalWalkInDirectory onBookingCreated={() => {}} lang="en" />
+          </div>
+        )}
 
         {/* ── Search & Location Bar ───────────────────────────────── */}
         <div style={{ maxWidth: 640, margin: '0 auto var(--space-lg)' }}>
@@ -844,11 +990,101 @@ function ConsultationContent() {
         {!isLoading && !error && (
           <>
             {filteredDoctors.length === 0 && filteredOrgs.length === 0 ? (
-              <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--cm-surface-2)', color: 'var(--cm-ink-3)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
-                  <Search size={22} />
-                </div>
-                <p style={{ color: 'var(--color-gray-500)' }}>{meta.empty}</p>
+              <div>
+                {consultMode === 'physiotherapy' ? (
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(8, 145, 178, 0.08) 0%, rgba(14, 116, 144, 0.12) 100%)',
+                    border: '1.5px solid rgba(8, 145, 178, 0.35)',
+                    borderRadius: 16,
+                    padding: '28px 32px',
+                    marginBottom: 24,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 20,
+                    flexWrap: 'wrap',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Activity size={22} style={{ color: '#0891b2' }} />
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0e7490' }}>
+                          CallMedex Certified Physiotherapy &amp; Rehabilitation
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#475569', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                        Book 1-on-1 sessions with state-licensed BPT &amp; MPT physiotherapists for orthopedic pain, sports recovery, neurological rehabilitation, and post-operative mobility.
+                      </p>
+                    </div>
+                    <a
+                      href="/booking/therapy?role=physiotherapist"
+                      className="btn btn-primary"
+                      style={{
+                        backgroundColor: '#0891b2',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        borderRadius: 10,
+                        padding: '12px 24px',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 14px rgba(8, 145, 178, 0.35)',
+                      }}
+                    >
+                      <Activity size={18} /> Book Certified Physio
+                    </a>
+                  </div>
+                ) : consultMode === 'dietitian' ? (
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, rgba(180, 83, 9, 0.12) 100%)',
+                    border: '1.5px solid rgba(217, 119, 6, 0.35)',
+                    borderRadius: 16,
+                    padding: '28px 32px',
+                    marginBottom: 24,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 20,
+                    flexWrap: 'wrap',
+                  }}>
+                    <div style={{ flex: 1, minWidth: 260 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Apple size={22} style={{ color: '#d97706' }} />
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#b45309' }}>
+                          CallMedex Clinical Nutrition &amp; Dietetics
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#475569', fontSize: '0.92rem', lineHeight: 1.5 }}>
+                        Connect directly with verified clinical nutritionists for diabetes reversal, cardiac health, gestational diet plans, and weight wellness via HD Video or Clinic Consultation.
+                      </p>
+                    </div>
+                    <a
+                      href="/booking/therapy?role=dietitian"
+                      className="btn btn-primary"
+                      style={{
+                        backgroundColor: '#d97706',
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        borderRadius: 10,
+                        padding: '12px 24px',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        boxShadow: '0 4px 14px rgba(217, 119, 6, 0.35)',
+                      }}
+                    >
+                      <Apple size={18} /> Book Certified Dietitian
+                    </a>
+                  </div>
+                ) : (
+                  <div className="card" style={{ textAlign: 'center', padding: 40 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--cm-surface-2)', color: 'var(--cm-ink-3)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
+                      <Search size={22} />
+                    </div>
+                    <p style={{ color: 'var(--color-gray-500)' }}>{meta.empty}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid-2">
@@ -1027,7 +1263,12 @@ function ConsultationContent() {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--color-navy)' }}>
-                            ₹{doc.consultation_fee}
+                            ₹{consultMode === 'home'
+                                ? (doc.home_visit_fee ?? doc.fees?.home_visit ?? 1000)
+                                : consultMode === 'teleconsultation'
+                                  ? (doc.online_fee ?? doc.fees?.online ?? doc.consultation_fee)
+                                  : (doc.in_person_fee ?? doc.fees?.in_person ?? doc.consultation_fee)
+                            }
                           </span>
                           <button
                             className="btn btn-primary btn-sm"
@@ -1073,11 +1314,14 @@ function ConsultationContent() {
               const doc = presentationDoctor;
               setPresentationDoctor(null);
               if (mode === 'teleconsultation') {
-                router.push(`/consultation/${doc.doctor_id}?name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+                const fee = doc.online_fee ?? doc.fees?.online ?? doc.consultation_fee;
+                router.push(`/consultation/${doc.doctor_id}?name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${fee}`);
               } else if (mode === 'home') {
-                router.push(`/booking?type=home_doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+                const fee = doc.home_visit_fee ?? doc.fees?.home_visit ?? 1000;
+                router.push(`/booking?type=home_doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${fee}`);
               } else {
-                router.push(`/booking?type=doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${doc.consultation_fee}`);
+                const fee = doc.in_person_fee ?? doc.fees?.in_person ?? doc.consultation_fee;
+                router.push(`/booking?type=doctor&doctor=${doc.doctor_id}&name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(doc.specialization)}&fee=${fee}`);
               }
             }
           }}

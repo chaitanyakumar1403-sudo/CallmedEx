@@ -314,7 +314,7 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "alternate_phone": user.alternate_phone or "",
             "emergency_phone": user.emergency_phone or "",
             "official_email": getattr(user, "official_email", None) or user.email,
-            "verification_status": "pending",
+            "verification_status": getattr(user, "verification_status", None) or ("verified" if getattr(user, "license_number", "") else "pending"),
         }
 
     elif user.role == UserRole.STAFF:

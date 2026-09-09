@@ -11,6 +11,7 @@ import {
   Video,
   UserCheck,
   Sparkles,
+  Home,
 } from "lucide-react";
 
 export interface DoctorPresentationData {
@@ -21,12 +22,16 @@ export interface DoctorPresentationData {
   qualification?: string;
   experience_years?: number;
   consultation_fee?: number;
+  home_visit_fee?: number;
+  in_person_fee?: number;
+  online_fee?: number;
   hospital_clinic_name?: string;
   bio?: string;
   fee_justification?: string;
   city?: string;
   district?: string;
   state?: string;
+  consultation_mode?: string;
   availability?: Array<{
     day_of_week?: number;
     start_time?: string;
@@ -91,8 +96,16 @@ export default function DoctorPresentationModal({
   if (!isOpen || !doctor) return null;
 
   const doc = details || doctor;
-  const inPersonFee = doc.fees?.in_person ?? doc.consultation_fee ?? 500;
-  const onlineFee = doc.fees?.online ?? doc.consultation_fee ?? 500;
+  const inPersonFee = doc.fees?.in_person ?? doc.in_person_fee ?? doc.consultation_fee ?? 500;
+  const onlineFee = doc.fees?.online ?? doc.online_fee ?? doc.consultation_fee ?? 500;
+  const homeVisitFee = doc.fees?.home_visit ?? doc.home_visit_fee ?? 1000;
+  const canHomeVisit = Boolean(
+    doc.fees?.home_visit || 
+    doc.home_visit_fee || 
+    doc.consultation_mode === 'home_visit' || 
+    doc.consultation_mode === 'both' ||
+    doc.consultation_mode === 'all'
+  );
 
   return (
     <div
@@ -442,7 +455,7 @@ export default function DoctorPresentationModal({
             }}
             style={{
               flex: 1,
-              minWidth: "200px",
+              minWidth: "180px",
               padding: "12px 18px",
               borderRadius: "10px",
               background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
@@ -460,6 +473,35 @@ export default function DoctorPresentationModal({
           >
             <Video size={16} /> Consult Video (₹{onlineFee})
           </button>
+
+          {canHomeVisit && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                if (onBook) onBook("home");
+              }}
+              style={{
+                flex: 1,
+                minWidth: "180px",
+                padding: "12px 18px",
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                color: "white",
+                fontWeight: 700,
+                fontSize: "0.9rem",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                boxShadow: "0 4px 12px rgba(5, 150, 105, 0.25)",
+              }}
+            >
+              <Home size={16} /> Book Home Visit (₹{homeVisitFee})
+            </button>
+          )}
         </div>
       </div>
     </div>

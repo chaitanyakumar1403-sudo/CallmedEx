@@ -21,7 +21,19 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
   const activeTrend = riskScore?.trends.find((t) => t.observationCode === selectedCode);
 
   return (
-    <div className="cm-panel">
+    <div
+      className="cm-panel cm-biomarker-glass-card"
+      style={{
+        background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.88) 100%)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        WebkitBackdropFilter: "blur(20px) saturate(180%)",
+        border: "1px solid rgba(224, 242, 254, 0.95)",
+        borderRadius: "20px",
+        padding: "24px",
+        boxShadow: "0 10px 30px -5px rgba(2, 132, 199, 0.08), 0 1px 0 0 rgba(255, 255, 255, 0.9) inset",
+        transition: "all 0.3s ease",
+      }}
+    >
       <div className="cm-row-between" style={{ marginBottom: 'var(--cm-5)' }}>
         <div>
           <h3 className="cm-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
