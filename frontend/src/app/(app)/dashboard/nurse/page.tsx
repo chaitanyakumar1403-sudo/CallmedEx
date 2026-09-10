@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import NurseToolsModal from "../../../components/NurseToolsModal";
+import NurseFieldOps3D from "../components/NurseFieldOps3D";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -270,6 +271,9 @@ export default function NurseDashboard() {
           TAB 1: LIVE DOORSTEP DISPATCH
       ══════════════════════════════════════════════════════════════════════ */}
       <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
+        {/* Mounted only while the tab is open: a hidden panel has zero width,
+            so a WebGL context built here would size itself to nothing. */}
+        {activeTab === "dispatch" && <NurseFieldOps3D />}
         <ProviderDispatchTracker
           title="Nurse Doorstep Care Station"
           providerType="nurse"

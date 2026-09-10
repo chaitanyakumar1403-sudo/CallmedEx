@@ -15,6 +15,7 @@ import { MapPin, TestTube, Wallet, User, ScanLine, Package, CalendarDays } from 
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import PhleboSchedulePanel from "../components/PhleboSchedulePanel";
+import PhleboFieldOps3D from "../components/PhleboFieldOps3D";
 import AdvanceHomeCollectionsWidget from "../components/AdvanceHomeCollectionsWidget";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
@@ -136,6 +137,9 @@ export default function PhlebotomistDashboard() {
       <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
         <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
+          {/* Mounted only while the tab is open: a hidden panel has zero width,
+              so a WebGL context built here would size itself to nothing. */}
+          {activeTab === "dispatch" && <PhleboFieldOps3D tasks={activeTasks} />}
           <AdvanceHomeCollectionsWidget onSelectBookingForCollection={handleStartCollection} />
           <ProviderDispatchTracker
             title="Phlebotomist Hub"
