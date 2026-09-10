@@ -629,44 +629,131 @@ export default function OrganizationDashboard() {
     setStatusMsg("✨ Pre-selected all 134 CallMedex master tests across MRI, CT Scans, Ultrasound, X-Ray, and Blood Tests. Review and approve.");
   };
 
-  const handleDownloadCsvTemplate = () => {
+  const handleDownloadCsvTemplate = (format: "xlsx" | "csv" = "xlsx") => {
     const sampleRows = [
       { "Test Name": "Brain MRI (Plain)", "Category": "MRI Scans", "Price": 4500, "Type": "imaging" },
       { "Test Name": "HRCT Chest", "Category": "CT Scans", "Price": 3500, "Type": "imaging" },
       { "Test Name": "Ultrasound Whole Abdomen", "Category": "Ultrasound", "Price": 1200, "Type": "imaging" },
       { "Test Name": "Digital Chest X-Ray (PA View)", "Category": "Digital X-Ray", "Price": 400, "Type": "imaging" },
       { "Test Name": "Complete Blood Count (CBC)", "Category": "Blood Tests", "Price": 200, "Type": "lab_test" },
-      { "Test Name": "Lipid Profile", "Category": "Blood Tests", "Price": 500, "Type": "lab_test" },
+      { "Test Name": "Lipid Profile Comprehensive", "Category": "Blood Tests", "Price": 500, "Type": "lab_test" },
       { "Test Name": "Thyroid Profile (T3, T4, TSH)", "Category": "Blood Tests", "Price": 500, "Type": "lab_test" },
       { "Test Name": "HbA1c Glycated Hemoglobin", "Category": "Blood Tests", "Price": 450, "Type": "lab_test" },
+      { "Test Name": "Liver Function Test (LFT)", "Category": "Blood Tests", "Price": 600, "Type": "lab_test" },
+      { "Test Name": "Kidney Function Test (KFT)", "Category": "Blood Tests", "Price": 600, "Type": "lab_test" },
     ];
-    const ws = XLSX.utils.json_to_sheet(sampleRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Diagnostic_Tests_Template");
-    XLSX.writeFile(wb, "CallMedex_Diagnostic_Tests_Template.xlsx");
-    setStatusMsg("📥 Sample Diagnostic Tests Template downloaded successfully!");
+    if (format === "csv") {
+      const csvContent = "data:text/csv;charset=utf-8," +
+        ["Test Name,Category,Price,Type",
+          ...sampleRows.map(r => `"${r["Test Name"]}","${r.Category}",${r.Price},${r.Type}`)
+        ].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "CallMedex_Diagnostic_Tests_Template.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setStatusMsg("📥 Sample Diagnostic Tests CSV Template downloaded!");
+    } else {
+      const ws = XLSX.utils.json_to_sheet(sampleRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Diagnostic_Tests_Template");
+      XLSX.writeFile(wb, "CallMedex_Diagnostic_Tests_Template.xlsx");
+      setStatusMsg("📥 Sample Diagnostic Tests Excel (.xlsx) Template downloaded successfully!");
+    }
   };
 
   const handleCsvFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Enforce 5 MB maximum file size limit
+    if (file.size > 5 * 1024 * 1024) {
+      setStatusMsg("❌ File size exceeds 5 MB limit. Please upload a spreadsheet under 5 MB.");
+      alert("File size exceeds 5 MB limit. Please upload a spreadsheet smaller than 5 MB.");
+      if (e.target) e.target.value = "";
+      return;
+    }
+
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+      const rawJsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
       const parsed: Array<{ name: string; price: number; type: string; category?: string }> = [];
-      for (const row of jsonData) {
-        const name = String(row["Test"] || row["Test Name"] || row["Name"] || row["Service"] || row["service_name"] || "").trim();
-        const price = parseFloat(row["Test Price"] || row["Price"] || row["Rate"] || row["tariff"] || 0);
-        const rawType = String(row["Type"] || row["type"] || "").toLowerCase();
-        const nameLower = name.toLowerCase();
-        const isScan = nameLower.includes("scan") || nameLower.includes("x-ray") || nameLower.includes("xray") || nameLower.includes("mri") || nameLower.includes("usg") || nameLower.includes("ct") || nameLower.includes("ultrasound") || nameLower.includes("doppler");
-        const type = rawType.includes("imag") || isScan ? "imaging" : "lab_test";
 
-        let detectedCategory = row["Category"] || row["category"] || "";
+      for (const rawRow of rawJsonData) {
+        // Normalize keys to lowercase trimmed
+        const normalizedRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rawRow)) {
+          normalizedRow[String(k).trim().toLowerCase()] = v;
+        }
+
+        // Fuzzy match name
+        const nameCandidates = [
+          "test name", "test_name", "test", "name", "service", "service name",
+          "service_name", "investigation", "test/procedure", "procedure", "description", "item"
+        ];
+        let name = "";
+        for (const cand of nameCandidates) {
+          if (normalizedRow[cand]) {
+            name = String(normalizedRow[cand]).trim();
+            break;
+          }
+        }
+        if (!name) {
+          for (const [k, v] of Object.entries(normalizedRow)) {
+            if ((k.includes("test") || k.includes("service") || k.includes("name") || k.includes("investigation")) && v) {
+              name = String(v).trim();
+              break;
+            }
+          }
+        }
+
+        // Fuzzy match price
+        const priceCandidates = [
+          "price", "test price", "test_price", "rate", "tariff", "amount", "cost", "fee", "charges", "mrp", "offer price"
+        ];
+        let rawPriceVal: any = null;
+        for (const cand of priceCandidates) {
+          if (normalizedRow[cand] !== undefined && normalizedRow[cand] !== "") {
+            rawPriceVal = normalizedRow[cand];
+            break;
+          }
+        }
+        if (rawPriceVal === null) {
+          for (const [k, v] of Object.entries(normalizedRow)) {
+            if ((k.includes("price") || k.includes("rate") || k.includes("tariff") || k.includes("cost") || k.includes("amount") || k.includes("fee")) && v !== "") {
+              rawPriceVal = v;
+              break;
+            }
+          }
+        }
+
+        // Parse price removing currency symbols (₹, Rs, commas, etc.)
+        let price = 0;
+        if (typeof rawPriceVal === "number") {
+          price = rawPriceVal;
+        } else if (typeof rawPriceVal === "string") {
+          const cleaned = rawPriceVal.replace(/[^0-9.]/g, "");
+          price = parseFloat(cleaned) || 0;
+        }
+
+        if (!name || isNaN(price) || price <= 0) continue;
+
+        // Determine type and category
+        const rawType = String(normalizedRow["type"] || normalizedRow["service_type"] || "").toLowerCase();
+        const nameLower = name.toLowerCase();
+        const isScan = nameLower.includes("scan") || nameLower.includes("x-ray") || nameLower.includes("xray") ||
+                       nameLower.includes("mri") || nameLower.includes("usg") || nameLower.includes("ct") ||
+                       nameLower.includes("ultrasound") || nameLower.includes("doppler") || nameLower.includes("radiograph") ||
+                       nameLower.includes("echo") || nameLower.includes("mammography");
+        const type = rawType.includes("imag") || isScan ? "imaging" : rawType.includes("proc") ? "procedure" : "lab_test";
+
+        let detectedCategory = String(normalizedRow["category"] || normalizedRow["dept"] || normalizedRow["department"] || "").trim();
         if (!detectedCategory) {
           if (nameLower.includes("mri")) detectedCategory = "1.5T / 3.0T MRI Scans";
           else if (nameLower.includes("ct") || nameLower.includes("computed")) detectedCategory = "Multi-Slice CT Scans";
@@ -677,20 +764,21 @@ export default function OrganizationDashboard() {
           else detectedCategory = "Blood & Pathology";
         }
 
-        if (name && price > 0) {
-          parsed.push({
-            name,
-            price,
-            type,
-            category: detectedCategory
-          });
-        }
+        parsed.push({
+          name,
+          price,
+          type,
+          category: detectedCategory
+        });
       }
+
       setCsvParsedServices(parsed);
       setShowCsvModal(true);
+      if (e.target) e.target.value = "";
     } catch (err: any) {
       console.error("CSV parse error:", err);
       setStatusMsg("❌ Failed to parse file. Please upload a valid CSV or Excel spreadsheet.");
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -1234,53 +1322,81 @@ export default function OrganizationDashboard() {
                   <Sparkles size={15} /> Apply CallMedex Template
                 </button>
 
-                <label
-                  style={{
-                    background: "#ffffff",
-                    color: "#0f172a",
-                    border: "1.5px solid #cbd5e1",
-                    padding: "10px 16px",
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <FileSpreadsheet size={15} style={{ color: "#059669" }} />
-                  <span>Import CSV / Excel</span>
-                  <input
-                    type="file"
-                    accept=".csv, .xlsx, .xls"
-                    style={{ display: "none" }}
-                    onChange={handleCsvFileUpload}
-                  />
-                </label>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <label
+                    style={{
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      border: "1.5px solid #cbd5e1",
+                      padding: "10px 16px",
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    title="Upload CSV or Excel spreadsheet (Max 5 MB)"
+                  >
+                    <FileSpreadsheet size={15} style={{ color: "#059669" }} />
+                    <span>Import CSV / Excel</span>
+                    <span style={{ fontSize: "0.68rem", color: "#64748b", background: "#f1f5f9", padding: "1px 5px", borderRadius: 4 }}>≤ 5MB</span>
+                    <input
+                      type="file"
+                      accept=".csv, .xlsx, .xls"
+                      style={{ display: "none" }}
+                      onChange={handleCsvFileUpload}
+                    />
+                  </label>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadCsvTemplate}
-                  style={{
-                    background: "#f8fafc",
-                    color: "#334155",
-                    border: "1.5px solid #cbd5e1",
-                    padding: "10px 16px",
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    transition: "all 0.15s ease",
-                  }}
-                  title="Download sample spreadsheet template for bulk pricing upload"
-                >
-                  <Download size={15} style={{ color: "#0284c7" }} />
-                  <span>Download Template</span>
-                </button>
+                <div style={{ display: "inline-flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCsvTemplate("xlsx")}
+                    style={{
+                      background: "#f8fafc",
+                      color: "#334155",
+                      border: "1.5px solid #cbd5e1",
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                    title="Download sample spreadsheet template (.xlsx)"
+                  >
+                    <Download size={14} style={{ color: "#0284c7" }} />
+                    <span>Sample Excel (.xlsx)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCsvTemplate("csv")}
+                    style={{
+                      background: "#f8fafc",
+                      color: "#334155",
+                      border: "1.5px solid #cbd5e1",
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      fontWeight: 700,
+                      fontSize: "0.82rem",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      transition: "all 0.15s ease",
+                    }}
+                    title="Download sample spreadsheet template (.csv)"
+                  >
+                    <Download size={14} style={{ color: "#059669" }} />
+                    <span>Sample CSV</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1725,38 +1841,90 @@ export default function OrganizationDashboard() {
                   </div>
 
                   <div style={{ flex: 1, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 16 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
-                      <thead>
-                        <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
-                          <th style={{ padding: "10px 14px", color: "#475569" }}>Test Name</th>
-                          <th style={{ padding: "10px 14px", color: "#475569" }}>Category</th>
-                          <th style={{ padding: "10px 14px", color: "#475569" }}>Type</th>
-                          <th style={{ padding: "10px 14px", color: "#475569", textAlign: "right" }}>Price</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {csvParsedServices.slice(0, 100).map((svc, idx) => (
-                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "8px 14px", fontWeight: 600, color: "#1e293b" }}>{svc.name}</td>
-                            <td style={{ padding: "8px 14px", color: "#64748b" }}>{svc.category || "General"}</td>
-                            <td style={{ padding: "8px 14px" }}>
-                              <span style={{
-                                fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                                background: svc.type === "imaging" ? "#fdf4ff" : "#f0fdf4",
-                                color: svc.type === "imaging" ? "#a21caf" : "#15803d"
-                              }}>
-                                {svc.type === "imaging" ? "Radiology" : "Lab Test"}
-                              </span>
-                            </td>
-                            <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>₹{svc.price}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {csvParsedServices.length > 100 && (
-                      <div style={{ padding: 8, textAlign: "center", color: "#64748b", fontSize: "0.75rem", background: "#f8fafc" }}>
-                        ...and {csvParsedServices.length - 100} more items.
+                    {csvParsedServices.length === 0 ? (
+                      <div style={{ padding: "36px 20px", textAlign: "center", background: "#f8fafc" }}>
+                        <div style={{ fontSize: "2.2rem", marginBottom: 8 }}>📑</div>
+                        <div style={{ fontWeight: 800, color: "#1e293b", fontSize: "1rem" }}>No Valid Services Detected in File</div>
+                        <p style={{ margin: "6px auto 16px", fontSize: "0.82rem", color: "#64748b", maxWidth: 440 }}>
+                          We could not detect any rows with both a <strong>Test Name</strong> and a numeric <strong>Price (&gt; 0)</strong>. Please ensure your spreadsheet has column headers such as <code>Test Name</code> and <code>Price</code> (values like ₹500, Rs. 500, or numbers are accepted).
+                        </p>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadCsvTemplate("xlsx")}
+                            style={{
+                              background: "#0284c7",
+                              color: "white",
+                              border: "none",
+                              padding: "8px 16px",
+                              borderRadius: 8,
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <Download size={14} /> Download Sample Excel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadCsvTemplate("csv")}
+                            style={{
+                              background: "#f1f5f9",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              padding: "8px 16px",
+                              borderRadius: 8,
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <Download size={14} /> Download Sample CSV
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      <>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                          <thead>
+                            <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
+                              <th style={{ padding: "10px 14px", color: "#475569" }}>Test Name</th>
+                              <th style={{ padding: "10px 14px", color: "#475569" }}>Category</th>
+                              <th style={{ padding: "10px 14px", color: "#475569" }}>Type</th>
+                              <th style={{ padding: "10px 14px", color: "#475569", textAlign: "right" }}>Price</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {csvParsedServices.slice(0, 100).map((svc, idx) => (
+                              <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                <td style={{ padding: "8px 14px", fontWeight: 600, color: "#1e293b" }}>{svc.name}</td>
+                                <td style={{ padding: "8px 14px", color: "#64748b" }}>{svc.category || "General"}</td>
+                                <td style={{ padding: "8px 14px" }}>
+                                  <span style={{
+                                    fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                    background: svc.type === "imaging" ? "#fdf4ff" : "#f0fdf4",
+                                    color: svc.type === "imaging" ? "#a21caf" : "#15803d"
+                                  }}>
+                                    {svc.type === "imaging" ? "Radiology" : "Lab Test"}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>₹{svc.price}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {csvParsedServices.length > 100 && (
+                          <div style={{ padding: 8, textAlign: "center", color: "#64748b", fontSize: "0.75rem", background: "#f8fafc" }}>
+                            ...and {csvParsedServices.length - 100} more items.
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -1773,11 +1941,11 @@ export default function OrganizationDashboard() {
                     </button>
                     <button
                       type="button"
-                      disabled={importingCsv}
+                      disabled={importingCsv || csvParsedServices.length === 0}
                       onClick={handleConfirmCsvImport}
                       style={{
-                        padding: "8px 22px", backgroundColor: "#0284c7", color: "white",
-                        border: "none", borderRadius: 8, fontWeight: 700, cursor: importingCsv ? "not-allowed" : "pointer",
+                        padding: "8px 22px", backgroundColor: (importingCsv || csvParsedServices.length === 0) ? "#94a3b8" : "#0284c7", color: "white",
+                        border: "none", borderRadius: 8, fontWeight: 700, cursor: (importingCsv || csvParsedServices.length === 0) ? "not-allowed" : "pointer",
                         fontSize: "0.85rem", display: "flex", alignItems: "center", gap: 6
                       }}
                     >

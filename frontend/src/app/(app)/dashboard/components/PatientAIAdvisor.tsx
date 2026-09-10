@@ -8,7 +8,7 @@ import {
   FlaskConical, Activity, HeartPulse, Stethoscope, Bike, Check, X,
   ExternalLink, ChevronRight, User, Droplet, FileText, Pill, Zap, Clock,
   Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle, Building2,
-  Download, Award, Tag, Sparkles
+  Download, Award, Tag, Sparkles, Home
 } from "@/components/ui/icons";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
@@ -122,69 +122,30 @@ export interface HealthAdvisorData {
 
 const DEFAULT_DOCTORS: RecommendDoctor[] = [
   {
-    id: "doc-gen-physician",
-    doctor_name: "Dr. Arvind Sharma",
-    specialty: "General Physician & Internal Medicine",
-    title: "Senior Consultant Physician",
-    qualification: "MBBS, MD (Internal Medicine)",
-    experience: "12+ yrs experience",
-    fee: 450,
-    languages: ["English", "Hindi", "Telugu"],
-    hospital: "CallMedex Primary Care Center, Jubilee Hills",
-    rating: 4.9,
-    reason: "Primary biometric intake evaluation, vitals stabilization, and comprehensive clinical checkup.",
+    id: "e713e870-4f61-411d-bfe1-1387f0f59c61",
+    doctor_name: "Dr. Latchireddi SA Naidu",
+    specialty: "Senior Consultant Clinical Cardio Physician & Diabetic Care",
+    title: "Senior Consultant Clinical Cardiologist (NI)",
+    qualification: "MBBS, PGDCCP (NI)",
+    experience: "24+ yrs clinical experience",
+    fee: 500,
+    languages: ["English", "Telugu", "Hindi"],
+    hospital: "Visakha Multispeciality Clinics & Diagnostics",
+    rating: 4.98,
+    reason: "Comprehensive clinical cardiovascular assessment, hypertension stabilization, glycemic surveillance, and personalized chronic disease management.",
   },
   {
-    id: "doc-endocrinologist",
-    doctor_name: "Dr. K. Rajesh",
-    specialty: "Consultant Diabetologist & Endocrinologist",
-    title: "Chief of Endocrinology",
-    qualification: "MBBS, MD, DM (Endocrinology)",
-    experience: "15+ yrs experience",
-    fee: 650,
+    id: "9ad25430-cef3-4df8-a617-1b1926823a9a",
+    doctor_name: "Dr. Kolasani Sudhakar",
+    specialty: "Consultant Physiotherapist & Rehabilitation Specialist",
+    title: "Consultant Physical Therapist",
+    qualification: "MPT (Musculoskeletal), FOMT, DMS",
+    experience: "14+ yrs clinical experience",
+    fee: 500,
     languages: ["English", "Telugu"],
-    hospital: "Apollo Sugar Network & CallMedex",
+    hospital: "RECURE CLINIC & Visakha Multispeciality Network",
     rating: 4.95,
-    reason: "Glycemic surveillance, HbA1c control, and precision metabolic care plan.",
-  },
-  {
-    id: "doc-cardiologist",
-    doctor_name: "Dr. S. Meenakshi",
-    specialty: "Consultant Interventional Cardiologist",
-    title: "Senior Interventional Cardiologist",
-    qualification: "MBBS, MD, DM (Cardiology), FACC",
-    experience: "14+ yrs experience",
-    fee: 750,
-    languages: ["English", "Hindi", "Tamil"],
-    hospital: "MaxCure Heart Institute",
-    rating: 4.92,
-    reason: "Cardiovascular risk mitigation, arterial blood pressure tuning, and lipid management.",
-  },
-  {
-    id: "doc-dietitian",
-    doctor_name: "Dt. Ananya Rao",
-    specialty: "Clinical Dietitian & Nutritionist",
-    title: "Chief Medical Nutritionist",
-    qualification: "M.Sc Clinical Nutrition, CDE",
-    experience: "9+ yrs experience",
-    fee: 499,
-    languages: ["English", "Telugu", "Hindi"],
-    hospital: "CallMedex Wellness Hub",
-    rating: 4.88,
-    reason: "Personalize macro-nutritional balance, glycemic index meal plans, and hydration pacing.",
-  },
-  {
-    id: "doc-physio",
-    doctor_name: "Dr. P. Suresh",
-    specialty: "Consultant Physiotherapist & Rehabilitation",
-    title: "Senior Physical Therapist",
-    qualification: "BPT, MPT (Musculoskeletal & Sports)",
-    experience: "10+ yrs experience",
-    fee: 550,
-    languages: ["English", "Telugu", "Hindi"],
-    hospital: "CallMedex PhysioCare",
-    rating: 4.89,
-    reason: "Physical joint mobility restoration, posture alignment, and therapeutic movement.",
+    reason: "Targeted musculoskeletal rehabilitation, postural biomechanics realignment, spinal decompression, and therapeutic movement therapy.",
   },
 ];
 
@@ -238,101 +199,92 @@ const DEFAULT_TESTS: RecommendTest[] = [
 
 const DEFAULT_PACKAGES: RecommendPackage[] = [
   {
-    id: "pkg-annual-fullbody",
-    name: "Comprehensive Annual Full Body Checkup",
-    badge: "33% SPECIAL DISCOUNT",
+    id: "0fe4c63f-9efc-456a-9326-3de10486170e",
+    name: "Cardiac Screening Package",
+    badge: "RECOMMENDED CARDIO CARE",
     discountPercent: 33,
-    originalPrice: 2999,
-    offerPrice: 1999,
-    parametersCount: "85+ Parameters",
-    description: "Gold standard preventive panel: Complete Blood Count, Liver & Kidney Function, Lipid Risk Profile, Fasting Blood Sugar, Thyroid T3/T4/TSH, and Vitamin D3 & B12.",
-    includes: ["CBP / CBC (24 params)", "Lipid Profile (8 params)", "Kidney KFT (10 params)", "Liver LFT (12 params)", "Thyroid Profile (3 params)", "Vitamin D3 & B12 Duo"],
+    originalPrice: 1650,
+    offerPrice: 1099,
+    parametersCount: "Comprehensive Cardiac Biomarkers",
+    description: "Formulated by Senior Cardiologist Dr. Latchireddi SA Naidu: Complete Lipid Risk Profile, Fasting Blood Sugar, Serum Creatinine, Electrolytes & Cardiac Risk Ratios.",
+    includes: ["Lipid Profile (Total Cholesterol, HDL, LDL, VLDL, Triglycerides)", "Fasting Blood Sugar", "Serum Creatinine", "Serum Electrolytes", "Blood Pressure Calibration"],
   },
   {
-    id: "pkg-cardiac-diabetic",
-    name: "Cardiac & Diabetic Care Surveillance Package",
-    badge: "30% SPECIAL DISCOUNT",
-    discountPercent: 30,
-    originalPrice: 2499,
-    offerPrice: 1749,
-    parametersCount: "62+ Parameters",
-    description: "Precision metabolic & cardiovascular screening: Glycated Hemoglobin (HbA1c), Fasting Sugar, Comprehensive Lipid Ratios, Microalbuminuria, and Serum Creatinine.",
-    includes: ["HbA1c Glycemic Index", "Lipid Risk Panel", "Fasting & Post-Prandial Sugar", "Urine Microalbumin", "Electrolytes (Na, K, Cl)"],
+    id: "389ff76d-37f3-41cb-ae86-c63e4ef57ea1",
+    name: "Basic Screening (Diabetic)",
+    badge: "METABOLIC ESSENTIAL",
+    discountPercent: 33,
+    originalPrice: 1200,
+    offerPrice: 799,
+    parametersCount: "Diabetic & Renal Surveillance",
+    description: "Essential surveillance for diabetes and pre-diabetes: Glycated Hemoglobin (HbA1c), Fasting Blood Glucose, Urine Microalbumin, and Kidney Screening.",
+    includes: ["HbA1c (Glycated Hemoglobin)", "Fasting Blood Sugar", "Urine Routine & Microscopic", "Kidney Function Baseline"],
   },
   {
-    id: "pkg-senior-shield",
-    name: "Senior Citizen Advanced Health Shield",
-    badge: "30% SPECIAL DISCOUNT",
-    discountPercent: 30,
-    originalPrice: 3499,
-    offerPrice: 2449,
-    parametersCount: "92+ Parameters",
-    description: "Holistic screening for aged 50+: Heart, Liver, Renal, Bone Mineral Density, Joint health, Vitamin D, B12, and comprehensive urinalysis.",
-    includes: ["Complete Hemogram", "Cardiac Risk Biomarkers", "Bone & Joint Markers", "Uric Acid & Calcium", "Renal & Hepatic Panels"],
+    id: "dd1291da-eea6-4ae1-b219-c35c213eacee",
+    name: "Basic Screening (Non Diabetic)",
+    badge: "ROUTINE PREVENTIVE",
+    discountPercent: 33,
+    originalPrice: 900,
+    offerPrice: 599,
+    parametersCount: "Annual Wellness Baseline",
+    description: "Preventive baseline checkup: Complete Blood Count (CBC/CBP), Urine Routine, Resting Metabolic Panel, and Primary Organ Baseline.",
+    includes: ["Complete Blood Picture (24 params)", "Urine Routine & Microscopy", "Random Blood Sugar", "Vital Parameters Assessment"],
   },
   {
-    id: "pkg-women-wellness",
-    name: "Women's Complete Health & Hormone Wellness",
-    badge: "30% SPECIAL DISCOUNT",
-    discountPercent: 30,
-    originalPrice: 2799,
-    offerPrice: 1959,
-    parametersCount: "74+ Parameters",
-    description: "Designed for women: Complete Thyroid Screening, Iron Studies & Ferritin, Calcium & Vitamin D3, Lipid Profile, and Complete Blood Picture.",
-    includes: ["Total Thyroid Panel", "Iron Studies & Ferritin", "Complete Blood Count", "Calcium & Bone Health", "Hormonal Balance Screening"],
+    id: "0055616d-49e4-4e3e-9e2b-d448d763dc6d",
+    name: "Senior Citizen Package (Male)",
+    badge: "SENIOR CARE ADVANCED",
+    discountPercent: 31,
+    originalPrice: 2600,
+    offerPrice: 1799,
+    parametersCount: "Full Organ Screening (Age 50+)",
+    description: "Advanced geriatric and cardio-metabolic panel for senior health monitoring: Complete Hemogram, Renal Profile, Liver Function, Cardiac Biomarkers & Electrolytes.",
+    includes: ["Complete Hemogram (CBC)", "Lipid Risk Panel", "Renal Function Test (KFT)", "Liver Function Test (LFT)", "Electrolytes & Uric Acid"],
+  },
+  {
+    id: "4059f18c-7b24-42cf-ae17-5947100058cc",
+    name: "Vitamin Package",
+    badge: "NUTRITIONAL VITALITY",
+    discountPercent: 33,
+    originalPrice: 1500,
+    offerPrice: 999,
+    parametersCount: "Micronutrient Panel",
+    description: "Crucial nutritional screening for fatigue, nerve health, and bone mineral density: Vitamin D3 (25-OH) & Vitamin B12 (Cyanocobalamin).",
+    includes: ["Vitamin D3 (25-OH Cholecalciferol)", "Vitamin B12 (Active Cyanocobalamin)", "Calcium & Bone Health"],
   },
 ];
 
 const DEFAULT_PHARMACY: RecommendPharmacyItem[] = [
   {
-    id: "rx-d3-60k",
-    name: "Vitamin D3 60,000 IU Cholecalciferol Capsules (Pack of 4)",
-    category: "Bone & Immunity",
-    dosage: "1 capsule weekly with milk after meals",
-    price: 199,
-    originalPrice: 280,
-    discount: "29% OFF",
-    reason: "Essential for Indian diets to maintain bone density, neuromuscular strength, and fatigue resistance.",
+    id: "rx-visakha-dispensing",
+    name: "Prescription Medicine Dispensing & Doorstep Delivery",
+    category: "Registered Partner Pharmacy",
+    dosage: "Fulfillment by Sri Visakha Medicals (Lic: AP/03/01/2017-138350)",
+    price: 0,
+    originalPrice: 0,
+    discount: "GENUINE PHARMACY",
+    reason: "Upload your valid doctor prescription for verified dispensing by Pharmacist-in-Charge Gayatri at Sri Visakha Medicals with doorstep delivery.",
   },
   {
-    id: "rx-b12-multivitamin",
-    name: "Methylcobalamin (Active B12) + Multi-Minerals Complex (30 Tablets)",
-    category: "Metabolic & Nerve Health",
-    dosage: "1 tablet daily after breakfast",
-    price: 349,
-    originalPrice: 480,
-    discount: "27% OFF",
-    reason: "Supports nerve myelin sheath maintenance, red blood cell generation, and resting cognitive vitality.",
+    id: "rx-chronic-refill",
+    name: "Cardio & Diabetic Chronic Care Monthly Refill Plan",
+    category: "Scheduled Refill Service",
+    dosage: "Monthly scheduled dispensing for verified prescriptions",
+    price: 0,
+    originalPrice: 0,
+    discount: "DOORSTEP REFILL",
+    reason: "Never miss a dose of essential hypertension or glycemic medication. Pre-scheduled batch-verified refills delivered on time to your doorstep.",
   },
   {
-    id: "rx-omega3-fishoil",
-    name: "Triple Strength Omega-3 Fish Oil 1000mg (60 Softgels)",
-    category: "Cardiovascular Support",
-    dosage: "1 softgel daily after dinner",
-    price: 599,
-    originalPrice: 850,
-    discount: "30% OFF",
-    reason: "Clinically proven to support healthy HDL/LDL cholesterol ratios and arterial elasticity.",
-  },
-  {
-    id: "rx-accuchek-glucometer",
-    name: "Accu-Chek Instant Blood Glucose Monitoring Kit + 25 Strips",
-    category: "Home Diagnostic Tool",
-    dosage: "Home blood sugar testing",
-    price: 1099,
-    originalPrice: 1450,
-    discount: "24% OFF",
-    reason: "Enables instant glycemic surveillance and tracking from the comfort of home.",
-  },
-  {
-    id: "rx-omron-bp",
-    name: "Omron Hem-7120 Fully Automatic Digital Blood Pressure Monitor",
-    category: "Cardiovascular Tool",
-    dosage: "Home arterial blood pressure testing",
-    price: 1899,
-    originalPrice: 2450,
-    discount: "22% OFF",
-    reason: "Validated IntelliSense technology for clinical-grade blood pressure measurements.",
+    id: "rx-clinical-supplies",
+    name: "Clinical Diagnostics & Home Monitoring Supplies",
+    category: "Clinical Consumables",
+    dosage: "Certified BP cuffs, lancets, testing strips & sanitization supplies",
+    price: 0,
+    originalPrice: 0,
+    discount: "CERTIFIED SUPPLIES",
+    reason: "Genuine medical-grade biometric monitoring consumables dispensed directly by licensed pharmacy partner Sri Visakha Medicals.",
   },
 ];
 
@@ -387,6 +339,231 @@ const COMMON_CONDITIONS = [
   "Fatty Liver", "PCOD / PCOS", "Acid Reflux / GERD", "Joint / Back Pain", "None / Routine Checkup"
 ];
 
+export interface RoutineCheckupItem {
+  id: string;
+  name: string;
+  category: string;
+  reason: string;
+  price: number;
+  originalPrice: number;
+  discount: string;
+  sampleType: string;
+  fastingRequired: boolean;
+}
+
+export interface RoutinePackageItem {
+  id: string;
+  name: string;
+  interval: "3m" | "6m" | "12m";
+  badge: string;
+  parametersCount: string;
+  originalPrice: number;
+  offerPrice: number;
+  description: string;
+  includes: string[];
+}
+
+const ROUTINE_CHECKUPS_DATA: Record<"3m" | "6m" | "12m", {
+  title: string;
+  tagline: string;
+  summary: string;
+  tests: RoutineCheckupItem[];
+  packages: RoutinePackageItem[];
+}> = {
+  "3m": {
+    title: "3-Month Quarterly Surveillance",
+    tagline: "Recommended quarterly baseline for proactive metabolic & vital balance",
+    summary: "Essential quarterly screen for asymptomatic individuals to catch glycemic drift, blood pressure volatility, and cellular hydration fluctuations before symptoms manifest.",
+    tests: [
+      {
+        id: "rt-cbc",
+        name: "Complete Blood Count (CBC / Hemogram)",
+        category: "Hematology",
+        reason: "Evaluates RBC, WBC, platelets, and hemoglobin to ensure active immune defense and rule out subclinical anemia or infection.",
+        price: 299,
+        originalPrice: 450,
+        discount: "33% OFF",
+        sampleType: "Blood (EDTA)",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-fbs",
+        name: "Fasting Blood Sugar (FBS)",
+        category: "Metabolic",
+        reason: "Measures baseline glucose homeostasis to detect early insulin resistance or pre-diabetes early.",
+        price: 99,
+        originalPrice: 160,
+        discount: "38% OFF",
+        sampleType: "Blood (Fluoride)",
+        fastingRequired: true,
+      },
+      {
+        id: "rt-urine",
+        name: "Urine Routine & Microscopic Examination",
+        category: "Renal Screening",
+        reason: "Detects asymptomatic proteinuria, microscopic hematuria, or early metabolic by-products.",
+        price: 149,
+        originalPrice: 220,
+        discount: "32% OFF",
+        sampleType: "Spot Urine",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-bp-vitals",
+        name: "Doorstep Vitals & Digital Arterial BP Mapping",
+        category: "Cardiovascular",
+        reason: "Certified phlebotomist/nurse measures arterial pressure, SpO2, and pulse rhythm at resting conditions.",
+        price: 199,
+        originalPrice: 350,
+        discount: "43% OFF",
+        sampleType: "Clinical Vitals",
+        fastingRequired: false,
+      },
+    ],
+    packages: [
+      {
+        id: "pkg-3m-vital",
+        name: "Quarterly Active Vital Monitoring Package",
+        interval: "3m",
+        badge: "POPULAR QUARTERLY",
+        parametersCount: "48+ Parameters",
+        originalPrice: 1299,
+        offerPrice: 699,
+        description: "Complete quarterly hemogram, fasting glucose, urine micro-sediment, and doorstep vital examination.",
+        includes: ["Complete Hemogram (24 Parameters)", "Fasting Blood Glucose", "Urine Routine & Microscopic", "Resting Blood Pressure", "Free Doorstep Draw"],
+      },
+    ],
+  },
+  "6m": {
+    title: "6-Month Semi-Annual Checkup",
+    tagline: "Comprehensive semi-annual checkup to screen major organ functions & lipids",
+    summary: "ICMR recommended 6-month interval to track glycated hemoglobin (HbA1c), cholesterol fractions, liver enzymes, and kidney filtration efficiency.",
+    tests: [
+      {
+        id: "rt-hba1c",
+        name: "Glycated Hemoglobin (HbA1c with Average Glucose)",
+        category: "Endocrine",
+        reason: "Measures 90-day average blood glucose without being skewed by single-day dietary variations.",
+        price: 349,
+        originalPrice: 550,
+        discount: "36% OFF",
+        sampleType: "Blood (EDTA)",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-lipid",
+        name: "Lipid Profile Comprehensive (Cholesterol, HDL, LDL, VLDL, Triglycerides)",
+        category: "Cardiovascular",
+        reason: "Screens arterial plaque risk, cardiac protection index, and triglyceride accumulation.",
+        price: 449,
+        originalPrice: 700,
+        discount: "35% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: true,
+      },
+      {
+        id: "rt-kft",
+        name: "Kidney Function Test (KFT / RFT with eGFR)",
+        category: "Renal",
+        reason: "Evaluates serum creatinine, blood urea nitrogen, uric acid, and glomerular filtration rate.",
+        price: 499,
+        originalPrice: 750,
+        discount: "33% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-lft",
+        name: "Liver Function Test (LFT with Bilirubin, SGOT, SGPT, ALP)",
+        category: "Hepatic",
+        reason: "Assesses hepatic detox capability, fat deposition markers, and protein synthesis balance.",
+        price: 499,
+        originalPrice: 750,
+        discount: "33% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: false,
+      },
+    ],
+    packages: [
+      {
+        id: "pkg-6m-metabolic",
+        name: "Semi-Annual Precision Metabolic & Organ Shield",
+        interval: "6m",
+        badge: "BEST VALUE · 6 MONTHS",
+        parametersCount: "68+ Parameters",
+        originalPrice: 2499,
+        offerPrice: 1299,
+        description: "Includes HbA1c 3-month sugar, Complete Lipid Panel, Liver Function, Kidney Function, and Complete Blood Picture.",
+        includes: ["HbA1c & Est. Average Glucose", "Full Lipid Risk Ratios", "Kidney RFT with eGFR", "Liver Enzymes (SGOT/SGPT)", "Doorstep Cold-Chain Pickup"],
+      },
+    ],
+  },
+  "12m": {
+    title: "12-Month Comprehensive Annual Wellness",
+    tagline: "Total body preventive baseline covering organs, vitamins, thyroid & cardiac ECG",
+    summary: "Gold-standard annual preventive checkup for normal healthy adults to establish multi-year wellness trends and identify silent deficiencies.",
+    tests: [
+      {
+        id: "rt-thyroid",
+        name: "Thyroid Profile Total (T3, T4, TSH)",
+        category: "Endocrine",
+        reason: "Assesses resting basal metabolism, energy levels, weight control, and hormonal rhythm.",
+        price: 349,
+        originalPrice: 500,
+        discount: "30% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-vit-d-b12",
+        name: "Vitamin D (25-OH) & Vitamin B12 Vitality Duo",
+        category: "Vitamins & Minerals",
+        reason: "Crucial for bone mineral density, nerve sheath maintenance, and chronic fatigue prevention in Indian populations.",
+        price: 899,
+        originalPrice: 1400,
+        discount: "35% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-ecg",
+        name: "12-Lead Digital Resting ECG (Doorstep / Lab)",
+        category: "Cardiovascular",
+        reason: "Screens cardiac conduction, resting rhythm abnormalities, and early myocardial strain.",
+        price: 399,
+        originalPrice: 600,
+        discount: "33% OFF",
+        sampleType: "Electrophysiology",
+        fastingRequired: false,
+      },
+      {
+        id: "rt-iron",
+        name: "Iron Studies with Ferritin & TIBC",
+        category: "Hematology",
+        reason: "Measures deep cellular iron stores to prevent occult fatigue and oxygen-carrying reduction.",
+        price: 549,
+        originalPrice: 850,
+        discount: "35% OFF",
+        sampleType: "Blood (Serum)",
+        fastingRequired: true,
+      },
+    ],
+    packages: [
+      {
+        id: "pkg-12m-total",
+        name: "CallMedex Total Body Annual Wellness Shield",
+        interval: "12m",
+        badge: "FLAGSHIP ANNUAL · 35% OFF",
+        parametersCount: "88+ Parameters",
+        originalPrice: 3499,
+        offerPrice: 2199,
+        description: "The complete 360° health audit: Heart, Liver, Kidney, Thyroid, Vitamins (D & B12), Hemogram, Diabetes & Urinalysis.",
+        includes: ["Full Thyroid Profile (T3, T4, TSH)", "Vitamin D & Active B12", "Liver & Kidney Comprehensive Panels", "Cardiac Lipid Ratios", "Free Doctor Tele-Review"],
+      },
+    ],
+  },
+};
+
 // ─── Component Implementation ───────────────────────────────────────────────
 
 export default function PatientAIAdvisor() {
@@ -399,8 +576,10 @@ export default function PatientAIAdvisor() {
 
   // Subtabs within modals
   const [modal1Tab, setModal1Tab] = useState<"vitals" | "doctors">("vitals");
-  const [modal2Tab, setModal2Tab] = useState<"tests" | "packages">("tests");
+  const [modal2Tab, setModal2Tab] = useState<"tests" | "packages" | "periodic">("tests");
+  const [routineInterval, setRoutineInterval] = useState<"3m" | "6m" | "12m">("3m");
   const [modal3Tab, setModal3Tab] = useState<"preventive" | "pharmacy">("preventive");
+  const [availableDoctors, setAvailableDoctors] = useState<RecommendDoctor[]>([]);
 
   // Health Profile Form State
   const [weightInput, setWeightInput] = useState<string>("68");
@@ -485,13 +664,77 @@ export default function PatientAIAdvisor() {
     if (profile.height_cm) setHeightInput(String(profile.height_cm));
     if (profile.blood_pressure) setBpInput(profile.blood_pressure);
     if (profile.fasting_blood_sugar) setSugarInput(String(profile.fasting_blood_sugar));
-    if (profile.conditions) setConditionsInput(profile.conditions);
+    if (profile.conditions && profile.conditions.length > 0) setConditionsInput(profile.conditions);
     if (profile.dietary_preference) setDietPrefInput(profile.dietary_preference);
     if (profile.activity_level) setActivityInput(profile.activity_level);
+
+    if (typeof window !== "undefined") {
+      try {
+        const payload = {
+          weight_kg: profile.weight_kg,
+          height_cm: profile.height_cm,
+          blood_pressure: profile.blood_pressure,
+          fasting_blood_sugar: profile.fasting_blood_sugar,
+          conditions: profile.conditions || [],
+          dietary_preference: profile.dietary_preference || "vegetarian",
+          activity_level: profile.activity_level || "moderate",
+        };
+        localStorage.setItem("cm_patient_vitals", JSON.stringify(payload));
+      } catch (e) {
+        // ignore storage quota errors
+      }
+    }
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("cm_patient_vitals");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.weight_kg) setWeightInput(String(parsed.weight_kg));
+          if (parsed.height_cm) setHeightInput(String(parsed.height_cm));
+          if (parsed.blood_pressure) setBpInput(parsed.blood_pressure);
+          if (parsed.fasting_blood_sugar) setSugarInput(String(parsed.fasting_blood_sugar));
+          if (Array.isArray(parsed.conditions) && parsed.conditions.length > 0) setConditionsInput(parsed.conditions);
+          if (parsed.dietary_preference) setDietPrefInput(parsed.dietary_preference);
+          if (parsed.activity_level) setActivityInput(parsed.activity_level);
+        }
+      } catch (e) {
+        console.error("Failed to restore vitals from localStorage:", e);
+      }
+    }
     fetchRecommendations();
+
+    // Dynamically load registered verified doctors from database
+    const fetchRegisteredDoctors = async () => {
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(`${apiBase}/api/telemed/doctors`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.doctors) && json.doctors.length > 0) {
+            const mapped: RecommendDoctor[] = json.doctors.map((d: any) => ({
+              id: d.doctor_id,
+              doctor_name: d.name?.toLowerCase().startsWith("dr") ? d.name : `Dr. ${d.name}`,
+              specialty: d.specialization || "Clinical Cardio Physician & Diabetic Care",
+              title: "Senior Consultant Physician",
+              qualification: d.qualification || "MBBS, PGDCCP (NI)",
+              experience: `${d.experience_years || 24}+ yrs clinical experience`,
+              fee: d.consultation_fee || 500,
+              languages: d.languages || ["English", "Telugu"],
+              hospital: d.hospital_clinic_name || "Visakha Multispeciality Clinics & Diagnostics",
+              rating: 4.98,
+              reason: d.bio ? d.bio.slice(0, 150) + "..." : "Primary clinical consultation and specialized cardio-metabolic care tailored to your biometric vitals.",
+            }));
+            setAvailableDoctors(mapped);
+          }
+        }
+      } catch (e) {
+        console.warn("Could not fetch dynamic telemed doctors:", e);
+      }
+    };
+    fetchRegisteredDoctors();
   }, []);
 
   // Save Vitals to backend & update local state
@@ -513,6 +756,14 @@ export default function PatientAIAdvisor() {
         dietary_preference: dietPrefInput,
         activity_level: activityInput,
       };
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("cm_patient_vitals", JSON.stringify(payload));
+        } catch (e) {
+          console.error("Failed to cache vitals to localStorage:", e);
+        }
+      }
 
       const res = await fetch(`${apiBase}/api/v1/patient/health-profile`, {
         method: "PUT",
@@ -597,7 +848,11 @@ Website: https://callmedex.com
   const dietPlan = data?.care_guidance?.diet_plan || DEFAULT_ADVISOR_DATA.care_guidance.diet_plan;
   const workoutPlan = data?.care_guidance?.workouts || DEFAULT_ADVISOR_DATA.care_guidance.workouts;
   const tests = data?.recommended_tests && data.recommended_tests.length > 0 ? data.recommended_tests : DEFAULT_TESTS;
-  const suggestedDoctorsList = data?.recommended_doctors && data.recommended_doctors.length > 0 ? data.recommended_doctors : DEFAULT_DOCTORS;
+  const suggestedDoctorsList = availableDoctors.length > 0
+    ? availableDoctors
+    : (data?.recommended_doctors && data.recommended_doctors.length > 0 && data.recommended_doctors[0].doctor_name)
+      ? data.recommended_doctors
+      : DEFAULT_DOCTORS;
 
   return (
     <div
@@ -668,6 +923,35 @@ Website: https://callmedex.com
             <p style={{ margin: "3px 0 0 0", fontSize: "0.84rem", color: "#e0f2fe" }}>
               Verified clinical health recommendations: specialist doctor matching, diagnostics &amp; checkup packages, and personalized preventive care.
             </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveWidget(2);
+                  setModal2Tab("periodic");
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 14px",
+                  borderRadius: 999,
+                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.4) 100%)",
+                  border: "1.5px solid rgba(52, 211, 153, 0.6)",
+                  color: "#d1fae5",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow: "0 2px 10px rgba(16, 185, 129, 0.25)",
+                }}
+                title="Explore Periodic Routine Checkups for Asymptomatic / Normal Health (3M / 6M / 12M)"
+              >
+                <Calendar size={13} style={{ color: "#34d399" }} />
+                <span>Periodic Routine Checkups · 3M / 6M / 12M</span>
+                <ChevronRight size={13} style={{ color: "#6ee7b7" }} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -814,7 +1098,7 @@ Website: https://callmedex.com
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
               <span style={{ fontSize: "0.74rem", color: "#4ade80", fontWeight: 700 }}>
-                {suggestedDoctorsList.length} Verified Doctors Matching Profile
+                {suggestedDoctorsList.length} Verified Specialist{suggestedDoctorsList.length === 1 ? "" : "s"} Available
               </span>
             </div>
           </div>
@@ -1514,12 +1798,13 @@ Website: https://callmedex.com
             </div>
 
             {/* Sub-Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)", flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={() => setModal2Tab("tests")}
                 style={{
                   flex: 1,
+                  minWidth: 180,
                   padding: "12px 16px",
                   background: modal2Tab === "tests" ? "rgba(34, 197, 94, 0.15)" : "transparent",
                   borderBottom: modal2Tab === "tests" ? "2px solid #4ade80" : "none",
@@ -1537,6 +1822,7 @@ Website: https://callmedex.com
                 onClick={() => setModal2Tab("packages")}
                 style={{
                   flex: 1,
+                  minWidth: 180,
                   padding: "12px 16px",
                   background: modal2Tab === "packages" ? "rgba(34, 197, 94, 0.15)" : "transparent",
                   borderBottom: modal2Tab === "packages" ? "2px solid #4ade80" : "none",
@@ -1549,11 +1835,34 @@ Website: https://callmedex.com
               >
                 2. Full-Body Health Packages (Up to 33% OFF)
               </button>
+              <button
+                type="button"
+                onClick={() => setModal2Tab("periodic")}
+                style={{
+                  flex: 1,
+                  minWidth: 200,
+                  padding: "12px 16px",
+                  background: modal2Tab === "periodic" ? "rgba(16, 185, 129, 0.2)" : "transparent",
+                  borderBottom: modal2Tab === "periodic" ? "2px solid #34d399" : "none",
+                  color: modal2Tab === "periodic" ? "#34d399" : "#94a3b8",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  cursor: "pointer",
+                  border: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                <Calendar size={14} />
+                <span>3. Periodic Routine Checkups (3M / 6M / 12M)</span>
+              </button>
             </div>
 
             {/* Modal Body */}
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
-              {modal2Tab === "tests" ? (
+              {modal2Tab === "tests" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {tests.map((t, idx) => (
                     <div
@@ -1566,32 +1875,33 @@ Website: https://callmedex.com
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
+                        flexWrap: "wrap",
                         gap: 12,
                       }}
                     >
-                      <div style={{ maxWidth: "72%" }}>
+                      <div style={{ maxWidth: "60%" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: "0.94rem", fontWeight: 800, color: "#ffffff" }}>
+                          <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff" }}>
                             {t.test_name}
                           </span>
                           <span
                             style={{
                               fontSize: "0.68rem",
-                              padding: "2px 7px",
+                              padding: "2px 8px",
                               borderRadius: 6,
-                              background: t.urgency === "high" ? "rgba(239, 68, 68, 0.2)" : t.urgency === "medium" ? "rgba(245, 158, 11, 0.2)" : "rgba(56, 189, 248, 0.2)",
-                              color: t.urgency === "high" ? "#f87171" : t.urgency === "medium" ? "#fbbf24" : "#38bdf8",
+                              background: "rgba(56, 189, 248, 0.2)",
+                              color: "#38bdf8",
                               fontWeight: 700,
                             }}
                           >
-                            {t.urgency.toUpperCase()} PRIORITY
+                            {t.category}
                           </span>
                         </div>
                         <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
                           {t.reason}
                         </div>
                         <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
-                          NABL Certified · Free Home Sample Collection Available
+                          Certified Partner Labs · Free Home Sample Collection Available
                         </div>
                       </div>
 
@@ -1617,7 +1927,9 @@ Website: https://callmedex.com
                     </div>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {modal2Tab === "packages" && (
                 /* TAB 2: Full-Body Health Packages */
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   {DEFAULT_PACKAGES.map((pkg) => (
@@ -1706,6 +2018,334 @@ Website: https://callmedex.com
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {modal2Tab === "periodic" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  {/* Interval Selector Banner */}
+                  <div
+                    style={{
+                      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(14, 116, 144, 0.2) 100%)",
+                      border: "1px solid rgba(52, 211, 153, 0.35)",
+                      borderRadius: 14,
+                      padding: "16px 20px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                      <Calendar size={18} style={{ color: "#34d399" }} />
+                      <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                        Preventive Routine Checkups for Asymptomatic &amp; Normal Individuals
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          fontWeight: 800,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: "rgba(52, 211, 153, 0.2)",
+                          color: "#34d399",
+                          border: "1px solid rgba(52, 211, 153, 0.4)",
+                        }}
+                      >
+                        ICMR PROTOCOLS
+                      </span>
+                    </div>
+                    <p style={{ margin: "0 0 14px 0", fontSize: "0.8rem", color: "#cbd5e1", lineHeight: 1.45 }}>
+                      Evidence-based periodic routine checkup schedule for healthy, asymptomatic adults. Regular monitoring detects silent vital drifts early. Select your checkup frequency:
+                    </p>
+
+                    {/* Interval Switcher Pills */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                      {[
+                        { id: "3m", label: "3-Month Interval", desc: "Quarterly Baseline Checkup" },
+                        { id: "6m", label: "6-Month Interval", desc: "Semi-Annual Organ Surveillance" },
+                        { id: "12m", label: "12-Month Interval", desc: "Annual Total Wellness Audit" },
+                      ].map((itv) => (
+                        <button
+                          key={itv.id}
+                          type="button"
+                          onClick={() => setRoutineInterval(itv.id as "3m" | "6m" | "12m")}
+                          style={{
+                            padding: "10px 14px",
+                            borderRadius: 10,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "all 0.2s ease",
+                            background: routineInterval === itv.id ? "linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.35))" : "rgba(15, 23, 42, 0.6)",
+                            border: routineInterval === itv.id ? "1.5px solid #34d399" : "1px solid rgba(255, 255, 255, 0.12)",
+                            color: "#fff",
+                          }}
+                        >
+                          <div style={{ fontSize: "0.86rem", fontWeight: 800, color: routineInterval === itv.id ? "#34d399" : "#f1f5f9" }}>
+                            {itv.label}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 2 }}>
+                            {itv.desc}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Summary for active interval */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", paddingBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#34d399" }}>
+                        {ROUTINE_CHECKUPS_DATA[routineInterval].title}
+                      </h4>
+                      <p style={{ margin: "2px 0 0 0", fontSize: "0.76rem", color: "#94a3b8" }}>
+                        {ROUTINE_CHECKUPS_DATA[routineInterval].tagline}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                      Certified Partner Laboratories
+                    </span>
+                  </div>
+
+                  {/* SECTION A: INDIVIDUAL ROUTINE TESTS */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <FlaskConical size={16} style={{ color: "#38bdf8" }} />
+                      <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff" }}>
+                        Essential Routine Tests for this Interval ({ROUTINE_CHECKUPS_DATA[routineInterval].tests.length})
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {ROUTINE_CHECKUPS_DATA[routineInterval].tests.map((test) => (
+                        <div
+                          key={test.id}
+                          style={{
+                            background: "rgba(15, 23, 42, 0.6)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            borderRadius: 12,
+                            padding: "14px 18px",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ maxWidth: "60%" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                                {test.name}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.66rem",
+                                  padding: "2px 7px",
+                                  borderRadius: 6,
+                                  background: "rgba(56, 189, 248, 0.18)",
+                                  color: "#38bdf8",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {test.category}
+                              </span>
+                              {test.fastingRequired && (
+                                <span
+                                  style={{
+                                    fontSize: "0.66rem",
+                                    padding: "2px 7px",
+                                    borderRadius: 6,
+                                    background: "rgba(245, 158, 11, 0.2)",
+                                    color: "#fbbf24",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  8-10h Fasting
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
+                              {test.reason}
+                            </div>
+                            <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
+                              Sample: {test.sampleType} · Reports delivered within 12–24 hrs
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                              <span style={{ fontSize: "0.78rem", color: "#64748b", textDecoration: "line-through" }}>
+                                ₹{test.originalPrice}
+                              </span>
+                              <span style={{ fontSize: "1.05rem", fontWeight: 900, color: "#4ade80" }}>
+                                ₹{test.price}
+                              </span>
+                              <span style={{ fontSize: "0.7rem", color: "#fb923c", fontWeight: 700 }}>
+                                {test.discount}
+                              </span>
+                            </div>
+
+                            {/* Dual Booking Buttons: Home vs Walk-In */}
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              <Link
+                                href={`/booking?type=lab&test=${encodeURIComponent(test.name)}&price=${test.price}&mode=home`}
+                                className="cm-advisor-btn-primary"
+                                style={{ textDecoration: "none", padding: "6px 12px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                              >
+                                <Home size={12} /> Home Collection
+                              </Link>
+                              <Link
+                                href={`/booking?type=lab&test=${encodeURIComponent(test.name)}&price=${test.price}&mode=walkin`}
+                                style={{
+                                  textDecoration: "none",
+                                  padding: "6px 12px",
+                                  fontSize: "0.75rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  borderRadius: 8,
+                                  background: "rgba(255, 255, 255, 0.1)",
+                                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                                  color: "#ffffff",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <Building2 size={12} /> Walk-In Lab
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* SECTION B: CURATED PERIODIC PACKAGES */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, marginTop: 6 }}>
+                      <Award size={16} style={{ color: "#fb923c" }} />
+                      <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff" }}>
+                        Curated Routine Packages for this Interval
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {ROUTINE_CHECKUPS_DATA[routineInterval].packages.map((pkg) => (
+                        <div
+                          key={pkg.id}
+                          style={{
+                            background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.7) 100%)",
+                            border: "1.5px solid rgba(52, 211, 153, 0.4)",
+                            borderRadius: 14,
+                            padding: "16px 20px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "1.02rem", fontWeight: 900, color: "#ffffff" }}>
+                                  {pkg.name}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "0.68rem",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "rgba(52, 211, 153, 0.2)",
+                                    color: "#34d399",
+                                    fontWeight: 800,
+                                    border: "1px solid rgba(52, 211, 153, 0.4)",
+                                  }}
+                                >
+                                  {pkg.badge}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: "0.68rem",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "rgba(56, 189, 248, 0.2)",
+                                    color: "#38bdf8",
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  {pkg.parametersCount}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: "0.8rem", color: "#cbd5e1", marginTop: 4 }}>
+                                {pkg.description}
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                                <span style={{ fontSize: "0.82rem", color: "#64748b", textDecoration: "line-through" }}>
+                                  ₹{pkg.originalPrice}
+                                </span>
+                                <span style={{ fontSize: "1.25rem", fontWeight: 900, color: "#4ade80" }}>
+                                  ₹{pkg.offerPrice}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: "0.72rem", color: "#fb923c", fontWeight: 800 }}>
+                                Save ₹{pkg.originalPrice - pkg.offerPrice}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Included Tests Chips */}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {pkg.includes.map((inc, i) => (
+                              <span
+                                key={i}
+                                style={{
+                                  fontSize: "0.72rem",
+                                  padding: "3px 9px",
+                                  borderRadius: 6,
+                                  background: "rgba(255, 255, 255, 0.08)",
+                                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                                  color: "#f1f5f9",
+                                }}
+                              >
+                                ✓ {inc}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Footer with Home vs Walk-In */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
+                            <span style={{ fontSize: "0.74rem", color: "#94a3b8" }}>
+                              Free doorstep phlebotomist cold-chain draw or express lab walk-in
+                            </span>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <Link
+                                href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.offerPrice}&mode=home`}
+                                className="cm-advisor-btn-primary"
+                                style={{ textDecoration: "none", padding: "7px 14px", fontSize: "0.78rem", display: "inline-flex", alignItems: "center", gap: 4 }}
+                              >
+                                <Home size={13} /> Book Home Collection (₹{pkg.offerPrice})
+                              </Link>
+                              <Link
+                                href={`/booking?type=lab&package=${encodeURIComponent(pkg.name)}&price=${pkg.offerPrice}&mode=walkin`}
+                                style={{
+                                  textDecoration: "none",
+                                  padding: "7px 14px",
+                                  fontSize: "0.78rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  borderRadius: 8,
+                                  background: "rgba(255, 255, 255, 0.12)",
+                                  border: "1px solid rgba(255, 255, 255, 0.25)",
+                                  color: "#ffffff",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                <Building2 size={13} /> Walk-In Diagnostic Centre
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1951,20 +2591,26 @@ Website: https://callmedex.com
                       </div>
 
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                          <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
-                            ₹{item.originalPrice}
-                          </span>
-                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
-                            ₹{item.price}
-                          </span>
-                        </div>
+                        {item.price > 0 ? (
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
+                              ₹{item.originalPrice}
+                            </span>
+                            <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                              ₹{item.price}
+                            </span>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#38bdf8" }}>
+                            Verified Pharmacy Partner
+                          </div>
+                        )}
                         <Link
                           href="/pharmacy"
                           className="cm-advisor-btn-primary"
                           style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.78rem" }}
                         >
-                          Order via Pharmacy →
+                          Order via Sri Visakha Medicals →
                         </Link>
                       </div>
                     </div>

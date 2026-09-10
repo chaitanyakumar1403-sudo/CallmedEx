@@ -15,6 +15,7 @@ import { MapPin, TestTube, Wallet, User, ScanLine, Package, CalendarDays } from 
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import PhleboSchedulePanel from "../components/PhleboSchedulePanel";
+import AdvanceHomeCollectionsWidget from "../components/AdvanceHomeCollectionsWidget";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import DashboardShell, { SkeletonRows } from "../components/DashboardShell";
 
@@ -82,6 +83,11 @@ export default function PhlebotomistDashboard() {
     fetchTasks();
   }, []);
 
+  const handleStartCollection = (bookingId: string) => {
+    setCollectionBookingId(bookingId);
+    setActiveTab("collection");
+  };
+
   // Full-time collectors are salaried — incentives only, no per-collection
   // accrual — so a wallet showing "earnings" is meaningless to them and reads
   // as if pay were missing. Part-time and freelance keep it.
@@ -130,6 +136,7 @@ export default function PhlebotomistDashboard() {
       <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
         <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
+          <AdvanceHomeCollectionsWidget onSelectBookingForCollection={handleStartCollection} />
           <ProviderDispatchTracker
             title="Phlebotomist Hub"
             providerType="phlebotomist"
@@ -204,7 +211,12 @@ export default function PhlebotomistDashboard() {
 
         {activeTab === "stock" && <PhleboStockPanel />}
 
-        {activeTab === "schedule" && <PhleboSchedulePanel />}
+        {activeTab === "schedule" && (
+          <div className="cm-stack">
+            <AdvanceHomeCollectionsWidget onSelectBookingForCollection={handleStartCollection} />
+            <PhleboSchedulePanel />
+          </div>
+        )}
 
         {activeTab === "wallet" && !isSalaried && <PhleboWalletPanel />}
 

@@ -101,7 +101,7 @@ const PROACTIVE_PATIENT_NOTIFICATIONS: PatientNotification[] = [
     id: "proactive-med-2",
     title: "Digital Prescription Refill Provisioned",
     message:
-      "Dr. Sharma signed your cardiorespiratory refill. 1-click doorstep delivery with temperature-controlled logistics is ready via Apollo Pharmacy Visakhapatnam.",
+      "Dr. Latchireddi SA Naidu signed your cardiorespiratory refill. 1-click doorstep delivery with verified pharmaceutical dispensing is ready via Sri Visakha Medicals Visakhapatnam.",
     category: "medication",
     time: "Yesterday",
     timestamp: Date.now() - 24 * 3600 * 1000,

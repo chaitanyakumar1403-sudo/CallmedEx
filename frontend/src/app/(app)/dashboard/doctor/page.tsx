@@ -69,8 +69,9 @@ export default function DoctorDashboard() {
   const [activeConsultations, setActiveConsultations] = useState<any[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
 
-  // Real Bookings (Today's roster)
+  // Real Bookings (Roster with timeframe filtering)
   const [todayBookings, setTodayBookings] = useState<any[]>([]);
+  const [rosterTimeframe, setRosterTimeframe] = useState<"today" | "tomorrow" | "upcoming" | "all">("today");
   const [appointmentsFilter, setAppointmentsFilter] = useState<"all" | "waiting" | "confirmed" | "completed">("all");
   const [modalityFilter, setModalityFilter] = useState<"all" | "walk_in" | "home_visit" | "online">("all");
 
@@ -159,11 +160,12 @@ export default function DoctorDashboard() {
     }
   }, []);
 
-  const fetchTodayBookings = useCallback(async () => {
+  const fetchTodayBookings = useCallback(async (tf?: string) => {
     try {
+      const activeTf = tf || rosterTimeframe;
       const token = getToken();
       if (!token) return;
-      const res = await fetch(`${apiBase}/api/bookings/provider/today`, {
+      const res = await fetch(`${apiBase}/api/bookings/provider/today?timeframe=${activeTf}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -173,10 +175,10 @@ export default function DoctorDashboard() {
         setTodayBookings([]);
       }
     } catch (e) {
-      console.error("Failed to fetch today bookings:", e);
+      console.error("Failed to fetch bookings:", e);
       setTodayBookings([]);
     }
-  }, []);
+  }, [rosterTimeframe]);
 
   const fetchEarnings = useCallback(async () => {
     try {
@@ -689,26 +691,63 @@ export default function DoctorDashboard() {
 
           {/* Today's Scheduled Patients Queue */}
           <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", display: "grid", placeItems: "center" }}>
                   <Clock size={16} />
                 </div>
                 <div>
                   <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
-                    Today&apos;s Clinical Appointments Roster ({todayBookings.length})
+                    {rosterTimeframe === "tomorrow" ? "Tomorrow's" : rosterTimeframe === "upcoming" ? "Upcoming (Next 7 Days)" : rosterTimeframe === "all" ? "All Scheduled" : "Today's"} Clinical Appointments Roster ({todayBookings.length})
                   </h4>
                   <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
                     Patients scheduled for telemedicine, in-person clinic, or doorstep visits.
                   </p>
                 </div>
               </div>
+
+              {/* Timeframe Filter Tabs */}
+              <div style={{ display: "flex", background: "rgba(241, 245, 249, 0.9)", padding: 3, borderRadius: 10, gap: 4, border: "1px solid #e2e8f0" }}>
+                {[
+                  { id: "today", label: "Today" },
+                  { id: "tomorrow", label: "Tomorrow" },
+                  { id: "upcoming", label: "Upcoming (7d)" },
+                  { id: "all", label: "All Scheduled" },
+                ].map((tf) => (
+                  <button
+                    key={tf.id}
+                    type="button"
+                    onClick={() => {
+                      const newTf = tf.id as "today" | "tomorrow" | "upcoming" | "all";
+                      setRosterTimeframe(newTf);
+                      fetchTodayBookings(newTf);
+                    }}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      padding: "6px 12px",
+                      borderRadius: 7,
+                      fontSize: "0.76rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                      background: rosterTimeframe === tf.id ? "#0284c7" : "transparent",
+                      color: rosterTimeframe === tf.id ? "#ffffff" : "#64748b",
+                      boxShadow: rosterTimeframe === tf.id ? "0 1px 4px rgba(2, 132, 199, 0.3)" : "none",
+                    }}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {todayBookings.length === 0 ? (
               <div style={{ padding: "32px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
                 <Clock size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Scheduled Consultations for Today</div>
+                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>
+                  No Scheduled Consultations for {rosterTimeframe === "tomorrow" ? "Tomorrow" : rosterTimeframe === "upcoming" ? "Upcoming Days" : rosterTimeframe === "all" ? "This Period" : "Today"}
+                </div>
                 <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 420 }}>
                   Your schedule is published and open. New bookings will automatically populate here in real time.
                 </p>
@@ -741,9 +780,14 @@ export default function DoctorDashboard() {
                         <span className={`cm-pill ${patient.status === "waiting" ? "cm-pill--urgent" : "cm-pill--active"}`}>
                           {patient.status || "Scheduled"}
                         </span>
-                        <span style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700 }}>
-                          Slot: {patient.slot_time || "Today"}
+                        <span style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700, background: "rgba(2, 132, 199, 0.08)", padding: "2px 8px", borderRadius: 6 }}>
+                          Slot: {patient.slot_date ? `${patient.slot_date} · ` : ""}{patient.slot_time || "Scheduled"}
                         </span>
+                        {patient.booking_type && (
+                          <span style={{ fontSize: "0.75rem", color: "#475569", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, textTransform: "capitalize" }}>
+                            {patient.booking_type.replace(/_/g, " ")}
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ display: "flex", gap: 16, fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 4 }}>

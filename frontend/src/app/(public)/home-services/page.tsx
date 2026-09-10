@@ -102,7 +102,7 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
   diagnostics: {
     id: "diagnostics",
     title: "Home Blood Sample Collection",
-    badge: "CallMedex Central Processing Lab",
+    badge: "Certified Partner Labs",
     tagline: "Temperature-controlled phlebotomy dispatched directly to your home with early morning slots.",
     icon: TestTube2,
     color: "#0284c7",
@@ -113,7 +113,7 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
     features: [
       { title: "Morning Fasting Slots", desc: "Strictly scheduled 5:30 AM – 11:00 AM slots for accurate fasting and lipid markers." },
       { title: "Barcoded Vacutainers", desc: "Zero sample mix-up with laser-printed patient barcode tracking at the bedside." },
-      { title: "Temperature Controlled", desc: "Cold-chain insulated ice-box transport directly to CallMedex NABL lab." },
+      { title: "Temperature Controlled", desc: "Cold-chain insulated ice-box transport directly to certified partner labs." },
       { title: "Digital Reports in 6-12 Hrs", desc: "Automated SMS, WhatsApp, and patient portal download as soon as verified." },
     ],
     procedures: [
@@ -320,18 +320,6 @@ export default function HomeServicesPage() {
             >
               <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#38bdf8" }}>NMC & APNC</div>
               <div style={{ fontSize: "0.8rem", color: "#bae6fd" }}>Verified Doctors & Nurses</div>
-            </div>
-            <div
-              style={{
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: 14,
-                padding: "12px 16px",
-              }}
-            >
-              <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#38bdf8" }}>NABL Certified</div>
-              <div style={{ fontSize: "0.8rem", color: "#bae6fd" }}>CallMedex Central Lab</div>
             </div>
             <div
               style={{

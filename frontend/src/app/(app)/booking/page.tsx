@@ -562,15 +562,35 @@ function BookingPageContent() {
     }
   }, [step, bookingType]);
 
-  // Fetch booked slots for the selected provider and date so already booked slots are locked
+  // Fetch booked slots for the selected provider or home collection area and date so already booked slots are locked
   useEffect(() => {
     const providerId = selectedOrg?.id || selectedDoctor?.id || "";
-    if (!providerId || !selectedDate) {
+    const isHomeOrLab = bookingType === "home_collection" || bookingType === "lab" || modeParam === "home";
+
+    if (!selectedDate) {
       setBookedSlots([]);
       return;
     }
+
+    if (!providerId && !isHomeOrLab) {
+      setBookedSlots([]);
+      return;
+    }
+
     const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    fetch(`${apiBase}/api/bookings/booked-slots?provider_id=${encodeURIComponent(providerId)}&date=${encodeURIComponent(selectedDate)}`)
+    let url = `${apiBase}/api/bookings/booked-slots?date=${encodeURIComponent(selectedDate)}`;
+    if (providerId) {
+      url += `&provider_id=${encodeURIComponent(providerId)}`;
+    }
+    if (isHomeOrLab) {
+      url += `&service_type=home_collection`;
+      const cityVal = (labDistrict || "").trim();
+      if (cityVal) {
+        url += `&city=${encodeURIComponent(cityVal)}&district=${encodeURIComponent(cityVal)}`;
+      }
+    }
+
+    fetch(url)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data?.booked_slots)) {
@@ -580,7 +600,7 @@ function BookingPageContent() {
         }
       })
       .catch(() => setBookedSlots([]));
-  }, [selectedDoctor?.id, selectedOrg?.id, selectedDate]);
+  }, [selectedDoctor?.id, selectedOrg?.id, selectedDate, bookingType, labDistrict, modeParam]);
 
   // Generate dynamic time slots based on organization's configured operating hours
   const getDynamicSlots = (dateStr: string): string[] => {
@@ -2121,6 +2141,7 @@ function BookingPageContent() {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {morningSlots.map((t) => {
                           const isSelected = selectedSlot === t;
+                          const isBooked = isSlotBooked(t);
                           return (
                             <div
                               key={t}
@@ -2128,26 +2149,42 @@ function BookingPageContent() {
                                 padding: "10px 8px",
                                 borderRadius: 10,
                                 textAlign: "center",
-                                cursor: "pointer",
+                                cursor: isBooked ? "not-allowed" : "pointer",
                                 fontSize: "0.85rem",
                                 fontWeight: 700,
-                                border: isSelected
+                                border: isBooked
+                                  ? "1px dashed #cbd5e1"
+                                  : isSelected
                                   ? "1.5px solid rgba(255, 255, 255, 0.4)"
                                   : "1px solid rgba(2, 132, 199, 0.22)",
-                                background: isSelected
+                                background: isBooked
+                                  ? "#f8fafc"
+                                  : isSelected
                                   ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
                                   : "rgba(255, 255, 255, 0.78)",
                                 backdropFilter: "blur(10px)",
                                 WebkitBackdropFilter: "blur(10px)",
-                                color: isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
-                                boxShadow: isSelected
+                                color: isBooked ? "#94a3b8" : isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
+                                opacity: isBooked ? 0.6 : 1,
+                                boxShadow: isBooked
+                                  ? "none"
+                                  : isSelected
                                   ? "0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)"
                                   : "0 2px 6px rgba(2, 132, 199, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
                                 transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
                               }}
-                              onClick={() => { setSelectedSlot(t); setError(""); }}
+                              onClick={() => {
+                                if (isBooked) return;
+                                setSelectedSlot(t);
+                                setError("");
+                              }}
                             >
-                              {formatSlotLabel(t)}
+                              <div>{formatSlotLabel(t)}</div>
+                              {isBooked && (
+                                <div style={{ fontSize: "0.65rem", color: "#dc2626", fontWeight: 800, marginTop: 2, letterSpacing: "0.4px" }}>
+                                  BOOKED
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -2172,6 +2209,7 @@ function BookingPageContent() {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {afternoonEveningSlots.map((t) => {
                           const isSelected = selectedSlot === t;
+                          const isBooked = isSlotBooked(t);
                           return (
                             <div
                               key={t}
@@ -2179,26 +2217,42 @@ function BookingPageContent() {
                                 padding: "10px 8px",
                                 borderRadius: 10,
                                 textAlign: "center",
-                                cursor: "pointer",
+                                cursor: isBooked ? "not-allowed" : "pointer",
                                 fontSize: "0.85rem",
                                 fontWeight: 700,
-                                border: isSelected
+                                border: isBooked
+                                  ? "1px dashed #cbd5e1"
+                                  : isSelected
                                   ? "1.5px solid rgba(255, 255, 255, 0.4)"
                                   : "1px solid rgba(2, 132, 199, 0.22)",
-                                background: isSelected
+                                background: isBooked
+                                  ? "#f8fafc"
+                                  : isSelected
                                   ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
                                   : "rgba(255, 255, 255, 0.78)",
                                 backdropFilter: "blur(10px)",
                                 WebkitBackdropFilter: "blur(10px)",
-                                color: isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
-                                boxShadow: isSelected
+                                color: isBooked ? "#94a3b8" : isSelected ? "#ffffff" : "var(--cm-navy, #0f172a)",
+                                opacity: isBooked ? 0.6 : 1,
+                                boxShadow: isBooked
+                                  ? "none"
+                                  : isSelected
                                   ? "0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)"
                                   : "0 2px 6px rgba(2, 132, 199, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
                                 transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
                               }}
-                              onClick={() => { setSelectedSlot(t); setError(""); }}
+                              onClick={() => {
+                                if (isBooked) return;
+                                setSelectedSlot(t);
+                                setError("");
+                              }}
                             >
-                              {formatSlotLabel(t)}
+                              <div>{formatSlotLabel(t)}</div>
+                              {isBooked && (
+                                <div style={{ fontSize: "0.65rem", color: "#dc2626", fontWeight: 800, marginTop: 2, letterSpacing: "0.4px" }}>
+                                  BOOKED
+                                </div>
+                              )}
                             </div>
                           );
                         })}

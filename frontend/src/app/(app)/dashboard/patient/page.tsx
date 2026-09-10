@@ -196,8 +196,18 @@ export default function PatientDashboard() {
           headers: { "Authorization": `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.data) {
           setProfile(data.data);
+          if (data.data.full_name) {
+            setUser({ full_name: data.data.full_name, role: data.data.role || "patient" });
+            try {
+              const stored = localStorage.getItem("user");
+              const currentObj = stored ? JSON.parse(stored) : {};
+              currentObj.full_name = data.data.full_name;
+              currentObj.role = data.data.role || "patient";
+              localStorage.setItem("user", JSON.stringify(currentObj));
+            } catch {}
+          }
           if (data.data?.abha_number) {
             setAbhaLinkedNumber(data.data.abha_number);
           }

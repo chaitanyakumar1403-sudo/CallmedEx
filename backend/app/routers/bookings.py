@@ -442,42 +442,71 @@ async def get_available_slots(
 
 @router.get("/booked-slots", response_model=APIResponse)
 async def get_booked_slots(
-    provider_id: str,
+    provider_id: Optional[str] = Query(None),
     date_str: str = Query(..., alias="date"),
+    service_type: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    district: Optional[str] = Query(None),
 ):
-    """Return all booked slot time strings for a provider on a given date."""
+    """Return all booked slot time strings for a provider or home collection area on a given date."""
     if not supabase:
         raise HTTPException(status_code=503, detail="Database connection unavailable")
     try:
-        target_ids = [provider_id]
-        try:
-            doc_res = _rows(
-                supabase.table("doctors").select("id, user_id").or_(f"id.eq.{provider_id},user_id.eq.{provider_id}").limit(1).execute()
-            )
-            if doc_res:
-                target_ids.extend([doc_res[0]["id"], doc_res[0]["user_id"]])
-        except Exception:
-            pass
-
-        active_bookings = _rows(
-            supabase.table("bookings")
-            .select("slot_id, slot_start")
-            .in_("provider_id", list(set(target_ids)))
-            .not_.in_("status", ["cancelled", "slot_rejected"])
-            .execute()
-        )
         booked_times = []
-        for b in active_bookings:
-            slot_id = b.get("slot_id") or ""
-            parts = slot_id.split("|")
-            if len(parts) == 3 and parts[1] == date_str:
-                booked_times.append(parts[2])
-            elif b.get("slot_start") and b["slot_start"].startswith(date_str):
-                try:
-                    time_part = b["slot_start"].split("T")[1][:5]
-                    booked_times.append(time_part)
-                except Exception:
-                    pass
+
+        # Area-based home collection slot locking
+        if service_type in ("home_collection", "lab") or not provider_id:
+            query = (
+                supabase.table("bookings")
+                .select("slot_id, slot_start, collection_city, collection_district")
+                .eq("booking_kind", "home_collection")
+                .not_.in_("status", ["cancelled", "slot_rejected"])
+            )
+            if city:
+                query = query.eq("collection_city", city)
+            active_home_bookings = _rows(query.execute())
+            for b in active_home_bookings:
+                slot_id = b.get("slot_id") or ""
+                parts = slot_id.split("|")
+                if len(parts) == 3 and parts[1] == date_str:
+                    booked_times.append(parts[2])
+                elif b.get("slot_start") and b["slot_start"].startswith(date_str):
+                    try:
+                        time_part = b["slot_start"].split("T")[1][:5]
+                        booked_times.append(time_part)
+                    except Exception:
+                        pass
+
+        if provider_id:
+            target_ids = [provider_id]
+            try:
+                doc_res = _rows(
+                    supabase.table("doctors").select("id, user_id").or_(f"id.eq.{provider_id},user_id.eq.{provider_id}").limit(1).execute()
+                )
+                if doc_res:
+                    target_ids.extend([doc_res[0]["id"], doc_res[0]["user_id"]])
+            except Exception:
+                pass
+
+            active_bookings = _rows(
+                supabase.table("bookings")
+                .select("slot_id, slot_start")
+                .in_("provider_id", list(set(target_ids)))
+                .not_.in_("status", ["cancelled", "slot_rejected"])
+                .execute()
+            )
+            for b in active_bookings:
+                slot_id = b.get("slot_id") or ""
+                parts = slot_id.split("|")
+                if len(parts) == 3 and parts[1] == date_str:
+                    booked_times.append(parts[2])
+                elif b.get("slot_start") and b["slot_start"].startswith(date_str):
+                    try:
+                        time_part = b["slot_start"].split("T")[1][:5]
+                        booked_times.append(time_part)
+                    except Exception:
+                        pass
+
         return APIResponse(success=True, message="Booked slots", data={"booked_slots": list(set(booked_times))})
     except Exception as e:
         logger.warning(f"Failed to fetch booked slots: {e}")
@@ -637,9 +666,13 @@ async def create_booking(
     # and an explicitly chosen centre never reaches here at all — `allocation`
     # is only set on the partner-blind path where the patient picks no centre.
     is_home_collection = bool(
-        allocation
-        and not allocation["fulfilment"].get("walk_in_required")
-        and allocation["fulfilment"].get("home_available")
+        booking.service_type == ServiceType.HOME_COLLECTION
+        or (getattr(booking.service_type, "value", None) == "home_collection")
+        or (
+            allocation
+            and not allocation["fulfilment"].get("walk_in_required")
+            and allocation["fulfilment"].get("home_available")
+        )
     )
 
     # Partner-blind diagnostic booking: patient selects date + time slot.
@@ -821,6 +854,44 @@ async def create_booking(
         except Exception as dup_err:
             logger.warning(f"Duplicate-booking check failed: {dup_err}")
 
+        # Area conflict check for home collection:
+        # Prevent two patients from booking the same home collection slot in the same city
+        if is_home_collection and slot_has_time:
+            try:
+                col_city = booking.city or booking_data.get("collection_city") or ""
+                col_date = booking_data.get("collection_date") or (slot_parts[1] if len(slot_parts) >= 2 else "")
+                req_time = slot_parts[2] if len(slot_parts) >= 3 else ""
+                if col_city and col_date and req_time and ":" in req_time:
+                    active_same_area = _rows(
+                        supabase.table("bookings")
+                        .select("id, slot_id, slot_start, collection_city")
+                        .eq("booking_kind", "home_collection")
+                        .eq("collection_city", col_city)
+                        .not_.in_("status", ["cancelled", "slot_rejected"])
+                        .execute()
+                    )
+                    for cb in active_same_area:
+                        cb_slot = cb.get("slot_id") or ""
+                        cb_parts = cb_slot.split("|")
+                        match = False
+                        if len(cb_parts) == 3 and cb_parts[1] == col_date and cb_parts[2] == req_time:
+                            match = True
+                        elif cb.get("slot_start") and cb["slot_start"].startswith(col_date):
+                            try:
+                                if cb["slot_start"].split("T")[1][:5] == req_time:
+                                    match = True
+                            except Exception:
+                                pass
+                        if match and cb.get("id") != booking_id:
+                            raise HTTPException(
+                                status_code=409,
+                                detail=f"The {req_time} home collection time slot in {col_city} is already booked. Please select an alternate time slot."
+                            )
+            except HTTPException:
+                raise
+            except Exception as conflict_err:
+                logger.warning(f"Area conflict check failed: {conflict_err}")
+
         try:
             supabase.table("bookings").insert(booking_data).execute()
             if is_home_collection:
@@ -956,8 +1027,78 @@ async def create_booking(
                             else:
                                 logger.info(
                                     f"Booking {booking_id} is scheduled for future slot {slot_id_str}. "
-                                    f"Skipping immediate live dispatch."
+                                    f"Creating advance dispatch request and notifying phlebotomist."
                                 )
+                                try:
+                                    scheduled_date = booking_data.get("collection_date") or (slot_parts[1] if len(slot_parts) >= 2 else now.split("T")[0])
+                                    col_slot_time = slot_parts[2] if len(slot_parts) >= 3 and ":" in slot_parts[2] else (slot_start_str.split("T")[1][:5] if "T" in slot_start_str else "07:00")
+
+                                    candidates = []
+                                    if pc_id:
+                                        candidates = _rows(
+                                            supabase.table("phlebotomists")
+                                            .select("user_id, processing_center_id, base_lat, base_lng, current_lat, current_lng, phleb_type")
+                                            .eq("processing_center_id", pc_id)
+                                            .execute()
+                                        )
+                                    if not candidates and booking.city:
+                                        city_users = _rows(
+                                            supabase.table("users").select("id").eq("role", "phlebotomist").ilike("city", f"%{booking.city}%").execute()
+                                        )
+                                        for cu in city_users:
+                                            p_row = _rows(supabase.table("phlebotomists").select("*").eq("user_id", cu["id"]).limit(1).execute())
+                                            if p_row:
+                                                candidates.append(p_row[0])
+
+                                    chosen_phlebo = None
+                                    for c in candidates:
+                                        ptype = (c.get("phleb_type") or "full_time").lower()
+                                        if ptype in ("full_time", "full-time", "ft"):
+                                            chosen_phlebo = c
+                                            break
+                                    if not chosen_phlebo and candidates:
+                                        chosen_phlebo = candidates[0]
+
+                                    assigned_phlebo_id = chosen_phlebo["user_id"] if chosen_phlebo else None
+                                    adv_req_id = str(uuid.uuid4())
+                                    supabase.table("dispatch_requests").insert({
+                                        "id": adv_req_id,
+                                        "booking_id": booking_id,
+                                        "patient_id": current_user["sub"],
+                                        "provider_type": "phlebotomist",
+                                        "service_subtype": "home_collection",
+                                        "assigned_provider_id": assigned_phlebo_id,
+                                        "assignment_mode": "advance",
+                                        "scheduled_for": scheduled_date,
+                                        "status": "provider_accepted" if assigned_phlebo_id else "pending_provider_acceptance",
+                                        "priority": getattr(booking, "priority", None) or "normal",
+                                        "patient_address": patient_address or booking.collection_address or booking.city or "",
+                                        "patient_lat": float(patient_lat) if patient_lat else 0.0,
+                                        "patient_lng": float(patient_lng) if patient_lng else 0.0,
+                                        "notes": f"Advance collection ({col_slot_time}): {', '.join((booking.selected_tests or [])[:3])}",
+                                        "processing_center_id": pc_id,
+                                    }).execute()
+
+                                    if assigned_phlebo_id:
+                                        from app.services.notification_engine import NotificationEngine
+                                        await NotificationEngine.send_multi(
+                                            user_id=assigned_phlebo_id,
+                                            channels=["in_app", "push"],
+                                            title="Advance Home Collection Scheduled",
+                                            body=(
+                                                f"Doorstep collection scheduled for {scheduled_date} at {col_slot_time} "
+                                                f"({booking.city or 'your area'}). Tests: {', '.join((booking.selected_tests or [])[:3])}"
+                                            ),
+                                            data={
+                                                "booking_id": booking_id,
+                                                "dispatch_id": adv_req_id,
+                                                "scheduled_date": scheduled_date,
+                                                "slot_time": col_slot_time,
+                                                "address": patient_address or "",
+                                            },
+                                        )
+                                except Exception as adv_dispatch_err:
+                                    logger.warning(f"Advance dispatch setup failed: {adv_dispatch_err}")
                         else:
                             # No lat/lng at all — dispatch cannot be created, but
                             # the booking itself is confirmed. The phlebotomist
@@ -1974,17 +2115,13 @@ async def get_org_services_for_booking(org_id: str):
 
 
 @router.get("/provider/today", response_model=APIResponse)
-async def get_provider_today_bookings(current_user: dict = Depends(get_current_user)):
-    """Today's bookings for the authenticated provider.
-
-    The doctor dashboard has always called this route; it did not exist, so
-    the 404 was swallowed client-side and "Today's Bookings" rendered empty
-    for every doctor regardless of how many appointments they had.
-
-    bookings.provider_id holds the provider's *user* id (see the slot_id
-    "provider_id|date|time" convention in create_booking), so it matches
-    current_user["sub"] directly.
-    """
+@router.get("/provider/schedule", response_model=APIResponse)
+async def get_provider_today_bookings(
+    timeframe: str = Query("today"),
+    date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Bookings for the authenticated provider with timeframe filtering (today, tomorrow, upcoming, all)."""
     role = current_user.get("role")
     if role not in (
         "doctor", "nurse", "phlebotomist", "organization", "admin",
@@ -2003,6 +2140,23 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
     ist_today = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
     day_start = f"{ist_today.isoformat()}T00:00:00+05:30"
     day_end = f"{ist_today.isoformat()}T23:59:59+05:30"
+
+    range_start = day_start
+    range_end = day_end
+
+    if date:
+        range_start = f"{date}T00:00:00+05:30"
+        range_end = f"{date}T23:59:59+05:30"
+    elif timeframe == "tomorrow":
+        ist_tomorrow = ist_today + timedelta(days=1)
+        range_start = f"{ist_tomorrow.isoformat()}T00:00:00+05:30"
+        range_end = f"{ist_tomorrow.isoformat()}T23:59:59+05:30"
+    elif timeframe == "upcoming":
+        range_start = day_start
+        range_end = f"{(ist_today + timedelta(days=14)).isoformat()}T23:59:59+05:30"
+    elif timeframe == "all":
+        range_start = None
+        range_end = None
 
     try:
         doc_profile_id = None
@@ -2024,10 +2178,13 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
         else:
             b_query = b_query.eq("provider_id", current_user["sub"])
 
+        if range_start and range_end:
+            b_query = b_query.gte("slot_start", range_start).lte("slot_start", range_end)
+        elif range_start:
+            b_query = b_query.gte("slot_start", range_start)
+
         bookings = _rows(
             b_query
-            .gte("slot_start", day_start)
-            .lte("slot_start", day_end)
             .order("slot_start")
             .execute()
         )
@@ -2056,6 +2213,17 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
                 b["patient_date_of_birth"] = person.get("date_of_birth")
                 b["patient_mobile"] = person.get("mobile") or ""
                 b["patient_email"] = person.get("email") or ""
+                slot_id = b.get("slot_id") or ""
+                parts = slot_id.split("|")
+                if len(parts) == 3:
+                    b.setdefault("slot_time", parts[2])
+                elif b.get("slot_start"):
+                    try:
+                        b.setdefault("slot_time", b["slot_start"].split("T")[1][:5])
+                    except Exception:
+                        pass
+                if b.get("slot_start"):
+                    b["slot_date"] = b["slot_start"][:10]
         except Exception as e:
             # A missing name must not cost the provider their whole schedule.
             logger.warning(f"Could not attach patient names to today's bookings: {e}")
@@ -2066,8 +2234,8 @@ async def get_provider_today_bookings(current_user: dict = Depends(get_current_u
 
     return APIResponse(
         success=True,
-        message=f"{len(bookings)} booking(s) today",
-        data={"bookings": bookings, "date": ist_today.isoformat()},
+        message=f"{len(bookings)} booking(s) found",
+        data={"bookings": bookings, "date": ist_today.isoformat(), "timeframe": timeframe},
     )
 
 

@@ -6,9 +6,10 @@ roster_cutoff. A phlebotomist sees their advance list this evening and may
 decline, which reassigns rather than cancels.
 """
 import logging
-from typing import List
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.database import supabase
@@ -88,14 +89,90 @@ async def run_pass(date: str, staff: dict = Depends(require_pc_admin)):
 
 
 @router.get("/phlebo/jobs")
-async def my_jobs(date: str, user: dict = Depends(get_current_user)):
+async def my_jobs(
+    date: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    """Fetch advance and scheduled home collection jobs assigned to this phlebotomist."""
     if user.get("role") != "phlebotomist":
         raise HTTPException(status_code=403, detail="Phlebotomists only.")
-    return {"jobs": _rows(
+    
+    uid = user.get("sub")
+    query = (
         supabase.table("dispatch_requests").select("*")
-        .eq("assigned_provider_id", user.get("sub"))
-        .eq("scheduled_for", date).execute()
-    )}
+        .eq("assigned_provider_id", uid)
+        .not_.in_("status", ["cancelled", "declined"])
+    )
+
+    now_utc = datetime.now(timezone.utc)
+    today_str = now_utc.strftime("%Y-%m-%d")
+    tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    if date:
+        query = query.eq("scheduled_for", date)
+    elif timeframe == "today":
+        query = query.eq("scheduled_for", today_str)
+    elif timeframe == "tomorrow":
+        query = query.eq("scheduled_for", tomorrow_str)
+    elif timeframe == "upcoming":
+        query = query.gte("scheduled_for", today_str)
+
+    raw_jobs = _rows(query.order("scheduled_for", desc=False).execute())
+
+    enriched_jobs = []
+    for job in raw_jobs:
+        b_id = job.get("booking_id")
+        b_data = {}
+        if b_id:
+            try:
+                b_res = _rows(supabase.table("bookings").select("*").eq("id", b_id).limit(1).execute())
+                if b_res:
+                    b_data = b_res[0]
+            except Exception:
+                pass
+
+        pat_id = job.get("patient_id") or b_data.get("patient_id")
+        pat_name = "Patient"
+        pat_phone = ""
+        if pat_id:
+            try:
+                u_res = _rows(supabase.table("users").select("full_name, phone, address").eq("id", pat_id).limit(1).execute())
+                if u_res:
+                    pat_name = u_res[0].get("full_name") or pat_name
+                    pat_phone = u_res[0].get("phone") or ""
+            except Exception:
+                pass
+
+        slot_str = b_data.get("slot_id") or ""
+        slot_parts = slot_str.split("|")
+        slot_time = "07:00 AM"
+        if len(slot_parts) == 3 and ":" in slot_parts[2]:
+            slot_time = slot_parts[2]
+        elif b_data.get("slot_start") and "T" in b_data["slot_start"]:
+            try:
+                slot_time = b_data["slot_start"].split("T")[1][:5]
+            except Exception:
+                pass
+
+        addr = job.get("patient_address") or b_data.get("notes", "").split("Collection address:")[-1].strip() or b_data.get("collection_city") or "Patient address"
+        if addr.startswith("\n"):
+            addr = addr.strip()
+
+        enriched_jobs.append({
+            **job,
+            "patient_name": pat_name,
+            "patient_phone": pat_phone,
+            "patient_address": addr,
+            "scheduled_time": slot_time,
+            "slot_time": slot_time,
+            "selected_tests": b_data.get("selected_tests") or [],
+            "collection_date": job.get("scheduled_for") or b_data.get("collection_date") or today_str,
+            "total_price": b_data.get("total_price") or 0,
+            "dispatch_id": job.get("id"),
+        })
+
+    return {"jobs": enriched_jobs}
 
 
 @router.post("/phlebo/jobs/{dispatch_id}/decline")
