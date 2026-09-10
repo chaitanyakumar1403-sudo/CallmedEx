@@ -119,11 +119,12 @@ export default function LoginPage() {
 
           <h1
             style={{
+              fontFamily: "var(--cm-font-display)",
               fontSize: "clamp(2rem, 3.5vw, 2.75rem)",
-              fontWeight: 900,
+              fontWeight: 700,
               lineHeight: 1.15,
               marginBottom: 16,
-              letterSpacing: "-0.02em",
+              letterSpacing: "-0.025em",
               color: "var(--cm-navy)",
             }}
           >
@@ -135,7 +136,7 @@ export default function LoginPage() {
           </h1>
 
           <p style={{ fontSize: "var(--cm-text-base)", color: "var(--cm-ink-2)", lineHeight: 1.6, marginBottom: 28, maxWidth: "480px" }}>
-            Access verified doctor teleconsultations, Rapido-style doorstep phlebotomist dispatch, ABHA health records, and clinical command stations.
+            Access verified doctor teleconsultations, CallMedEx on-demand doorstep phlebotomist dispatch, ABHA health records, and clinical command stations.
           </p>
 
           {/* Feature Badges */}

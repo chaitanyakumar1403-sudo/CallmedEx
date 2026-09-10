@@ -80,7 +80,7 @@ export default function PackagesPage() {
           >
             <ShieldCheck size={14} /> 100% Transparent Health Packages · Doorstep Home Collection Included
           </div>
-          <h1 style={{ fontSize: "2.4rem", fontWeight: 900, color: "#0f172a", margin: "0 0 8px" }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "2.4rem", fontWeight: 700, letterSpacing: "-0.025em", color: "#0f172a", margin: "0 0 8px", lineHeight: 1.15 }}>
             Health Packages
           </h1>
           <p style={{ maxWidth: 650, margin: "0 auto", color: "#64748b", fontSize: "1.05rem" }}>
@@ -128,7 +128,7 @@ export default function PackagesPage() {
 
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.3 }}>
+                    <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "1.15rem", fontWeight: 700, letterSpacing: "-0.015em", color: "#0f172a", lineHeight: 1.3 }}>
                       {pkg.name}
                     </h3>
                   </div>
@@ -144,7 +144,8 @@ export default function PackagesPage() {
                         border: "1px solid #a7f3d0",
                         color: "#059669",
                         fontSize: "0.72rem",
-                        fontWeight: 700,
+                        fontWeight: 600,
+                        letterSpacing: "0.02em",
                         padding: "2px 8px",
                         borderRadius: 6,
                       }}
@@ -167,7 +168,7 @@ export default function PackagesPage() {
                       border: "1px solid #f1f5f9",
                     }}
                   >
-                    <div style={{ fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, color: "#475569", marginBottom: 4 }}>
                       ✓ Includes {tests.length} Parameters:
                     </div>
                     <div>
@@ -190,10 +191,10 @@ export default function PackagesPage() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                       <div>
-                        <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.85rem" }}>
+                        <span style={{ color: "#94a3b8", textDecoration: "line-through", fontSize: "0.85rem", fontVariantNumeric: "tabular-nums" }}>
                           {inr(pkg.mrp)}
                         </span>
-                        <div style={{ fontSize: "1.65rem", fontWeight: 900, color: "#0f172a" }}>
+                        <div style={{ fontSize: "1.65rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em", color: "#0f172a" }}>
                           {inr(singlePrice)}
                         </div>
                         <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>Single Person</span>
@@ -201,10 +202,10 @@ export default function PackagesPage() {
 
                       {couplePrice ? (
                         <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#059669" }}>
+                          <div style={{ fontSize: "1.2rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em", color: "#059669" }}>
                             {inr(couplePrice)}
                           </div>
-                          <span style={{ fontSize: "0.72rem", color: "#059669", fontWeight: 700 }}>
+                          <span style={{ fontSize: "0.72rem", color: "#059669", fontWeight: 600 }}>
                             Couple (2 Persons)
                           </span>
                         </div>
@@ -217,7 +218,8 @@ export default function PackagesPage() {
                               padding: "4px 10px",
                               borderRadius: 999,
                               fontSize: "0.75rem",
-                              fontWeight: 800,
+                              fontWeight: 600,
+                              letterSpacing: "0.03em",
                             }}
                           >
                             {singleSavings}% OFF
@@ -239,7 +241,8 @@ export default function PackagesPage() {
                       padding: "12px 16px",
                       borderRadius: 12,
                       fontSize: "0.92rem",
-                      fontWeight: 800,
+                      fontWeight: 600,
+                      letterSpacing: "-0.005em",
                       cursor: "pointer",
                       display: "flex",
                       alignItems: "center",

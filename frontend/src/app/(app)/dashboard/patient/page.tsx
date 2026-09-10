@@ -1803,7 +1803,7 @@ export default function PatientDashboard() {
           <DoctorBriefingModal isOpen={showBriefingModal} onClose={() => setShowBriefingModal(false)} />
         )}
 
-        {/* ─── RAPIDO-STYLE LIVE PHLEBOTOMIST DISPATCH & ORDER TRACKER ─── */}
+        {/* ─── CALLMEDEX ON-DEMAND LIVE PHLEBOTOMIST DISPATCH & ORDER TRACKER ─── */}
         {/* Real dispatch always renders. The simulated run renders only in a
             demo build — otherwise a patient with no collection booked could
             open a tracker showing a phlebotomist who does not exist. */}

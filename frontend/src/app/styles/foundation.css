@@ -67,18 +67,28 @@
   --cm-surface-3:   #f1f5f9;
 
   /* ── Type. Set by next/font in layout.tsx; these are the fallbacks. ─── */
-  --cm-font-ui:     var(--font-ui, 'Inter', system-ui, sans-serif);
-  --cm-font-te:     var(--font-te, 'Noto Sans Telugu', sans-serif);
+  --cm-font-display: var(--font-display, 'Manrope', system-ui, -apple-system, sans-serif);
+  --cm-font-ui:      var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
+  --cm-font-body:    var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
+  --cm-font-te:      var(--font-te, 'Noto Sans Telugu', sans-serif);
 
-  /* Type scale — 1.2 minor third. Body starts at 16px because anything
-     smaller fails for the older patients this product explicitly serves. */
-  --cm-text-xs:   0.75rem;
-  --cm-text-sm:   0.875rem;
-  --cm-text-base: 1rem;
-  --cm-text-lg:   1.125rem;
-  --cm-text-xl:   1.375rem;
-  --cm-text-2xl:  1.75rem;
-  --cm-text-3xl:  2.25rem;
+  /* Type scale — 1.2 minor third with optical healthcare adjustments. */
+  --cm-text-2xs:  0.6875rem; /* 11px */
+  --cm-text-xs:   0.75rem;    /* 12px */
+  --cm-text-sm:   0.875rem;   /* 14px */
+  --cm-text-base: 1rem;       /* 16px */
+  --cm-text-lg:   1.125rem;   /* 18px */
+  --cm-text-xl:   1.375rem;   /* 22px */
+  --cm-text-2xl:  1.75rem;    /* 28px */
+  --cm-text-3xl:  2.25rem;    /* 36px */
+
+  /* Optical tracking tokens */
+  --cm-track-tightest: -0.035em;
+  --cm-track-tight:    -0.025em;
+  --cm-track-snug:     -0.015em;
+  --cm-track-normal:    0em;
+  --cm-track-wide:      0.025em;
+  --cm-track-wider:     0.05em;
 
   /* ── Space — 4px base ────────────────────────────────────────────────── */
   --cm-1: 4px;  --cm-2: 8px;  --cm-3: 12px; --cm-4: 16px;
@@ -346,8 +356,9 @@ input[type="radio"] {
 }
 .cm-dash__title {
   margin: 0; color: #fff;
-  font-size: var(--cm-text-2xl); font-weight: 800;
-  letter-spacing: -0.02em; line-height: 1.15;
+  font-family: var(--cm-font-display);
+  font-size: var(--cm-text-2xl); font-weight: 700;
+  letter-spacing: -0.025em; line-height: 1.15;
 }
 .cm-dash__head-inner > div:first-child {
   flex: 1 1 auto;
@@ -395,8 +406,10 @@ input[type="radio"] {
   border-bottom: 3px solid transparent;
   background: transparent;
   color: rgba(255, 255, 255, 0.72);
-  font-weight: 700;
+  font-family: var(--cm-font-ui);
+  font-weight: 500;
   font-size: var(--cm-text-sm);
+  letter-spacing: -0.005em;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
@@ -408,6 +421,7 @@ input[type="radio"] {
 .cm-tab:hover { color: #fff; }
 .cm-tab[aria-selected="true"] {
   color: #fff;
+  font-weight: 600;
   border-bottom-color: #fff;
 }
 .cm-tab__count {
@@ -417,8 +431,9 @@ input[type="radio"] {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
   font-size: var(--cm-text-xs);
-  font-weight: 800;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 .cm-tab__count--alert { background: var(--cm-urgent); color: #fff; }
 
@@ -437,7 +452,9 @@ input[type="radio"] {
 }
 .cm-panel__title {
   margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg);
-  font-weight: 800; color: var(--cm-ink); letter-spacing: -0.01em;
+  font-family: var(--cm-font-display);
+  font-weight: 700; color: var(--cm-ink); letter-spacing: -0.015em;
+  line-height: 1.25;
 }
 .cm-panel__note { margin: 0 0 var(--cm-5); font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
 
@@ -492,14 +509,18 @@ input[type="radio"] {
 .cm-stat--btn:hover { border-color: var(--cm-line-strong); }
 .cm-stat__label {
   display: inline-flex; align-items: center; gap: var(--cm-2);
-  font-size: var(--cm-text-xs); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.06em;
+  font-size: var(--cm-text-xs); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--cm-ink-3);
+  line-height: 1.3;
 }
 .cm-stat__value {
-  font-size: var(--cm-text-2xl); font-weight: 800; color: var(--cm-ink);
-  margin-top: var(--cm-1); line-height: 1.05;
-  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  font-family: var(--cm-font-ui);
+  font-size: var(--cm-text-2xl); font-weight: 700; color: var(--cm-ink);
+  margin-top: var(--cm-1); line-height: 1.10;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.02em;
 }
 .cm-stat__meta { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: var(--cm-1); }
 .cm-stat--urgent { border-left-color: var(--cm-urgent); }
@@ -550,13 +571,16 @@ input[type="radio"] {
   font-size: 1.4rem; flex-shrink: 0;
 }
 .cm-stat-card__value {
-  font-size: var(--cm-text-2xl); font-weight: 800;
-  color: var(--cm-ink); line-height: 1.1;
+  font-family: var(--cm-font-ui);
+  font-size: var(--cm-text-2xl); font-weight: 700;
+  color: var(--cm-ink); line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.02em;
 }
 .cm-stat-card__label {
   font-size: var(--cm-text-xs); color: var(--cm-ink-3);
-  margin-top: 2px; font-weight: 600;
+  margin-top: 2px; font-weight: 500;
 }
 
 /* ── Empty state ──────────────────────────────────────────────────────── */
@@ -576,8 +600,8 @@ input[type="radio"] {
   background: var(--cm-surface-3); color: var(--cm-ink-3);
   margin-bottom: var(--cm-2);
 }
-.cm-empty__title { font-weight: 800; color: var(--cm-ink); margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg); }
-.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; }
+.cm-empty__title { font-family: var(--cm-font-display); font-weight: 700; color: var(--cm-ink); margin: 0 0 var(--cm-2); font-size: var(--cm-text-lg); letter-spacing: -0.015em; }
+.cm-empty__body  { color: var(--cm-ink-3); font-size: var(--cm-text-sm); margin: 0; max-width: 46ch; line-height: 1.55; }
 .cm-empty__action { margin-top: var(--cm-5); }
 
 .cm-promises {
@@ -610,10 +634,11 @@ input[type="radio"] {
   padding: 0 var(--cm-5);
   border: 1px solid transparent;
   border-radius: var(--cm-radius);
-  font-family: inherit;
+  font-family: var(--cm-font-ui);
   font-size: var(--cm-text-sm);
-  font-weight: 700;
-  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.15;
   cursor: pointer;
   white-space: nowrap;
   transition: background var(--cm-fast) var(--cm-ease),
@@ -680,7 +705,7 @@ input[type="radio"] {
 
 /* ── Fields ───────────────────────────────────────────────────────────── */
 .cm-field { margin-bottom: var(--cm-4); }
-.cm-field__label { display: block; font-size: var(--cm-text-sm); font-weight: 700;
+.cm-field__label { display: block; font-size: var(--cm-text-sm); font-weight: 600; line-height: 1.35;
                    color: var(--cm-ink); margin-bottom: var(--cm-1); }
 .cm-field__req  { color: var(--cm-urgent); }
 .cm-field__hint { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin: 0 0 var(--cm-2); }
@@ -738,7 +763,7 @@ input[type="radio"] {
   padding: var(--cm-5) var(--cm-5) var(--cm-3);
   border-bottom: 1px solid var(--cm-line);
 }
-.cm-modal__title { margin: 0; flex: 1; font-size: var(--cm-text-lg); font-weight: 800; color: var(--cm-ink); }
+.cm-modal__title { margin: 0; flex: 1; font-family: var(--cm-font-display); font-size: var(--cm-text-lg); font-weight: 700; letter-spacing: -0.015em; line-height: 1.25; color: var(--cm-ink); }
 .cm-modal__x { background: none; border: 0; cursor: pointer; color: var(--cm-ink-3);
                min-height: var(--cm-tap); width: var(--cm-tap); }
 .cm-modal__x:hover { color: var(--cm-ink); }
@@ -760,7 +785,7 @@ input[type="radio"] {
   height: 56px; padding: 0 var(--cm-5);
   background: var(--cm-navy-deep); color: #fff;
 }
-.cm-appbar__brand { color: #fff; font-weight: 800; letter-spacing: -0.02em;
+.cm-appbar__brand { font-family: var(--cm-font-display); color: #fff; font-weight: 700; letter-spacing: -0.025em;
                     font-size: var(--cm-text-lg); text-decoration: none; }
 .cm-appbar__role {
   padding: 3px 10px; border-radius: var(--cm-radius-pill);
@@ -768,7 +793,7 @@ input[type="radio"] {
   /* Nearest existing token to the prior hardcoded #dbeafe. Checked against
      --cm-navy-deep: contrast ratio ~9.3:1, well clear of the 4.5:1 floor. */
   color: var(--cm-active-line);
-  font-size: var(--cm-text-xs); font-weight: 700;
+  font-size: var(--cm-text-xs); font-weight: 600; letter-spacing: 0.02em;
   text-transform: capitalize;
 }
 .cm-appbar__spacer { flex: 1; }
@@ -784,7 +809,8 @@ input[type="radio"] {
   background: var(--cm-urgent);
   color: var(--cm-surface);
   font-size: 0.62rem;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -849,11 +875,12 @@ input[type="radio"] {
 }
 .cm-duty__title-h {
   margin: 0 0 var(--cm-3);
-  font-size: var(--cm-text-xl); font-weight: 800;
-  color: var(--cm-ink); letter-spacing: -0.02em;
+  font-family: var(--cm-font-display);
+  font-size: var(--cm-text-xl); font-weight: 700;
+  color: var(--cm-ink); letter-spacing: -0.02em; line-height: 1.2;
 }
 .cm-duty__text { flex: 1; min-width: 180px; }
-.cm-duty__title { margin: 0; font-weight: 800; font-size: var(--cm-text-lg); color: var(--cm-ink); }
+.cm-duty__title { margin: 0; font-family: var(--cm-font-display); font-weight: 700; font-size: var(--cm-text-lg); letter-spacing: -0.015em; color: var(--cm-ink); }
 .cm-duty__sub   { margin: 2px 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3); }
 
 /* On duty flips the rail and badge to the active colour. */
@@ -866,7 +893,7 @@ input[type="radio"] {
 .cm-task__body { flex: 1; min-width: 160px; }
 .cm-task__name {
   display: flex; align-items: center; gap: var(--cm-2);
-  margin: var(--cm-1) 0 0; font-weight: 800; color: var(--cm-ink);
+  margin: var(--cm-1) 0 0; font-weight: 600; color: var(--cm-ink);
 }
 .cm-task__meta {
   margin: var(--cm-1) 0 0; font-size: var(--cm-text-sm); color: var(--cm-ink-3);
@@ -1069,7 +1096,7 @@ input[type="radio"] {
    ledger updates — same intent as .cm-stat__value, for amounts shown outside
    a Stat card. Colour reinforces direction; the Pill beside it carries the
    word, so colour is never the only signal. */
-.cm-amount { font-variant-numeric: tabular-nums; font-weight: 800; white-space: nowrap; }
+.cm-amount { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; font-weight: 700; white-space: nowrap; }
 .cm-amount--credit { color: var(--cm-done); }
 .cm-amount--debit  { color: var(--cm-halted); }
 
@@ -1080,7 +1107,7 @@ input[type="radio"] {
 }
 .cm-attendance__title {
   display: flex; align-items: center; gap: var(--cm-2);
-  margin: 0; font-size: var(--cm-text-base); font-weight: 800; color: var(--cm-ink);
+  margin: 0; font-family: var(--cm-font-display); font-size: var(--cm-text-base); font-weight: 700; letter-spacing: -0.01em; color: var(--cm-ink);
 }
 .cm-attendance__form {
   display: flex; gap: var(--cm-3); align-items: flex-end; flex-wrap: wrap;
@@ -1690,7 +1717,7 @@ input[type="radio"] {
   border-color: var(--cm-navy-soft);
 }
 
-/* ─── Rapido-Style Phlebotomist Dispatch & Live Order Tracker ────────── */
+/* ─── CallMedEx On-Demand Phlebotomist Dispatch & Live Order Tracker ────────── */
 .cm-rapido-panel {
   background: var(--cm-surface);
   border: 1px solid var(--cm-line-strong);
@@ -3342,9 +3369,9 @@ input[type="radio"] {
 }
 
 .cm-provider-nav-section-title {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #64748b;
   padding: 8px 12px 2px;
@@ -3382,13 +3409,14 @@ input[type="radio"] {
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: #f1f5f9;
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   cursor: pointer;
   text-decoration: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   user-select: none;
-  line-height: 1;
+  line-height: 1.15;
 }
 
 .cm-quick-action-pill:hover {
@@ -4978,8 +5006,8 @@ input[type="radio"] {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #94a3b8;
 }
@@ -5000,7 +5028,8 @@ input[type="radio"] {
 
 .cm-provider-nav-count {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: #64748b;
   background: rgba(255, 255, 255, 0.05);
   padding: 2px 8px;
@@ -5025,8 +5054,10 @@ input[type="radio"] {
   border: 1px solid transparent;
   background: transparent;
   color: #cbd5e1;
-  font-size: 0.90rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
   cursor: pointer;
   text-align: left;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -5043,7 +5074,7 @@ input[type="radio"] {
 .cm-provider-nav-item--active {
   background: linear-gradient(135deg, rgba(2, 132, 199, 0.45) 0%, rgba(37, 99, 235, 0.32) 100%) !important;
   color: #ffffff !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   border: 1px solid rgba(56, 189, 248, 0.55) !important;
   box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
 }

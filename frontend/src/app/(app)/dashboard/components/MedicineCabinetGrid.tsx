@@ -506,12 +506,13 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 6 }}>
-                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--cm-ink)' }}>{med.medicineName}</div>
+                    <div style={{ fontFamily: 'var(--cm-font-display)', fontWeight: 700, letterSpacing: '-0.01em', fontSize: '0.88rem', color: 'var(--cm-ink)' }}>{med.medicineName}</div>
                     {isLow && (
                       <span style={{
                         backgroundColor: med.outOfStock ? 'var(--cm-urgent-surface)' : '#fef3c7',
                         color: med.outOfStock ? 'var(--cm-urgent)' : '#b45309',
-                        padding: '2px 8px', borderRadius: 8, fontSize: '0.66rem', fontWeight: 800,
+                        padding: '2px 8px', borderRadius: 8, fontSize: '0.66rem', fontWeight: 600,
+                        letterSpacing: '0.02em',
                         display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
                       }}>
                         <AlertTriangle style={{ width: 11, height: 11 }} />
@@ -546,8 +547,8 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--cm-ink-2)', fontWeight: 600 }}>
-                      <strong style={{ color: 'var(--cm-ink)' }}>{med.remainingPills}</strong>/{med.totalPills} ({daysLeft} {t.daysSupplyRemaining})
+                    <span style={{ fontSize: '0.74rem', color: 'var(--cm-ink-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      <strong style={{ color: 'var(--cm-ink)', fontVariantNumeric: 'tabular-nums' }}>{med.remainingPills}</strong>/{med.totalPills} ({daysLeft} {t.daysSupplyRemaining})
                     </span>
 
                     <button
@@ -560,7 +561,8 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
                         background: refilling === med.id ? 'var(--cm-line-strong)' : 'var(--cm-active)',
                         color: '#ffffff',
                         fontSize: '0.72rem',
-                        fontWeight: 700,
+                        fontWeight: 600,
+                        letterSpacing: '-0.005em',
                         cursor: refilling === med.id ? 'wait' : 'pointer',
                         display: 'flex',
                         alignItems: 'center',

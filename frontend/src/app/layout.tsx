@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_Telugu } from "next/font/google";
+import { Inter, Manrope, Noto_Sans_Telugu } from "next/font/google";
 import "./globals.css";
 
-// Self-hosted at build time by next/font. The previous @import inside
-// globals.css was render-blocking: the browser had to fetch and parse the CSS
-// before it even discovered the font request. This also removes the flash of
-// unstyled text and drops a third-party connection to fonts.googleapis.com.
-const inter = Inter({
+// Self-hosted at build time by next/font — non-blocking, zero external layout shift.
+const manrope = Manrope({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-ui",
   display: "swap",
 });
@@ -38,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${notoTelugu.variable}`}>
+    <html lang="en" className={`${inter.variable} ${manrope.variable} ${notoTelugu.variable}`}>
       <body>
         <SessionKeeper />
         <a className="cm-skip" href="#main">Skip to main content</a>

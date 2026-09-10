@@ -210,7 +210,7 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       doctorBriefing: "AI Doctor Briefing (PDF / QR)",
     },
     rapido: {
-      title: "CallMedex Rapido Phlebo Dispatch",
+      title: "CallMedEx On-Demand Phlebo Dispatch",
       sampleData: "Sample data",
       searchingSubtitle: "Connecting with verified phlebotomists in your immediate delivery radius...",
       enRouteSubtitle: "Phlebotomist is en route with temperature-controlled cold chain sample kit.",
@@ -366,7 +366,7 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       doctorBriefing: "AI డాక్టర్ బ్రీఫింగ్ (PDF / QR)",
     },
     rapido: {
-      title: "కాల్‌మెడెక్స్ రాపిడో ఫ్లెబో డిస్పాచ్",
+      title: "కాల్‌మెడెక్స్ ఆన్-డిమాండ్ ఫ్లెబో డిస్పాచ్",
       sampleData: "నమూనా సమాచారం",
       searchingSubtitle: "మీ డెలివరీ పరిధిలోని ధృవీకరించబడిన ఫ్లెబోటోమిస్ట్‌లను కనెక్ట్ చేస్తోంది...",
       enRouteSubtitle: "ఉష్ణోగ్రత-నియంత్రిత కోల్డ్ చైన్ నమూనా కిట్‌తో ఫ్లెబోటోమిస్ట్ వస్తున్నారు.",
@@ -522,7 +522,7 @@ export const PATIENT_TRANSLATIONS: Record<PatientLang, PatientTranslations> = {
       doctorBriefing: "एआई डॉक्टर ब्रीफिंग (PDF / QR)",
     },
     rapido: {
-      title: "कॉलमेडेक्स रैपिडो फ्लेबो डिस्पैच",
+      title: "कॉलमेडेक्स ऑन-डिमांड फ्लेबो डिस्पैच",
       sampleData: "नमूना डेटा",
       searchingSubtitle: "आपके डिलीवरी दायरे में सत्यापित फ्लेबोटोमिस्ट से जुड़ रहे हैं...",
       enRouteSubtitle: "फ्लेबोटोमिस्ट तापमान-नियंत्रित कोल्ड चेन नमूना किट के साथ रास्ते में हैं।",

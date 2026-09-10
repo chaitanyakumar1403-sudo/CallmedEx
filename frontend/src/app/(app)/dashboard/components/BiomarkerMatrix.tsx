@@ -93,7 +93,7 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
                 >
                   <span style={{ fontSize: 'var(--cm-text-sm)', fontWeight: 600, color: 'var(--cm-ink-2)' }}>{t.observationName}</span>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
-                    <span style={{ fontSize: 'var(--cm-text-sm)', fontWeight: 700, color: 'var(--cm-ink)' }}>{t.latestValue} {t.unit}</span>
+                    <span style={{ fontSize: 'var(--cm-text-sm)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--cm-ink)' }}>{t.latestValue} {t.unit}</span>
                     {t.direction === 'up' && <TrendingUp size={14} style={{ color: 'var(--cm-waiting)' }} />}
                     {t.direction === 'down' && <TrendingDown size={14} style={{ color: 'var(--cm-done)' }} />}
                     {t.direction === 'flat' && <Minus size={14} style={{ color: 'var(--cm-ink-faint)' }} />}
@@ -146,7 +146,7 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
               {filteredData.map((item, idx) => (
                 <div key={idx} style={{ background: 'var(--cm-surface-2)', padding: 'var(--cm-3)', borderRadius: 'var(--cm-radius)', border: '1px solid var(--cm-line)', textAlign: 'center' }}>
                   <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-3)', fontWeight: 600 }}>{item.recordedAt}</div>
-                  <div style={{ fontSize: 'var(--cm-text-lg)', fontWeight: 800, color: 'var(--cm-ink)', margin: '2px 0' }}>
+                  <div style={{ fontSize: 'var(--cm-text-lg)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--cm-ink)', margin: '2px 0' }}>
                     {item.valueNumber} <span style={{ fontSize: 'var(--cm-text-xs)', fontWeight: 500, color: 'var(--cm-ink-3)' }}>{item.unit}</span>
                   </div>
                 </div>

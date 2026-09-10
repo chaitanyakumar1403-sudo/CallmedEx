@@ -347,11 +347,11 @@ const CSS = `
 .mkt-wrap { max-width: 940px; margin: 0 auto; }
 
 .mkt-head { text-align: center; margin-bottom: 28px; }
-.mkt-eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: .72rem; font-weight: 700;
+.mkt-eyebrow { text-transform: uppercase; letter-spacing: .06em; font-size: .72rem; font-weight: 600;
   color: var(--color-teal, #0891b2); margin: 0 0 10px; }
-.mkt-title { font-family: var(--font-display, 'Playfair Display', serif); font-weight: 800;
-  color: var(--color-navy, #1a2b4a); font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.08; margin: 0 0 12px; }
-.mkt-sub { color: var(--color-gray-500, #64748b); font-size: 1.02rem; max-width: 560px; margin: 0 auto; line-height: 1.5; }
+.mkt-title { font-family: var(--font-display, sans-serif); font-weight: 700; letter-spacing: -0.025em;
+  color: var(--color-navy, #1a2b4a); font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.10; margin: 0 0 12px; }
+.mkt-sub { color: var(--color-gray-500, #64748b); font-size: 1.02rem; max-width: 560px; margin: 0 auto; line-height: 1.55; }
 
 .mkt-search { display: flex; gap: 10px; background: #fff; padding: 10px; border-radius: 16px;
   border: 1px solid var(--color-gray-200, #e2e8f0); box-shadow: 0 12px 30px -18px rgba(26,43,74,.35);
@@ -363,7 +363,7 @@ const CSS = `
 .mkt-field input:focus { outline: none; border-color: var(--color-teal, #0891b2); background: #fff;
   box-shadow: 0 0 0 3px rgba(8,145,178,.14); }
 .mkt-go { padding: 0 30px; background: var(--color-navy, #1a2b4a); color: #fff; border: none;
-  border-radius: 11px; font-weight: 700; font-size: .98rem; cursor: pointer; transition: background .15s, transform .1s; }
+  border-radius: 11px; font-weight: 600; font-size: .98rem; letter-spacing: -0.005em; cursor: pointer; transition: background .15s, transform .1s; }
 .mkt-go:hover:not(:disabled) { background: var(--color-navy-hover, #2a3d5e); }
 .mkt-go:active { transform: translateY(1px); }
 .mkt-go:disabled { opacity: .7; cursor: wait; }
@@ -375,11 +375,11 @@ const CSS = `
 .mkt-chip:hover:not(:disabled) { border-color: var(--color-navy, #1a2b4a); color: var(--color-navy, #1a2b4a); }
 .mkt-chip.is-active { background: var(--color-navy, #1a2b4a); border-color: var(--color-navy, #1a2b4a); color: #fff; }
 .mkt-chip:disabled { opacity: .45; cursor: default; }
-.mkt-chip-n { font-size: .74rem; background: rgba(0,0,0,.07); border-radius: 999px; padding: 1px 7px; font-weight: 700; }
+.mkt-chip-n { font-size: .74rem; background: rgba(0,0,0,.07); border-radius: 999px; padding: 1px 7px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mkt-chip.is-active .mkt-chip-n { background: rgba(255,255,255,.22); }
 
 .mkt-count { color: var(--color-gray-500, #64748b); font-size: .92rem; margin: 0 0 14px; }
-.mkt-count strong { color: var(--color-navy, #1a2b4a); }
+.mkt-count strong { color: var(--color-navy, #1a2b4a); font-variant-numeric: tabular-nums; }
 
 .mkt-list { display: flex; flex-direction: column; gap: 14px; }
 
@@ -394,24 +394,24 @@ const CSS = `
 
 .mkt-body { min-width: 0; }
 .mkt-namerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 7px; }
-.mkt-name { font-family: var(--font-display, 'Playfair Display', serif); font-weight: 700;
-  color: var(--color-gray-900, #0f172a); font-size: 1.32rem; margin: 0; line-height: 1.15; }
-.mkt-verified { display: inline-flex; align-items: center; gap: 3px; font-size: .74rem; font-weight: 700;
+.mkt-name { font-family: var(--font-display, sans-serif); font-weight: 700; letter-spacing: -0.015em;
+  color: var(--color-gray-900, #0f172a); font-size: 1.32rem; margin: 0; line-height: 1.20; }
+.mkt-verified { display: inline-flex; align-items: center; gap: 3px; font-size: .74rem; font-weight: 600;
   color: var(--color-green, #16a34a); background: #e8f7ee; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .mkt-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--color-gray-500, #64748b); font-size: .9rem; }
-.mkt-type { font-size: .74rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: capitalize; }
-.mkt-rate { color: var(--color-amber, #f59e0b); font-weight: 700; }
+.mkt-type { font-size: .74rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; text-transform: capitalize; }
+.mkt-rate { color: var(--color-amber, #f59e0b); font-weight: 600; font-variant-numeric: tabular-nums; }
 .mkt-loc { color: var(--color-gray-500, #64748b); }
 .mkt-home { display: inline-block; margin-top: 10px; font-size: .8rem; font-weight: 600; color: var(--color-teal-dark, #0e7490);
   background: #e2f6fb; border: 1px solid #c3e9f1; padding: 4px 10px; border-radius: 8px; }
 
 .mkt-rail { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; text-align: right; }
 .mkt-price { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
-.mkt-price-from { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--color-gray-400, #94a3b8); font-weight: 700; }
-.mkt-price-val { font-family: var(--font-display, 'Playfair Display', serif); font-size: 1.5rem; font-weight: 800; color: var(--color-navy, #1a2b4a); }
-.mkt-price-req { font-size: .82rem; color: var(--color-gray-400, #94a3b8); font-weight: 600; }
+.mkt-price-from { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--color-gray-400, #94a3b8); font-weight: 600; }
+.mkt-price-val { font-family: var(--font-body, sans-serif); font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; letter-spacing: -0.01em; color: var(--color-navy, #1a2b4a); }
+.mkt-price-req { font-size: .82rem; color: var(--color-gray-400, #94a3b8); font-weight: 500; }
 .mkt-view { padding: 10px 20px; background: var(--color-teal, #0891b2); color: #fff; border: none; border-radius: 10px;
-  font-weight: 700; font-size: .9rem; cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
+  font-weight: 600; font-size: .9rem; letter-spacing: -0.005em; cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
 .mkt-view:hover { background: var(--color-teal-dark, #0e7490); }
 .mkt-view:active { transform: translateY(1px); }
 
@@ -437,21 +437,21 @@ const CSS = `
 .mkt-modal-loading, .mkt-modal-empty { text-align: center; padding: 34px; color: var(--color-gray-500, #64748b);
   background: var(--color-gray-50, #f8fafc); border-radius: 12px; }
 .mkt-catalog { display: flex; flex-direction: column; gap: 22px; }
-.mkt-sec { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--color-gray-400, #94a3b8);
-  font-weight: 700; margin: 0 0 12px; }
+.mkt-sec { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--color-gray-400, #94a3b8);
+  font-weight: 600; margin: 0 0 12px; }
 .mkt-item { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 16px;
   border: 1px solid var(--color-gray-200, #e2e8f0); border-radius: 12px; margin-bottom: 10px; }
 .mkt-item-pkg { background: var(--color-gray-50, #f8fafc); }
-.mkt-item-name { font-weight: 700; color: var(--color-gray-900, #0f172a); }
+.mkt-item-name { font-weight: 600; color: var(--color-gray-900, #0f172a); }
 .mkt-item-sub { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-.mkt-item-desc { font-size: .85rem; color: var(--color-gray-500, #64748b); margin-top: 4px; max-width: 340px; }
+.mkt-item-desc { font-size: .85rem; color: var(--color-gray-500, #64748b); margin-top: 4px; max-width: 340px; line-height: 1.45; }
 .mkt-tag { font-size: .7rem; font-weight: 600; text-transform: capitalize; color: var(--color-gray-600, #475569);
   background: var(--color-gray-100, #f1f5f9); padding: 2px 8px; border-radius: 6px; }
 .mkt-tag-home { color: var(--color-teal-dark, #0e7490); background: #e2f6fb; }
 .mkt-item-buy { display: flex; align-items: center; gap: 12px; }
-.mkt-item-price { font-weight: 800; color: var(--color-navy, #1a2b4a); }
+.mkt-item-price { font-weight: 700; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; color: var(--color-navy, #1a2b4a); }
 .mkt-book { padding: 8px 16px; background: var(--color-navy, #1a2b4a); color: #fff; border-radius: 8px;
-  font-weight: 700; font-size: .85rem; text-decoration: none; white-space: nowrap; }
+  font-weight: 600; font-size: .85rem; letter-spacing: -0.005em; text-decoration: none; white-space: nowrap; }
 .mkt-book:hover { background: var(--color-navy-hover, #2a3d5e); }
 
 @media (max-width: 620px) {
