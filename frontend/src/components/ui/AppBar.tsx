@@ -159,7 +159,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         role={resolvedRole}
       />
 
-      {resolvedUser && (
+      {resolvedUser && !isPatientRoute && (
         <span className="cm-appbar__user">
           <Icon as={User} size={16} />
           {resolvedUser}

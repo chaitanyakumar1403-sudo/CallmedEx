@@ -6,7 +6,7 @@ import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import {
   ShieldCheck, CheckCircle2, AlertCircle, RefreshCw,
   FlaskConical, Activity, HeartPulse, Stethoscope, Bike, Check, X,
-  ExternalLink, ChevronRight, User, Droplet, FileText, Pill, Zap, Clock,
+  ExternalLink, ChevronRight, ChevronLeft, ArrowLeft, User, Droplet, FileText, Pill, Zap, Clock,
   Calendar, MapPin, Video, Phone, UserCheck, Plus, AlertTriangle, Building2,
   Download, Award, Tag, Sparkles, Home
 } from "@/components/ui/icons";
@@ -118,8 +118,7 @@ export interface HealthAdvisorData {
   care_guidance: CareGuidance;
 }
 
-// ─── Default Verified Datasets ───────────────────────────────────────────────
-
+// ─── Genuine Registered CallMedex Doctors Baseline ───────────────────────────
 const DEFAULT_DOCTORS: RecommendDoctor[] = [
   {
     id: "e713e870-4f61-411d-bfe1-1387f0f59c61",
@@ -133,19 +132,6 @@ const DEFAULT_DOCTORS: RecommendDoctor[] = [
     hospital: "Visakha Multispeciality Clinics & Diagnostics",
     rating: 4.98,
     reason: "Comprehensive clinical cardiovascular assessment, hypertension stabilization, glycemic surveillance, and personalized chronic disease management.",
-  },
-  {
-    id: "9ad25430-cef3-4df8-a617-1b1926823a9a",
-    doctor_name: "Dr. Kolasani Sudhakar",
-    specialty: "Consultant Physiotherapist & Rehabilitation Specialist",
-    title: "Consultant Physical Therapist",
-    qualification: "MPT (Musculoskeletal), FOMT, DMS",
-    experience: "14+ yrs clinical experience",
-    fee: 500,
-    languages: ["English", "Telugu"],
-    hospital: "RECURE CLINIC & Visakha Multispeciality Network",
-    rating: 4.95,
-    reason: "Targeted musculoskeletal rehabilitation, postural biomechanics realignment, spinal decompression, and therapeutic movement therapy.",
   },
 ];
 
@@ -581,8 +567,8 @@ export default function PatientAIAdvisor() {
   const [loading, setLoading] = useState<boolean>(false);
   const [protocolSource, setProtocolSource] = useState<string>("ICMR Clinical Protocols (Active 🛡️)");
 
-  // Active Main Widget Modal: 1 = Specialist Doctor Advisory, 2 = Diagnostics & Packages, 3 = Preventive Care & Pharmacy
-  const [activeWidget, setActiveWidget] = useState<1 | 2 | 3 | null>(null);
+  // Active Main Widget Modal: 0 = Symptom Triage, 1 = Specialist Doctor Advisory, 2 = Diagnostics & Packages, 3 = Preventive Care & Pharmacy
+  const [activeWidget, setActiveWidget] = useState<0 | 1 | 2 | 3 | null>(null);
 
   // Subtabs within modals
   const [modal1Tab, setModal1Tab] = useState<"vitals" | "doctors">("vitals");
@@ -859,11 +845,13 @@ Website: https://callmedex.com
   const dietPlan = data?.care_guidance?.diet_plan || DEFAULT_ADVISOR_DATA.care_guidance.diet_plan;
   const workoutPlan = data?.care_guidance?.workouts || DEFAULT_ADVISOR_DATA.care_guidance.workouts;
   const tests = data?.recommended_tests && data.recommended_tests.length > 0 ? data.recommended_tests : DEFAULT_TESTS;
-  const suggestedDoctorsList = availableDoctors.length > 0
-    ? availableDoctors
-    : (data?.recommended_doctors && data.recommended_doctors.length > 0 && data.recommended_doctors[0].doctor_name)
-      ? data.recommended_doctors
-      : DEFAULT_DOCTORS;
+  const suggestedDoctorsList = useMemo(() => {
+    // 100% Genuine Registered CallMedex Practitioners Only (No Fabricated Doctors)
+    if (availableDoctors && availableDoctors.length > 0) {
+      return availableDoctors;
+    }
+    return DEFAULT_DOCTORS;
+  }, [availableDoctors]);
 
   const syncConditions = async (updatedConditions: string[]) => {
     if (typeof window !== "undefined") {
@@ -928,65 +916,94 @@ Website: https://callmedex.com
   };
 
   const filteredDoctors = useMemo(() => {
+    if (!conditionsInput || conditionsInput.length === 0) {
+      return [];
+    }
     const allDocs = suggestedDoctorsList;
-    if (!conditionsInput || conditionsInput.length === 0) return allDocs;
 
     const hasOrtho = conditionsInput.some((c) =>
       /joint|back|knee|pain|physio|bone|muscle|spine|ortho|rehab/i.test(c)
     );
-    const hasCardioDiabetic = conditionsInput.some((c) =>
-      /diabetes|sugar|cardio|bp|heart|blood pressure|cholesterol|hypertension/i.test(c)
+    const hasCardio = conditionsInput.some((c) =>
+      /cardio|bp|heart|blood pressure|hypertension|chest|angina|lipid/i.test(c)
+    );
+    const hasSugar = conditionsInput.some((c) =>
+      /diabetes|sugar|glycemic|metabolic/i.test(c)
+    );
+    const hasFever = conditionsInput.some((c) =>
+      /fever|cold|cough|infection|flu|chills|viral/i.test(c)
+    );
+    const hasThyroid = conditionsInput.some((c) =>
+      /thyroid|hormon|pcod|pcos/i.test(c)
+    );
+    const hasAcidity = conditionsInput.some((c) =>
+      /acidity|digestion|stomach|gastric|gerd|reflux/i.test(c)
     );
 
-    return [...allDocs].sort((a, b) => {
-      const aIsPhysio = /physio|rehab/i.test(a.specialty || "");
-      const bIsPhysio = /physio|rehab/i.test(b.specialty || "");
-      if (hasOrtho && !hasCardioDiabetic) {
-        return aIsPhysio ? -1 : 1;
-      }
-      if (hasCardioDiabetic) {
-        return aIsPhysio ? 1 : -1;
-      }
-      return 0;
+    const matches = allDocs.filter((doc) => {
+      const spec = (
+        (doc.specialty || "") + " " + (doc.reason || "") + " " + (doc.title || "") + " " + (doc.qualification || "")
+      ).toLowerCase();
+      if (hasOrtho && /physio|rehab|musculoskeletal|ortho|bone|joint|spine/.test(spec)) return true;
+      if (hasCardio && /cardio|heart|hypertension|bp|arterial/.test(spec)) return true;
+      if (hasSugar && /diabet|glycemic|metabolic/.test(spec)) return true;
+      if (hasFever && /physician|general|infectious|viral|internal/.test(spec)) return true;
+      if (hasThyroid && /endocrine|thyroid|hormon/.test(spec)) return true;
+      if (hasAcidity && /gastro|digest|liver|stomach/.test(spec)) return true;
+      return false;
     });
+
+    // STRICT: Only genuine registered CallMedex doctors matching the concern.
+    // If no registered practitioner in CallMedex matches this concern, return []!
+    return matches;
   }, [suggestedDoctorsList, conditionsInput]);
 
   const filteredTests = useMemo(() => {
-    if (!conditionsInput || conditionsInput.length === 0) return tests;
+    if (!conditionsInput || conditionsInput.length === 0) {
+      return [];
+    }
     const hasSugar = conditionsInput.some((c) => /diabetes|sugar|glycemic/i.test(c));
     const hasCardio = conditionsInput.some((c) => /cardio|bp|heart|cholesterol|pressure|lipid/i.test(c));
     const hasFever = conditionsInput.some((c) => /fever|cold|cough|infection|flu/i.test(c));
     const hasThyroid = conditionsInput.some((c) => /thyroid|hormon/i.test(c));
+    const hasJoint = conditionsInput.some((c) => /joint|back|knee|pain|bone|spine/i.test(c));
+    const hasAcidity = conditionsInput.some((c) => /acidity|digestion|stomach/i.test(c));
 
-    return [...tests].sort((a, b) => {
-      const aText = (a.test_name + " " + a.category + " " + a.reason).toLowerCase();
-      const bText = (b.test_name + " " + b.category + " " + b.reason).toLowerCase();
-      let aScore = 0;
-      let bScore = 0;
-      if (hasSugar && (aText.includes("sugar") || aText.includes("hba1c") || aText.includes("glucose"))) aScore += 5;
-      if (hasSugar && (bText.includes("sugar") || bText.includes("hba1c") || bText.includes("glucose"))) bScore += 5;
-      if (hasCardio && (aText.includes("lipid") || aText.includes("cholesterol") || aText.includes("cardiac"))) aScore += 5;
-      if (hasCardio && (bText.includes("lipid") || bText.includes("cholesterol") || bText.includes("cardiac"))) bScore += 5;
-      if (hasFever && (aText.includes("cbp") || aText.includes("cbc") || aText.includes("hemogram"))) aScore += 5;
-      if (hasFever && (bText.includes("cbp") || bText.includes("cbc") || bText.includes("hemogram"))) bScore += 5;
-      if (hasThyroid && aText.includes("thyroid")) aScore += 5;
-      if (hasThyroid && bText.includes("thyroid")) bScore += 5;
-      return bScore - aScore;
+    const matched = tests.filter((t) => {
+      const txt = (t.test_name + " " + t.category + " " + t.reason).toLowerCase();
+      if (hasSugar && (txt.includes("sugar") || txt.includes("hba1c") || txt.includes("glucose"))) return true;
+      if (hasCardio && (txt.includes("lipid") || txt.includes("cholesterol") || txt.includes("cardiac"))) return true;
+      if (hasFever && (txt.includes("cbp") || txt.includes("cbc") || txt.includes("hemogram"))) return true;
+      if (hasThyroid && txt.includes("thyroid")) return true;
+      if (hasJoint && (txt.includes("vitamin d") || txt.includes("calcium") || txt.includes("bone"))) return true;
+      if (hasAcidity && (txt.includes("urine") || txt.includes("metabolic") || txt.includes("cbp"))) return true;
+      return false;
     });
+
+    if (matched.length > 0) return matched;
+    return tests.slice(0, 3);
   }, [tests, conditionsInput]);
 
   const filteredPackages = useMemo(() => {
-    if (!conditionsInput || conditionsInput.length === 0) return DEFAULT_PACKAGES;
+    if (!conditionsInput || conditionsInput.length === 0) {
+      return [];
+    }
     const hasCardio = conditionsInput.some((c) => /cardio|bp|heart|cholesterol/i.test(c));
     const hasSugar = conditionsInput.some((c) => /diabetes|sugar/i.test(c));
+    const hasJoint = conditionsInput.some((c) => /joint|back|knee|pain|bone|spine/i.test(c));
+    const hasSenior = conditionsInput.some((c) => /senior|elderly|age/i.test(c));
 
-    return [...DEFAULT_PACKAGES].sort((a, b) => {
-      if (hasCardio && a.id === "pkg-cardiac") return -1;
-      if (hasCardio && b.id === "pkg-cardiac") return 1;
-      if (hasSugar && a.id === "pkg-diabetic") return -1;
-      if (hasSugar && b.id === "pkg-diabetic") return 1;
-      return 0;
+    const matched = DEFAULT_PACKAGES.filter((p) => {
+      const txt = (p.name + " " + p.badge + " " + p.description).toLowerCase();
+      if (hasCardio && (txt.includes("cardiac") || txt.includes("cardio"))) return true;
+      if (hasSugar && (txt.includes("diabetic") || txt.includes("metabolic"))) return true;
+      if (hasJoint && (txt.includes("vitamin") || txt.includes("micronutrient"))) return true;
+      if (hasSenior && txt.includes("senior")) return true;
+      return false;
     });
+
+    if (matched.length > 0) return matched;
+    return [DEFAULT_PACKAGES[2]]; // Basic Screening (Non Diabetic)
   }, [conditionsInput]);
 
   return (
@@ -1089,7 +1106,7 @@ Website: https://callmedex.com
       {/* ── THE THREE COMPACT PRODUCTION CLINICAL SECTIONS (GRID) ── */}
       <div className="cm-ai-orchestra-grid">
         {/* ════════════════════════════════════════════════════════════════════
-            CARD 1: SPECIALIST DOCTOR ADVISORY
+            CARD 1: SPECIALIST DOCTOR ADVISORY (Compact Curiosity Card)
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
@@ -1102,15 +1119,16 @@ Website: https://callmedex.com
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
+            minHeight: "180px",
           }}
         >
           <div>
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: 10,
                   background: "rgba(14, 165, 233, 0.22)",
                   border: "1px solid rgba(56, 189, 248, 0.4)",
@@ -1119,91 +1137,40 @@ Website: https://callmedex.com
                   flexShrink: 0,
                 }}
               >
-                <Clinical3DIcon name="care-pulse" size={22} glow />
+                <Clinical3DIcon name="care-pulse" size={24} glow />
               </div>
-              <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#ffffff" }}>
-                Specialist Doctor Advisory
-              </h4>
+              <div>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                  Specialist Doctor Advisory
+                </h4>
+                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
+                  Verified clinician matching
+                </div>
+              </div>
             </div>
 
-            {/* Interactive Health Issues / Symptoms Intake */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: "0.74rem", color: "#bae6fd", fontWeight: 700, marginBottom: 6 }}>
-                Select or enter health issue / symptoms:
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-                {COMMON_HEALTH_ISSUES.map((issue) => {
-                  const isSelected = conditionsInput.includes(issue.label);
-                  return (
-                    <button
-                      key={issue.id}
-                      type="button"
-                      onClick={() => handleToggleCondition(issue.label)}
-                      className={`cm-symptom-chip ${isSelected ? "active" : ""}`}
-                      style={{
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        fontSize: "0.7rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        border: isSelected ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.12)",
-                        background: isSelected ? "rgba(14, 165, 233, 0.35)" : "rgba(255, 255, 255, 0.06)",
-                        color: isSelected ? "#ffffff" : "#cbd5e1",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {isSelected && "✓ "}
-                      {issue.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Inline Symptom Input */}
-              <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="text"
-                  placeholder="Type health issue (e.g. fever, knee ache)..."
-                  value={customIssueText}
-                  onChange={(e) => setCustomIssueText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: "rgba(15, 23, 42, 0.6)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: 6,
-                    padding: "5px 9px",
-                    fontSize: "0.74rem",
-                    color: "#ffffff",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!customIssueText.trim()}
-                  style={{
-                    padding: "5px 10px",
-                    borderRadius: 6,
-                    background: customIssueText.trim() ? "#0ea5e9" : "rgba(255, 255, 255, 0.08)",
-                    border: "none",
-                    color: "#ffffff",
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    cursor: customIssueText.trim() ? "pointer" : "default",
-                  }}
-                >
-                  + Add
-                </button>
-              </form>
-            </div>
+            {/* Curiosity Teaser */}
+            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
+              Curious which medical specialist or surgeon treats your exact symptoms? Select your health concerns to instantly match verified clinicians.
+            </p>
 
             {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, fontSize: "0.72rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#4ade80", fontWeight: 700 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-                <span>{filteredDoctors.length} Verified Specialist{filteredDoctors.length === 1 ? "" : "s"} Matched</span>
-              </div>
-              {saveSuccessMsg && (
-                <span style={{ color: "#38bdf8", fontWeight: 600 }}>✓ Saved</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
+              {conditionsInput.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#38bdf8", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#38bdf8", display: "inline-block", boxShadow: "0 0 8px #38bdf8" }} />
+                  <span>Awaiting Symptoms · Tap to Match</span>
+                </div>
+              ) : filteredDoctors.length > 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                  <span>{filteredDoctors.length} Registered Specialist{filteredDoctors.length === 1 ? "" : "s"} Matched</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#fbbf24", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fbbf24", display: "inline-block" }} />
+                  <span>No Registered Specialists for this Concern</span>
+                </div>
               )}
             </div>
           </div>
@@ -1211,16 +1178,44 @@ Website: https://callmedex.com
           {/* Action Button */}
           <button
             type="button"
-            onClick={() => setActiveWidget(1)}
+            onClick={() => {
+              if (conditionsInput.length === 0) {
+                setActiveWidget(0);
+              } else {
+                setActiveWidget(1);
+              }
+            }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", padding: "8px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            style={{
+              width: "100%",
+              padding: "9px 14px",
+              fontSize: "0.82rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              background: conditionsInput.length > 0 && filteredDoctors.length === 0
+                ? "rgba(255, 255, 255, 0.08)"
+                : undefined,
+              color: conditionsInput.length > 0 && filteredDoctors.length === 0
+                ? "#cbd5e1"
+                : undefined,
+              border: conditionsInput.length > 0 && filteredDoctors.length === 0
+                ? "1px solid rgba(255, 255, 255, 0.18)"
+                : undefined,
+            }}
           >
-            <Stethoscope size={14} /> View Recommended Doctors →
+            <Stethoscope size={15} />
+            {conditionsInput.length === 0
+              ? "Know Your Specialist →"
+              : filteredDoctors.length > 0
+                ? `View Matched Doctors (${filteredDoctors.length}) →`
+                : "No Specialists Registered (0) →"}
           </button>
         </div>
 
         {/* ════════════════════════════════════════════════════════════════════
-            CARD 2: DIAGNOSTICS (Single word heading, no below description)
+            CARD 2: DIAGNOSTICS (Compact Curiosity Card)
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
@@ -1233,15 +1228,16 @@ Website: https://callmedex.com
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
+            minHeight: "180px",
           }}
         >
           <div>
-            {/* Header: Single Word Heading Only, No Below Description */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: 10,
                   background: "rgba(34, 197, 94, 0.22)",
                   border: "1px solid rgba(74, 222, 128, 0.4)",
@@ -1250,91 +1246,35 @@ Website: https://callmedex.com
                   flexShrink: 0,
                 }}
               >
-                <Clinical3DIcon name="microscope" size={22} glow />
+                <Clinical3DIcon name="microscope" size={24} glow />
               </div>
-              <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#ffffff" }}>
-                Diagnostics
-              </h4>
+              <div>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                  Diagnostics
+                </h4>
+                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
+                  NABL lab workup &amp; packages
+                </div>
+              </div>
             </div>
 
-            {/* Interactive Health Issues / Symptoms Intake */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: "0.74rem", color: "#bae6fd", fontWeight: 700, marginBottom: 6 }}>
-                Select or enter health issue / symptoms:
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-                {COMMON_HEALTH_ISSUES.map((issue) => {
-                  const isSelected = conditionsInput.includes(issue.label);
-                  return (
-                    <button
-                      key={issue.id}
-                      type="button"
-                      onClick={() => handleToggleCondition(issue.label)}
-                      className={`cm-symptom-chip ${isSelected ? "active" : ""}`}
-                      style={{
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        fontSize: "0.7rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        border: isSelected ? "1px solid #4ade80" : "1px solid rgba(255, 255, 255, 0.12)",
-                        background: isSelected ? "rgba(34, 197, 94, 0.35)" : "rgba(255, 255, 255, 0.06)",
-                        color: isSelected ? "#ffffff" : "#cbd5e1",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {isSelected && "✓ "}
-                      {issue.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Inline Symptom Input */}
-              <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="text"
-                  placeholder="Type health issue (e.g. fever, knee ache)..."
-                  value={customIssueText}
-                  onChange={(e) => setCustomIssueText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: "rgba(15, 23, 42, 0.6)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: 6,
-                    padding: "5px 9px",
-                    fontSize: "0.74rem",
-                    color: "#ffffff",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!customIssueText.trim()}
-                  style={{
-                    padding: "5px 10px",
-                    borderRadius: 6,
-                    background: customIssueText.trim() ? "#10b981" : "rgba(255, 255, 255, 0.08)",
-                    border: "none",
-                    color: "#ffffff",
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    cursor: customIssueText.trim() ? "pointer" : "default",
-                  }}
-                >
-                  + Add
-                </button>
-              </form>
-            </div>
+            {/* Curiosity Teaser */}
+            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
+              Pinpoint precise laboratory workups and full-body health screening packages calibrated strictly to your symptoms with up to 33% discount.
+            </p>
 
             {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, fontSize: "0.72rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#4ade80", fontWeight: 700 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-                <span>{filteredTests.length} Tests · {filteredPackages.length} Packages Matched</span>
-              </div>
-              {saveSuccessMsg && (
-                <span style={{ color: "#4ade80", fontWeight: 600 }}>✓ Saved</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
+              {conditionsInput.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 8px #4ade80" }} />
+                  <span>Awaiting Symptoms · Tap to Match</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                  <span>{filteredTests.length} Tests · {filteredPackages.length} Packages Matched</span>
+                </div>
               )}
             </div>
           </div>
@@ -1343,18 +1283,23 @@ Website: https://callmedex.com
           <button
             type="button"
             onClick={() => {
-              setModal2Tab("tests");
-              setActiveWidget(2);
+              if (conditionsInput.length === 0) {
+                setActiveWidget(0);
+              } else {
+                setModal2Tab("tests");
+                setActiveWidget(2);
+              }
             }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", padding: "8px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
-            <FlaskConical size={14} /> Explore Lab Tests &amp; Packages →
+            <FlaskConical size={15} />
+            {conditionsInput.length === 0 ? "Explore Diagnostics & Packages →" : `View Lab Tests & Packages (${filteredTests.length}) →`}
           </button>
         </div>
 
         {/* ════════════════════════════════════════════════════════════════════
-            CARD 3: PREVENTIVE CARE (Simple heading, no below description)
+            CARD 3: PREVENTIVE CARE (Compact Curiosity Card)
            ════════════════════════════════════════════════════════════════════ */}
         <div
           className="cm-ai-column-card"
@@ -1367,15 +1312,16 @@ Website: https://callmedex.com
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
+            minHeight: "180px",
           }}
         >
           <div>
-            {/* Header: Simple Heading Only, No Below Description */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <div
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   borderRadius: 10,
                   background: "rgba(168, 85, 247, 0.22)",
                   border: "1px solid rgba(192, 132, 252, 0.4)",
@@ -1384,91 +1330,35 @@ Website: https://callmedex.com
                   flexShrink: 0,
                 }}
               >
-                <Clinical3DIcon name="pharmacy" size={22} glow />
+                <Clinical3DIcon name="pharmacy" size={24} glow />
               </div>
-              <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#ffffff" }}>
-                Preventive Care
-              </h4>
+              <div>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                  Preventive Care
+                </h4>
+                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
+                  Diet, workout &amp; pharmacy
+                </div>
+              </div>
             </div>
 
-            {/* Interactive Health Issues / Symptoms Intake */}
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: "0.74rem", color: "#bae6fd", fontWeight: 700, marginBottom: 6 }}>
-                Select or enter health issue / symptoms:
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-                {COMMON_HEALTH_ISSUES.map((issue) => {
-                  const isSelected = conditionsInput.includes(issue.label);
-                  return (
-                    <button
-                      key={issue.id}
-                      type="button"
-                      onClick={() => handleToggleCondition(issue.label)}
-                      className={`cm-symptom-chip ${isSelected ? "active" : ""}`}
-                      style={{
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        fontSize: "0.7rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        border: isSelected ? "1px solid #c084fc" : "1px solid rgba(255, 255, 255, 0.12)",
-                        background: isSelected ? "rgba(168, 85, 247, 0.35)" : "rgba(255, 255, 255, 0.06)",
-                        color: isSelected ? "#ffffff" : "#cbd5e1",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {isSelected && "✓ "}
-                      {issue.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Inline Symptom Input */}
-              <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 6 }}>
-                <input
-                  type="text"
-                  placeholder="Type health issue (e.g. fever, knee ache)..."
-                  value={customIssueText}
-                  onChange={(e) => setCustomIssueText(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: "rgba(15, 23, 42, 0.6)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: 6,
-                    padding: "5px 9px",
-                    fontSize: "0.74rem",
-                    color: "#ffffff",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!customIssueText.trim()}
-                  style={{
-                    padding: "5px 10px",
-                    borderRadius: 6,
-                    background: customIssueText.trim() ? "#a855f7" : "rgba(255, 255, 255, 0.08)",
-                    border: "none",
-                    color: "#ffffff",
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    cursor: customIssueText.trim() ? "pointer" : "default",
-                  }}
-                >
-                  + Add
-                </button>
-              </form>
-            </div>
+            {/* Curiosity Teaser */}
+            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
+              Unlock your ICMR-aligned nutritional blueprint, metabolic workout safety guidelines, and DrugShield genuine pharmacy refill savings.
+            </p>
 
             {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, fontSize: "0.72rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#c084fc", fontWeight: 700 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a855f7", display: "inline-block" }} />
-                <span>Tailored Diet, Workout &amp; Rx Matched</span>
-              </div>
-              {saveSuccessMsg && (
-                <span style={{ color: "#c084fc", fontWeight: 600 }}>✓ Saved</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
+              {conditionsInput.length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c084fc", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c084fc", display: "inline-block", boxShadow: "0 0 8px #c084fc" }} />
+                  <span>Awaiting Symptoms · Tap to Match</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c084fc", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a855f7", display: "inline-block" }} />
+                  <span>Tailored Diet, Workout &amp; Rx Matched</span>
+                </div>
               )}
             </div>
           </div>
@@ -1477,13 +1367,18 @@ Website: https://callmedex.com
           <button
             type="button"
             onClick={() => {
-              setModal3Tab("preventive");
-              setActiveWidget(3);
+              if (conditionsInput.length === 0) {
+                setActiveWidget(0);
+              } else {
+                setModal3Tab("preventive");
+                setActiveWidget(3);
+              }
             }}
             className="cm-advisor-btn-primary"
-            style={{ width: "100%", padding: "8px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
           >
-            <Pill size={14} /> View Diet &amp; Pharmacy Guide →
+            <Pill size={15} />
+            {conditionsInput.length === 0 ? "View Care Blueprint →" : "View Diet & Pharmacy Guide →"}
           </button>
         </div>
       </div>
@@ -1509,6 +1404,332 @@ Website: https://callmedex.com
           <strong style={{ color: "#cbd5e1" }}>Advisory Notice:</strong> All specialist doctor suggestions, diagnostic recommendations, and preventive wellness protocols are advisory features provided by CallMedex to assist your personal wellness journey. They do not constitute mandatory medical directives, prescriptions, or emergency clinical care.
         </span>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL 0: CLINICAL SYMPTOM TRIAGE & SPECIALIST NAVIGATOR (WIDGET 0)
+         ══════════════════════════════════════════════════════════════════════ */}
+      {activeWidget === 0 && (
+        <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
+          <div
+            className="cm-glass-widget-modal"
+            style={{ maxWidth: 780, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "18px 22px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "rgba(15, 23, 42, 0.5)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    background: "rgba(14, 165, 233, 0.25)",
+                    border: "1px solid rgba(56, 189, 248, 0.45)",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <Clinical3DIcon name="care-pulse" size={26} glow />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                    Clinical Symptom Triage &amp; Specialist Navigator
+                  </h3>
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
+                    Enter your active symptoms to match verified clinicians, lab workups, and personalized care
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveWidget(null)}
+                aria-label="Close modal"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: "50%",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  color: "#94a3b8",
+                  display: "grid",
+                  placeItems: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* Step 1: Tap Common Symptoms */}
+              <div>
+                <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                  1. Select Common Symptoms or Health Concerns:
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {COMMON_HEALTH_ISSUES.map((issue) => {
+                    const isSelected = conditionsInput.includes(issue.label);
+                    return (
+                      <button
+                        key={issue.id}
+                        type="button"
+                        onClick={() => handleToggleCondition(issue.label)}
+                        className={`cm-symptom-chip ${isSelected ? "active" : ""}`}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: 8,
+                          fontSize: "0.8rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          border: isSelected ? "1.5px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.15)",
+                          background: isSelected ? "rgba(14, 165, 233, 0.35)" : "rgba(255, 255, 255, 0.06)",
+                          color: isSelected ? "#ffffff" : "#cbd5e1",
+                          boxShadow: isSelected ? "0 0 12px rgba(14, 165, 233, 0.4)" : "none",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {isSelected && "✓ "}
+                        {issue.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Custom Symptom Input */}
+              <div>
+                <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                  2. Or Type Your Specific Symptoms / Health Issues:
+                </div>
+                <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="Type symptom (e.g. sharp knee ache when climbing stairs, high fever with chills)..."
+                    value={customIssueText}
+                    onChange={(e) => setCustomIssueText(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: "rgba(15, 23, 42, 0.7)",
+                      border: "1px solid rgba(56, 189, 248, 0.3)",
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      fontSize: "0.82rem",
+                      color: "#ffffff",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!customIssueText.trim()}
+                    className="cm-advisor-btn-primary"
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      fontSize: "0.82rem",
+                    }}
+                  >
+                    + Add Symptom
+                  </button>
+                </form>
+              </div>
+
+              {/* Step 3: Selected Symptoms List */}
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.5)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  borderRadius: 12,
+                  padding: "14px 16px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", fontWeight: 700 }}>
+                    Active Selected Symptoms ({conditionsInput.length})
+                  </div>
+                  {conditionsInput.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConditionsInput([]);
+                        syncConditions([]);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "0.74rem",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {conditionsInput.length > 0 ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {conditionsInput.map((cond, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          background: "rgba(14, 165, 233, 0.25)",
+                          border: "1px solid rgba(56, 189, 248, 0.4)",
+                          color: "#ffffff",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {cond}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCondition(cond)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#bae6fd",
+                            cursor: "pointer",
+                            padding: 0,
+                            display: "grid",
+                            placeItems: "center",
+                          }}
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: "0.8rem", color: "#64748b", fontStyle: "italic" }}>
+                    No symptoms selected yet. Choose from above or type your symptoms to start matching.
+                  </div>
+                )}
+              </div>
+
+              {/* Step 4: Live Match Calibration & Navigation CTAs */}
+              <div
+                style={{
+                  background: conditionsInput.length > 0
+                    ? "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)"
+                    : "rgba(15, 23, 42, 0.4)",
+                  border: conditionsInput.length > 0
+                    ? "1.5px solid rgba(56, 189, 248, 0.4)"
+                    : "1px dashed rgba(255, 255, 255, 0.15)",
+                  borderRadius: 14,
+                  padding: "16px 20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 14,
+                }}
+              >
+                {conditionsInput.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "10px 0", color: "#94a3b8", fontSize: "0.82rem" }}>
+                    <div style={{ fontSize: "1.2rem", marginBottom: 4 }}>👆</div>
+                    <strong style={{ color: "#e2e8f0" }}>Awaiting Symptom Intake:</strong> Select or enter any symptom above to unlock verified specialist clinicians, targeted lab tests, and clinical diet care.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 10px #4ade80" }} />
+                        <span style={{ fontSize: "0.88rem", fontWeight: 800, color: "#ffffff" }}>
+                          Clinical Protocols Matched:
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 10, fontSize: "0.76rem", color: "#bae6fd", fontWeight: 700 }}>
+                        <span style={{ color: filteredDoctors.length > 0 ? "#bae6fd" : "#f59e0b" }}>
+                          • {filteredDoctors.length > 0 ? `${filteredDoctors.length} Clinician${filteredDoctors.length === 1 ? "" : "s"}` : "0 Registered Clinicians"}
+                        </span>
+                        <span>• {filteredTests.length} Lab Test{filteredTests.length === 1 ? "" : "s"}</span>
+                        <span>• {filteredPackages.length} Package{filteredPackages.length === 1 ? "" : "s"}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveWidget(1)}
+                        className="cm-advisor-btn-primary"
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "0.82rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          background: filteredDoctors.length === 0 ? "rgba(245, 158, 11, 0.16)" : undefined,
+                          borderColor: filteredDoctors.length === 0 ? "rgba(245, 158, 11, 0.4)" : undefined,
+                          color: filteredDoctors.length === 0 ? "#fef08a" : undefined,
+                        }}
+                      >
+                        <Stethoscope size={15} /> {filteredDoctors.length > 0 ? `View Matched Doctors (${filteredDoctors.length}) →` : "Doctor Directory (0 Available) →"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModal2Tab("tests");
+                          setActiveWidget(2);
+                        }}
+                        className="cm-advisor-btn-primary"
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "0.82rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          background: "linear-gradient(135deg, #10b981, #059669)",
+                        }}
+                      >
+                        <FlaskConical size={15} /> View Lab Workups ({filteredTests.length}) →
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModal3Tab("preventive");
+                          setActiveWidget(3);
+                        }}
+                        className="cm-advisor-btn-primary"
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "0.82rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+                        }}
+                      >
+                        <Pill size={15} /> View Care Blueprint →
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           MODAL 1: SPECIALIST DOCTOR ADVISORY CONSOLE
@@ -1561,6 +1782,28 @@ Website: https://callmedex.com
                 {/* Download Health Summary CTA */}
                 <button
                   type="button"
+                  onClick={() => setActiveWidget(0)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    color: "#38bdf8",
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                  title="Change or add clinical symptoms"
+                >
+                  <ArrowLeft size={13} /> Change Symptoms
+                </button>
+
+                {/* Download Health Summary CTA */}
+                <button
+                  type="button"
                   onClick={handleDownloadHealthSummary}
                   style={{
                     display: "inline-flex",
@@ -1583,6 +1826,7 @@ Website: https://callmedex.com
                 <button
                   type="button"
                   onClick={() => setActiveWidget(null)}
+                  aria-label="Close modal"
                   style={{
                     width: 32,
                     height: 32,
@@ -1640,8 +1884,8 @@ Website: https://callmedex.com
                         </span>
                       ))
                     ) : (
-                      <span style={{ fontSize: "0.8rem", color: "#cbd5e1" }}>
-                        General consultation &amp; routine checkup (All specialists available)
+                      <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontStyle: "italic" }}>
+                        No specific symptoms selected yet. Use Clinical Triage to calibrate specialist matching.
                       </span>
                     )}
                   </div>
@@ -1678,80 +1922,208 @@ Website: https://callmedex.com
                   Verified CallMedex physicians and specialists matched to your health concerns:
                 </div>
 
-                {filteredDoctors.map((doc, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      background: "rgba(15, 23, 42, 0.6)",
-                      border: "1px solid rgba(255, 255, 255, 0.12)",
-                      borderRadius: 14,
-                      padding: "16px 18px",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 14,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 14, maxWidth: "68%" }}>
+                {filteredDoctors.length === 0 ? (
+                  conditionsInput.length > 0 ? (
+                    <div
+                      style={{
+                        padding: "30px 24px",
+                        background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.65) 100%)",
+                        borderRadius: 14,
+                        border: "1px solid rgba(245, 158, 11, 0.35)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        textAlign: "center",
+                        gap: 12,
+                      }}
+                    >
                       <div
                         style={{
-                          width: 44,
-                          height: 44,
+                          width: 50,
+                          height: 50,
                           borderRadius: 12,
-                          background: "rgba(14, 165, 233, 0.2)",
-                          border: "1px solid rgba(56, 189, 248, 0.35)",
+                          background: "rgba(245, 158, 11, 0.16)",
+                          border: "1px solid rgba(245, 158, 11, 0.4)",
                           display: "grid",
                           placeItems: "center",
-                          flexShrink: 0,
+                          fontSize: "1.5rem",
                         }}
                       >
-                        <Stethoscope size={22} color="#38bdf8" />
+                        🩺
                       </div>
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: "0.98rem", fontWeight: 800, color: "#ffffff" }}>
-                            {doc.doctor_name}
-                          </span>
-                          <span
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            background: "rgba(245, 158, 11, 0.15)",
+                            border: "1px solid rgba(245, 158, 11, 0.35)",
+                            color: "#fbbf24",
+                            fontSize: "0.72rem",
+                            fontWeight: 800,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <ShieldCheck size={13} /> 100% Genuine Clinical Directory Policy
+                        </div>
+                        <h4 style={{ margin: "0 0 8px 0", color: "#ffffff", fontSize: "1.1rem", fontWeight: 800 }}>
+                          No Registered Specialist in CallMedex for this Concern
+                        </h4>
+                        <p style={{ margin: "0 auto", color: "#cbd5e1", fontSize: "0.82rem", maxWidth: 520, lineHeight: 1.55 }}>
+                          CallMedex enforces a zero-tolerance anti-fabrication policy: <strong style={{ color: "#fef08a" }}>we never display fake or unverified practitioners</strong>. Currently, no licensed doctor has registered in our platform directory for <strong style={{ color: "#ffffff" }}>"{conditionsInput.join(", ")}"</strong>.
+                        </p>
+                      </div>
+
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", marginTop: 4 }}>
+                        {filteredTests.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModal2Tab("tests");
+                              setActiveWidget(2);
+                            }}
+                            className="cm-advisor-btn-primary"
                             style={{
-                              fontSize: "0.68rem",
-                              padding: "2px 7px",
-                              borderRadius: 6,
-                              background: "rgba(16, 185, 129, 0.18)",
-                              color: "#34d399",
-                              fontWeight: 700,
+                              padding: "9px 16px",
+                              fontSize: "0.82rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              background: "linear-gradient(135deg, #10b981, #059669)",
                             }}
                           >
-                            ★ {doc.rating || 4.98} · Verified Specialist
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600, marginTop: 2 }}>
-                          {doc.specialty} · {doc.qualification}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
-                          {doc.reason}
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
-                          Facility: {doc.hospital || "CallMedex Network"}
-                        </div>
+                            <FlaskConical size={14} /> View Targeted Diagnostic Tests ({filteredTests.length}) →
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveWidget(0)}
+                          style={{
+                            padding: "9px 16px",
+                            fontSize: "0.82rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            borderRadius: 8,
+                            background: "rgba(255, 255, 255, 0.08)",
+                            border: "1px solid rgba(255, 255, 255, 0.2)",
+                            color: "#ffffff",
+                            cursor: "pointer",
+                            fontWeight: 700,
+                          }}
+                        >
+                          ← Adjust Health Concerns
+                        </button>
                       </div>
                     </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                      <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#4ade80" }}>
-                        ₹{doc.fee || 500}
-                      </div>
-                      <Link
-                        href={`/booking?type=consultation&doctor=${encodeURIComponent(doc.id || doc.doctor_name || "Doctor")}&name=${encodeURIComponent(doc.doctor_name || "Doctor")}&spec=${encodeURIComponent(doc.specialty || "Specialist")}&fee=${doc.fee || 500}`}
+                  ) : (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "36px 20px",
+                        background: "rgba(15, 23, 42, 0.5)",
+                        borderRadius: 14,
+                        border: "1px dashed rgba(255, 255, 255, 0.15)",
+                      }}
+                    >
+                      <div style={{ fontSize: "2rem", marginBottom: 10 }}>🩺</div>
+                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 800 }}>
+                        Awaiting Clinical Symptoms Intake
+                      </h4>
+                      <p style={{ margin: "0 auto 16px auto", color: "#94a3b8", fontSize: "0.82rem", maxWidth: 440 }}>
+                        To match registered specialists in CallMedex to your condition, please select or enter your active health concerns.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveWidget(0)}
                         className="cm-advisor-btn-primary"
-                        style={{ textDecoration: "none", padding: "7px 14px", fontSize: "0.8rem" }}
+                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6 }}
                       >
-                        Book Consultation →
-                      </Link>
+                        <Plus size={14} /> Enter Symptoms in Clinical Triage →
+                      </button>
                     </div>
-                  </div>
-                ))}
+                  )
+                ) : (
+                  filteredDoctors.map((doc, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: "rgba(15, 23, 42, 0.6)",
+                        border: "1px solid rgba(255, 255, 255, 0.12)",
+                        borderRadius: 14,
+                        padding: "16px 18px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, maxWidth: "68%" }}>
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: "rgba(14, 165, 233, 0.2)",
+                            border: "1px solid rgba(56, 189, 248, 0.35)",
+                            display: "grid",
+                            placeItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Stethoscope size={22} color="#38bdf8" />
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.98rem", fontWeight: 800, color: "#ffffff" }}>
+                              {doc.doctor_name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                padding: "2px 7px",
+                                borderRadius: 6,
+                                background: "rgba(16, 185, 129, 0.18)",
+                                color: "#34d399",
+                                fontWeight: 700,
+                              }}
+                            >
+                              ★ {doc.rating || 4.98} · Verified Specialist
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600, marginTop: 2 }}>
+                            {doc.specialty} · {doc.qualification}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
+                            {doc.reason}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>
+                            Facility: {doc.hospital || "CallMedex Network"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#4ade80" }}>
+                          ₹{doc.fee || 500}
+                        </div>
+                        <Link
+                          href={`/booking?type=consultation&doctor=${encodeURIComponent(doc.id || doc.doctor_name || "Doctor")}&name=${encodeURIComponent(doc.doctor_name || "Doctor")}&spec=${encodeURIComponent(doc.specialty || "Specialist")}&fee=${doc.fee || 500}`}
+                          className="cm-advisor-btn-primary"
+                          style={{ textDecoration: "none", padding: "7px 14px", fontSize: "0.8rem" }}
+                        >
+                          Book Consultation →
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -1805,23 +2177,47 @@ Website: https://callmedex.com
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveWidget(null)}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <X size={16} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveWidget(0)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    background: "rgba(34, 197, 94, 0.2)",
+                    border: "1px solid rgba(74, 222, 128, 0.4)",
+                    color: "#4ade80",
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                  title="Change or add clinical symptoms"
+                >
+                  <ArrowLeft size={13} /> Change Symptoms
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWidget(null)}
+                  aria-label="Close modal"
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    color: "#94a3b8",
+                    display: "grid",
+                    placeItems: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Sub-Tabs */}
@@ -1842,7 +2238,7 @@ Website: https://callmedex.com
                   border: "none",
                 }}
               >
-                1. Recommended Diagnostic Tests ({tests.length})
+                1. Recommended Diagnostic Tests ({filteredTests.length > 0 ? filteredTests.length : "Awaiting Symptoms"})
               </button>
               <button
                 type="button"
@@ -1891,68 +2287,96 @@ Website: https://callmedex.com
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
               {modal2Tab === "tests" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {tests.map((t, idx) => (
+                  {filteredTests.length === 0 ? (
                     <div
-                      key={idx}
                       style={{
-                        background: "rgba(15, 23, 42, 0.6)",
-                        border: "1px solid rgba(255, 255, 255, 0.1)",
-                        borderRadius: 12,
-                        padding: "14px 18px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 12,
+                        textAlign: "center",
+                        padding: "40px 20px",
+                        background: "rgba(15, 23, 42, 0.5)",
+                        borderRadius: 14,
+                        border: "1px dashed rgba(255, 255, 255, 0.15)",
                       }}
                     >
-                      <div style={{ maxWidth: "60%" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff" }}>
-                            {t.test_name}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "0.68rem",
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              background: "rgba(56, 189, 248, 0.2)",
-                              color: "#38bdf8",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {t.category}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
-                          {t.reason}
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
-                          Certified Partner Labs · Free Home Sample Collection Available
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                          {t.original_price && (
-                            <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
-                              ₹{t.original_price}
-                            </span>
-                          )}
-                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
-                            ₹{t.estimated_price || 399}
-                          </span>
-                        </div>
-                        <Link
-                          href={t.action_url || `/booking?type=lab&service=${encodeURIComponent(t.test_name)}`}
-                          className="cm-advisor-btn-primary"
-                          style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.78rem" }}
-                        >
-                          Book Test →
-                        </Link>
-                      </div>
+                      <div style={{ fontSize: "2rem", marginBottom: 10 }}>🔬</div>
+                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 800 }}>
+                        No Symptoms Selected
+                      </h4>
+                      <p style={{ margin: "0 auto 16px auto", color: "#94a3b8", fontSize: "0.82rem", maxWidth: 440 }}>
+                        To match targeted diagnostic lab panels and screening tests, please select or enter your active symptoms.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveWidget(0)}
+                        className="cm-advisor-btn-primary"
+                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg, #10b981, #059669)" }}
+                      >
+                        <Plus size={14} /> Enter Symptoms Now →
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    filteredTests.map((t, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          background: "rgba(15, 23, 42, 0.6)",
+                          border: "1px solid rgba(255, 255, 255, 0.1)",
+                          borderRadius: 12,
+                          padding: "14px 18px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ maxWidth: "60%" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff" }}>
+                              {t.test_name}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                padding: "2px 8px",
+                                borderRadius: 6,
+                                background: "rgba(56, 189, 248, 0.2)",
+                                color: "#38bdf8",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {t.category}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
+                            {t.reason}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
+                            Certified Partner Labs · Free Home Sample Collection Available
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                            {t.original_price && (
+                              <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
+                                ₹{t.original_price}
+                              </span>
+                            )}
+                            <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                              ₹{t.estimated_price || 399}
+                            </span>
+                          </div>
+                          <Link
+                            href={t.action_url || `/booking?type=lab&service=${encodeURIComponent(t.test_name)}`}
+                            className="cm-advisor-btn-primary"
+                            style={{ textDecoration: "none", padding: "6px 14px", fontSize: "0.78rem" }}
+                          >
+                            Book Test →
+                          </Link>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
 
@@ -2427,23 +2851,46 @@ Website: https://callmedex.com
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setActiveWidget(null)}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  background: "rgba(255, 255, 255, 0.08)",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
-                  color: "#94a3b8",
-                  display: "grid",
-                  placeItems: "center",
-                  cursor: "pointer",
-                }}
-              >
-                <X size={16} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveWidget(0)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderRadius: 8,
+                    background: "rgba(168, 85, 247, 0.2)",
+                    border: "1px solid rgba(192, 132, 252, 0.4)",
+                    color: "#c084fc",
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                  title="Change or add clinical symptoms"
+                >
+                  <ArrowLeft size={13} /> Change Symptoms
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveWidget(null)}
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    color: "#94a3b8",
+                    display: "grid",
+                    placeItems: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Sub-Tabs */}

@@ -220,6 +220,19 @@ export default function DoctorsScreen() {
             </View>
           </Card>
         )}
+        ListEmptyComponent={
+          !loading ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>🩺</Text>
+              <Text style={[styles.emptyTitle, { color: themeColors.textPrimary }]}>
+                No Registered Doctors Found
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: themeColors.textSecondary }]}>
+                CallMedex only displays 100% verified clinicians. No licensed doctor is registered under this category yet.
+              </Text>
+            </View>
+          ) : null
+        }
       />
 
       {/* Slot Selection Modal */}
@@ -557,5 +570,27 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     marginTop: spacing.xs,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl * 1.5,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.sm,
+  },
+  emptyTitle: {
+    fontSize: typography.fontSize.subheading,
+    fontWeight: typography.fontWeight.bold,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: typography.fontSize.caption,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 280,
   },
 });

@@ -9,7 +9,7 @@ export {
   MapPin, Navigation, TestTube, Syringe, Stethoscope, HeartPulse,
   Wallet, IndianRupee, ClipboardList, CheckCircle2, XCircle, AlertTriangle,
   Clock, Power, Bell, User, Users, LogOut, Settings, Camera, QrCode,
-  Package, FlaskConical, FileText, Phone, ChevronRight, ChevronDown, X,
+  Package, FlaskConical, FileText, Phone, ChevronRight, ChevronLeft, ChevronDown, ArrowLeft, X,
   Search, Plus, Trash2, Pencil, Eye, Download, RefreshCw, Menu, Building2,
   Mail, GraduationCap, ScanLine, Boxes, CalendarDays, Truck, ShieldCheck,
   Ban, BarChart3, CircleDot, ArrowRight, Award, Droplets, Tag, TrendingDown,

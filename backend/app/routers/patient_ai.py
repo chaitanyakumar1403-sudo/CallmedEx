@@ -215,9 +215,10 @@ def _build_clinical_fallback(profile: PatientHealthProfileResponse, medications:
             "estimated_price": 899,
         })
 
-    # Doctors - 100% Genuine Registered CallMedex Practitioners
-    doctors: List[dict] = [
-        {
+    # Doctors - 100% Genuine Registered CallMedex Practitioners Only (No Fabricated Doctors)
+    doctors: List[dict] = []
+    if has_cardio or has_diabetic:
+        doctors.append({
             "id": "e713e870-4f61-411d-bfe1-1387f0f59c61",
             "doctor_id": "e713e870-4f61-411d-bfe1-1387f0f59c61",
             "doctor_name": "Dr. Latchireddi SA Naidu",
@@ -229,27 +230,10 @@ def _build_clinical_fallback(profile: PatientHealthProfileResponse, medications:
             "languages": ["English", "Telugu", "Hindi"],
             "hospital": "Visakha Multispeciality Clinics & Diagnostics",
             "rating": 4.98,
-            "reason": "Comprehensive clinical cardiovascular assessment, hypertension stabilization, glycemic surveillance, and personalized chronic care management.",
+            "reason": "Comprehensive clinical cardiovascular assessment, hypertension stabilization, glycemic surveillance, and personalized chronic disease management.",
             "consultation_mode": "video",
             "action_url": "/booking?type=consultation&doctor=e713e870-4f61-411d-bfe1-1387f0f59c61",
-        },
-        {
-            "id": "9ad25430-cef3-4df8-a617-1b1926823a9a",
-            "doctor_id": "9ad25430-cef3-4df8-a617-1b1926823a9a",
-            "doctor_name": "Dr. Kolasani Sudhakar",
-            "specialty": "Consultant Physiotherapist & Rehabilitation Specialist",
-            "title": "Consultant Physical Therapist",
-            "qualification": "MPT (Musculoskeletal), FOMT, DMS",
-            "experience": "14+ yrs clinical experience",
-            "fee": 500,
-            "languages": ["English", "Telugu"],
-            "hospital": "RECURE CLINIC & Visakha Multispeciality Network",
-            "rating": 4.95,
-            "reason": "Targeted musculoskeletal rehabilitation, postural biomechanics realignment, spinal decompression, and therapeutic movement therapy.",
-            "consultation_mode": "video",
-            "action_url": "/booking?type=consultation&doctor=9ad25430-cef3-4df8-a617-1b1926823a9a",
-        },
-    ]
+        })
 
     # Services
     services: List[dict] = [
@@ -615,30 +599,43 @@ async def get_patient_ai_recommendations(
             try:
                 from app.services.telemedicine import TelemedicineService
                 avail = await TelemedicineService.get_available_doctors()
+                doc_items = []
                 if avail:
-                    doc_items = []
+                    cond_str = " ".join([c.lower() for c in (health_profile.conditions or [])])
                     for d in avail:
-                        name = d.get("name", "Medical Specialist")
-                        doc_name = name if name.lower().startswith("dr") else f"Dr. {name}"
-                        doc_items.append({
-                            "id": d.get("doctor_id"),
-                            "doctor_id": d.get("doctor_id"),
-                            "doctor_name": doc_name,
-                            "specialty": d.get("specialization") or "Senior Consultant Clinical Cardio Physician & Diabetic Care",
-                            "title": "Senior Consultant Physician",
-                            "qualification": d.get("qualification") or "MBBS, PGDCCP (NI)",
-                            "experience": f"{d.get('experience_years', 24)}+ yrs clinical experience",
-                            "fee": d.get("consultation_fee") or 500,
-                            "languages": d.get("languages") or ["English", "Telugu"],
-                            "hospital": d.get("hospital_clinic_name") or "Visakha Multispeciality Clinics & Diagnostics",
-                            "rating": 4.98,
-                            "reason": (d.get("bio")[:150] + "...") if d.get("bio") else "Specialist clinical cardio-metabolic evaluation and personalized management.",
-                            "consultation_mode": "video",
-                            "action_url": f"/booking?type=consultation&doctor={d.get('doctor_id')}",
-                        })
-                    parsed["recommended_doctors"] = doc_items
+                        doc_spec = (d.get("specialization") or "").lower()
+                        # Strict concern matching: only include if the doctor's registered specialty matches the condition
+                        is_match = False
+                        if any(k in cond_str for k in ["heart", "cardio", "bp", "blood pressure", "chest", "hypertension"]):
+                            if any(k in doc_spec for k in ["cardio", "heart", "physician"]):
+                                is_match = True
+                        if any(k in cond_str for k in ["diabet", "sugar", "glucose"]):
+                            if any(k in doc_spec for k in ["diabet", "physician", "endocrine"]):
+                                is_match = True
+                        
+                        if is_match:
+                            name = d.get("name", "Medical Specialist")
+                            doc_name = name if name.lower().startswith("dr") else f"Dr. {name}"
+                            doc_items.append({
+                                "id": d.get("doctor_id"),
+                                "doctor_id": d.get("doctor_id"),
+                                "doctor_name": doc_name,
+                                "specialty": d.get("specialization") or "Senior Consultant Clinical Cardio Physician & Diabetic Care",
+                                "title": "Senior Consultant Physician",
+                                "qualification": d.get("qualification") or "MBBS, PGDCCP (NI)",
+                                "experience": f"{d.get('experience_years', 24)}+ yrs clinical experience",
+                                "fee": d.get("consultation_fee") or 500,
+                                "languages": d.get("languages") or ["English", "Telugu"],
+                                "hospital": d.get("hospital_clinic_name") or "Visakha Multispeciality Clinics & Diagnostics",
+                                "rating": 4.98,
+                                "reason": (d.get("bio")[:150] + "...") if d.get("bio") else "Specialist clinical cardio-metabolic evaluation and personalized management.",
+                                "consultation_mode": "video",
+                                "action_url": f"/booking?type=consultation&doctor={d.get('doctor_id')}",
+                            })
+                parsed["recommended_doctors"] = doc_items
             except Exception as e:
                 logger.warning(f"Could not attach real telemed doctors: {e}")
+                parsed["recommended_doctors"] = []
             return AIRecommendationsResponse(**parsed)
         except Exception as exc:
             logger.warning(
