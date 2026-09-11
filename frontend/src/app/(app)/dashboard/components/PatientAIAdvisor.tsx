@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import {
@@ -569,6 +570,33 @@ export default function PatientAIAdvisor() {
 
   // Active Main Widget Modal: 0 = Symptom Triage, 1 = Specialist Doctor Advisory, 2 = Diagnostics & Packages, 3 = Preventive Care & Pharmacy
   const [activeWidget, setActiveWidget] = useState<0 | 1 | 2 | 3 | null>(null);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock background body scroll when any modal is open
+  useEffect(() => {
+    if (activeWidget !== null && typeof document !== "undefined") {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [activeWidget]);
+
+  // Esc key listener to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && activeWidget !== null) {
+        setActiveWidget(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeWidget]);
 
   // Subtabs within modals
   const [modal1Tab, setModal1Tab] = useState<"vitals" | "doctors">("vitals");
@@ -1007,8 +1035,9 @@ Website: https://callmedex.com
   }, [conditionsInput]);
 
   return (
-    <div
-      id="health-advisor"
+    <>
+      <div
+        id="health-advisor"
       style={{
         background: "linear-gradient(135deg, rgba(2, 132, 199, 0.95) 0%, rgba(3, 105, 161, 0.92) 50%, rgba(14, 116, 144, 0.95) 100%)",
         border: "1.5px solid rgba(125, 211, 252, 0.5)",
@@ -1404,19 +1433,25 @@ Website: https://callmedex.com
           <strong style={{ color: "#cbd5e1" }}>Advisory Notice:</strong> All specialist doctor suggestions, diagnostic recommendations, and preventive wellness protocols are advisory features provided by CallMedex to assist your personal wellness journey. They do not constitute mandatory medical directives, prescriptions, or emergency clinical care.
         </span>
       </div>
+    </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          MODAL 0: CLINICAL SYMPTOM TRIAGE & SPECIALIST NAVIGATOR (WIDGET 0)
-         ══════════════════════════════════════════════════════════════════════ */}
-      {activeWidget === 0 && (
-        <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
-          <div
-            className="cm-glass-widget-modal"
-            style={{ maxWidth: 780, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
+    {/* ══════════════════════════════════════════════════════════════════════
+        PORTALED FULL-VIEWPORT CLINICAL WIDGETS & MODALS (DECOUPLED FROM CARD)
+       ══════════════════════════════════════════════════════════════════════ */}
+    {mounted && typeof document !== "undefined" && activeWidget !== null && createPortal(
+      <>
+        {/* ══════════════════════════════════════════════════════════════════════
+            MODAL 0: CLINICAL SYMPTOM TRIAGE & SPECIALIST NAVIGATOR (WIDGET 0)
+           ══════════════════════════════════════════════════════════════════════ */}
+        {activeWidget === 0 && (
+          <div className="cm-widget-overlay" onClick={() => setActiveWidget(null)}>
+            <div
+              className="cm-glass-widget-modal"
+              style={{ maxWidth: 840, maxHeight: "88vh", display: "flex", flexDirection: "column" }}
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
             {/* Header */}
             <div
               style={{
@@ -3105,6 +3140,9 @@ Website: https://callmedex.com
           </div>
         </div>
       )}
-    </div>
+      </>,
+      document.body
+    )}
+  </>
   );
 }
