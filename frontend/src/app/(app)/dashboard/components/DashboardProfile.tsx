@@ -274,104 +274,46 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
 
       {/* Practitioner Profile Photo Studio (CallMedex Style) */}
       {isPractitioner && (
-        <div
-          style={{
-            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%)",
-            border: "1.5px solid rgba(2, 132, 199, 0.22)",
-            borderRadius: "16px",
-            padding: "24px",
-            boxShadow: "0 4px 20px -2px rgba(2, 132, 199, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "24px",
-            alignItems: "center",
-          }}
-        >
+        <div className="cm-profile-studio">
           {/* Avatar Preview */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-            <div style={{ position: "relative", width: "116px", height: "116px" }}>
+          <div className="cm-profile-studio__avatar-col">
+            <div className="cm-profile-studio__avatar-wrap">
               {profilePhoto ? (
                 <img
                   src={profilePhoto}
                   alt={formData.full_name || "Practitioner"}
-                  style={{
-                    width: "116px",
-                    height: "116px",
-                    borderRadius: "50%",
-                    objectFit: "cover",
-                    border: "3px solid #10b981",
-                    boxShadow: "0 4px 16px rgba(16, 185, 129, 0.35)",
-                  }}
+                  className="cm-profile-studio__avatar-img"
                 />
               ) : (
-                <div
-                  style={{
-                    width: "116px",
-                    height: "116px",
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #0f1d33 0%, #1a2b4a 100%)",
-                    border: "3px dashed rgba(2, 132, 199, 0.5)",
-                    display: "grid",
-                    placeItems: "center",
-                    color: "#38bdf8",
-                    fontSize: "2rem",
-                    fontWeight: 800,
-                    letterSpacing: "-0.02em",
-                  }}
-                >
+                <div className="cm-profile-studio__avatar-placeholder">
                   {initials}
                 </div>
               )}
               {profilePhoto && (
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "2px",
-                    right: "2px",
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "50%",
-                    background: "#10b981",
-                    border: "2px solid #ffffff",
-                    display: "grid",
-                    placeItems: "center",
-                    color: "#ffffff",
-                    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.2)",
-                  }}
-                  title="Photo Verified"
-                >
+                <div className="cm-profile-studio__verified-badge" title="Photo Verified">
                   <CheckCircle2 size={16} />
                 </div>
               )}
             </div>
 
             <span
-              style={{
-                fontSize: "0.72rem",
-                fontWeight: 700,
-                padding: "3px 10px",
-                borderRadius: "20px",
-                background: profilePhoto ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                color: profilePhoto ? "#059669" : "#d97706",
-                border: profilePhoto ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(245, 158, 11, 0.3)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
+              className={`cm-profile-studio__status ${
+                profilePhoto ? "cm-profile-studio__status--active" : "cm-profile-studio__status--pending"
+              }`}
             >
               ● {profilePhoto ? "PHOTO ACTIVE" : "PHOTO RECOMMENDED"}
             </span>
           </div>
 
           {/* Controls & Guidance */}
-          <div style={{ flex: 1, minWidth: "260px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-              <Sparkles size={16} style={{ color: "#0284c7" }} />
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f1d33" }}>
+          <div className="cm-profile-studio__body">
+            <div className="cm-profile-studio__header">
+              <Sparkles size={16} className="cm-profile-studio__icon" />
+              <h3 className="cm-profile-studio__title">
                 Practitioner Profile Photo &amp; Patient Trust Representation
               </h3>
             </div>
-            <p style={{ margin: "0 0 14px", fontSize: "0.84rem", color: "#475569", lineHeight: 1.5 }}>
+            <p className="cm-profile-studio__desc">
               Your verified photo replaces generic placeholder icons on the public <strong>Consultation Directory</strong>, <strong>Tariff Justification Modal</strong>, and <strong>Video Consultation Waiting Room</strong>. Photos must be under 4MB (JPEG, PNG, or WebP).
             </p>
 
@@ -381,7 +323,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               ref={fileInputRef}
               accept="image/jpeg,image/png,image/webp"
               onChange={handlePhotoFileChange}
-              style={{ display: "none" }}
+              className="cm-profile-studio__file-input"
             />
             <input
               type="file"
@@ -389,31 +331,16 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               accept="image/*"
               capture="user"
               onChange={handlePhotoFileChange}
-              style={{ display: "none" }}
+              className="cm-profile-studio__file-input"
             />
 
             {/* Buttons */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+            <div className="cm-profile-studio__actions">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={photoUploading}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  padding: "9px 16px",
-                  borderRadius: "9px",
-                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                  color: "#ffffff",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  border: "none",
-                  cursor: photoUploading ? "not-allowed" : "pointer",
-                  boxShadow: "0 2px 10px rgba(2, 132, 199, 0.3)",
-                  transition: "all 0.2s ease",
-                  opacity: photoUploading ? 0.7 : 1,
-                }}
+                className="cm-profile-studio__btn-primary"
               >
                 {photoUploading ? (
                   <RefreshCw size={15} className="animate-spin" />
@@ -427,21 +354,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={photoUploading}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "7px",
-                  padding: "9px 16px",
-                  borderRadius: "9px",
-                  background: "rgba(2, 132, 199, 0.08)",
-                  color: "#0369a1",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  border: "1.5px solid rgba(2, 132, 199, 0.25)",
-                  cursor: photoUploading ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease",
-                  opacity: photoUploading ? 0.7 : 1,
-                }}
+                className="cm-profile-studio__btn-secondary"
               >
                 <Camera size={15} />
                 <span>Take Live Photo</span>
@@ -452,19 +365,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                   type="button"
                   onClick={handleDeletePhoto}
                   disabled={photoUploading}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "9px 14px",
-                    borderRadius: "9px",
-                    background: "rgba(239, 68, 68, 0.08)",
-                    color: "#dc2626",
-                    fontSize: "0.82rem",
-                    fontWeight: 600,
-                    border: "1px solid rgba(239, 68, 68, 0.25)",
-                    cursor: photoUploading ? "not-allowed" : "pointer",
-                  }}
+                  className="cm-profile-studio__btn-danger"
                 >
                   <Trash2 size={14} />
                   <span>Remove</span>
@@ -474,39 +375,13 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
 
             {/* Success & Error alerts */}
             {photoSuccess && (
-              <div
-                style={{
-                  marginTop: "12px",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  background: "rgba(16, 185, 129, 0.12)",
-                  color: "#047857",
-                  fontSize: "0.82rem",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
+              <div className="cm-profile-studio__alert-success">
                 <CheckCircle2 size={15} />
                 <span>{photoSuccess}</span>
               </div>
             )}
             {photoError && (
-              <div
-                style={{
-                  marginTop: "12px",
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  background: "rgba(239, 68, 68, 0.12)",
-                  color: "#b91c1c",
-                  fontSize: "0.82rem",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
+              <div className="cm-profile-studio__alert-error">
                 <AlertCircle size={15} />
                 <span>{photoError}</span>
               </div>
