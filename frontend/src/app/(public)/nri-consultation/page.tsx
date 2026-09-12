@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { discoveryAPI } from '@/lib/api';
 import { useAuth } from '@/lib/useAuth';
 import DoctorPresentationModal from '@/app/components/DoctorPresentationModal';
+import NRISpecializationSelect from './components/NRISpecializationSelect';
 import {
   Globe,
   Video,
@@ -22,7 +23,8 @@ import {
   HelpCircle,
   Calendar,
   FileText,
-  AlertCircle
+  AlertCircle,
+  X,
 } from 'lucide-react';
 
 interface NRIDoctor {
@@ -193,6 +195,17 @@ function NRIConsultationContent() {
         d.license_body?.toLowerCase().includes(q)
     );
   }, [doctors, searchQuery]);
+
+  const specialtyDoctorCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    doctors.forEach((d) => {
+      const s = d.specialization;
+      if (s) {
+        counts[s] = (counts[s] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [doctors]);
 
   const handleBookVideo = (doc: NRIDoctor) => {
     if (!isAuthenticated) {
@@ -434,30 +447,13 @@ function NRIConsultationContent() {
               />
             </div>
 
-            <div style={{ minWidth: 200 }}>
-              <select
-                value={selectedSpec}
-                onChange={(e) => setSelectedSpec(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 14px',
-                  borderRadius: 10,
-                  border: '1px solid #cbd5e1',
-                  fontSize: '0.92rem',
-                  outline: 'none',
-                  background: '#f8fafc',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  color: '#334155',
-                }}
-              >
-                {SPECIALIZATIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s === 'All' ? 'All Specializations' : s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <NRISpecializationSelect
+              value={selectedSpec}
+              onChange={(spec) => setSelectedSpec(spec)}
+              options={SPECIALIZATIONS}
+              doctorCounts={specialtyDoctorCounts}
+              totalDoctors={doctors.length}
+            />
           </div>
 
           {/* Country Filter Pills */}
@@ -505,9 +501,46 @@ function NRIConsultationContent() {
             <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
               Available Overseas Specialists
             </h2>
-            <p style={{ fontSize: '0.86rem', color: '#64748b', margin: '4px 0 0' }}>
-              Showing {filteredDoctors.length} verified {selectedCountry !== 'All' ? `${selectedCountry} ` : ''}NRI doctor{filteredDoctors.length === 1 ? '' : 's'}
-            </p>
+            <div style={{ fontSize: '0.86rem', color: '#64748b', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>
+                Showing {filteredDoctors.length} verified {selectedCountry !== 'All' ? `${selectedCountry} ` : ''}{selectedSpec !== 'All' ? `${selectedSpec} ` : ''}NRI doctor{filteredDoctors.length === 1 ? '' : 's'}
+              </span>
+              {(selectedSpec !== 'All' || selectedCountry !== 'All' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSpec('All');
+                    setSelectedCountry('All');
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    background: '#f1f5f9',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 999,
+                    padding: '2px 9px',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    color: '#0284c7',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#e0f2fe';
+                    e.currentTarget.style.borderColor = '#0284c7';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#f1f5f9';
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                  }}
+                >
+                  <span>Reset filters</span>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
