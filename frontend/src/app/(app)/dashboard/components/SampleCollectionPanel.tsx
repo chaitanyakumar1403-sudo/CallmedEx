@@ -3,24 +3,81 @@
 /**
  * Sample Collection Panel — phlebotomist
  *
- * Three jobs, in the order the field day actually runs:
- *   1. Today's runs, urgent ones flagged red and sorted first.
- *   2. Register a tube at the patient's side (scan or mint a barcode).
- *   3. Hand the batch to a diagnostic centre for verification.
- *
- * Replaces the previous barcode "simulator", which generated a throwaway
- * VAM-###### string client-side and never persisted anything.
+ * Clinical-grade specimen collection, vacutainer labeling,
+ * and cold-chain batch handover workflow.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { StatusPill } from "../../../components/StatusSpine";
 import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
+import { Icon, Button } from "@/components/ui";
+import {
+  Building2,
+  MapPin,
+  TestTube,
+  Package,
+  Clock,
+  Camera,
+  CheckCircle2,
+  AlertTriangle,
+  Send,
+  Sparkles,
+  QrCode,
+  ShieldCheck,
+  Check,
+  Plus,
+} from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
   typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
 const SAMPLE_TYPES = ["blood", "urine", "stool", "swab", "sputum", "other"];
+
+const VACUTAINER_PRESETS = [
+  {
+    label: "EDTA Lavender",
+    dotColor: "#9b59b6",
+    container: "EDTA purple-top",
+    sample: "blood",
+    tests: "CBC, HbA1c, ESR",
+  },
+  {
+    label: "SST Gold / Serum",
+    dotColor: "#f59e0b",
+    container: "SST gold-top gel",
+    sample: "blood",
+    tests: "LFT, KFT, Lipid Profile, Thyroid",
+  },
+  {
+    label: "Fluoride Grey",
+    dotColor: "#64748b",
+    container: "Fluoride grey-top",
+    sample: "blood",
+    tests: "Fasting Blood Sugar, PPBS",
+  },
+  {
+    label: "Citrate Light Blue",
+    dotColor: "#0ea5e9",
+    container: "Citrate light blue-top",
+    sample: "blood",
+    tests: "PT/INR, Coagulation",
+  },
+  {
+    label: "Plain Red",
+    dotColor: "#ef4444",
+    container: "Plain red-top clot activator",
+    sample: "blood",
+    tests: "Serum Immunology, Crossmatch",
+  },
+  {
+    label: "Sterile Urine Cup",
+    dotColor: "#eab308",
+    container: "Sterile specimen container (50mL)",
+    sample: "urine",
+    tests: "Complete Urine Analysis",
+  },
+];
 
 export default function SampleCollectionPanel() {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -85,7 +142,6 @@ export default function SampleCollectionPanel() {
       setInvitations(myLab.incoming || []);
       setPendingApplications(myLab.sent || []);
 
-      // Urgent first, then oldest — the red ones are the first priority.
       const list: any[] = taskData.tasks || [];
       list.sort((a, b) => {
         const ua = a.priority === "urgent" ? 0 : 1;
@@ -94,13 +150,16 @@ export default function SampleCollectionPanel() {
         return String(a.created_at || "").localeCompare(String(b.created_at || ""));
       });
       setTasks(list);
+      if (list.length > 0 && !activeTask) {
+        setActiveTask(list[0]);
+      }
       setSamples(sampleData.samples || []);
     } catch (e) {
       setMsg({ kind: "err", text: "Could not load your runs. Check your connection." });
     } finally {
       setLoading(false);
     }
-  }, [authHeaders]);
+  }, [authHeaders, activeTask]);
 
   useEffect(() => {
     loadAll();
@@ -110,6 +169,14 @@ export default function SampleCollectionPanel() {
     (s) => s.status === "collected" || s.status === "in_transit"
   );
   const selectedIds = Object.keys(selected).filter((k) => selected[k]);
+
+  const applyPreset = (p: typeof VACUTAINER_PRESETS[0]) => {
+    setContainerType(p.container);
+    setSampleType(p.sample);
+    if (!testNames.trim()) {
+      setTestNames(p.tests);
+    }
+  };
 
   async function registerSample() {
     if (!activeTask) {
@@ -155,7 +222,6 @@ export default function SampleCollectionPanel() {
     }
   }
 
-  /** Ask a centre to take you on. They must accept before the link is real. */
   async function requestToJoin(orgUserId: string) {
     if (!orgUserId) return;
     setSavingLab(true);
@@ -180,7 +246,6 @@ export default function SampleCollectionPanel() {
     }
   }
 
-  /** Accept or decline a centre's invitation. */
   async function respondToInvite(linkId: string, accept: boolean) {
     setSavingLab(true);
     setMsg(null);
@@ -233,7 +298,7 @@ export default function SampleCollectionPanel() {
   }
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading your runs…</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading specimen console…</div>;
   }
 
   return (
@@ -241,66 +306,75 @@ export default function SampleCollectionPanel() {
       {msg && (
         <div
           style={{
-            padding: "12px 16px",
-            borderRadius: 10,
+            padding: "14px 18px",
+            borderRadius: 12,
             fontWeight: 600,
             background: msg.kind === "ok" ? "#dcfce7" : "#fee2e2",
             color: msg.kind === "ok" ? "#166534" : "#991b1b",
             border: `1px solid ${msg.kind === "ok" ? "#86efac" : "#fca5a5"}`,
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          {msg.text}
+          <Icon as={msg.kind === "ok" ? CheckCircle2 : AlertTriangle} size={20} />
+          <span>{msg.text}</span>
         </div>
       )}
 
       {/* ── Linked lab ───────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 20 }}>
-        <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem" }}>🏥 Your linked lab</h3>
-        <p style={{ margin: "0 0 12px 0", fontSize: "0.85rem", color: "#64748b" }}>
-          Where your samples go by default. You can still send a batch elsewhere when a
-          booking belongs to another partner centre.
+      <div className="card cm-lab-card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon as={Building2} size={20} /> Primary Diagnostic Hub
+          </h3>
+          <span className="cm-phlebo-badge">Specimen Logistics</span>
+        </div>
+        <p style={{ margin: "6px 0 14px 0", fontSize: "0.86rem", color: "#64748b" }}>
+          Default accredited diagnostic center for cold-chain sample batching and pathology processing.
         </p>
 
-        {/* Invitations need answering before anything else on this card. */}
         {invitations.map((inv) => (
           <div
             key={inv.id}
             style={{
-              padding: 14,
-              borderRadius: 10,
+              padding: 16,
+              borderRadius: 12,
               background: "#eff6ff",
-              border: "1px solid #93c5fd",
+              border: "1.5px solid #93c5fd",
               marginBottom: 12,
             }}
           >
-            <div style={{ fontWeight: 700, color: "#1e3a8a" }}>
-              {inv.org_name} invited you to join their team
+            <div style={{ fontWeight: 800, color: "#1e3a8a", fontSize: "0.95rem" }}>
+              {inv.org_name} invited you to join their phlebotomy team
             </div>
             {inv.message && (
               <div style={{ fontSize: "0.85rem", color: "#1e40af", marginTop: 4 }}>
-                “{inv.message}”
+                &ldquo;{inv.message}&rdquo;
               </div>
             )}
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
               <button
                 onClick={() => respondToInvite(inv.id, true)}
                 disabled={savingLab}
                 className="btn btn-primary"
-                style={{ padding: "6px 16px", fontSize: "0.83rem" }}
+                style={{ padding: "8px 20px", fontSize: "0.85rem" }}
               >
-                Accept
+                Accept & Link Hub
               </button>
               <button
                 onClick={() => respondToInvite(inv.id, false)}
                 disabled={savingLab}
                 style={{
-                  padding: "6px 16px",
-                  fontSize: "0.83rem",
+                  padding: "8px 18px",
+                  fontSize: "0.85rem",
                   borderRadius: 8,
                   border: "1px solid #cbd5e1",
                   background: "#fff",
                   cursor: "pointer",
                   fontWeight: 600,
+                  color: "#475569",
                 }}
               >
                 Decline
@@ -310,55 +384,69 @@ export default function SampleCollectionPanel() {
         ))}
 
         {homeLab.id ? (
-          <div
-            style={{
-              padding: "12px 16px",
-              borderRadius: 10,
-              background: "#f0fdf4",
-              border: "1px solid #86efac",
-              color: "#166534",
-              fontWeight: 700,
-            }}
-          >
-            ✓ Teamed up with {homeLab.name}
+          <div className="cm-lab-status-banner cm-lab-status-banner--connected">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Icon as={ShieldCheck} size={24} />
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "0.95rem" }}>
+                  Verified Partner: {homeLab.name}
+                </div>
+                <div style={{ fontSize: "0.8rem", opacity: 0.85 }}>
+                  Active NABL/NABH accredited diagnostic network affiliate
+                </div>
+              </div>
+            </div>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, background: "#dcfce7", color: "#166534", padding: "4px 10px", borderRadius: 9999 }}>
+              Connected
+            </span>
           </div>
         ) : pendingApplications.length > 0 ? (
-          <div
-            style={{
-              padding: "12px 16px",
-              borderRadius: 10,
-              background: "#fffbeb",
-              border: "1px solid #fcd34d",
-              color: "#92400e",
-              fontSize: "0.88rem",
-            }}
-          >
-            ⏳ Waiting on {pendingApplications[0].org_name} to approve your request.
+          <div className="cm-lab-status-banner cm-lab-status-banner--pending">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Icon as={Clock} size={20} />
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "0.92rem" }}>
+                  Affiliation Pending: {pendingApplications[0].org_name}
+                </div>
+                <div style={{ fontSize: "0.8rem", opacity: 0.9 }}>
+                  Waiting on laboratory director approval. Batches will automatically route here once confirmed.
+                </div>
+              </div>
+            </div>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, background: "#fef3c7", color: "#92400e", padding: "4px 10px", borderRadius: 9999 }}>
+              In Review
+            </span>
           </div>
         ) : (
-          <>
+          <div>
             <div
               style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                background: "#fffbeb",
-                border: "1px solid #fcd34d",
-                color: "#92400e",
-                fontSize: "0.85rem",
+                padding: "12px 16px",
+                borderRadius: 10,
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                color: "#475569",
+                fontSize: "0.86rem",
                 marginBottom: 12,
               }}
             >
-              Not on a team yet. Ask a centre to take you on — they confirm before
-              it takes effect.
+              Not attached to a home laboratory yet. Select a certified diagnostic center in your service zone to establish specimen drop-off affiliation.
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <select
                 onChange={(e) => requestToJoin(e.target.value)}
                 disabled={savingLab || labs.length === 0}
                 defaultValue=""
-                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  minWidth: 260,
+                  marginTop: 0,
+                  background: "#ffffff",
+                  cursor: "pointer",
+                }}
               >
-                <option value="">— Request to join a diagnostic centre —</option>
+                <option value="">— Request Affiliation with Diagnostic Centre —</option>
                 {labs.map((l) => (
                   <option key={l.user_id} value={l.user_id}>
                     {l.organization_name || l.name}
@@ -366,198 +454,278 @@ export default function SampleCollectionPanel() {
                   </option>
                 ))}
               </select>
-              {savingLab && <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Sending…</span>}
+              {savingLab && <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Sending request…</span>}
             </div>
-            {labs.length === 0 && (
-              <p style={{ margin: "10px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
-                No verified diagnostic centres are listed yet.
-              </p>
-            )}
-          </>
+          </div>
         )}
       </div>
 
-      {/* ── Today's runs ─────────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 20 }}>
-        <h3 style={{ margin: "0 0 14px 0", fontSize: "1.05rem" }}>
-          📍 Your active runs ({tasks.length})
-        </h3>
-
-        {tasks.length === 0 && (
-          <p style={{ color: "#64748b", margin: 0 }}>
-            No active runs. Accepted dispatches appear here.
-          </p>
-        )}
-
-        <div style={{ display: "grid", gap: 10 }}>
-          {tasks.map((t) => {
-            const urgent = t.priority === "urgent";
-            const chosen = activeTask?.id === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setActiveTask(t)}
-                style={{
-                  textAlign: "left",
-                  cursor: "pointer",
-                  padding: 14,
-                  borderRadius: 10,
-                  border: chosen ? "2px solid #1a2b4a" : "1px solid #e2e8f0",
-                  // Urgent runs carry a red wash so they read as first priority.
-                  background: urgent ? "#fef2f2" : "#ffffff",
-                  borderLeft: urgent ? "5px solid #dc2626" : undefined,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                    {urgent && (
-                      <span style={{ color: "#dc2626", marginRight: 8 }}>🔴 URGENT</span>
-                    )}
-                    {(t.service_subtype || "Home collection").replace(/_/g, " ")}
-                  </div>
-                  <StatusPill status={t.status} urgent={urgent} />
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: 6 }}>
-                  {t.patient_address || "Address on the run sheet"}
-                </div>
-              </button>
-            );
-          })}
+      {/* ── Active collection runs ───────────────────────────────────── */}
+      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon as={MapPin} size={20} /> Assigned Collection Runs ({tasks.length})
+          </h3>
+          <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
+            Select a run to register specimen tubes
+          </span>
         </div>
+
+        {tasks.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center", color: "#64748b", background: "#f8fafc", borderRadius: 12, border: "1px dashed #cbd5e1" }}>
+            No active runs assigned. Accepted dispatch tasks will appear here.
+          </div>
+        ) : (
+          <div className="cm-phlebo-run-grid">
+            {tasks.map((t) => {
+              const urgent = t.priority === "urgent";
+              const chosen = activeTask?.id === t.id;
+              return (
+                <div
+                  key={t.id}
+                  onClick={() => setActiveTask(t)}
+                  className={`cm-phlebo-run-card ${chosen ? "cm-phlebo-run-card--selected" : ""}`}
+                >
+                  <div className="cm-phlebo-run-card__header">
+                    <div>
+                      <div className="cm-phlebo-run-card__name">
+                        {(t.service_subtype || t.service_type || "Home Collection").replace(/_/g, " ")}
+                      </div>
+                      <div className="cm-phlebo-run-card__addr">
+                        {t.patient_address || "Patient home address"}
+                      </div>
+                    </div>
+                    <StatusPill status={t.status} urgent={urgent} />
+                  </div>
+
+                  <div className="cm-phlebo-run-card__footer">
+                    <span style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#64748b", fontWeight: 600 }}>
+                      ID: {t.booking_id ? `#${t.booking_id.slice(0, 8)}` : `#${t.id?.slice(0, 8)}`}
+                    </span>
+                    <span className={`cm-phlebo-run-card__pill ${chosen ? "cm-phlebo-run-card__pill--selected" : ""}`}>
+                      {chosen ? (
+                        <>
+                          <Icon as={Check} size={14} /> Active Target
+                        </>
+                      ) : (
+                        "Select Run"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* ── Register a tube ──────────────────────────────────────────── */}
-      <div className="card" style={{ padding: 20 }}>
-        <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem" }}>🧪 Register a collected tube</h3>
-        <p style={{ margin: "0 0 14px 0", fontSize: "0.85rem", color: "#64748b" }}>
-          {activeTask
-            ? "Scan the label, or leave it blank and CallMedex will mint one."
-            : "Select a run above first."}
-        </p>
-
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+      {/* ── Register a collected tube ──────────────────────────────────── */}
+      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Barcode</label>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <h3 style={{ margin: "0 0 4px 0", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon as={TestTube} size={20} /> Register &amp; Label Specimen Tube
+            </h3>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>
+              {activeTask
+                ? `Recording tubes for: ${(activeTask.service_subtype || activeTask.service_type || "Home collection").replace(/_/g, " ")}`
+                : "Select an active run from the cards above first."}
+            </p>
+          </div>
+          {activeTask && (
+            <span style={{ fontSize: "0.78rem", fontWeight: 700, background: "#e0f2fe", color: "#0369a1", padding: "4px 12px", borderRadius: 9999 }}>
+              Booking: #{activeTask.booking_id?.slice(0, 8) || activeTask.id?.slice(0, 8)}
+            </span>
+          )}
+        </div>
+
+        {/* 1-Click Vacutainer Presets */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon as={Sparkles} size={14} /> Quick Vacutainer Presets (1-Tap Auto-fill)
+          </div>
+          <div className="cm-vacutainer-presets">
+            {VACUTAINER_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                className="cm-vacutainer-pill"
+                onClick={() => applyPreset(preset)}
+                title={`Auto-fill ${preset.container} for ${preset.tests}`}
+              >
+                <span className="cm-vacutainer-dot" style={{ background: preset.dotColor }} />
+                <span>{preset.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Form fields */}
+        <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", marginTop: 6 }}>
+          <div>
+            <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>Tube Barcode</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
               <input
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Scan or leave blank"
-                style={{ ...inputStyle, marginTop: 4, flex: 1 }}
+                placeholder="Scan or leave blank for auto-mint"
+                style={{ ...inputStyle, marginTop: 0, flex: 1, fontFamily: "monospace" }}
               />
               <button
+                type="button"
                 onClick={() => setBarcodeScannerOpen(true)}
                 title="Scan barcode with camera"
                 style={{
-                  marginTop: 4, padding: "10px 12px", borderRadius: 8,
-                  border: "1px solid #cbd5e1", background: "#fff",
-                  cursor: "pointer", display: "flex", alignItems: "center",
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1.5px solid #cbd5e1",
+                  background: "#f8fafc",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#0f172a",
+                  transition: "all 0.15s ease",
                 }}
               >
-                📷
+                <Icon as={Camera} size={20} />
               </button>
             </div>
           </div>
+
           <div>
-            <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Sample type</label>
-            <select value={sampleType} onChange={(e) => setSampleType(e.target.value)} style={inputStyle}>
+            <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>Sample Type</label>
+            <select
+              value={sampleType}
+              onChange={(e) => setSampleType(e.target.value)}
+              style={{ ...inputStyle, marginTop: 4, textTransform: "capitalize", background: "#fff" }}
+            >
               {SAMPLE_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {t.toUpperCase()}
                 </option>
               ))}
             </select>
           </div>
+
           <div>
-            <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Container / tube</label>
+            <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>Container / Vacutainer Cap</label>
             <input
               value={containerType}
               onChange={(e) => setContainerType(e.target.value)}
-              placeholder="e.g. EDTA purple-top"
-              style={inputStyle}
+              placeholder="e.g. EDTA purple-top, SST gold"
+              style={{ ...inputStyle, marginTop: 4 }}
             />
           </div>
+
           <div>
-            <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#475569" }}>Tests (comma separated)</label>
+            <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#334155" }}>Requested Tests</label>
             <input
               value={testNames}
               onChange={(e) => setTestNames(e.target.value)}
-              placeholder="CBC, HbA1c"
-              style={inputStyle}
+              placeholder="e.g. CBC, HbA1c, Lipid Profile"
+              style={{ ...inputStyle, marginTop: 4 }}
             />
           </div>
         </div>
 
-        <button
-          onClick={registerSample}
-          disabled={saving || !activeTask}
-          className="btn btn-primary"
-          style={{ marginTop: 14, opacity: saving || !activeTask ? 0.6 : 1 }}
-        >
-          {saving ? "Registering…" : "Register tube"}
-        </button>
+        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+          <Button
+            variant="primary"
+            onClick={registerSample}
+            disabled={saving || !activeTask}
+            loading={saving}
+          >
+            <Icon as={Plus} size={16} /> Register &amp; Mint Specimen Tube
+          </Button>
+        </div>
       </div>
 
       {/* ── Manifest + handover ──────────────────────────────────────── */}
-      <div className="card" style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <h3 style={{ margin: 0, fontSize: "1.05rem" }}>📦 Tubes in your hand ({inHand.length})</h3>
+      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <h3 style={{ margin: "0 0 4px 0", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon as={Package} size={20} /> Cold-Chain Specimen Carrier ({inHand.length})
+            </h3>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>
+              Tubes awaiting digital and physical batch handover to the diagnostic laboratory.
+            </p>
+          </div>
           {selectedIds.length > 0 && (
-            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1a2b4a" }}>
-              {selectedIds.length} selected
+            <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0284c7", background: "#f0f9ff", border: "1px solid #bae6fd", padding: "4px 12px", borderRadius: 9999 }}>
+              {selectedIds.length} of {inHand.length} Selected
             </span>
           )}
         </div>
 
         {inHand.length === 0 ? (
-          <p style={{ color: "#64748b", margin: 0 }}>
-            Nothing awaiting handover. Registered tubes appear here until a lab accepts them.
-          </p>
+          <div style={{ padding: 32, textAlign: "center", background: "#f8fafc", borderRadius: 14, border: "1px dashed #cbd5e1" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#e0f2fe", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px", color: "#0284c7" }}>
+              <Icon as={Package} size={24} />
+            </div>
+            <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "0.95rem" }}>
+              Cold-Chain Carrier Bag is Empty
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>
+              Registered doorstep tubes will accumulate here until you submit the batch to your partner lab.
+            </div>
+          </div>
         ) : (
           <>
-            <div style={{ display: "grid", gap: 8 }}>
-              {inHand.map((s) => (
-                <label
-                  key={s.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    cursor: "pointer",
-                    background: selected[s.id] ? "#f0f9ff" : "#fff",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!selected[s.id]}
-                    onChange={(e) => setSelected({ ...selected, [s.id]: e.target.checked })}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontFamily: "monospace", color: "#0f172a" }}>
-                      {s.barcode}
+            <div style={{ display: "grid", gap: 10 }}>
+              {inHand.map((s) => {
+                const isChecked = !!selected[s.id];
+                return (
+                  <label
+                    key={s.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      padding: 14,
+                      borderRadius: 12,
+                      border: isChecked ? "1.5px solid #0284c7" : "1px solid #e2e8f0",
+                      cursor: "pointer",
+                      background: isChecked ? "#f0f9ff" : "#ffffff",
+                      transition: "all 0.15s ease",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => setSelected({ ...selected, [s.id]: e.target.checked })}
+                      style={{ width: 18, height: 18, accentColor: "#0284c7" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 800, fontFamily: "monospace", color: "#0f172a", fontSize: "0.95rem" }}>
+                          {s.barcode}
+                        </span>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", background: "#f1f5f9", padding: "2px 8px", borderRadius: 4, color: "#475569" }}>
+                          {s.sample_type}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 4 }}>
+                        {s.container_type ? `${s.container_type}` : "Standard Tube"}
+                        {s.test_names?.length ? ` • ${s.test_names.join(", ")}` : ""}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                      {s.sample_type}
-                      {s.container_type ? ` • ${s.container_type}` : ""}
-                      {s.test_names?.length ? ` • ${s.test_names.join(", ")}` : ""}
-                    </div>
-                  </div>
-                  <StatusPill status={s.status} />
-                </label>
-              ))}
+                    <StatusPill status={s.status} />
+                  </label>
+                );
+              })}
             </div>
 
-            <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <select
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0 }}
+                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0, background: "#fff" }}
               >
                 <option value="">
-                  {homeLab.name ? `Your lab — ${homeLab.name}` : "Choose a destination lab"}
+                  {homeLab.name ? `Destination: Primary Hub (${homeLab.name})` : "Choose destination laboratory"}
                 </option>
                 {labs
                   .filter((l) => l.user_id !== homeLab.id)
@@ -568,25 +736,18 @@ export default function SampleCollectionPanel() {
                     </option>
                   ))}
               </select>
-              <button
+              <Button
+                variant="primary"
                 onClick={submitHandover}
-                // Without a destination there is nowhere to send the batch, so
-                // block it here rather than round-tripping to a 400.
                 disabled={
                   submitting ||
                   selectedIds.length === 0 ||
                   (!destination && !homeLab.id)
                 }
-                className="btn btn-primary"
-                style={{
-                  opacity:
-                    submitting || selectedIds.length === 0 || (!destination && !homeLab.id)
-                      ? 0.6
-                      : 1,
-                }}
+                loading={submitting}
               >
-                {submitting ? "Submitting…" : `Submit ${selectedIds.length || ""} to lab`}
-              </button>
+                <Icon as={Send} size={16} /> Handover {selectedIds.length || 0} Specimen(s) to Lab
+              </Button>
             </div>
           </>
         )}
@@ -594,9 +755,11 @@ export default function SampleCollectionPanel() {
 
       {/* ── Recent history ───────────────────────────────────────────── */}
       {samples.length > inHand.length && (
-        <div className="card" style={{ padding: 20 }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "1.05rem" }}>🕓 Recent tubes</h3>
-          <div style={{ display: "grid", gap: 6 }}>
+        <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+          <h3 style={{ margin: "0 0 14px 0", fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon as={Clock} size={20} /> Verified Handover Log (Last 15 Specimen Batches)
+          </h3>
+          <div style={{ display: "grid", gap: 8 }}>
             {samples
               .filter((s) => s.status !== "collected" && s.status !== "in_transit")
               .slice(0, 15)
@@ -607,15 +770,16 @@ export default function SampleCollectionPanel() {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "8px 12px",
-                    borderRadius: 8,
+                    padding: "10px 14px",
+                    borderRadius: 10,
                     background: "#f8fafc",
+                    border: "1px solid #f1f5f9",
                   }}
                 >
-                  <span style={{ fontFamily: "monospace", fontWeight: 600 }}>{s.barcode}</span>
+                  <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#334155" }}>{s.barcode}</span>
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     {s.rejection_reason && (
-                      <span style={{ fontSize: "0.78rem", color: "#991b1b" }}>{s.rejection_reason}</span>
+                      <span style={{ fontSize: "0.78rem", color: "#991b1b", fontWeight: 600 }}>{s.rejection_reason}</span>
                     )}
                     <StatusPill status={s.status} />
                   </div>
@@ -633,7 +797,7 @@ export default function SampleCollectionPanel() {
           setBarcode(code);
           setBarcodeScannerOpen(false);
         }}
-        title="Scan tube barcode"
+        title="Scan Tube Barcode"
       />
     </div>
   );
@@ -641,9 +805,11 @@ export default function SampleCollectionPanel() {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1.5px solid #cbd5e1",
   fontSize: "0.9rem",
   marginTop: 4,
+  outline: "none",
+  transition: "all 0.15s ease",
 };

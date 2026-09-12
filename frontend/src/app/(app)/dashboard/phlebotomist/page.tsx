@@ -11,7 +11,11 @@ import AttendanceCard from "../components/AttendanceCard";
 import DoorstepScanPanel from "../components/DoorstepScanPanel";
 import { useRouter } from "next/navigation";
 import { Button, Icon } from "@/components/ui";
-import { MapPin, TestTube, Wallet, User, ScanLine, Package, CalendarDays } from "@/components/ui/icons";
+import {
+  MapPin, TestTube, Wallet, User, ScanLine, Package, CalendarDays,
+  Camera, Search, X, ShieldCheck, Check
+} from "@/components/ui/icons";
+import { BarcodeScannerModal } from "@/components/BarcodeScannerModal";
 
 import PhlebotomistToolsModal from "../../../components/PhlebotomistToolsModal";
 import PhleboSchedulePanel from "../components/PhleboSchedulePanel";
@@ -29,6 +33,7 @@ export default function PhlebotomistDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showToolsModal, setShowToolsModal] = useState(false);
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -136,6 +141,16 @@ export default function PhlebotomistDashboard() {
     >
       <PhlebotomistToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
+      <BarcodeScannerModal
+        open={barcodeScannerOpen}
+        onClose={() => setBarcodeScannerOpen(false)}
+        onScan={(code) => {
+          setCollectionBookingId(code);
+          setBarcodeScannerOpen(false);
+        }}
+        title="Scan Patient Barcode"
+      />
+
         <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
           {/* Mounted only while the tab is open: a hidden panel has zero width,
               so a WebGL context built here would size itself to nothing. */}
@@ -150,31 +165,85 @@ export default function PhlebotomistDashboard() {
 
         {activeTab === "collection" && (
           <div className="cm-stack">
+            {/* ── Console Header Card ───────────────────────────────── */}
+            <div className="cm-phlebo-console-header">
+              <div className="cm-phlebo-badge">
+                <Icon as={ShieldCheck} size={14} /> Specimen Verification Console
+              </div>
+              <h2 className="cm-phlebo-title">
+                <Icon as={ScanLine} size={24} /> Doorstep Specimen Verification
+              </h2>
+              <p className="cm-phlebo-desc">
+                Real-time vacutainer barcode scanning, cap color matching, chain-of-custody GPS locking, and doorstep add-on test ordering.
+              </p>
+
+              <div className="cm-phlebo-search-box">
+                <Icon as={Search} size={20} />
+                <input
+                  value={collectionBookingId}
+                  onChange={(e) => setCollectionBookingId(e.target.value)}
+                  placeholder="Enter Booking ID (UUID) or scan barcode..."
+                  className="cm-phlebo-search-input"
+                />
+                {collectionBookingId && (
+                  <button
+                    type="button"
+                    onClick={() => setCollectionBookingId("")}
+                    className="cm-phlebo-scan-btn"
+                  >
+                    <Icon as={X} size={14} /> Clear
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setBarcodeScannerOpen(true)}
+                  className="cm-phlebo-scan-btn"
+                >
+                  <Icon as={Camera} size={16} /> Scan Barcode
+                </button>
+              </div>
+            </div>
+
+            {/* ── Active Run Selector ───────────────────────────────── */}
             {activeTasks.length > 0 && (
-              <div className="card run-picker">
+              <div className="card cm-phlebo-card">
                 <div className="run-picker__title">
                   <Icon as={MapPin} size={16} /> Select Active Run for Doorstep Collection
                 </div>
-                <div className="run-picker__grid">
+                <div className="cm-phlebo-run-grid">
                   {activeTasks.map((t: any) => {
-                    const isSelected = collectionBookingId === t.booking_id;
+                    const isSelected = collectionBookingId === (t.booking_id || t.id);
                     return (
                       <button
                         key={t.id}
+                        type="button"
                         onClick={() => setCollectionBookingId(t.booking_id || t.id)}
-                        className={isSelected ? "run-picker__run run-picker__run--selected" : "run-picker__run"}
+                        className={`cm-phlebo-run-card ${isSelected ? "cm-phlebo-run-card--selected" : ""}`}
                       >
-                        <div>
-                          <div className="run-picker__run-name">
-                            {(t.service_subtype || t.service_type || "Home Collection").replace(/_/g, " ")}
-                          </div>
-                          <div className="run-picker__run-addr">
-                            {t.patient_address || "Patient address"}
+                        <div className="cm-phlebo-run-card__header">
+                          <div>
+                            <div className="cm-phlebo-run-card__name">
+                              {(t.service_subtype || t.service_type || "Home Collection").replace(/_/g, " ")}
+                            </div>
+                            <div className="cm-phlebo-run-card__addr">
+                              {t.patient_address || "Patient home address"}
+                            </div>
                           </div>
                         </div>
-                        <span className={isSelected ? "run-picker__pill run-picker__pill--selected" : "run-picker__pill"}>
-                          {isSelected ? "Selected" : "Select"}
-                        </span>
+                        <div className="cm-phlebo-run-card__footer">
+                          <span className="cm-phlebo-run-card__pill">
+                            ID: {t.booking_id ? t.booking_id.slice(0, 8) : t.id?.slice(0, 8)}
+                          </span>
+                          <span className={`cm-phlebo-run-card__pill ${isSelected ? "cm-phlebo-run-card__pill--selected" : ""}`}>
+                            {isSelected ? (
+                              <>
+                                <Icon as={Check} size={14} /> Active Target
+                              </>
+                            ) : (
+                              "Select for Draw"
+                            )}
+                          </span>
+                        </div>
                       </button>
                     );
                   })}
@@ -182,25 +251,51 @@ export default function PhlebotomistDashboard() {
               </div>
             )}
 
-            <div className="card run-picker">
-              <label className="run-picker__label">
-                Or search / scan Booking ID manually
-              </label>
-              <div className="run-picker__input-row">
-                <input
-                  value={collectionBookingId}
-                  onChange={(e) => setCollectionBookingId(e.target.value)}
-                  placeholder="Booking ID (UUID) or scan barcode…"
-                  className="run-picker__input"
-                />
-              </div>
-            </div>
-
+            {/* ── Panel or Idle Guidance ─────────────────────────────── */}
             {collectionBookingId.trim() ? (
               <DoorstepScanPanel bookingId={collectionBookingId.trim()} />
             ) : (
-              <div className="card run-picker__empty">
-                Select a run above or enter a Booking ID to validate tubes & add doorstep tests.
+              <div className="cm-phlebo-idle-card">
+                <div className="cm-phlebo-idle-icon-ring">
+                  <Icon as={ScanLine} size={24} />
+                </div>
+                <h3 className="cm-phlebo-idle-title">
+                  Ready for Doorstep Specimen Validation
+                </h3>
+                <p className="cm-phlebo-idle-desc">
+                  Scan the patient&apos;s tube barcode, enter a Booking ID in the search bar above, or pick an assigned run from Live Dispatch to begin specimen verification.
+                </p>
+                <div className="cm-phlebo-idle-actions">
+                  <Button variant="primary" onClick={() => setBarcodeScannerOpen(true)}>
+                    <Icon as={Camera} size={16} /> Scan with Camera
+                  </Button>
+                  <Button variant="secondary" onClick={() => setActiveTab("dispatch")}>
+                    <Icon as={MapPin} size={16} /> Open Live Dispatch
+                  </Button>
+                </div>
+                <div className="cm-phlebo-protocol-steps">
+                  <div className="cm-phlebo-step">
+                    <span className="cm-phlebo-step__num">1</span>
+                    <div className="cm-phlebo-step__text">
+                      <span className="cm-phlebo-step__title">Scan Tube Label</span>
+                      Point camera at the barcode sticker on the drawn vacutainer.
+                    </div>
+                  </div>
+                  <div className="cm-phlebo-step">
+                    <span className="cm-phlebo-step__num">2</span>
+                    <div className="cm-phlebo-step__text">
+                      <span className="cm-phlebo-step__title">Cap Color Match</span>
+                      System verifies cap color against requested clinical test panels.
+                    </div>
+                  </div>
+                  <div className="cm-phlebo-step">
+                    <span className="cm-phlebo-step__num">3</span>
+                    <div className="cm-phlebo-step__text">
+                      <span className="cm-phlebo-step__title">Chain of Custody</span>
+                      Digital lock records GPS coordinate &amp; timestamp for lab handover.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
