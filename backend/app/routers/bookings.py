@@ -90,13 +90,22 @@ def _record_booking_history(
     notes: str = "",
 ):
     """Record a status change to the booking_history table for audit."""
+    valid_changed_by = None
+    audit_notes = notes
+    if changed_by:
+        try:
+            uuid.UUID(str(changed_by))
+            valid_changed_by = str(changed_by)
+        except (ValueError, AttributeError):
+            audit_notes = f"[{changed_by}] {notes}".strip()
+
     record = {
         "id": str(uuid.uuid4()),
         "booking_id": booking_id,
         "old_status": old_status,
         "new_status": new_status,
-        "changed_by": changed_by,
-        "notes": notes,
+        "changed_by": valid_changed_by,
+        "notes": audit_notes,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if supabase:
@@ -1475,7 +1484,6 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
 
             supabase.table("bookings").update({
                 "status": "cancelled",
-                "cancellation_reason": reason,
                 "notes": notes,
                 "updated_at": now_iso,
             }).eq("id", b_id).execute()
@@ -1497,6 +1505,25 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
                 changed_by="system_auto_expire",
                 notes=reason
             )
+
+            # Send audit in-app notification to patient
+            p_id = b.get("patient_id")
+            if p_id:
+                try:
+                    svc = (b.get("service_type") or "appointment").replace("_", " ")
+                    supabase.table("notifications").insert({
+                        "id": str(uuid.uuid4()),
+                        "user_id": p_id,
+                        "channel": "in_app",
+                        "title": "Appointment concluded / expired",
+                        "body": f"Your {svc} scheduled for {slot_date or 'a past date'} was not conducted and has been closed.",
+                        "data": {"booking_id": b_id, "type": "booking_expired", "status": "cancelled"},
+                        "status": "sent",
+                        "created_at": now_iso,
+                    }).execute()
+                except Exception as n_err:
+                    logger.debug(f"Could not write expiry notification: {n_err}")
+
             expired_count += 1
             logger.info(f"Auto-expired stale booking {b_id} (date={slot_date}, old_status={status})")
 
@@ -1516,6 +1543,42 @@ async def trigger_auto_expire_stale_bookings(
         success=True,
         message=f"Auto-refuted {count} stale bookings.",
         data={"expired_count": count}
+    )
+
+
+@router.post("/dispatch-appointment-alerts", response_model=APIResponse)
+async def trigger_appointment_alerts(
+    target_date: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Trigger appointment alerts pass for today or specific date."""
+    from app.services.appointment_alerts import AppointmentAlertService
+    res = await AppointmentAlertService.run_appointment_alerts_pass(target_date_ist=target_date)
+    return APIResponse(
+        success=res.get("status") != "error",
+        message=f"Alerts dispatched. Sent count: {res.get('sent_count', 0)}",
+        data=res
+    )
+
+
+@router.post("/{booking_id}/notify-ready", response_model=APIResponse)
+async def notify_consultation_ready(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Notify the counterparty that the doctor or patient is waiting in the teleconsultation room."""
+    from app.services.appointment_alerts import AppointmentAlertService
+    res = await AppointmentAlertService.send_consultation_ready_ping(
+        booking_id=booking_id,
+        sender_user_id=current_user["sub"],
+        sender_role=current_user.get("role", "patient")
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Failed to dispatch ready notification"))
+    return APIResponse(
+        success=True,
+        message=res.get("message", "Ready notification sent successfully"),
+        data=res
     )
 
 
@@ -1540,6 +1603,14 @@ async def get_my_bookings(
     try:
         # Forensic Guard: Sweep and auto-expire past unattended bookings for this patient
         auto_expire_stale_bookings(user_id)
+
+        # Dispatch day-of appointment alerts for today's active appointments
+        try:
+            from app.services.appointment_alerts import AppointmentAlertService
+            import asyncio
+            asyncio.create_task(AppointmentAlertService.run_appointment_alerts_pass())
+        except Exception as alert_err:
+            logger.debug(f"Appointment alert pass deferred: {alert_err}")
 
         # Get total count first
         count_result = (
@@ -2134,6 +2205,14 @@ async def get_provider_today_bookings(
 
     if not supabase:
         raise HTTPException(status_code=503, detail="Database connection unavailable")
+
+    try:
+        auto_expire_stale_bookings()
+        from app.services.appointment_alerts import AppointmentAlertService
+        import asyncio
+        asyncio.create_task(AppointmentAlertService.run_appointment_alerts_pass())
+    except Exception as e:
+        logger.debug(f"Provider sweep notice: {e}")
 
     # slot_start is stored with an explicit +05:30 offset, so bound the day in
     # IST rather than UTC or the evening slots land on the wrong date.

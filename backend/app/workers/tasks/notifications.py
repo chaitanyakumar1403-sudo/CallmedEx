@@ -32,7 +32,7 @@ def _run_async(coro):
 @celery_app.task(name="app.workers.tasks.notifications.send_appointment_reminders", bind=True, max_retries=2)
 def send_appointment_reminders(self):
     """
-    Find bookings happening in the next 30-40 minutes and send reminders.
+    Find appointments happening today and send multi-channel alerts to patient and doctor.
     Runs every 10 minutes via Celery Beat.
     """
     if not supabase:
@@ -40,66 +40,11 @@ def send_appointment_reminders(self):
         return {"sent": 0}
 
     try:
-        now = datetime.now(timezone.utc)
-        reminder_window_start = (now + timedelta(minutes=25)).isoformat()
-        reminder_window_end = (now + timedelta(minutes=45)).isoformat()
-        today = now.date().isoformat()
-
-        # Find confirmed bookings in the window that haven't been reminded
-        result = (
-            supabase.table("bookings")
-            .select("id, patient_id, provider_id, slot_time, service_type, reminder_sent")
-            .eq("status", "confirmed")
-            .eq("booking_date", today)
-            .eq("reminder_sent", False)
-            .gte("slot_time", reminder_window_start[:5])  # HH:MM comparison
-            .lte("slot_time", reminder_window_end[:5])
-            .execute()
-        )
-
-        bookings = result.data or []
-        sent_count = 0
-
-        for booking in bookings:
-            try:
-                # Get patient info
-                patient_result = supabase.table("users").select("full_name, mobile").eq("id", booking["patient_id"]).execute()
-                if not patient_result.data:
-                    continue
-
-                patient = patient_result.data[0]
-                mobile = patient.get("mobile", "")
-                name = patient.get("full_name", "Patient")
-                slot = booking.get("slot_time", "")
-
-                if mobile:
-                    try:
-                        _run_async(mediassist_client.send_notification(
-                            channel="whatsapp",
-                            recipient={"phone": mobile, "patient_id": booking["patient_id"]},
-                            template="appointment_reminder",
-                            template_data={
-                                "patient_name": name,
-                                "service_name": booking.get("service_type", "appointment"),
-                                "scheduled_at": slot,
-                            },
-                        ))
-                    except MediAssistError as wa_err:
-                        logger.warning(f"MediAssist notification failed for booking {booking['id']}: {wa_err}")
-
-                # Mark as reminded
-                supabase.table("bookings").update({
-                    "reminder_sent": True,
-                    "reminder_sent_at": now.isoformat(),
-                }).eq("id", booking["id"]).execute()
-
-                sent_count += 1
-            except Exception as booking_err:
-                logger.error(f"Error processing reminder for booking {booking['id']}: {booking_err}")
-
-        logger.info(f"Appointment reminders sent: {sent_count}/{len(bookings)}")
-        return {"sent": sent_count, "total": len(bookings)}
-
+        from app.services.appointment_alerts import AppointmentAlertService
+        res = _run_async(AppointmentAlertService.run_appointment_alerts_pass())
+        sent_count = res.get("sent_count", 0)
+        logger.info(f"Appointment reminders dispatched: {sent_count}")
+        return {"sent": sent_count, "result": res}
     except Exception as e:
         logger.error(f"send_appointment_reminders failed: {e}")
         raise self.retry(exc=e, countdown=60)

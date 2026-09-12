@@ -33,6 +33,9 @@ class FakeSupabaseTable:
 
     def update(self, payload):
         self._action = "update"
+        # Schema guard: Ensure no non-existent columns like cancellation_reason are sent to bookings
+        if "cancellation_reason" in payload:
+            raise Exception("PGRST204: Could not find the 'cancellation_reason' column of 'bookings' in the schema cache")
         self._update_payload = payload
         return self
 
@@ -55,6 +58,7 @@ class FakeSupabaseClient:
         self.samples_data = samples_data or []
         self.dispatches_data = dispatches_data or []
         self.history_data = []
+        self.notifications_data = []
 
     def table(self, name):
         if name == "bookings":
@@ -65,6 +69,8 @@ class FakeSupabaseClient:
             return FakeSupabaseTable(self.dispatches_data)
         elif name == "booking_history":
             return FakeSupabaseTable(self.history_data)
+        elif name == "notifications":
+            return FakeSupabaseTable(self.notifications_data)
         return FakeSupabaseTable([])
 
 

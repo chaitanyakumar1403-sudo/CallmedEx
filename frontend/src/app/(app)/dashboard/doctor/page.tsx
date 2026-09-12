@@ -9,6 +9,7 @@ import DashboardShell from "../components/DashboardShell";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import DoctorClinicalAnalytics3D from "../components/DoctorClinicalAnalytics3D";
 import DoctorVerificationModal from "../components/DoctorVerificationModal";
+import DoctorAppointmentAlertWidget from "../components/DoctorAppointmentAlertWidget";
 import {
   Calendar,
   Clock,
@@ -547,6 +548,15 @@ export default function DoctorDashboard() {
           </button>
         </div>
       )}
+
+      {/* ─── Day-Of Appointment Alert Widget (Glassmorphic Alert for Doctor) ─── */}
+      <div style={{ marginBottom: "var(--cm-6)" }}>
+        <DoctorAppointmentAlertWidget
+          bookings={todayBookings}
+          onSelectForRx={(bookingId) => handleSelectPatientForRx(bookingId)}
+          onRefresh={() => fetchTodayBookings()}
+        />
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 1: LIVE PATIENT WAITING ROOM RADAR (GLASSMORPHIC WIDGET)

@@ -26,6 +26,7 @@ function VideoCallPageContent({ params }: { params: Promise<{ doctorId: string }
   const doctorName = searchParams.get('name') || 'Doctor';
   const specialization = searchParams.get('spec') || '';
   const fee = searchParams.get('fee') || '499';
+  const bookingId = searchParams.get('booking_id') || searchParams.get('bookingId') || undefined;
 
   const [phase, setPhase] = useState<CallPhase>('consent');
   const [consultationId, setConsultationId] = useState('');
@@ -48,7 +49,7 @@ function VideoCallPageContent({ params }: { params: Promise<{ doctorId: string }
     setError('');
 
     try {
-      const result = await telemedAPI.startConsultation(doctorId, true);
+      const result = await telemedAPI.startConsultation(doctorId, true, bookingId);
       setConsultationId(result.consultation_id);
       setRoomUrl(result.video_url);
       setRoomName(result.room_name);

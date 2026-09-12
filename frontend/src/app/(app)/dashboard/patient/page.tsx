@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { customConfirm } from "@/lib/customConfirm";
 import PatientNavSidebar from "../components/PatientNavSidebar";
@@ -10,6 +11,7 @@ import DashboardShell from "../components/DashboardShell";
 import { SampleTrackerModal } from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
 import FamilyMembersPanel from "../components/FamilyMembersPanel";
+import PatientAppointmentAlertWidget from "../components/PatientAppointmentAlertWidget";
 import { bookingsAPI, dispatchAPI, patientSamplesAPI } from "@/lib/api";
 import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { BiomarkerMatrix } from "../components/BiomarkerMatrix";
@@ -64,6 +66,7 @@ interface UserData {
 }
 
 export default function PatientDashboard() {
+  const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
   const [lang, setLangState] = useState<PatientLang>('en');
 
@@ -2184,6 +2187,9 @@ export default function PatientDashboard() {
           <FamilyMembersPanel />
         </div>
 
+        {/* Today's & Upcoming Appointment Glassmorphic Alert Widget */}
+        <PatientAppointmentAlertWidget bookings={bookings} onRefresh={refreshBookings} lang={lang} />
+
         {/* Recent Bookings */}
         <div id="recent-bookings">
           <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.bookings.title}</h3>
@@ -2191,7 +2197,12 @@ export default function PatientDashboard() {
           {loading ? (
             <div className="cm-booking-glass-card card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)", justifyContent: "center" }}>{t.bookings.loading}</div>
           ) : bookings?.length > 0 ? (
-            bookings.map((booking: any) => (
+            bookings.map((booking: any) => {
+              const isPastSlot = booking.slot_start && (new Date(booking.slot_start).getTime() < (Date.now() - 3600000));
+              const isAutoExpired = booking.status === "cancelled" && (booking.notes?.includes("Auto-Refuted") || booking.notes?.includes("Automatically cancelled"));
+              const isDoctorSvc = booking.service_type === "doctor_appointment" || booking.service_type === "video_consult" || booking.service_type === "consultation" || booking.provider_type === "doctor";
+
+              return (
               <div key={booking.id} className="cm-booking-glass-card card">
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div style={{
@@ -2215,27 +2226,31 @@ export default function PatientDashboard() {
                   <span style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
                     padding: "4px 12px", borderRadius: 999, fontWeight: 700, fontSize: "0.75rem",
-                    backgroundColor: booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-surface)"
+                    backgroundColor: isAutoExpired ? "rgba(100, 116, 139, 0.12)"
+                      : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-surface)"
                       : booking.status === "pending_review" ? "var(--cm-active-surface)"
                         : booking.status === "slot_allotted" ? "var(--cm-waiting-surface)"
                           : "var(--cm-done-surface)",
-                    color: booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent)"
+                    color: isAutoExpired ? "#475569"
+                      : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent)"
                       : booking.status === "pending_review" ? "var(--cm-active)"
                         : booking.status === "slot_allotted" ? "var(--cm-waiting)"
                           : "var(--cm-done)",
                     border: `1px solid ${
-                      booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-line)"
+                      isAutoExpired ? "rgba(100, 116, 139, 0.25)"
+                        : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-line)"
                         : booking.status === "pending_review" ? "var(--cm-active-line)"
                           : booking.status === "slot_allotted" ? "var(--cm-waiting-line)"
                             : "var(--cm-done-line)"
                     }`,
                   }}>
-                    {booking.status === "pending_review" ? <><Clock size={13} /> Pending Review</>
+                    {isAutoExpired ? <><XCircle size={13} /> Expired / Concluded</>
+                      : booking.status === "pending_review" ? <><Clock size={13} /> Pending Review</>
                       : booking.status === "slot_allotted" ? <><Bell size={13} /> Slot Allotted</>
                         : booking.status === "slot_rejected" ? <><XCircle size={13} /> Slot Declined</>
                           : <><CheckCircle2 size={13} /> {booking.status.replace('_', ' ')}</>}
                   </span>
-                  {booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
+                  {!isPastSlot && !isAutoExpired && booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
                     <button
                       type="button"
                       onClick={() => handleCancelBooking(booking.id, booking.status)}
@@ -2248,6 +2263,23 @@ export default function PatientDashboard() {
                     </button>
                   )}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    {isDoctorSvc && booking.status === "confirmed" && !isPastSlot && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const docName = booking.notes?.match(/Doctor:\s*([^·\n]+)/i)?.[1]?.trim() || "Doctor";
+                          router.push(`/consultation/${booking.provider_id || "doc"}?booking_id=${booking.id}&name=${encodeURIComponent(docName)}`);
+                        }}
+                        style={{
+                          padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1.5px solid rgba(2, 132, 199, 0.4)",
+                          backgroundColor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", fontWeight: 800,
+                          fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                          transition: "all 0.15s ease", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.12)"
+                        }}
+                      >
+                        <Video size={13} /> Join Consult
+                      </button>
+                    )}
                     {(booking.service_type === "lab_test" || booking.service_type === "home_collection") && (
                       <button
                         type="button"
@@ -2280,8 +2312,8 @@ export default function PatientDashboard() {
                   </div>
                 </div>
               </div>
-
-            ))
+              );
+            })
           ) : (
             <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>
               <p>{t.bookings.noBookings}</p>
