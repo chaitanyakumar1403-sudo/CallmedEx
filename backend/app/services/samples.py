@@ -221,6 +221,14 @@ class SampleService:
         destination in that model; report it.
         """
         profile = SampleService._phlebo_profile(phlebotomist_user_id)
+        if not profile or not profile.get("processing_center_id"):
+            try:
+                from app.services.dispatch_engine import UniversalDispatchEngine
+                UniversalDispatchEngine._ensure_processing_centre(phlebotomist_user_id)
+                profile = SampleService._phlebo_profile(phlebotomist_user_id)
+            except Exception as e:
+                logger.warning(f"Could not auto-bind centre in get_home_lab: {e}")
+
         lab_id = profile.get("home_lab_org_user_id")
         centre = SampleService._processing_centre(profile.get("processing_center_id"))
         return {

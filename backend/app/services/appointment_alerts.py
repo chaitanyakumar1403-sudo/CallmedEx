@@ -149,13 +149,22 @@ class AppointmentAlertService:
                 else:
                     display_doc_name = doctor_name
 
+                is_home_col = (b.get("booking_kind") == "home_collection") or (b.get("service_type") == "lab_test")
+
                 # 3. Dispatch Patient Alert (In-App & Push)
                 if patient_id:
-                    p_title = f"🗓️ Appointment Today: {display_doc_name} at {display_time}"
-                    p_body = (
-                        f"Your {service_title} with {display_doc_name} is scheduled for today at {display_time}. "
-                        f"Tap here to open your consultation room and join."
-                    )
+                    if is_home_col:
+                        p_title = f"🏠 Doorstep Sample Collection Today at {display_time}"
+                        p_body = (
+                            f"Your home sample collection is scheduled for today at {display_time}. "
+                            f"Our certified phlebotomist will arrive at your registered address. Please fast as instructed."
+                        )
+                    else:
+                        p_title = f"🗓️ Appointment Today: {display_doc_name} at {display_time}"
+                        p_body = (
+                            f"Your {service_title} with {display_doc_name} is scheduled for today at {display_time}. "
+                            f"Tap here to open your consultation room and join."
+                        )
                     try:
                         await NotificationEngine.send_multi(
                             user_id=patient_id,
@@ -168,19 +177,28 @@ class AppointmentAlertService:
                                 "provider_id": provider_id,
                                 "doctor_name": display_doc_name,
                                 "slot_time": slot_time,
-                                "action_url": f"/consultation/{provider_id}?booking_id={b_id}&name={doctor_name}"
+                                "action_url": "/dashboard/patient" if is_home_col else f"/consultation/{provider_id}?booking_id={b_id}&name={doctor_name}"
                             }
                         )
                     except Exception as p_notify_err:
                         logger.warning(f"Failed to alert patient for booking {b_id}: {p_notify_err}")
 
-                # 4. Dispatch Doctor Alert (In-App & Push)
+                # 4. Dispatch Provider / Phlebotomist / Doctor Alert (In-App & Push)
                 if doctor_user_id:
-                    d_title = f"🩺 Appointment Today: {patient_name} at {display_time}"
-                    d_body = (
-                        f"Clinical {service_title} scheduled with patient {patient_name} today at {display_time}. "
-                        f"Your exam room and e-Prescription cockpit are ready."
-                    )
+                    if is_home_col:
+                        d_title = f"🩸 Doorstep Collection Today: {patient_name} at {display_time}"
+                        d_body = (
+                            f"Home sample collection scheduled for {patient_name} today at {display_time}. "
+                            f"Check your advance collection schedule for sample requirements."
+                        )
+                        action_url = "/dashboard/phlebotomist"
+                    else:
+                        d_title = f"🩺 Appointment Today: {patient_name} at {display_time}"
+                        d_body = (
+                            f"Clinical {service_title} scheduled with patient {patient_name} today at {display_time}. "
+                            f"Your exam room and e-Prescription cockpit are ready."
+                        )
+                        action_url = f"/dashboard/doctor/consult/{b_id}"
                     try:
                         await NotificationEngine.send_multi(
                             user_id=doctor_user_id,
@@ -189,15 +207,15 @@ class AppointmentAlertService:
                             body=d_body,
                             data={
                                 "booking_id": b_id,
-                                "type": "doctor_appointment_alert",
+                                "type": "provider_appointment_alert",
                                 "patient_id": patient_id,
                                 "patient_name": patient_name,
                                 "slot_time": slot_time,
-                                "action_url": f"/dashboard/doctor/consult/{b_id}"
+                                "action_url": action_url,
                             }
                         )
                     except Exception as d_notify_err:
-                        logger.warning(f"Failed to alert doctor for booking {b_id}: {d_notify_err}")
+                        logger.warning(f"Failed to alert provider for booking {b_id}: {d_notify_err}")
 
                 # 5. Mark as reminded in bookings
                 try:

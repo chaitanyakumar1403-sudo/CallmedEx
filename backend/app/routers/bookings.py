@@ -1059,18 +1059,38 @@ async def create_booking(
                                             if p_row:
                                                 candidates.append(p_row[0])
 
+                                    # Check leave/unavailable status on scheduled_date
+                                    leave_users = set()
+                                    try:
+                                        roster_rows = _rows(
+                                            supabase.table("phlebotomist_roster")
+                                            .select("phlebotomist_user_id, status")
+                                            .eq("roster_date", scheduled_date)
+                                            .in_("status", ["unavailable", "leave"])
+                                            .execute()
+                                        )
+                                        leave_users = {r["phlebotomist_user_id"] for r in roster_rows if r.get("phlebotomist_user_id")}
+                                    except Exception:
+                                        pass
+
+                                    # Filter candidates not on leave
+                                    eligible_candidates = [c for c in candidates if c.get("user_id") not in leave_users]
+                                    if not eligible_candidates:
+                                        eligible_candidates = candidates
+
                                     chosen_phlebo = None
-                                    for c in candidates:
+                                    # Preference: full-time phlebotomists (eligible regardless of online/offline status)
+                                    for c in eligible_candidates:
                                         ptype = (c.get("phleb_type") or "full_time").lower()
                                         if ptype in ("full_time", "full-time", "ft"):
                                             chosen_phlebo = c
                                             break
-                                    if not chosen_phlebo and candidates:
-                                        chosen_phlebo = candidates[0]
+                                    if not chosen_phlebo and eligible_candidates:
+                                        chosen_phlebo = eligible_candidates[0]
 
                                     assigned_phlebo_id = chosen_phlebo["user_id"] if chosen_phlebo else None
                                     adv_req_id = str(uuid.uuid4())
-                                    supabase.table("dispatch_requests").insert({
+                                    dispatch_payload = {
                                         "id": adv_req_id,
                                         "booking_id": booking_id,
                                         "patient_id": current_user["sub"],
@@ -1085,10 +1105,21 @@ async def create_booking(
                                         "patient_lat": float(patient_lat) if patient_lat else 0.0,
                                         "patient_lng": float(patient_lng) if patient_lng else 0.0,
                                         "notes": f"Advance collection ({col_slot_time}): {', '.join((booking.selected_tests or [])[:3])}",
-                                        "processing_center_id": pc_id,
-                                    }).execute()
+                                    }
+                                    supabase.table("dispatch_requests").insert(dispatch_payload).execute()
+                                    logger.info(f"Created advance dispatch {adv_req_id} for booking {booking_id} assigned to phlebo {assigned_phlebo_id}")
 
                                     if assigned_phlebo_id:
+                                        # Update booking row to point to assigned phlebotomist
+                                        try:
+                                            supabase.table("bookings").update({
+                                                "provider_id": assigned_phlebo_id,
+                                                "provider_type": "phlebotomist",
+                                            }).eq("id", booking_id).execute()
+                                        except Exception as b_upd_err:
+                                            logger.warning(f"Failed to update booking provider_id: {b_upd_err}")
+
+                                        # Multi-channel notification to phlebotomist
                                         from app.services.notification_engine import NotificationEngine
                                         await NotificationEngine.send_multi(
                                             user_id=assigned_phlebo_id,
@@ -1105,6 +1136,17 @@ async def create_booking(
                                                 "slot_time": col_slot_time,
                                                 "address": patient_address or "",
                                             },
+                                        )
+
+                                        # Notification to patient
+                                        phlebo_user = _rows(supabase.table("users").select("full_name").eq("id", assigned_phlebo_id).limit(1).execute())
+                                        phlebo_name = phlebo_user[0].get("full_name") if phlebo_user else "CallMedex Phlebotomist"
+                                        await NotificationEngine.send_multi(
+                                            user_id=current_user["sub"],
+                                            channels=["in_app"],
+                                            title="Phlebotomist Assigned",
+                                            body=f"{phlebo_name} has been assigned for your home collection on {scheduled_date} at {col_slot_time}.",
+                                            data={"booking_id": booking_id, "phlebotomist_id": assigned_phlebo_id}
                                         )
                                 except Exception as adv_dispatch_err:
                                     logger.warning(f"Advance dispatch setup failed: {adv_dispatch_err}")

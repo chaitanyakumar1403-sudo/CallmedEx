@@ -99,26 +99,63 @@ async def my_jobs(
         raise HTTPException(status_code=403, detail="Phlebotomists only.")
     
     uid = user.get("sub")
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.now(IST)
+    today_str = now_ist.strftime("%Y-%m-%d")
+    tomorrow_str = (now_ist + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    target_date = None
+    if isinstance(date, str) and date.strip():
+        target_date = date.strip()
+    elif isinstance(timeframe, str) and timeframe.strip().lower() == "today":
+        target_date = today_str
+    elif isinstance(timeframe, str) and timeframe.strip().lower() == "tomorrow":
+        target_date = tomorrow_str
+
+    is_upcoming = isinstance(timeframe, str) and timeframe.strip().lower() == "upcoming"
+
+    # 1. Query dispatch_requests assigned to this phlebotomist
     query = (
         supabase.table("dispatch_requests").select("*")
         .eq("assigned_provider_id", uid)
         .not_.in_("status", ["cancelled", "declined"])
     )
-
-    now_utc = datetime.now(timezone.utc)
-    today_str = now_utc.strftime("%Y-%m-%d")
-    tomorrow_str = (now_utc + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    if date:
-        query = query.eq("scheduled_for", date)
-    elif timeframe == "today":
-        query = query.eq("scheduled_for", today_str)
-    elif timeframe == "tomorrow":
-        query = query.eq("scheduled_for", tomorrow_str)
-    elif timeframe == "upcoming":
+    if target_date:
+        query = query.eq("scheduled_for", target_date)
+    elif is_upcoming:
         query = query.gte("scheduled_for", today_str)
 
     raw_jobs = _rows(query.order("scheduled_for", desc=False).execute())
+    seen_booking_ids = {j.get("booking_id") for j in raw_jobs if j.get("booking_id")}
+
+    # 2. Also query bookings directly assigned to this phlebotomist
+    b_query = (
+        supabase.table("bookings").select("*")
+        .eq("provider_id", uid)
+        .eq("booking_kind", "home_collection")
+        .not_.in_("status", ["cancelled", "completed"])
+    )
+    if target_date:
+        b_query = b_query.eq("collection_date", target_date)
+    elif is_upcoming:
+        b_query = b_query.gte("collection_date", today_str)
+
+    direct_bookings = _rows(b_query.execute())
+    for db in direct_bookings:
+        if db["id"] not in seen_booking_ids:
+            seen_booking_ids.add(db["id"])
+            raw_jobs.append({
+                "id": f"dr-{db['id'][:8]}",
+                "booking_id": db["id"],
+                "patient_id": db.get("patient_id"),
+                "scheduled_for": db.get("collection_date") or target_date or today_str,
+                "status": "provider_accepted",
+                "priority": db.get("priority") or "normal",
+                "patient_address": (db.get("notes") or "").split("Collection address:")[-1].strip() if "Collection address:" in (db.get("notes") or "") else db.get("collection_city", ""),
+                "patient_lat": db.get("collection_lat"),
+                "patient_lng": db.get("collection_lng"),
+                "_is_direct_booking": True,
+            })
 
     enriched_jobs = []
     for job in raw_jobs:
@@ -137,36 +174,52 @@ async def my_jobs(
         pat_phone = ""
         if pat_id:
             try:
-                u_res = _rows(supabase.table("users").select("full_name, phone, address").eq("id", pat_id).limit(1).execute())
+                u_res = _rows(supabase.table("users").select("full_name, mobile, address").eq("id", pat_id).limit(1).execute())
                 if u_res:
                     pat_name = u_res[0].get("full_name") or pat_name
-                    pat_phone = u_res[0].get("phone") or ""
+                    pat_phone = u_res[0].get("mobile") or u_res[0].get("phone") or ""
             except Exception:
                 pass
 
         slot_str = b_data.get("slot_id") or ""
         slot_parts = slot_str.split("|")
-        slot_time = "07:00 AM"
+        slot_time = b_data.get("slot_time") or "06:00"
         if len(slot_parts) == 3 and ":" in slot_parts[2]:
             slot_time = slot_parts[2]
         elif b_data.get("slot_start") and "T" in b_data["slot_start"]:
             try:
-                slot_time = b_data["slot_start"].split("T")[1][:5]
+                # Convert UTC slot_start to IST time
+                dt = datetime.fromisoformat(b_data["slot_start"].replace("Z", "+00:00"))
+                dt_ist = dt.astimezone(IST)
+                slot_time = dt_ist.strftime("%H:%M")
             except Exception:
                 pass
 
-        addr = job.get("patient_address") or b_data.get("notes", "").split("Collection address:")[-1].strip() or b_data.get("collection_city") or "Patient address"
+        # Clean display time: e.g. "06:00 AM"
+        display_time = slot_time
+        try:
+            h, m = [int(p) for p in slot_time.split(":")[:2]]
+            ampm = "AM" if h < 12 else "PM"
+            h12 = h % 12 or 12
+            display_time = f"{h12:02d}:{m:02d} {ampm}"
+        except Exception:
+            pass
+
+        addr = job.get("patient_address") or (b_data.get("notes", "").split("Collection address:")[-1].strip() if "Collection address:" in b_data.get("notes", "") else "") or b_data.get("collection_city") or "Patient address"
         if addr.startswith("\n"):
             addr = addr.strip()
+
+        tests_list = b_data.get("selected_tests") or []
 
         enriched_jobs.append({
             **job,
             "patient_name": pat_name,
             "patient_phone": pat_phone,
             "patient_address": addr,
-            "scheduled_time": slot_time,
-            "slot_time": slot_time,
-            "selected_tests": b_data.get("selected_tests") or [],
+            "scheduled_time": display_time,
+            "slot_time": display_time,
+            "selected_tests": tests_list,
+            "tests": tests_list,
             "collection_date": job.get("scheduled_for") or b_data.get("collection_date") or today_str,
             "total_price": b_data.get("total_price") or 0,
             "dispatch_id": job.get("id"),
