@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut, LayoutDashboard, Home, Sparkles } from "lucide-react";
+import { Bell, CheckCircle2, Clock, MapPin, DollarSign, X, Menu, User as UserIcon, LogOut, LayoutDashboard, Home, Sparkles, Globe } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface UserData {
@@ -204,6 +204,21 @@ export default function SmartNavbar() {
                 >
                   <Sparkles size={13} style={{ color: "#38bdf8" }} />
                   <span>Home Services</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/nri-consultation"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    color: "inherit",
+                    textDecoration: "none",
+                  }}
+                >
+                  <Globe size={13} style={{ color: "#0284c7" }} />
+                  <span>NRI Consultation</span>
                 </Link>
               </li>
             </>
@@ -599,6 +614,25 @@ export default function SmartNavbar() {
                 >
                   <Sparkles size={16} style={{ color: "var(--cm-active)" }} />
                   Home Services Directory
+                </Link>
+                <Link
+                  href="/nri-consultation"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <Globe size={16} style={{ color: "#0284c7" }} />
+                  NRI Global Consultation
                 </Link>
               </>
             )}

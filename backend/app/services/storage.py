@@ -79,10 +79,18 @@ def validate_magic_bytes(file_bytes: bytes, claimed_ext: str) -> bool:
         return False
 
     ext = claimed_ext.lower().lstrip(".")
+    if ext == "jpeg":
+        ext = "jpg"
+
+    # WebP check: RIFF header at offset 0, WEBP tag at offset 8
+    if ext == "webp" and len(file_bytes) >= 12:
+        if file_bytes[:4] == b"RIFF" and file_bytes[8:12] == b"WEBP":
+            return True
 
     for signature, expected_ext in ALLOWED_SIGNATURES.items():
         if file_bytes[:len(signature)] == signature:
-            return f".{ext}" == expected_ext
+            expected = expected_ext.lstrip(".")
+            return ext == expected
 
     return False
 
@@ -126,6 +134,49 @@ class StorageService:
                     logger.error(f"Storage upload retry failed after bucket creation: {retry_err}")
                     return ""
             logger.error(f"Storage upload failed: {e}")
+            return ""
+
+    @staticmethod
+    def upload_profile_photo(user_id: str, file_bytes: bytes, ext: str) -> str:
+        """Upload a public profile photo to Supabase 'profile-photos' bucket.
+        Returns the permanent public URL, or '' on failure."""
+        bucket = "profile-photos"
+        if not supabase:
+            return ""
+
+        if not validate_magic_bytes(file_bytes, ext):
+            logger.warning(
+                f"Profile photo upload rejected: file magic bytes do not match '{ext}' for user {user_id}"
+            )
+            return ""
+
+        clean_ext = ext.lower().lstrip(".")
+        if clean_ext == "jpeg":
+            clean_ext = "jpg"
+        content_type = "image/jpeg" if clean_ext == "jpg" else f"image/{clean_ext}"
+
+        path = f"{user_id}/avatar_{uuid.uuid4().hex[:8]}.{clean_ext}"
+        try:
+            supabase.storage.from_(bucket).upload(
+                path, file_bytes,
+                {"contentType": content_type, "upsert": "true"},
+            )
+            return supabase.storage.from_(bucket).get_public_url(path)
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "bucket not found" in err_msg or "404" in err_msg:
+                logger.warning(f"Bucket '{bucket}' not found in Supabase Storage. Auto-creating as public...")
+                try:
+                    supabase.storage.create_bucket(bucket, options={"public": True})
+                    supabase.storage.from_(bucket).upload(
+                        path, file_bytes,
+                        {"contentType": content_type, "upsert": "true"},
+                    )
+                    return supabase.storage.from_(bucket).get_public_url(path)
+                except Exception as retry_err:
+                    logger.error(f"Profile photo storage upload retry failed: {retry_err}")
+                    return ""
+            logger.error(f"Profile photo upload failed: {e}")
             return ""
 
     @staticmethod

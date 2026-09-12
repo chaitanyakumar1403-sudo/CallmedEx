@@ -61,6 +61,7 @@ interface Doctor {
   hospital_clinic_name?: string;
   bio?: string;
   fee_justification?: string;
+  profile_photo_url?: string;
 }
 
 interface OrgCard {
@@ -217,6 +218,7 @@ function normalizeSearchDoctor(d: any): Doctor {
     hospital_clinic_name: d.hospital_clinic_name || d.location_name || '',
     bio: d.bio || '',
     fee_justification: d.fee_justification || '',
+    profile_photo_url: d.profile_photo_url || '',
   };
 }
 
@@ -813,6 +815,109 @@ function ConsultationContent() {
     );
   };
 
+  const DoctorAvatar = ({ doc }: { doc: Doctor }) => {
+    const initials = (doc.name || 'DR')
+      .replace(/^Dr\.\s*/i, '')
+      .split(' ')
+      .map((s) => s[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+
+    if (doc.profile_photo_url) {
+      return (
+        <div
+          style={{
+            position: 'relative',
+            width: 68,
+            height: 68,
+            flexShrink: 0,
+          }}
+        >
+          <img
+            src={doc.profile_photo_url}
+            alt={doc.name}
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: 20,
+              objectFit: 'cover',
+              border: '2.5px solid rgba(2, 132, 199, 0.35)',
+              boxShadow: '0 8px 20px -4px rgba(2, 132, 199, 0.25)',
+              background: '#f8fafc',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: -2,
+              right: -2,
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              background: doc.available ? '#10b981' : '#64748b',
+              border: '2.5px solid #ffffff',
+              display: 'grid',
+              placeItems: 'center',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+            }}
+            title={doc.available ? 'NMC Verified & Available' : 'Offline'}
+          >
+            <ShieldCheck size={12} color="#ffffff" />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        style={{
+          position: 'relative',
+          width: 68,
+          height: 68,
+          borderRadius: 20,
+          flexShrink: 0,
+          background: 'linear-gradient(145deg, #0f1d33 0%, #1a2b4a 60%, #0369a1 100%)',
+          border: '1.5px solid rgba(255, 255, 255, 0.9)',
+          boxShadow: '0 8px 20px -4px rgba(2, 132, 199, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.3)',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <span
+          style={{
+            color: '#ffffff',
+            fontWeight: 800,
+            fontSize: '1.25rem',
+            fontFamily: 'var(--font-display, Manrope)',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {initials}
+        </span>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -2,
+            right: -2,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: doc.available ? '#10b981' : '#64748b',
+            border: '2.5px solid #ffffff',
+            display: 'grid',
+            placeItems: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+          }}
+          title={doc.available ? 'NMC Verified & Available' : 'Offline'}
+        >
+          <ShieldCheck size={12} color="#ffffff" />
+        </div>
+      </div>
+    );
+  };
+
   const modeButton = (mode: ConsultMode, label: string, IconComp: any) => {
     const isActive = consultMode === mode;
     return (
@@ -822,7 +927,7 @@ function ConsultationContent() {
           flex: 1,
           padding: '12px 18px',
           borderRadius: 12,
-          border: isActive ? '1.5px solid rgba(255, 255, 255, 0.4)' : '1px solid transparent',
+          border: isActive ? '1.5px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
           cursor: 'pointer',
           fontWeight: 700,
           fontSize: '0.88rem',
@@ -833,7 +938,7 @@ function ConsultationContent() {
           background: isActive
             ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
             : 'transparent',
-          color: isActive ? '#ffffff' : 'var(--cm-navy, #0f172a)',
+          color: isActive ? '#ffffff' : '#cbd5e1',
           boxShadow: isActive
             ? '0 6px 18px -2px rgba(2, 132, 199, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.45)'
             : 'none',
@@ -841,41 +946,145 @@ function ConsultationContent() {
           whiteSpace: 'nowrap',
         }}
       >
-        <IconComp size={18} style={{ opacity: isActive ? 1 : 0.7 }} />
+        <IconComp size={18} style={{ opacity: isActive ? 1 : 0.75, color: isActive ? '#38bdf8' : '#94a3b8' }} />
         <span>{label}</span>
       </button>
     );
   };
 
   return (
-    <div className="section">
-      <div className="container">
-        <div className="section-title">
-          <h1>{meta.title}</h1>
-          <p>{meta.subtitle}</p>
-        </div>
+    <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #f8fafc 0%, #eef6fb 100%)", paddingBottom: 80 }}>
+      {/* ── Top Hero Header with Signature CallMedex Royal Blue Gradient ── */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #0369a1 50%, #0284c7 100%)",
+          color: "#fff",
+          padding: "56px 20px 64px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Ambient background glows */}
+        <div
+          style={{
+            position: "absolute",
+            top: -50,
+            right: -50,
+            width: 350,
+            height: 350,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -50,
+            left: -50,
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(2,132,199,0.2) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
 
-        {/* ── Mode Toggle (Glassmorphic CallMedex Design with all primary modalities) ── */}
-        <div style={{
-          display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28,
-          background: 'rgba(255, 255, 255, 0.75)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderRadius: 16,
-          padding: 8,
-          maxWidth: 960,
-          margin: '0 auto 28px',
-          border: '1.5px solid rgba(2, 132, 199, 0.22)',
-          boxShadow: '0 8px 32px -4px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95)',
-          flexWrap: 'wrap',
-        }}>
-          {modeButton('teleconsultation', 'Video Consultation', Video)}
-          {modeButton('walkin', 'Walk-in Visit', Stethoscope)}
-          {modeButton('home', 'Doctor Home Visit', Home)}
-          {modeButton('dental', 'Dental Clinics', Sparkles)}
-          {modeButton('physiotherapy', 'Physiotherapy', Activity)}
-          {modeButton('dietitian', 'Dietitian', Apple)}
+        <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 16px",
+              borderRadius: 999,
+              background: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: "#38bdf8",
+              marginBottom: 18,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+            }}
+          >
+            <Sparkles size={16} style={{ color: "#38bdf8" }} />
+            CALLMEDEX CLINICAL CONSULTATION NETWORK
+          </div>
+
+          <h1
+            style={{
+              fontSize: "clamp(2.1rem, 4.2vw, 3.1rem)",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              lineHeight: 1.16,
+              margin: "0 0 16px",
+              color: "#ffffff",
+              textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+            }}
+          >
+            {meta.title.includes(" ") ? (
+              <>
+                {meta.title.split(" ").slice(0, -1).join(" ")}{" "}
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #38bdf8 0%, #e0f2fe 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    display: "inline-block",
+                  }}
+                >
+                  {meta.title.split(" ").slice(-1).join(" ")}
+                </span>
+              </>
+            ) : (
+              meta.title
+            )}
+          </h1>
+
+          <p
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 450,
+              color: "rgba(240, 249, 255, 0.95)",
+              maxWidth: 780,
+              margin: "0 auto 30px",
+              lineHeight: 1.65,
+              textShadow: "0 1px 4px rgba(0,0,0,0.2)",
+            }}
+          >
+            {meta.subtitle}
+          </p>
+
+          {/* ── Mode Toggle (Embedded Floating Frosted Glass Controller) ── */}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              justifyContent: "center",
+              background: "rgba(15, 23, 42, 0.55)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              borderRadius: 18,
+              padding: 8,
+              maxWidth: 980,
+              margin: "0 auto",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
+              flexWrap: "wrap",
+            }}
+          >
+            {modeButton('teleconsultation', 'Video Consultation', Video)}
+            {modeButton('walkin', 'Walk-in Visit', Stethoscope)}
+            {modeButton('home', 'Doctor Home Visit', Home)}
+            {modeButton('dental', 'Dental Clinics', Sparkles)}
+            {modeButton('physiotherapy', 'Physiotherapy', Activity)}
+            {modeButton('dietitian', 'Dietitian', Apple)}
+          </div>
         </div>
+      </div>
+
+      <div className="container" style={{ maxWidth: 1200, margin: "36px auto 0", padding: "0 20px" }}>
 
         {consultMode === 'dental' && (
           <div style={{ marginTop: 24, marginBottom: 40 }}>
@@ -1186,7 +1395,7 @@ function ConsultationContent() {
                       transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
                     }}
                   >
-                    <ModeSymbol3D mode={consultMode} />
+                    <DoctorAvatar doc={doc} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>

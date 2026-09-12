@@ -268,22 +268,53 @@ export default function HomeServicesPage() {
               gap: 8,
               padding: "6px 16px",
               borderRadius: 999,
-              background: "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
               fontSize: "0.85rem",
               fontWeight: 700,
-              color: "#bae6fd",
-              marginBottom: 16,
+              color: "#38bdf8",
+              marginBottom: 18,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
             }}
           >
             <Sparkles size={16} style={{ color: "#38bdf8" }} />
             CALLMEDEX DOORSTEP HEALTHCARE NETWORK
           </div>
-          <h1 style={{ fontSize: "clamp(2rem, 4vw, 2.75rem)", fontWeight: 900, letterSpacing: "-0.02em", margin: "0 0 16px" }}>
-            Hospital-Grade Care Delivered to Your Home
+          <h1
+            style={{
+              fontSize: "clamp(2.1rem, 4.2vw, 3.1rem)",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              lineHeight: 1.16,
+              margin: "0 0 18px",
+              color: "#ffffff",
+              textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+            }}
+          >
+            Hospital-Grade Care{" "}
+            <span
+              style={{
+                background: "linear-gradient(135deg, #38bdf8 0%, #e0f2fe 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                display: "inline-block",
+              }}
+            >
+              Delivered to Your Home
+            </span>
           </h1>
-          <p style={{ fontSize: "1.1rem", color: "#e0f2fe", maxWidth: 760, margin: "0 auto 32px", lineHeight: 1.6 }}>
+          <p
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 450,
+              color: "rgba(240, 249, 255, 0.95)",
+              maxWidth: 780,
+              margin: "0 auto 32px",
+              lineHeight: 1.65,
+              textShadow: "0 1px 4px rgba(0,0,0,0.2)",
+            }}
+          >
             Eliminate hospital travel and long clinic wait-times. Verified doctors, registered clinical nurses, temperature-controlled blood sample collectors, and generic pharmaceuticals brought right to your door.
           </p>
 
@@ -299,39 +330,42 @@ export default function HomeServicesPage() {
           >
             <div
               style={{
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
                 borderRadius: 14,
-                padding: "12px 16px",
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
               }}
             >
               <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#38bdf8" }}>5:30 – 11:00 AM</div>
-              <div style={{ fontSize: "0.8rem", color: "#bae6fd" }}>Morning Phlebotomy Window</div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500 }}>Morning Phlebotomy Window</div>
             </div>
             <div
               style={{
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
                 borderRadius: 14,
-                padding: "12px 16px",
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
               }}
             >
               <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#38bdf8" }}>NMC & APNC</div>
-              <div style={{ fontSize: "0.8rem", color: "#bae6fd" }}>Verified Doctors & Nurses</div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500 }}>Verified Doctors & Nurses</div>
             </div>
             <div
               style={{
-                background: "rgba(255,255,255,0.08)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
                 borderRadius: 14,
-                padding: "12px 16px",
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
               }}
             >
               <div style={{ fontSize: "1.15rem", fontWeight: 800, color: "#38bdf8" }}>Doorstep Pharmacy</div>
-              <div style={{ fontSize: "0.8rem", color: "#bae6fd" }}>Licensed Generic & Branded Rx</div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500 }}>Licensed Generic & Branded Rx</div>
             </div>
           </div>
         </div>

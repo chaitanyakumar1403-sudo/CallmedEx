@@ -289,16 +289,42 @@ function DiagnosticsContent() {
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(180deg, #f8fafc 0%, #eef6fb 100%)", paddingBottom: 80 }}>
-      {/* ── Top Hero Header ── */}
+      {/* ── Top Hero Header with Signature CallMedex Royal Blue Gradient ── */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0f172a 0%, #0369a1 60%, #0284c7 100%)",
+          background: "linear-gradient(135deg, #0f172a 0%, #0369a1 50%, #0284c7 100%)",
           color: "#fff",
-          padding: "48px 20px 56px",
+          padding: "56px 20px 64px",
           position: "relative",
           overflow: "hidden",
         }}
       >
+        {/* Ambient background glows */}
+        <div
+          style={{
+            position: "absolute",
+            top: -50,
+            right: -50,
+            width: 350,
+            height: 350,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -50,
+            left: -50,
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(2,132,199,0.2) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
+
         <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}>
           <div
             style={{
@@ -307,35 +333,68 @@ function DiagnosticsContent() {
               gap: 8,
               padding: "6px 16px",
               borderRadius: 999,
-              background: "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(8px)",
-              border: "1px solid rgba(255,255,255,0.2)",
-              fontSize: "0.82rem",
+              background: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
+              fontSize: "0.85rem",
               fontWeight: 700,
-              color: "#bae6fd",
-              marginBottom: 14,
+              color: "#38bdf8",
+              marginBottom: 18,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
             }}
           >
-            <Sparkles size={15} style={{ color: "#38bdf8" }} />
-            CALLMEDEX DIAGNOSTICS & IMAGING NETWORK
+            <Sparkles size={16} style={{ color: "#38bdf8" }} />
+            CALLMEDEX DIAGNOSTICS &amp; IMAGING NETWORK
           </div>
-          <h1 style={{ fontSize: "clamp(1.9rem, 3.8vw, 2.6rem)", fontWeight: 900, letterSpacing: "-0.02em", margin: "0 0 12px" }}>
-            Book Diagnostics, Scans & Lab Tests
+
+          <h1
+            style={{
+              fontSize: "clamp(2.1rem, 4.2vw, 3.1rem)",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              lineHeight: 1.16,
+              margin: "0 0 16px",
+              color: "#ffffff",
+              textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+            }}
+          >
+            Book Diagnostics,{" "}
+            <span
+              style={{
+                background: "linear-gradient(135deg, #38bdf8 0%, #e0f2fe 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                display: "inline-block",
+              }}
+            >
+              Scans &amp; Lab Tests
+            </span>
           </h1>
-          <p style={{ fontSize: "1.05rem", color: "#e0f2fe", maxWidth: 740, margin: "0 auto 28px", lineHeight: 1.5 }}>
-            Choose convenient doorstep sample collection handled by the CallMedex Central Processing Lab, or book walk-in appointments at premier accredited diagnostic & imaging centers.
+
+          <p
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 450,
+              color: "rgba(240, 249, 255, 0.95)",
+              maxWidth: 780,
+              margin: "0 auto 30px",
+              lineHeight: 1.65,
+              textShadow: "0 1px 4px rgba(0,0,0,0.2)",
+            }}
+          >
+            Choose convenient doorstep sample collection handled by the CallMedex Central Processing Lab, or book walk-in appointments at premier accredited diagnostic &amp; imaging centers.
           </p>
 
           {/* Primary Bifurcation Tabs */}
           <div
             style={{
               display: "inline-flex",
-              background: "rgba(15, 23, 42, 0.45)",
-              backdropFilter: "blur(14px)",
+              background: "rgba(15, 23, 42, 0.55)",
+              backdropFilter: "blur(16px)",
               padding: 6,
               borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.2)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              border: "1px solid rgba(56, 189, 248, 0.3)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
               maxWidth: "100%",
             }}
           >

@@ -519,27 +519,34 @@ class TelemedicineService:
 
             fees = SupabaseFees.online_fees([d.get("user_id") for d in rows])
 
-            # Batch load presentation data (bio and fee justification) from documents
+            # Batch load presentation data (bio, fee justification, profile photo) from documents
             doc_user_ids = [d.get("user_id") for d in rows if d.get("user_id")]
             presentation_map: dict[str, dict[str, str]] = {}
+            photo_map: dict[str, str] = {}
             if doc_user_ids:
                 try:
                     pres_res = (
                         supabase.table("documents")
-                        .select("user_id, verification_notes")
+                        .select("user_id, document_type, file_url, verification_notes")
                         .in_("user_id", doc_user_ids)
-                        .eq("document_type", "provider_presentation")
+                        .in_("document_type", ["provider_presentation", "profile_photo"])
                         .execute()
                     )
                     for row in (pres_res.data or []):
-                        try:
-                            notes = json.loads(row.get("verification_notes") or "{}")
-                            presentation_map[row["user_id"]] = {
-                                "bio": notes.get("bio", ""),
-                                "fee_justification": notes.get("fee_justification", ""),
-                            }
-                        except Exception:
-                            pass
+                        uid = row.get("user_id")
+                        dtype = row.get("document_type")
+                        if dtype == "profile_photo" and row.get("file_url"):
+                            photo_map[uid] = row["file_url"]
+                        elif dtype == "provider_presentation":
+                            try:
+                                notes = json.loads(row.get("verification_notes") or "{}")
+                                presentation_map[uid] = {
+                                    "bio": notes.get("bio", ""),
+                                    "fee_justification": notes.get("fee_justification", ""),
+                                    "profile_photo_url": notes.get("profile_photo_url", ""),
+                                }
+                            except Exception:
+                                pass
                 except Exception as e:
                     logger.warning(f"Could not load provider presentations for telemed: {e}")
 
@@ -552,6 +559,7 @@ class TelemedicineService:
                     continue
                 user = d.get("users", {})
                 pres = presentation_map.get(uid, {})
+                photo_url = photo_map.get(uid) or pres.get("profile_photo_url") or ""
                 doctors.append({
                     "doctor_id": user.get("id"),
                     "name": user.get("full_name", "Unknown"),
@@ -562,6 +570,7 @@ class TelemedicineService:
                     "hospital_clinic_name": d.get("hospital_clinic_name", ""),
                     "bio": pres.get("bio") or d.get("bio") or "",
                     "fee_justification": pres.get("fee_justification") or d.get("fee_justification") or "",
+                    "profile_photo_url": photo_url,
                     "languages": d.get("languages_spoken", ["English"]),
                     "city": user.get("city", ""),
                     "district": user.get("district", ""),

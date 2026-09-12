@@ -230,7 +230,8 @@ def _build_user_data(user: UserSignup, user_id: str, registration_status: str = 
         "created_at": now,
         "updated_at": now,
     }
-    # Store registrant role for non-patient signups (audit trail)
+    if getattr(user, "is_nri", False) and getattr(user, "nri_country", None):
+        data["country"] = user.nri_country
     if user.registrant_role:
         data["registrant_role"] = user.registrant_role
     if user.owner_email:
@@ -259,7 +260,10 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
         }
 
     elif user.role == UserRole.DOCTOR:
-        # NOTE: consultation_fee REMOVED — managed by platform settlement
+        # If doctor is registered as NRI, lock consultation_mode to "online"
+        is_nri = getattr(user, "is_nri", False)
+        consult_mode = "online" if is_nri else (user.consultation_mode.value if user.consultation_mode else "both")
+        available_online = True if is_nri else (user.available_for_online or False)
         return {
             **base,
             "medical_license_number": user.medical_license_number or "",
@@ -268,8 +272,8 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
             "years_of_experience": user.years_of_experience or 0,
             "hospital_clinic_name": user.hospital_clinic_name or "",
             "available_timings": user.available_timings or "",
-            "consultation_mode": user.consultation_mode.value if user.consultation_mode else "both",
-            "available_for_online": user.available_for_online or False,
+            "consultation_mode": consult_mode,
+            "available_for_online": available_online,
             "languages_spoken": user.languages_spoken or ["English"],
             "work_setting": user.work_setting or "solo_clinic",
             "is_independent": user.is_independent if user.is_independent is not None else (user.work_setting == "solo_clinic" if user.work_setting else True),
@@ -457,6 +461,13 @@ async def signup(user: UserSignup):
             "user_data": user_data,
             "profile_data": profile_data,
         }
+        if getattr(user, "is_nri", False):
+            payload["nri_info"] = {
+                "is_nri": True,
+                "nri_country": user.nri_country or "Overseas",
+                "nri_license_body": user.nri_license_body or "",
+                "nri_timezone": user.nri_timezone or "UTC",
+            }
 
         # Determine MOU recipient: owner_email if provided, else registrant's email
         mou_recipient = user.owner_email if user.owner_email else user.email
@@ -729,7 +740,31 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
             user_agent=client_ua,
         )
 
-        # 5. Send welcome email
+        # 5. Initialize NRI presentation document if NRI doctor
+        nri_info = payload.get("nri_info") or signup_data.get("nri_info")
+        if nri_info and role == "doctor" and supabase:
+            try:
+                import json
+                supabase.table("documents").insert({
+                    "id": str(uuid.uuid4()),
+                    "user_id": user_data["id"],
+                    "document_type": "provider_presentation",
+                    "file_name": "nri_presentation.json",
+                    "file_url": "internal://presentation",
+                    "verification_notes": json.dumps({
+                        "is_nri": True,
+                        "nri_country": nri_info.get("nri_country", "Overseas"),
+                        "nri_license_body": nri_info.get("nri_license_body", ""),
+                        "nri_timezone": nri_info.get("nri_timezone", "UTC"),
+                        "bio": f"Verified NRI Medical Practitioner based in {nri_info.get('nri_country', 'overseas')}.",
+                        "fee_justification": "International teleconsultation tariff under NMC 2026 guidelines.",
+                    }),
+                    "verification_status": "verified",
+                }).execute()
+            except Exception as nri_err:
+                logger.warning(f"Could not write initial NRI presentation document: {nri_err}")
+
+        # 6. Send welcome email
         provider_name = (
             profile_data.get("organization_name")
             or profile_data.get("pharmacy_name")

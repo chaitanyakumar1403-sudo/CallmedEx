@@ -20,6 +20,7 @@ import {
   AlertCircle,
   ShieldCheck,
   Camera,
+  Globe,
 } from "lucide-react";
 import Clinical3DIcon, { Clinical3DIconName } from "@/components/ui/Clinical3DIcon";
 
@@ -305,6 +306,10 @@ export default function SignupPage() {
   const [registrantRole, setRegistrantRole] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [workSetting, setWorkSetting] = useState("solo_clinic"); // "solo_clinic" | "polyclinic" | "hospital"
+  const [isNriDoctor, setIsNriDoctor] = useState(false);
+  const [nriCountry, setNriCountry] = useState("USA");
+  const [nriTimezone, setNriTimezone] = useState("America/New_York (EST)");
+  const [nriLicenseBody, setNriLicenseBody] = useState("");
 
   // Provider certificate files state
   const [physioCertFile, setPhysioCertFile] = useState<File | null>(null);
@@ -445,7 +450,7 @@ export default function SignupPage() {
           state: locState,
           district: locDistrict,
           pincode: ((formData.get("pincode") as string) || "").trim(),
-          country: ((formData.get("country") as string) || "India").trim(),
+          country: isNriDoctor ? nriCountry : ((formData.get("country") as string) || "India").trim(),
         },
       };
 
@@ -458,24 +463,35 @@ export default function SignupPage() {
         body.preferred_language = formData.get("preferred_language") || "en";
       }
       if (role === "doctor") {
-        body.license_number = formData.get("license_number");
+        body.is_nri = isNriDoctor;
+        if (isNriDoctor) {
+          body.nri_country = nriCountry;
+          body.nri_timezone = nriTimezone;
+          body.nri_license_body = ((formData.get("nri_license_body") as string) || nriLicenseBody).trim();
+          body.consultation_mode = "online";
+          body.available_for_online = true;
+          body.practice_type = "overseas_telemedicine";
+        } else {
+          body.practice_type = workSetting;
+          body.consultation_mode = formData.get("consultation_mode") || "both";
+          body.available_for_online = formData.get("available_for_online") === "on";
+          if (workSetting === "solo_clinic") {
+              body.clinic_address = formData.get("clinic_address");
+              body.clinic_contact = formData.get("clinic_contact");
+          } else if (workSetting === "polyclinic") {
+              body.polyclinic_name = formData.get("polyclinic_name");
+              body.consultation_hours = formData.get("consultation_hours");
+          } else if (workSetting === "hospital") {
+              body.affiliated_hospital_name = formData.get("affiliated_hospital_name");
+              body.department = formData.get("department");
+              body.service_area = formData.get("service_area");
+          }
+        }
+        body.license_number = formData.get("license_number") || formData.get("medical_license_number");
         body.qualification = formData.get("qualification");
         body.specialization = formData.get("specialization");
         body.years_of_experience = Number(formData.get("years_of_experience")) || 0;
         body.hospital_clinic_name = formData.get("hospital_clinic_name");
-        body.practice_type = workSetting;
-        body.available_for_online = formData.get("available_for_online") === "on";
-        if (workSetting === "solo_clinic") {
-            body.clinic_address = formData.get("clinic_address");
-            body.clinic_contact = formData.get("clinic_contact");
-        } else if (workSetting === "polyclinic") {
-            body.polyclinic_name = formData.get("polyclinic_name");
-            body.consultation_hours = formData.get("consultation_hours");
-        } else if (workSetting === "hospital") {
-            body.affiliated_hospital_name = formData.get("affiliated_hospital_name");
-            body.department = formData.get("department");
-            body.service_area = formData.get("service_area");
-        }
       }
       if (role === "nurse") {
         body.nursing_license_number = formData.get("nursing_license_number");
@@ -912,7 +928,7 @@ export default function SignupPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Country</label>
-                <input name="country" className="form-input" defaultValue="India" readOnly />
+                <input name="country" className="form-input" value={isNriDoctor ? nriCountry : "India"} readOnly />
               </div>
             </div>
           </div>
@@ -966,44 +982,151 @@ export default function SignupPage() {
           {/* ─── Doctor Fields ─── */}
           {role === "doctor" && (
             <div className="card-section">
-              <h4>Professional & Practice Details</h4>
-              
-              <div className="form-group" style={{ marginBottom: 24 }}>
-                <label className="form-label" style={{ fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "block" }}>
-                  Primary Work Setting / Practice Type *
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+                <h4 style={{ margin: 0 }}>Professional &amp; Practice Details</h4>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: isNriDoctor ? "rgba(2, 132, 199, 0.12)" : "#f1f5f9",
+                    border: isNriDoctor ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isNriDoctor}
+                    onChange={(e) => setIsNriDoctor(e.target.checked)}
+                    style={{ accentColor: "#0284c7" }}
+                  />
+                  <Globe size={15} style={{ color: isNriDoctor ? "#0284c7" : "#64748b" }} />
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700, color: isNriDoctor ? "#0369a1" : "#475569" }}>
+                    Overseas / NRI Doctor
+                  </span>
                 </label>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-                  {[
-                    { id: "solo_clinic", Icon: Stethoscope, label: "Solo Clinic", desc: "Independent Practice" },
-                    { id: "polyclinic", Icon: Building2, label: "Polyclinic", desc: "Multi-Specialty Facility" },
-                    { id: "hospital", Icon: HeartHandshake, label: "Hospital", desc: "Hospital Affiliated OPD" },
-                  ].map((setting) => (
-                    <div
-                      key={setting.id}
-                      style={{
-                        padding: "14px 12px",
-                        borderRadius: 10,
-                        border: workSetting === setting.id ? "2px solid #0284c7" : "1px solid #cbd5e1",
-                        backgroundColor: workSetting === setting.id ? "#f0f9ff" : "white",
-                        cursor: "pointer",
-                        textAlign: "center",
-                        transition: "all 0.2s ease",
-                      }}
-                      onClick={() => setWorkSetting(setting.id)}
-                    >
-                      <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
-                        <setting.Icon size={24} color={workSetting === setting.id ? "#0284c7" : "#64748b"} />
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: "0.9rem", color: workSetting === setting.id ? "#0369a1" : "#334155" }}>
-                        {setting.label}
-                      </div>
-                      <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>{setting.desc}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
-              {workSetting !== "solo_clinic" && (
+              {isNriDoctor && (
+                <div
+                  style={{
+                    background: "linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)",
+                    border: "1.5px solid #93c5fd",
+                    borderRadius: 12,
+                    padding: "16px 18px",
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#0284c7", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Globe size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: "0.92rem", color: "#0f172a" }}>
+                        Overseas Medical Teleconsultation Registration
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                        You will be featured in the Global NRI Directory with online-only appointments.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Country of Practice *</label>
+                      <select
+                        name="nri_country"
+                        className="form-select"
+                        value={nriCountry}
+                        onChange={(e) => setNriCountry(e.target.value)}
+                      >
+                        <option value="USA">United States (USA)</option>
+                        <option value="UK">United Kingdom (UK)</option>
+                        <option value="UAE">United Arab Emirates (UAE)</option>
+                        <option value="Australia">Australia</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="Germany">Germany</option>
+                        <option value="Other">Other Overseas Country</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">Primary Timezone *</label>
+                      <select
+                        name="nri_timezone"
+                        className="form-select"
+                        value={nriTimezone}
+                        onChange={(e) => setNriTimezone(e.target.value)}
+                      >
+                        <option value="America/New_York (EST)">America/New_York (EST / EDT)</option>
+                        <option value="America/Chicago (CST)">America/Chicago (CST / CDT)</option>
+                        <option value="America/Los_Angeles (PST)">America/Los_Angeles (PST / PDT)</option>
+                        <option value="Europe/London (GMT/BST)">Europe/London (GMT / BST)</option>
+                        <option value="Asia/Dubai (GST)">Asia/Dubai (GST UTC+4)</option>
+                        <option value="Australia/Sydney (AEST)">Australia/Sydney (AEST)</option>
+                        <option value="Asia/Singapore (SGT)">Asia/Singapore (SGT UTC+8)</option>
+                        <option value="Europe/Berlin (CET)">Europe/Berlin (CET / CEST)</option>
+                        <option value="UTC">UTC Universal</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-group" style={{ marginTop: 10 }}>
+                    <label className="form-label">International Board / Licensing Body *</label>
+                    <input
+                      name="nri_license_body"
+                      className="form-input"
+                      placeholder="e.g. USMLE Board Certified (Internal Med), GMC Specialist Register, DHA Dubai"
+                      value={nriLicenseBody}
+                      onChange={(e) => setNriLicenseBody(e.target.value)}
+                      required={isNriDoctor}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {!isNriDoctor && (
+                <div className="form-group" style={{ marginBottom: 24 }}>
+                  <label className="form-label" style={{ fontWeight: 700, color: "#1e293b", marginBottom: 8, display: "block" }}>
+                    Primary Work Setting / Practice Type *
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+                    {[
+                      { id: "solo_clinic", Icon: Stethoscope, label: "Solo Clinic", desc: "Independent Practice" },
+                      { id: "polyclinic", Icon: Building2, label: "Polyclinic", desc: "Multi-Specialty Facility" },
+                      { id: "hospital", Icon: HeartHandshake, label: "Hospital", desc: "Hospital Affiliated OPD" },
+                    ].map((setting) => (
+                      <div
+                        key={setting.id}
+                        style={{
+                          padding: "14px 12px",
+                          borderRadius: 10,
+                          border: workSetting === setting.id ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                          backgroundColor: workSetting === setting.id ? "#f0f9ff" : "white",
+                          cursor: "pointer",
+                          textAlign: "center",
+                          transition: "all 0.2s ease",
+                        }}
+                        onClick={() => setWorkSetting(setting.id)}
+                      >
+                        <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+                          <setting.Icon size={24} color={workSetting === setting.id ? "#0284c7" : "#64748b"} />
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem", color: workSetting === setting.id ? "#0369a1" : "#334155" }}>
+                          {setting.label}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: 2 }}>{setting.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!isNriDoctor && workSetting !== "solo_clinic" && (
                 <div className="form-group" style={{ marginBottom: 20 }}>
                   <label className="form-checkbox" style={{ fontWeight: 600, padding: 12, border: '1px solid #e2e8f0', borderRadius: 8, backgroundColor: "#f8fafc" }}>
                     <input type="checkbox" checked={isIndependent} onChange={(e) => setIsIndependent(e.target.checked)} />
@@ -1081,7 +1204,12 @@ export default function SignupPage() {
                 </div>
               </div>
               
-              {workSetting === "solo_clinic" ? (
+              {isNriDoctor ? (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label className="form-label">Overseas Hospital / Medical Centre Affiliation (Optional)</label>
+                  <input name="hospital_clinic_name" className="form-input" placeholder="e.g. Cleveland Clinic, NHS Foundation Trust, Mayo Clinic, Mediclinic Dubai" />
+                </div>
+              ) : workSetting === "solo_clinic" ? (
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label">Solo Clinic Name *</label>
@@ -1099,23 +1227,36 @@ export default function SignupPage() {
                 </div>
               )}
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Consultation Mode</label>
-                  <select name="consultation_mode" className="form-select">
-                    <option value="both">In-Person & Online</option>
-                    <option value="in_person">In-Person Only</option>
-                    <option value="online">Online Only</option>
-                    <option value="home_visit">Home Visit Only</option>
-                  </select>
+              {isNriDoctor ? (
+                <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CheckCircle2 size={16} color="#16a34a" /> Practice Mode: Online Teleconsultation Only
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#15803d', marginTop: 3 }}>
+                    Overseas Indian medical specialists consult patients in India via secure CallmedEx video telemedicine.
+                  </div>
+                  <input type="hidden" name="consultation_mode" value="online" />
+                  <input type="hidden" name="available_for_online" value="on" />
                 </div>
-                <div className="form-group" style={{ display: "flex", alignItems: "flex-end" }}>
-                  <label className="form-checkbox">
-                    <input name="available_for_online" type="checkbox" defaultChecked />
-                    Available for Online Consultation
-                  </label>
+              ) : (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Consultation Mode</label>
+                    <select name="consultation_mode" className="form-select">
+                      <option value="both">In-Person & Online</option>
+                      <option value="in_person">In-Person Only</option>
+                      <option value="online">Online Only</option>
+                      <option value="home_visit">Home Visit Only</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ display: "flex", alignItems: "flex-end" }}>
+                    <label className="form-checkbox">
+                      <input name="available_for_online" type="checkbox" defaultChecked />
+                      Available for Online Consultation
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* CallMedex Provider Agreement Notice */}
               <div style={{

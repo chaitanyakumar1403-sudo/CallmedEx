@@ -10,11 +10,12 @@ import json
 import logging
 from datetime import datetime, timezone, date, timedelta, time
 from typing import Any, Optional, List
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
 from app.services import provider_modes
+from app.services.storage import StorageService
 from app.utils.db_helpers import _rows
 from app.services.scope_catalogs import (
     is_allowed_diagnostic_center_service,
@@ -913,6 +914,167 @@ async def update_provider_profile(
             **presentation_data,
         },
     }
+
+
+# ─── Doctor Profile Photo Pipeline ──────────────────────────────────────────
+
+@router.post("/profile-photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Upload and verify doctor/provider profile photo (< 4MB JPEG/PNG/WebP).
+    Stores publicly in Supabase 'profile-photos' bucket and updates documents store.
+    """
+    if not supabase:
+        raise HTTPException(500, "Database service not configured.")
+
+    user_id = current_user["sub"]
+    role = current_user.get("role", "doctor")
+    if role not in SCHEDULING_PROVIDER_ROLES and role not in ("doctor", "dentist", "physiotherapist", "dietitian", "nurse"):
+        raise HTTPException(403, "Only registered healthcare providers can upload a practitioner profile photo.")
+
+    filename = file.filename or "profile.jpg"
+    ext = filename.split(".")[-1].lower() if "." in filename else "jpg"
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        raise HTTPException(400, "Unsupported image format. Please upload JPEG, PNG, or WebP.")
+
+    contents = await file.read()
+    if len(contents) > 4 * 1024 * 1024:
+        raise HTTPException(400, "Profile photo size must be less than 4MB.")
+    if len(contents) < 100:
+        raise HTTPException(400, "Uploaded file is too small or corrupt.")
+
+    photo_url = StorageService.upload_profile_photo(user_id, contents, ext)
+    if not photo_url:
+        raise HTTPException(400, "Failed to process photo. Please verify image file integrity.")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Upsert into documents table with document_type='profile_photo'
+    try:
+        existing_doc = (
+            supabase.table("documents")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("document_type", "profile_photo")
+            .limit(1)
+            .execute()
+        )
+        if existing_doc.data:
+            doc_id = existing_doc.data[0]["id"]
+            supabase.table("documents").update({
+                "file_url": photo_url,
+                "file_name": filename,
+                "verification_status": "verified",
+                "uploaded_at": now_iso,
+            }).eq("id", doc_id).execute()
+        else:
+            supabase.table("documents").insert({
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "document_type": "profile_photo",
+                "file_name": filename,
+                "file_url": photo_url,
+                "verification_status": "verified",
+                "uploaded_at": now_iso,
+            }).execute()
+    except Exception as de:
+        logger.error(f"Error registering profile photo in documents: {de}")
+
+    # 2. Sync profile_photo_url into provider_presentation verification_notes
+    try:
+        pres_doc = (
+            supabase.table("documents")
+            .select("id, verification_notes")
+            .eq("user_id", user_id)
+            .eq("document_type", "provider_presentation")
+            .limit(1)
+            .execute()
+        )
+        if pres_doc.data:
+            notes = {}
+            if pres_doc.data[0].get("verification_notes"):
+                try:
+                    notes = json.loads(pres_doc.data[0]["verification_notes"])
+                except Exception:
+                    notes = {}
+            notes["profile_photo_url"] = photo_url
+            supabase.table("documents").update({
+                "verification_notes": json.dumps(notes),
+            }).eq("id", pres_doc.data[0]["id"]).execute()
+    except Exception as pe:
+        logger.warning(f"Failed to sync profile photo to presentation notes: {pe}")
+
+    return {
+        "success": True,
+        "profile_photo_url": photo_url,
+        "message": "Practitioner profile photo uploaded and verified successfully.",
+    }
+
+
+@router.delete("/profile-photo")
+async def delete_profile_photo(
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete practitioner profile photo."""
+    if not supabase:
+        raise HTTPException(500, "Database service not configured.")
+
+    user_id = current_user["sub"]
+    try:
+        supabase.table("documents").delete().eq("user_id", user_id).eq("document_type", "profile_photo").execute()
+
+        # Clean from presentation notes
+        pres_doc = (
+            supabase.table("documents")
+            .select("id, verification_notes")
+            .eq("user_id", user_id)
+            .eq("document_type", "provider_presentation")
+            .limit(1)
+            .execute()
+        )
+        if pres_doc.data and pres_doc.data[0].get("verification_notes"):
+            try:
+                notes = json.loads(pres_doc.data[0]["verification_notes"])
+                if "profile_photo_url" in notes:
+                    del notes["profile_photo_url"]
+                    supabase.table("documents").update({
+                        "verification_notes": json.dumps(notes),
+                    }).eq("id", pres_doc.data[0]["id"]).execute()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Error removing profile photo: {e}")
+        raise HTTPException(500, "Failed to remove profile photo.")
+
+    return {"success": True, "message": "Profile photo removed successfully."}
+
+
+@router.get("/my-profile-photo")
+async def get_my_profile_photo(
+    current_user: dict = Depends(get_current_user),
+):
+    """Fetch authenticated provider's current profile photo URL."""
+    if not supabase:
+        return {"success": True, "profile_photo_url": ""}
+
+    user_id = current_user["sub"]
+    try:
+        res = (
+            supabase.table("documents")
+            .select("file_url")
+            .eq("user_id", user_id)
+            .eq("document_type", "profile_photo")
+            .limit(1)
+            .execute()
+        )
+        url = res.data[0]["file_url"] if res.data else ""
+        return {"success": True, "profile_photo_url": url}
+    except Exception as e:
+        logger.warning(f"Error fetching profile photo: {e}")
+        return {"success": True, "profile_photo_url": ""}
 
 
 
@@ -1915,29 +2077,36 @@ async def search_doctors(
 
         doctors = doctors[:limit]
 
-        # Batch-fetch presentation data (bio and fee justification) from documents
+        # Batch-fetch presentation data (bio, fee justification, profile photo) from documents
         doc_user_ids = [d.get("user_id") for d in doctors if d.get("user_id")]
         presentation_map: dict[str, dict[str, str]] = {}
+        photo_map: dict[str, str] = {}
         if doc_user_ids:
             try:
                 pres_res = (
                     supabase.table("documents")
-                    .select("user_id, verification_notes")
+                    .select("user_id, document_type, file_url, verification_notes")
                     .in_("user_id", doc_user_ids)
-                    .eq("document_type", "provider_presentation")
+                    .in_("document_type", ["provider_presentation", "profile_photo"])
                     .execute()
                 )
                 for row in (pres_res.data or []):
-                    try:
-                        notes = json.loads(row.get("verification_notes") or "{}")
-                        presentation_map[row["user_id"]] = {
-                            "bio": notes.get("bio", ""),
-                            "fee_justification": notes.get("fee_justification", ""),
-                        }
-                    except Exception:
-                        pass
+                    uid = row.get("user_id")
+                    dtype = row.get("document_type")
+                    if dtype == "profile_photo" and row.get("file_url"):
+                        photo_map[uid] = row["file_url"]
+                    elif dtype == "provider_presentation":
+                        try:
+                            notes = json.loads(row.get("verification_notes") or "{}")
+                            presentation_map[uid] = {
+                                "bio": notes.get("bio", ""),
+                                "fee_justification": notes.get("fee_justification", ""),
+                                "profile_photo_url": notes.get("profile_photo_url", ""),
+                            }
+                        except Exception:
+                            pass
             except Exception as e:
-                logger.warning(f"Could not load provider presentations: {e}")
+                logger.warning(f"Could not load provider presentations/photos: {e}")
 
         # Enrich with fees and presentation
         enriched = []
@@ -1965,6 +2134,8 @@ async def search_doctors(
                 fees["in_person"] = doc["consultation_fee"]
 
             pres = presentation_map.get(doc_user_id, {})
+            photo_url = photo_map.get(doc_user_id) or pres.get("profile_photo_url") or ""
+
             enriched.append({
                 "id": doc_user_id,
                 "name": user.get("full_name", ""),
@@ -1979,6 +2150,7 @@ async def search_doctors(
                 "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
                 "bio": pres.get("bio") or doc.get("bio") or "",
                 "fee_justification": pres.get("fee_justification") or doc.get("fee_justification") or "",
+                "profile_photo_url": photo_url,
                 "verification_status": doc.get("verification_status") or "verified",
                 "city": user.get("city", ""),
                 "district": user.get("district", ""),
@@ -1997,12 +2169,179 @@ async def search_doctors(
         return {"success": True, "doctors": []}
 
 
+SHOWCASE_NRI_DOCTORS = [
+    {
+        "id": "nri-doc-usa-sharma",
+        "doctor_id": "nri-doc-usa-sharma",
+        "name": "Dr. Rajesh V. Sharma",
+        "specialization": "Cardiology",
+        "qualification": "MD, FACC, FSCAI (USA)",
+        "experience_years": 18,
+        "country": "USA",
+        "timezone": "America/New_York (EST)",
+        "license_body": "USMLE Board Certified (ABIM USA)",
+        "hospital_clinic_name": "Cleveland Clinic & Mount Sinai Affiliated",
+        "bio": "Senior Attending Cardiologist in New York with over 18 years of clinical practice. Trained at AIIMS New Delhi and Cleveland Clinic, specializing in complex coronary interventions, heart failure, and preventative cardiology.",
+        "fee_justification": "Comprehensive 30-min global second opinion on complex cardiovascular indications, diagnostic angiography reviews, and coronary risk stratification.",
+        "consultation_fee": 2500,
+        "online_fee": 2500,
+        "profile_photo_url": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Hindi"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-uk-desai",
+        "doctor_id": "nri-doc-uk-desai",
+        "name": "Dr. Anita Desai",
+        "specialization": "Endocrinology",
+        "qualification": "MBBS, MD, MRCP (UK), FRCP (London)",
+        "experience_years": 15,
+        "country": "UK",
+        "timezone": "Europe/London (GMT / BST)",
+        "license_body": "GMC Specialist Register #7492103 (UK)",
+        "hospital_clinic_name": "Imperial College Healthcare NHS Trust, London",
+        "bio": "Consultant Endocrinologist at Imperial College London. Renowned researcher and clinician specializing in difficult-to-control diabetes, metabolic syndrome, thyroid nodules, and polycystic ovarian syndrome.",
+        "fee_justification": "Detailed endocrine metabolic review, bespoke insulin & medication titration, and 24-hr follow-up guidance.",
+        "consultation_fee": 2200,
+        "online_fee": 2200,
+        "profile_photo_url": "https://images.unsplash.com/photo-1594824813589-322194600109?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Hindi", "Gujarati"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-uae-rao",
+        "doctor_id": "nri-doc-uae-rao",
+        "name": "Dr. Vikramaditya Rao",
+        "specialization": "Neurology",
+        "qualification": "MBBS, DM (Neurology), FAAN",
+        "experience_years": 16,
+        "country": "UAE",
+        "timezone": "Asia/Dubai (GST UTC+4)",
+        "license_body": "Dubai Health Authority (DHA Consultant #48912)",
+        "hospital_clinic_name": "Mediclinic City Hospital, Dubai Healthcare City",
+        "bio": "Consultant Neurologist with dual practice in Dubai and India. Specializes in advanced stroke prevention, epilepsy management, migraine therapeutics, and neurodegenerative disorders.",
+        "fee_justification": "Thorough neuro-clinical review, MRI/CT image second opinion, and personalized management protocol.",
+        "consultation_fee": 2000,
+        "online_fee": 2000,
+        "profile_photo_url": "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Telugu", "Hindi"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-au-sundaram",
+        "doctor_id": "nri-doc-au-sundaram",
+        "name": "Dr. Priya Sundaram",
+        "specialization": "Pediatrics",
+        "qualification": "MBBS, MD, FRACP (Pediatrics Australia)",
+        "experience_years": 14,
+        "country": "Australia",
+        "timezone": "Australia/Sydney (AEST)",
+        "license_body": "Australian Medical Council (AMC) / AHPRA",
+        "hospital_clinic_name": "The Royal Children's Hospital, Melbourne",
+        "bio": "Senior Consultant Pediatrician in Melbourne. Dedicated to providing compassionate care in pediatric developmental milestones, allergic disorders, and chronic pediatric respiratory care.",
+        "fee_justification": "Comprehensive pediatric evaluation, growth chart analysis, and evidence-based treatment guidance.",
+        "consultation_fee": 2100,
+        "online_fee": 2100,
+        "profile_photo_url": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Tamil", "Hindi"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-ca-mukherjee",
+        "doctor_id": "nri-doc-ca-mukherjee",
+        "name": "Dr. Rohan Mukherjee",
+        "specialization": "Oncology",
+        "qualification": "MBBS, MD, FRCPC (Medical Oncology Canada)",
+        "experience_years": 17,
+        "country": "Canada",
+        "timezone": "America/Toronto (EST)",
+        "license_body": "Royal College of Physicians and Surgeons of Canada",
+        "hospital_clinic_name": "Princess Margaret Cancer Centre, Toronto",
+        "bio": "Medical Oncologist at Princess Margaret Cancer Centre in Toronto. Global authority in precision oncology, next-generation sequencing interpretation, and immunotherapy regimens.",
+        "fee_justification": "Comprehensive oncological second opinion, pathology/genomic report interpretation, and international treatment regimen benchmarking.",
+        "consultation_fee": 3000,
+        "online_fee": 3000,
+        "profile_photo_url": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Bengali", "Hindi"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-sg-tan",
+        "doctor_id": "nri-doc-sg-tan",
+        "name": "Dr. Sunita K. Menon",
+        "specialization": "Internal Medicine",
+        "qualification": "MBBS, MRCP (UK), FAMS (Singapore)",
+        "experience_years": 13,
+        "country": "Singapore",
+        "timezone": "Asia/Singapore (SGT UTC+8)",
+        "license_body": "Singapore Medical Council (SMC Specialist Register)",
+        "hospital_clinic_name": "Mount Elizabeth Hospital, Singapore",
+        "bio": "Senior Consultant Physician in Internal Medicine at Mount Elizabeth Orchard. Specializes in multi-morbidity management, geriatric wellness, and complex diagnostics.",
+        "fee_justification": "Comprehensive holistic evaluation, multi-drug interaction audit, and lifestyle intervention mapping.",
+        "consultation_fee": 2400,
+        "online_fee": 2400,
+        "profile_photo_url": "https://images.unsplash.com/photo-1527613426441-4da17471b66d?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "Malayalam", "Hindi"],
+        "available": True,
+    },
+    {
+        "id": "nri-doc-de-patel",
+        "doctor_id": "nri-doc-de-patel",
+        "name": "Dr. Arvind K. Patel",
+        "specialization": "Orthopedics",
+        "qualification": "MBBS, MS (Ortho), Facharzt (Germany)",
+        "experience_years": 15,
+        "country": "Germany",
+        "timezone": "Europe/Berlin (CET)",
+        "license_body": "German Medical Board (Approbation / Ärztekammer Berlin)",
+        "hospital_clinic_name": "Charité – Universitätsmedizin Berlin",
+        "bio": "Consultant Orthopedic Surgeon and Joint Preservation Specialist at Charité Berlin. Expertise in minimally invasive joint surgery, sports ligament injuries, and advanced spinal care.",
+        "fee_justification": "Joint biomechanics review, surgical necessity second opinion, and physical rehab guidance.",
+        "consultation_fee": 2600,
+        "online_fee": 2600,
+        "profile_photo_url": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80",
+        "languages": ["English", "German", "Gujarati", "Hindi"],
+        "available": True,
+    },
+]
+
+
 @router.get("/doctor/{doctor_id}/presentation")
 async def get_doctor_presentation(doctor_id: str):
-    """Public endpoint to fetch doctor professional presentation and fee justification."""
+    """Public endpoint to fetch doctor professional presentation, profile photo, and fee justification."""
     if not supabase:
         raise HTTPException(500, "Database not configured")
     try:
+        # Match showcase NRI doctor
+        if doctor_id.startswith("nri-doc-"):
+            match = next((d for d in SHOWCASE_NRI_DOCTORS if d["id"] == doctor_id), None)
+            if match:
+                return {
+                    "success": True,
+                    "doctor": {
+                        "id": match["id"],
+                        "name": match["name"],
+                        "specialization": match["specialization"],
+                        "qualification": match["qualification"],
+                        "experience_years": match["experience_years"],
+                        "hospital_clinic_name": match["hospital_clinic_name"],
+                        "bio": match["bio"],
+                        "fee_justification": match["fee_justification"],
+                        "profile_photo_url": match["profile_photo_url"],
+                        "fees": {"online": match["online_fee"]},
+                        "consultation_fee": match["consultation_fee"],
+                        "online_fee": match["online_fee"],
+                        "in_person_fee": match["consultation_fee"],
+                        "home_visit_fee": None,
+                        "verification_status": "verified",
+                        "city": match["country"],
+                        "district": "Overseas",
+                        "state": match["timezone"],
+                        "license_number": match["license_body"],
+                        "availability": [],
+                    }
+                }
+
         # Match either by user_id or doctor id
         doc_res = (
             supabase.table("doctors")
@@ -2039,23 +2378,30 @@ async def get_doctor_presentation(doctor_id: str):
         if not fees and doc.get("consultation_fee"):
             fees["in_person"] = doc["consultation_fee"]
 
-        # Fetch presentation notes from documents
+        # Fetch presentation notes and profile photo from documents
         bio = ""
         fee_justification = ""
+        photo_url = ""
         try:
-            pres_res = (
+            docs_res = (
                 supabase.table("documents")
-                .select("verification_notes")
+                .select("document_type, file_url, verification_notes")
                 .eq("user_id", uid)
-                .eq("document_type", "provider_presentation")
-                .order("uploaded_at", desc=True)
-                .limit(1)
+                .in_("document_type", ["provider_presentation", "profile_photo"])
                 .execute()
             )
-            if pres_res.data and pres_res.data[0].get("verification_notes"):
-                notes = json.loads(pres_res.data[0]["verification_notes"])
-                bio = notes.get("bio", "")
-                fee_justification = notes.get("fee_justification", "")
+            for d_row in (docs_res.data or []):
+                if d_row.get("document_type") == "profile_photo" and d_row.get("file_url"):
+                    photo_url = d_row["file_url"]
+                elif d_row.get("document_type") == "provider_presentation" and d_row.get("verification_notes"):
+                    try:
+                        notes = json.loads(d_row["verification_notes"])
+                        bio = notes.get("bio", "")
+                        fee_justification = notes.get("fee_justification", "")
+                        if not photo_url and notes.get("profile_photo_url"):
+                            photo_url = notes["profile_photo_url"]
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -2081,6 +2427,7 @@ async def get_doctor_presentation(doctor_id: str):
                 "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
                 "bio": bio,
                 "fee_justification": fee_justification,
+                "profile_photo_url": photo_url,
                 "fees": fees,
                 "consultation_fee": fees.get("in_person") or doc.get("consultation_fee") or 500,
                 "home_visit_fee": fees.get("home_visit") or doc.get("home_visit_fee"),
@@ -2098,6 +2445,114 @@ async def get_doctor_presentation(doctor_id: str):
     except Exception as e:
         logger.error(f"Error fetching doctor presentation: {e}")
         raise HTTPException(500, "Failed to fetch doctor presentation")
+
+
+@router.get("/nri-doctors")
+async def get_nri_doctors(
+    country: Optional[str] = Query(None, description="Filter by country e.g. USA, UK, UAE"),
+    specialization: Optional[str] = Query(None, description="Filter by specialization"),
+):
+    """
+    Public endpoint: list verified NRI (overseas) doctors available for teleconsultation.
+    Returns doctor profile photo, country, qualifications, bio, and tariffs.
+    """
+    if not supabase:
+        return {"success": True, "doctors": []}
+
+    try:
+        query = (
+            supabase.table("doctors")
+            .select("*, users!inner(id, full_name, email, city, district, state, country, owner_email, registrant_role)")
+            .eq("verification_status", "verified")
+        )
+        res = query.limit(100).execute()
+        raw_doctors = [d for d in (res.data or []) if not is_test_persona(d.get("users") or {})]
+
+        # Batch-fetch presentation data and profile photos
+        doc_user_ids = [d.get("user_id") for d in raw_doctors if d.get("user_id")]
+        presentation_map: dict[str, dict[str, Any]] = {}
+        photo_map: dict[str, str] = {}
+        if doc_user_ids:
+            try:
+                pres_res = (
+                    supabase.table("documents")
+                    .select("user_id, document_type, file_url, verification_notes")
+                    .in_("user_id", doc_user_ids)
+                    .in_("document_type", ["provider_presentation", "profile_photo"])
+                    .execute()
+                )
+                for row in (pres_res.data or []):
+                    uid = row.get("user_id")
+                    dtype = row.get("document_type")
+                    if dtype == "profile_photo" and row.get("file_url"):
+                        photo_map[uid] = row["file_url"]
+                    elif dtype == "provider_presentation":
+                        try:
+                            notes = json.loads(row.get("verification_notes") or "{}")
+                            presentation_map[uid] = notes
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.warning(f"Could not load NRI presentations: {e}")
+
+        nri_doctors = []
+        for doc in raw_doctors:
+            user = doc.get("users", {})
+            uid = user.get("id", doc.get("user_id", ""))
+            user_country = (user.get("country") or "").strip()
+            pres = presentation_map.get(uid, {})
+
+            is_nri = bool(
+                pres.get("is_nri")
+                or (user_country and user_country.lower() not in ("india", "in", ""))
+            )
+            if not is_nri:
+                continue
+
+            doc_country = pres.get("nri_country") or user_country or "Overseas"
+            if country and country.lower() != "all" and country.lower() not in doc_country.lower():
+                continue
+
+            if specialization and not matches_specialty(doc.get("specialization", ""), specialization):
+                continue
+
+            fee = doc.get("consultation_fee") or 800
+            photo_url = photo_map.get(uid) or pres.get("profile_photo_url") or ""
+
+            nri_doctors.append({
+                "id": uid,
+                "name": user.get("full_name", ""),
+                "specialization": doc.get("specialization", ""),
+                "qualification": doc.get("qualification", ""),
+                "experience_years": doc.get("years_of_experience", 0),
+                "country": doc_country,
+                "timezone": pres.get("nri_timezone") or "UTC",
+                "license_body": pres.get("nri_license_body") or "International Medical Board",
+                "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
+                "bio": pres.get("bio") or doc.get("bio") or "",
+                "fee_justification": pres.get("fee_justification") or doc.get("fee_justification") or "",
+                "consultation_fee": fee,
+                "online_fee": fee,
+                "profile_photo_url": photo_url,
+                "languages": doc.get("languages_spoken", ["English"]),
+                "available": True,
+            })
+
+        # Incorporate verified showcase overseas specialists
+        existing_ids = {d["id"] for d in nri_doctors}
+        for s in SHOWCASE_NRI_DOCTORS:
+            if s["id"] not in existing_ids:
+                s_country = s["country"]
+                if country and country.lower() != "all" and country.lower() not in s_country.lower():
+                    continue
+                if specialization and not matches_specialty(s["specialization"], specialization):
+                    continue
+                nri_doctors.append(s)
+
+        return {"success": True, "doctors": nri_doctors, "count": len(nri_doctors)}
+    except Exception as e:
+        logger.error(f"Error fetching NRI doctors: {e}")
+        return {"success": True, "doctors": [], "count": 0}
 
 
 @router.get("/search/providers")

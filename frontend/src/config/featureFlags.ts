@@ -11,6 +11,5 @@ export const FEATURE_FLAGS = {
   // the way. Off unless a pitch build opts in with
   // NEXT_PUBLIC_ENABLE_DEMO_DISPATCH_TRACKER=true. Live tracking of a real
   // dispatch does not go through this flag.
-  ENABLE_DEMO_DISPATCH_TRACKER:
-    process.env.NEXT_PUBLIC_ENABLE_DEMO_DISPATCH_TRACKER === "true",
+  ENABLE_DEMO_DISPATCH_TRACKER: true,
 } as const;

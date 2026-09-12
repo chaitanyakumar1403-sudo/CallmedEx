@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Icon, Panel, Pill } from "@/components/ui";
 import {
   Building2, Clock, FileText, FlaskConical, GraduationCap, Mail,
   MapPin, Package, Phone, Stethoscope, Syringe, User, Pencil, Check,
   X, ShieldCheck, Sparkles, AlertCircle, CheckCircle2, Award, Lock, Download
 } from "@/components/ui/icons";
+import { Camera, Upload, Trash2, RefreshCw } from "lucide-react";
 import type { LucideIcon } from "@/components/ui/icons";
 
 interface DashboardProfileProps {
@@ -23,6 +24,31 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  // Profile Photo Studio state
+  const [profilePhoto, setProfilePhoto] = useState<string>(
+    profile?.profile_photo_url || ""
+  );
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (["doctor", "dentist", "physiotherapist", "dietitian", "nurse"].includes(role)) {
+      fetch(`${apiBase}/api/providers/my-profile-photo`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.profile_photo_url) {
+            setProfilePhoto(data.profile_photo_url);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [role]);
 
   // Edit form state
   const [formData, setFormData] = useState({
@@ -119,6 +145,99 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
     }
   };
 
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handlePhotoUpload(file);
+    e.target.value = "";
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!file) return;
+    setPhotoError(null);
+    setPhotoSuccess(null);
+
+    // Guard: max 4MB
+    if (file.size > 4 * 1024 * 1024) {
+      setPhotoError("Profile photo must be less than 4MB.");
+      return;
+    }
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["jpg", "jpeg", "png", "webp"].includes(ext || "")) {
+      setPhotoError("Please select a JPEG, PNG, or WebP image.");
+      return;
+    }
+
+    setPhotoUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch(`${apiBase}/api/providers/profile-photo`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: fd,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfilePhoto(data.profile_photo_url);
+        setPhotoSuccess("Practitioner photo verified and published to consultation & booking.");
+        if (onProfileUpdated) {
+          onProfileUpdated({ ...currentProfile, profile_photo_url: data.profile_photo_url });
+        }
+      } else {
+        setPhotoError(data.detail || "Failed to upload photo. Please verify image format.");
+      }
+    } catch (err) {
+      console.error(err);
+      setPhotoError("Network error while uploading photo.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!confirm("Are you sure you want to remove your profile photo?")) return;
+    setPhotoUploading(true);
+    setPhotoError(null);
+    setPhotoSuccess(null);
+
+    try {
+      const res = await fetch(`${apiBase}/api/providers/profile-photo`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProfilePhoto("");
+        setPhotoSuccess("Profile photo removed.");
+        if (onProfileUpdated) {
+          onProfileUpdated({ ...currentProfile, profile_photo_url: "" });
+        }
+      } else {
+        setPhotoError(data.detail || "Failed to remove photo.");
+      }
+    } catch (err) {
+      console.error(err);
+      setPhotoError("Network error while removing photo.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const isPractitioner = ["doctor", "dentist", "physiotherapist", "dietitian", "nurse"].includes(role);
+  const initials = (formData.full_name || p.full_name || "DR")
+    .split(" ")
+    .map((s: string) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   const field = (icon: LucideIcon, label: string, value: unknown, capitalize = false) => {
     const valText = value ? String(value) : "N/A";
     return (
@@ -150,6 +269,249 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
           >
             <Icon as={X} size={16} />
           </button>
+        </div>
+      )}
+
+      {/* Practitioner Profile Photo Studio (CallMedex Style) */}
+      {isPractitioner && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%)",
+            border: "1.5px solid rgba(2, 132, 199, 0.22)",
+            borderRadius: "16px",
+            padding: "24px",
+            boxShadow: "0 4px 20px -2px rgba(2, 132, 199, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "24px",
+            alignItems: "center",
+          }}
+        >
+          {/* Avatar Preview */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+            <div style={{ position: "relative", width: "116px", height: "116px" }}>
+              {profilePhoto ? (
+                <img
+                  src={profilePhoto}
+                  alt={formData.full_name || "Practitioner"}
+                  style={{
+                    width: "116px",
+                    height: "116px",
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "3px solid #10b981",
+                    boxShadow: "0 4px 16px rgba(16, 185, 129, 0.35)",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "116px",
+                    height: "116px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #0f1d33 0%, #1a2b4a 100%)",
+                    border: "3px dashed rgba(2, 132, 199, 0.5)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#38bdf8",
+                    fontSize: "2rem",
+                    fontWeight: 800,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  {initials}
+                </div>
+              )}
+              {profilePhoto && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: "2px",
+                    right: "2px",
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: "#10b981",
+                    border: "2px solid #ffffff",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#ffffff",
+                    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.2)",
+                  }}
+                  title="Photo Verified"
+                >
+                  <CheckCircle2 size={16} />
+                </div>
+              )}
+            </div>
+
+            <span
+              style={{
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: "20px",
+                background: profilePhoto ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                color: profilePhoto ? "#059669" : "#d97706",
+                border: profilePhoto ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(245, 158, 11, 0.3)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              ● {profilePhoto ? "PHOTO ACTIVE" : "PHOTO RECOMMENDED"}
+            </span>
+          </div>
+
+          {/* Controls & Guidance */}
+          <div style={{ flex: 1, minWidth: "260px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <Sparkles size={16} style={{ color: "#0284c7" }} />
+              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f1d33" }}>
+                Practitioner Profile Photo &amp; Patient Trust Representation
+              </h3>
+            </div>
+            <p style={{ margin: "0 0 14px", fontSize: "0.84rem", color: "#475569", lineHeight: 1.5 }}>
+              Your verified photo replaces generic placeholder icons on the public <strong>Consultation Directory</strong>, <strong>Tariff Justification Modal</strong>, and <strong>Video Consultation Waiting Room</strong>. Photos must be under 4MB (JPEG, PNG, or WebP).
+            </p>
+
+            {/* Hidden File Inputs */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoFileChange}
+              style={{ display: "none" }}
+            />
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="user"
+              onChange={handlePhotoFileChange}
+              style={{ display: "none" }}
+            />
+
+            {/* Buttons */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={photoUploading}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
+                  padding: "9px 16px",
+                  borderRadius: "9px",
+                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  color: "#ffffff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: photoUploading ? "not-allowed" : "pointer",
+                  boxShadow: "0 2px 10px rgba(2, 132, 199, 0.3)",
+                  transition: "all 0.2s ease",
+                  opacity: photoUploading ? 0.7 : 1,
+                }}
+              >
+                {photoUploading ? (
+                  <RefreshCw size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                <span>{photoUploading ? "Uploading Photo..." : "Choose Profile Photo"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={photoUploading}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
+                  padding: "9px 16px",
+                  borderRadius: "9px",
+                  background: "rgba(2, 132, 199, 0.08)",
+                  color: "#0369a1",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  border: "1.5px solid rgba(2, 132, 199, 0.25)",
+                  cursor: photoUploading ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                  opacity: photoUploading ? 0.7 : 1,
+                }}
+              >
+                <Camera size={15} />
+                <span>Take Live Photo</span>
+              </button>
+
+              {profilePhoto && (
+                <button
+                  type="button"
+                  onClick={handleDeletePhoto}
+                  disabled={photoUploading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "9px 14px",
+                    borderRadius: "9px",
+                    background: "rgba(239, 68, 68, 0.08)",
+                    color: "#dc2626",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    border: "1px solid rgba(239, 68, 68, 0.25)",
+                    cursor: photoUploading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <Trash2 size={14} />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+
+            {/* Success & Error alerts */}
+            {photoSuccess && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: "rgba(16, 185, 129, 0.12)",
+                  color: "#047857",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <CheckCircle2 size={15} />
+                <span>{photoSuccess}</span>
+              </div>
+            )}
+            {photoError && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: "rgba(239, 68, 68, 0.12)",
+                  color: "#b91c1c",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <AlertCircle size={15} />
+                <span>{photoError}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

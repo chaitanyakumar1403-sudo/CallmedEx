@@ -294,6 +294,13 @@ export const discoveryAPI = {
     params.set('limit', String(opts.limit ?? 50));
     return api.get(`/providers/search/providers?${params.toString()}`);
   },
+
+  getNRIDoctors: (opts: { country?: string; specialization?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.country && opts.country.toLowerCase() !== 'all') params.set('country', opts.country);
+    if (opts.specialization && opts.specialization.toLowerCase() !== 'all') params.set('specialization', opts.specialization);
+    return api.get(`/providers/nri-doctors?${params.toString()}`);
+  },
 };
 
 export const dispatchAPI = {

@@ -165,6 +165,10 @@ export default function PatientDashboard() {
   const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__setShowLiveTracker = setShowLiveTracker;
+      (window as any).__setSimStage = setSimStage;
+    }
     const stored = localStorage.getItem("user");
     if (stored) {
       setUser(JSON.parse(stored));
@@ -1847,26 +1851,26 @@ export default function PatientDashboard() {
           const isCollection = providerType === "phlebotomist";
 
           return (
-            <div className="cm-rapido-panel" style={{ animation: "fadeIn 0.4s ease-out" }}>
+            <div id="sample-tracking" className="cm-rapido-panel" style={{ animation: "fadeIn 0.4s ease-out" }}>
               {/* Header */}
               <div className="cm-rapido-panel__header">
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span className="cm-pulse-indicator">
                       <span className="cm-pulse-ring" />
                       <span className="cm-pulse-dot" />
                     </span>
-                    <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-                      <Bike size={20} style={{ color: "var(--cm-active)" }} />
+                    <h3 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                      <Bike size={18} style={{ color: "var(--cm-active)" }} />
                       {t.rapido.title}
                     </h3>
                     {!isReal && (
-                      <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", background: "var(--cm-warn-surface, #FBF0DC)", color: "var(--cm-warn, #8A5606)", border: "1px solid var(--cm-warn-line, #E4C88C)", padding: "3px 8px", borderRadius: 4 }}>
+                      <span style={{ fontSize: "0.65rem", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", background: "var(--cm-warn-surface, #FBF0DC)", color: "var(--cm-warn, #8A5606)", border: "1px solid var(--cm-warn-line, #E4C88C)", padding: "2px 6px", borderRadius: 4 }}>
                         {t.rapido.sampleData}
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>
+                  <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
                     {isSearching
                       ? t.rapido.searchingSubtitle
                       : isArrived
@@ -1875,7 +1879,7 @@ export default function PatientDashboard() {
                   </p>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   {/* Status Badge */}
                   <span className={`cm-rapido-badge ${
                     isSearching ? "cm-rapido-badge--searching" : isArrived ? "cm-rapido-badge--arrived" : "cm-rapido-badge--enroute"
@@ -1890,8 +1894,8 @@ export default function PatientDashboard() {
                         type="button"
                         onClick={() => setSimStage("searching")}
                         style={{
-                          padding: "4px 10px", borderRadius: 9999, border: "none",
-                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          padding: "3px 8px", borderRadius: 9999, border: "none",
+                          fontSize: "0.68rem", fontWeight: 700, cursor: "pointer",
                           background: simStage === "searching" ? "var(--cm-waiting)" : "transparent",
                           color: simStage === "searching" ? "#fff" : "var(--cm-ink-3)"
                         }}
@@ -1902,8 +1906,8 @@ export default function PatientDashboard() {
                         type="button"
                         onClick={() => setSimStage("en_route")}
                         style={{
-                          padding: "4px 10px", borderRadius: 9999, border: "none",
-                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          padding: "3px 8px", borderRadius: 9999, border: "none",
+                          fontSize: "0.68rem", fontWeight: 700, cursor: "pointer",
                           background: simStage === "en_route" ? "var(--cm-active)" : "transparent",
                           color: simStage === "en_route" ? "#fff" : "var(--cm-ink-3)"
                         }}
@@ -1914,8 +1918,8 @@ export default function PatientDashboard() {
                         type="button"
                         onClick={() => setSimStage("arrived")}
                         style={{
-                          padding: "4px 10px", borderRadius: 9999, border: "none",
-                          fontSize: "0.72rem", fontWeight: 700, cursor: "pointer",
+                          padding: "3px 8px", borderRadius: 9999, border: "none",
+                          fontSize: "0.68rem", fontWeight: 700, cursor: "pointer",
                           background: simStage === "arrived" ? "var(--cm-done)" : "transparent",
                           color: simStage === "arrived" ? "#fff" : "var(--cm-ink-3)"
                         }}
@@ -1932,7 +1936,7 @@ export default function PatientDashboard() {
                       onClick={() => handleCancelRequest(activeDispatchId || trackingData?.dispatch_id, trackingData?.status)}
                       style={{
                         background: "none", border: "none", color: "var(--cm-urgent)", fontWeight: 700,
-                        fontSize: "0.85rem", cursor: "pointer", textDecoration: "underline"
+                        fontSize: "0.8rem", cursor: "pointer", textDecoration: "underline"
                       }}
                     >
                       Cancel Request
@@ -1943,7 +1947,7 @@ export default function PatientDashboard() {
                       onClick={() => setShowLiveTracker(false)}
                       style={{
                         background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)",
-                        borderRadius: "var(--cm-radius)", padding: "4px 10px", fontSize: "0.78rem",
+                        borderRadius: "var(--cm-radius)", padding: "3px 8px", fontSize: "0.74rem",
                         color: "var(--cm-ink-2)", fontWeight: 700, cursor: "pointer"
                       }}
                     >
@@ -1983,27 +1987,23 @@ export default function PatientDashboard() {
                   <div className="cm-rapido-radar-anim">
                     <div className="cm-rapido-radar-wave" />
                     <div className="cm-rapido-radar-ring" />
-                    <Bike size={36} />
+                    <Bike size={24} />
                   </div>
-                  <h4 style={{ margin: "0 0 6px 0", fontSize: "1.1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h4 style={{ margin: "0 0 4px 0", fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
                     Broadcasting to nearby {providerLabel}...
                   </h4>
-                  <p style={{ margin: "0 0 16px 0", fontSize: "0.85rem", color: "var(--cm-ink-3)", maxWidth: 500 }}>
-                    {/* The old line quoted "8 verified NABL phlebotomists within
-                        4.5 km" and "under 2 minutes" — none of which this page
-                        is told; the tracking payload carries no candidate count
-                        and no radius. */}
+                  <p style={{ margin: "0 0 12px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 460 }}>
                     We are contacting verified providers near your location. You
                     will see their name and live ETA here as soon as one accepts.
                   </p>
-                  <div style={{ display: isCollection ? "flex" : "none", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ display: isCollection ? "flex" : "none", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                    <span style={{ fontSize: "0.72rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "3px 10px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.vaccinated}
                     </span>
-                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: "0.72rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "3px 10px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.sterileKits}
                     </span>
-                    <span style={{ fontSize: "0.78rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "4px 12px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: "0.72rem", background: "var(--cm-surface)", border: "1px solid var(--cm-line)", padding: "3px 10px", borderRadius: 9999, color: "var(--cm-ink-2)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <CheckCircle2 size={12} style={{ color: "var(--cm-done)" }} /> {t.rapido.tempBox}
                     </span>
                   </div>
@@ -2023,26 +2023,20 @@ export default function PatientDashboard() {
                       <div>
                         <div className="cm-rapido-captain__name">
                           {provider.name}
-                          {/* Rating, vehicle, collection count and the NABL
-                              badge render only when the tracking payload
-                              actually carries them. The live endpoint returns
-                              none of these today, so the old `|| "4.9"` /
-                              `|| "1,200+"` fallbacks were showing every patient
-                              invented credentials for a real phlebotomist. */}
                           {provider.rating && (
                             <span className="cm-rapido-captain__rating">
-                              <Star size={12} fill="currentColor" /> {provider.rating}
+                              <Star size={11} fill="currentColor" /> {provider.rating}
                             </span>
                           )}
                           {provider.nabl_verified && (
-                            <span style={{ fontSize: "0.72rem", background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)", padding: "2px 8px", borderRadius: 9999, fontWeight: 700 }}>
-                              <ShieldCheck size={11} style={{ display: "inline", marginRight: 3 }} /> NABL Verified
+                            <span style={{ fontSize: "0.68rem", background: "var(--cm-done-surface)", color: "var(--cm-done)", border: "1px solid var(--cm-done-line)", padding: "1px 6px", borderRadius: 9999, fontWeight: 700 }}>
+                              <ShieldCheck size={10} style={{ display: "inline", marginRight: 3 }} /> NABL Verified
                             </span>
                           )}
                         </div>
                         {(provider.vehicle || provider.collections) && (
                           <div className="cm-rapido-captain__vehicle">
-                            <Bike size={14} style={{ color: "var(--cm-active)" }} />
+                            <Bike size={13} style={{ color: "var(--cm-active)" }} />
                             {provider.vehicle}
                             {provider.vehicle && provider.collections ? " · " : ""}
                             {provider.collections ? `${provider.collections} collections` : ""}
@@ -2052,12 +2046,12 @@ export default function PatientDashboard() {
                     </div>
 
                     {/* Distance & Contact Actions */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
+                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
                           {isArrived ? t.rapido.atDoorstep : t.rapido.minsAway(provider.eta_minutes || 12)}
                         </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
+                        <div style={{ fontSize: "0.75rem", color: "var(--cm-ink-3)" }}>
                           {isArrived ? "Ring Bell / Meet Provider" : t.rapido.kmAway(provider.distance_km || 1.8)}
                         </div>
                       </div>
@@ -2066,34 +2060,34 @@ export default function PatientDashboard() {
                         <a
                           href={`tel:${provider.mobile || "+919849023145"}`}
                           className="cm-btn cm-btn--primary cm-btn--sm"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, textDecoration: "none", padding: "5px 10px", fontSize: "0.75rem" }}
                         >
-                          <Phone size={14} /> {t.rapido.callPhlebo}
+                          <Phone size={13} /> {t.rapido.callPhlebo}
                         </a>
                         <a
                           href={`https://wa.me/${(provider.mobile || "919849023145").replace(/[^0-9]/g, "")}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="cm-btn cm-btn--secondary cm-btn--sm"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, textDecoration: "none" }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, textDecoration: "none", padding: "5px 10px", fontSize: "0.75rem" }}
                         >
-                          <MessageCircle size={14} /> {t.rapido.whatsapp}
+                          <MessageCircle size={13} /> {t.rapido.whatsapp}
                         </a>
                       </div>
                     </div>
                   </div>
 
-                  {/* High-Contrast Doorstep OTP Card (Shown when Arrived or Previewing) */}
+                  {/* High-Contrast Doorstep OTP Card (Shown when Arrived or Previewing) - Medium Proportions */}
                   {(isArrived || simStage === "arrived") && (
                     <div className="cm-rapido-otp-card">
                       <div>
-                        <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "1px", fontWeight: 700 }}>
+                        <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700 }}>
                           Doorstep Sample Verification
                         </div>
-                        <h4 style={{ margin: "2px 0 6px 0", fontSize: "1.2rem", color: "#fff", fontWeight: 800 }}>
+                        <h4 style={{ margin: "1px 0 4px 0", fontSize: "0.98rem", color: "#fff", fontWeight: 800 }}>
                           {t.rapido.otpTitle}
                         </h4>
-                        <p style={{ margin: 0, fontSize: "0.85rem", color: "rgba(255,255,255,0.85)", maxWidth: 460 }}>
+                        <p style={{ margin: 0, fontSize: "0.78rem", color: "rgba(255,255,255,0.85)", maxWidth: 440, lineHeight: 1.4 }}>
                           {t.rapido.otpDesc}
                         </p>
                       </div>
@@ -2102,8 +2096,8 @@ export default function PatientDashboard() {
                         <div className="cm-rapido-otp-code">
                           {otp}
                         </div>
-                        <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 4, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <CheckCircle2 size={12} style={{ color: "#38bdf8" }} /> {t.rapido.sterileSeal}
+                        <div style={{ fontSize: "0.68rem", color: "#38bdf8", marginTop: 3, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <CheckCircle2 size={11} style={{ color: "#38bdf8" }} /> {t.rapido.sterileSeal}
                         </div>
                       </div>
                     </div>

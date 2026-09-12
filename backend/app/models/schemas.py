@@ -234,6 +234,12 @@ class UserSignup(UserBase):
     service_area: Optional[str] = None
     work_setting: Optional[str] = None  # solo_clinic | polyclinic | hospital
 
+    # NRI Doctor fields (optional)
+    is_nri: Optional[bool] = False
+    nri_country: Optional[str] = None
+    nri_license_body: Optional[str] = None
+    nri_timezone: Optional[str] = None
+
     # Phlebotomist-specific
     phleb_type: Optional[PhlebType] = None
     certification_number: Optional[str] = None

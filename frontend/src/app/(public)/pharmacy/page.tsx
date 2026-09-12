@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, Pill, MapPin, Star, ShieldCheck, Clock, Truck, Loader2 } from "lucide-react";
+import { UploadCloud, Pill, MapPin, Star, ShieldCheck, Clock, Truck, Loader2, Sparkles } from "lucide-react";
 
 export default function PharmacyPage() {
   const router = useRouter();
@@ -115,15 +115,187 @@ Extracted Medicines:
   };
 
   return (
-    <div className="section" style={{ background: "var(--cm-surface)", minHeight: "100vh" }}>
-      <div className="container">
-        <div className="section-title">
-          <h1 style={{ color: "var(--cm-navy)" }}>Pharmacy &amp; Prescription Delivery</h1>
-          <p>Order medicines from verified pharmacies near you. Upload prescriptions or use e-prescriptions from consultations.</p>
-        </div>
+    <div style={{ background: "linear-gradient(180deg, #f8fafc 0%, #eef6fb 100%)", minHeight: "100vh", paddingBottom: 80 }}>
+      {/* ── Top Hero Header with Signature CallMedex Royal Blue Gradient ── */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #0f172a 0%, #0369a1 50%, #0284c7 100%)",
+          color: "#fff",
+          padding: "56px 20px 64px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Ambient background glows */}
+        <div
+          style={{
+            position: "absolute",
+            top: -50,
+            right: -50,
+            width: 350,
+            height: 350,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(56,189,248,0.25) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: -50,
+            left: -50,
+            width: 300,
+            height: 300,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(2,132,199,0.2) 0%, rgba(255,255,255,0) 70%)",
+            pointerEvents: "none",
+          }}
+        />
 
+        <div style={{ maxWidth: 1100, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 16px",
+              borderRadius: 999,
+              background: "rgba(15, 23, 42, 0.45)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: "#38bdf8",
+              marginBottom: 18,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+            }}
+          >
+            <Sparkles size={16} style={{ color: "#38bdf8" }} />
+            CALLMEDEX DOORSTEP PHARMACY NETWORK
+          </div>
+
+          <h1
+            style={{
+              fontSize: "clamp(2.1rem, 4.2vw, 3.1rem)",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+              lineHeight: 1.16,
+              margin: "0 0 16px",
+              color: "#ffffff",
+              textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+            }}
+          >
+            100% Genuine Medicines{" "}
+            <span
+              style={{
+                background: "linear-gradient(135deg, #38bdf8 0%, #e0f2fe 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                display: "inline-block",
+              }}
+            >
+              Delivered to Your Doorstep
+            </span>
+          </h1>
+
+          <p
+            style={{
+              fontSize: "1.125rem",
+              fontWeight: 450,
+              color: "rgba(240, 249, 255, 0.95)",
+              maxWidth: 780,
+              margin: "0 auto 32px",
+              lineHeight: 1.65,
+              textShadow: "0 1px 4px rgba(0,0,0,0.2)",
+            }}
+          >
+            Order medicines from verified licensed pharmacies near you. Upload prescriptions for instant AI verification or access digital e-prescriptions directly from your consultations.
+          </p>
+
+          {/* Quick Value Props Banner */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 16,
+              maxWidth: 900,
+              margin: "0 auto",
+            }}
+          >
+            <div
+              style={{
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
+                borderRadius: 14,
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+              }}
+            >
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#38bdf8", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Clock size={18} /> 60-Minute Delivery
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500, marginTop: 4 }}>
+                Express Local Partner Dispatch
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
+                borderRadius: 14,
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+              }}
+            >
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#38bdf8", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <ShieldCheck size={18} /> CDSCO &amp; State Verified
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500, marginTop: 4 }}>
+                100% Genuine Batch-Tracked Drugs
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "rgba(15, 23, 42, 0.45)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(56, 189, 248, 0.25)",
+                borderRadius: 14,
+                padding: "14px 18px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+              }}
+            >
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#38bdf8", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Pill size={18} /> Up to 35% Savings
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500, marginTop: 4 }}>
+                Affordable Generic Formulations
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1100, margin: "36px auto 0", padding: "0 20px" }}>
         {/* Upload Prescription */}
-        <div className="cm-card" style={{ padding: 36, marginBottom: 32, textAlign: "center", border: "2px dashed var(--cm-line-strong)", background: "var(--cm-surface-2)", position: 'relative', overflow: 'hidden', borderRadius: "var(--cm-radius)" }}>
+        <div
+          className="cm-card"
+          style={{
+            padding: 36,
+            marginBottom: 32,
+            textAlign: "center",
+            border: "2px dashed #38bdf8",
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(12px)",
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: 20,
+            boxShadow: "0 10px 30px rgba(2, 132, 199, 0.08)",
+          }}
+        >
           {isUploading ? (
             <div style={{ padding: '20px' }}>
               <div style={{ width: 48, height: 48, margin: "0 auto 16px auto", display: "grid", placeItems: "center" }}>

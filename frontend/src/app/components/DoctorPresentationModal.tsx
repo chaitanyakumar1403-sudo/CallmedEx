@@ -41,6 +41,7 @@ export interface DoctorPresentationData {
   }>;
   fees?: Record<string, number>;
   verification_status?: string;
+  profile_photo_url?: string;
 }
 
 interface Props {
@@ -208,43 +209,113 @@ export default function DoctorPresentationModal({
             </span>
           </div>
 
-          <h2
-            style={{
-              fontSize: "1.65rem",
-              fontWeight: 800,
-              color: "#ffffff",
-              margin: "0 0 6px",
-              letterSpacing: "-0.015em",
-              lineHeight: 1.25,
-              textShadow: "0 2px 10px rgba(0, 0, 0, 0.45)",
-            }}
-          >
-            Dr. {doc.name?.replace(/^Dr\.\s*/i, "")}
-          </h2>
+          <div style={{ display: "flex", gap: "18px", alignItems: "center", marginTop: "14px" }}>
+            {/* Doctor Photo or Avatar */}
+            <div style={{ position: "relative", width: "80px", height: "80px", flexShrink: 0 }}>
+              {doc.profile_photo_url ? (
+                <img
+                  src={doc.profile_photo_url}
+                  alt={doc.name || "Doctor"}
+                  style={{
+                    width: "80px",
+                    height: "80px",
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "3px solid #ffffff",
+                    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.35)",
+                    background: "#ffffff",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "80px",
+                    height: "80px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%)",
+                    border: "2px solid rgba(255, 255, 255, 0.4)",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#ffffff",
+                    fontSize: "1.6rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {(doc.name || "DR")
+                    .replace(/^Dr\.\s*/i, "")
+                    .split(" ")
+                    .map((s) => s[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()}
+                </div>
+              )}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "-2px",
+                  right: "-2px",
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "50%",
+                  background: "#10b981",
+                  border: "2px solid #ffffff",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#ffffff",
+                  boxShadow: "0 2px 6px rgba(0, 0, 0, 0.2)",
+                }}
+                title="Verified NMC Practitioner"
+              >
+                <ShieldCheck size={13} />
+              </div>
+            </div>
 
-          <div style={{ fontSize: "0.9rem", color: "rgba(255, 255, 255, 0.9)", fontWeight: 500, marginBottom: "8px" }}>
-            {doc.qualification && <span>{doc.qualification} · </span>}
-            <span style={{ color: "#7dd3fc", fontWeight: 700 }}>{doc.specialization}</span>
-            {doc.experience_years ? <span> · {doc.experience_years}+ Years Clinical Practice</span> : null}
-          </div>
+            {/* Doctor Name & Details */}
+            <div style={{ flex: 1 }}>
+              <h2
+                style={{
+                  fontSize: "1.65rem",
+                  fontWeight: 800,
+                  color: "#ffffff",
+                  margin: "0 0 4px",
+                  letterSpacing: "-0.015em",
+                  lineHeight: 1.25,
+                  textShadow: "0 2px 10px rgba(0, 0, 0, 0.45)",
+                }}
+              >
+                Dr. {doc.name?.replace(/^Dr\.\s*/i, "")}
+              </h2>
 
-          {doc.hospital_clinic_name && (
-            <div
-              style={{
-                fontSize: "0.82rem",
-                color: "rgba(255, 255, 255, 0.85)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              <Building2 size={14} style={{ color: "#38bdf8" }} />
-              <span>{doc.hospital_clinic_name}</span>
-              {(doc.city || doc.state) && (
-                <span style={{ opacity: 0.8 }}>({[doc.city || doc.district, doc.state].filter(Boolean).join(", ")})</span>
+              <div style={{ fontSize: "0.88rem", color: "rgba(255, 255, 255, 0.9)", fontWeight: 500, marginBottom: "6px" }}>
+                {doc.qualification && <span>{doc.qualification} · </span>}
+                <span style={{ color: "#7dd3fc", fontWeight: 700 }}>{doc.specialization}</span>
+                {doc.experience_years ? <span> · {doc.experience_years}+ Years Clinical Practice</span> : null}
+              </div>
+
+              {doc.hospital_clinic_name && (
+                <div
+                  style={{
+                    fontSize: "0.82rem",
+                    color: "rgba(255, 255, 255, 0.85)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Building2 size={14} style={{ color: "#38bdf8", flexShrink: 0 }} />
+                  <span>{doc.hospital_clinic_name}</span>
+                  {(doc.city || doc.state) && (
+                    <span style={{ opacity: 0.85, color: "#e0f2fe" }}>
+                      · {[doc.city || doc.district, doc.state].filter(Boolean).join(", ")}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Modal Body */}
