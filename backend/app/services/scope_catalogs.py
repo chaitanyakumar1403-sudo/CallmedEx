@@ -822,40 +822,65 @@ def compute_commercial_split(
 
 def sanitize_selected_scope(role: str, submitted_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Process and validate the scope of services selected by a provider during MOU acceptance.
-    Defaults to master catalog pricing if custom price is omitted or invalid.
+    Process and validate the scope of services selected by a provider during MOU acceptance or profile updates.
+    Supports standard master catalog procedures, role-specific codes, and custom procedures.
     """
     master = {item["id"]: item for item in get_master_catalog_for_role(role)}
+    # Also support alternate code mapping if any
+    for item in get_master_catalog_for_role(role):
+        if item.get("code"):
+            master[item["code"]] = item
+
     sanitized: List[Dict[str, Any]] = []
 
     for sub in submitted_items:
-        sid = sub.get("id")
-        if not sid or sid not in master:
+        sid = sub.get("id") or sub.get("code")
+        if not sid:
             continue
 
-        base = master[sid]
-        # Allow provider to customize price, else use benchmark
-        raw_price = sub.get("custom_price", sub.get("agreed_price", base["benchmark_price"]))
+        if sid in master:
+            base = master[sid]
+            benchmark_price = float(base.get("benchmark_price", 400.0))
+            category = base.get("category", "General")
+            sname = base.get("service_name", sid)
+            modality = sub.get("modality", base.get("modality", "home" if role == "nurse" else "clinic"))
+            duration = sub.get("duration", base.get("duration", "Per Procedure"))
+            supplies = sub.get("supplies", base.get("supplies", ""))
+        elif sub.get("service_name") or sub.get("name") or str(sid).startswith("custom_") or str(sid).startswith("NUR-"):
+            # Custom or role-specific procedure
+            sname = sub.get("service_name") or sub.get("name") or str(sid)
+            category = sub.get("category", "Specialized Care" if role == "nurse" else "General")
+            modality = sub.get("modality", "home" if role == "nurse" else "clinic")
+            duration = sub.get("duration", "30-45 min")
+            supplies = sub.get("supplies", "Standard clinical kit")
+            benchmark_price = float(sub.get("custom_price") or sub.get("standard_fee") or sub.get("benchmark_price") or 400.0)
+        else:
+            continue
+
+        raw_price = sub.get("custom_price", sub.get("agreed_price", sub.get("standard_fee", benchmark_price)))
         try:
             custom_price = float(raw_price)
             if custom_price <= 0:
-                custom_price = base["benchmark_price"]
+                custom_price = benchmark_price
         except (ValueError, TypeError):
-            custom_price = base["benchmark_price"]
+            custom_price = benchmark_price
 
         split = compute_commercial_split(custom_price)
 
         sanitized.append({
             "id": sid,
-            "category": base.get("category", "General"),
-            "service_name": base.get("service_name", sid),
-            "modality": sub.get("modality", base.get("modality", "clinic")),
-            "duration": base.get("duration", ""),
-            "benchmark_price": base["benchmark_price"],
+            "category": category,
+            "service_name": sname,
+            "modality": modality,
+            "duration": duration,
+            "supplies": supplies,
+            "benchmark_price": benchmark_price,
             "custom_price": split["gross_price"],
+            "standard_fee": split["gross_price"],
             "platform_fee_pct": split["platform_fee_pct"],
             "platform_fee_amount": split["platform_fee_amount"],
             "provider_share_amount": split["provider_share_amount"],
+            "nurse_net": split["provider_share_amount"],
             "is_active": sub.get("is_active", True),
         })
 
@@ -867,13 +892,16 @@ def sanitize_selected_scope(role: str, submitted_items: List[Dict[str, Any]]) ->
                 "id": base["id"],
                 "category": base.get("category", "General"),
                 "service_name": base.get("service_name", base["id"]),
-                "modality": base.get("modality", "clinic"),
+                "modality": base.get("modality", "home" if role == "nurse" else "clinic"),
                 "duration": base.get("duration", ""),
+                "supplies": base.get("supplies", ""),
                 "benchmark_price": base["benchmark_price"],
                 "custom_price": split["gross_price"],
+                "standard_fee": split["gross_price"],
                 "platform_fee_pct": split["platform_fee_pct"],
                 "platform_fee_amount": split["platform_fee_amount"],
                 "provider_share_amount": split["provider_share_amount"],
+                "nurse_net": split["provider_share_amount"],
                 "is_active": True,
             })
 

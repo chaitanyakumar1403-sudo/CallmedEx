@@ -298,6 +298,10 @@ function BookingPageContent() {
       router.push("/dashboard/patient#dental-directory-section");
       return;
     }
+    if (typeParam === "nurse" || typeParam === "nurse_visit") {
+      router.push("/booking/nurse");
+      return;
+    }
     const targetType = typeParam || (doctorParam ? "doctor" : orgParam ? "lab" : serviceParam ? "lab" : packageParam ? "lab" : "");
     if (targetType && !bookingType) {
       const validTypes = ["doctor", "lab", "home_doctor", "home_collection", "video_consult", "nurse_visit"];

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Package, FlaskConical, Stethoscope, Pill, Box,
   Sparkles, Zap, ScanLine, Smile, Users, Calendar, ChevronRight,
-  Clock, Compass, ShieldCheck, Home
+  Clock, Compass, ShieldCheck, Home, Globe
 } from "@/components/ui/icons";
 
 interface NavItem {
@@ -71,6 +71,11 @@ const CARE_SERVICES = [
     label: "Consultation",
     href: "/consultation",
     icon: Stethoscope,
+  },
+  {
+    label: "NRI Consultation",
+    href: "/nri-consultation",
+    icon: Globe,
   },
   {
     label: "Online Pharmacy",
