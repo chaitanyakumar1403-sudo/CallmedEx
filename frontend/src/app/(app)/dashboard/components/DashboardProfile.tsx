@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/icons";
 import { Camera, Upload, Trash2, RefreshCw } from "lucide-react";
 import type { LucideIcon } from "@/components/ui/icons";
+import MouDocuments, { type MouDocument } from "@/components/MouDocuments";
 
 interface DashboardProfileProps {
   profile: any;
@@ -69,23 +70,19 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const [showMOUModal, setShowMOUModal] = useState(false);
   const [mouLoading, setMOULoading] = useState(false);
   const [mouData, setMOUData] = useState<any>(null);
-  const [selectedSubtype, setSelectedSubtype] = useState<string>("");
+  const [mouError, setMOUError] = useState<string | null>(null);
 
   if (!profile && !currentProfile) return null;
 
   const p = currentProfile || profile;
 
-  // Open MOU Modal & fetch official details
-  const handleOpenMOU = async (subtype?: string) => {
+  // Open MOU Modal & fetch this provider's own original agreement(s)
+  const handleOpenMOU = async () => {
     setShowMOUModal(true);
     setMOULoading(true);
-    const activeSub = subtype !== undefined ? subtype : selectedSubtype;
-    if (subtype !== undefined) {
-      setSelectedSubtype(subtype);
-    }
+    setMOUError(null);
     try {
-      const url = `${apiBase}/api/providers/mou${activeSub ? `?subtype=${encodeURIComponent(activeSub)}` : ""}`;
-      const res = await fetch(url, {
+      const res = await fetch(`${apiBase}/api/providers/mou`, {
         headers: {
           Authorization: `Bearer ${getToken()}`,
         },
@@ -93,13 +90,19 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
       const data = await res.json();
       if (res.ok && data.success) {
         setMOUData(data);
+      } else {
+        setMOUError(data.detail || "Your agreement could not be loaded. Please try again.");
       }
     } catch (e) {
       console.error("Failed to load MOU:", e);
+      setMOUError("Your agreement could not be loaded. Please check your connection and try again.");
     } finally {
       setMOULoading(false);
     }
   };
+
+  const mouDocuments: MouDocument[] = Array.isArray(mouData?.documents) ? mouData.documents : [];
+  const mouAcceptedAt: string | null = mouData?.acceptance?.accepted_at || null;
 
   // Save edited profile
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -745,7 +748,9 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                 </div>
                 <div>
                   <h3 className="cm-mou-header-title">
-                    {mouData?.document?.title || "Official Memorandum of Understanding (MOU)"}
+                    {mouDocuments.length > 1
+                      ? `Your CallMedex Agreements (${mouDocuments.length} documents)`
+                      : mouDocuments[0]?.title || mouData?.document?.title || "Official Memorandum of Understanding (MOU)"}
                   </h3>
                   <div className="cm-mou-header-subtitle">
                     CallMedex Provider Agreement · Role: <span className="cm-mou-header-role">{role}</span> · Legal Document Store
@@ -769,9 +774,17 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                   <Icon as={Clock} size={24} />
                   <div>Loading verified official agreement text...</div>
                 </div>
+              ) : mouError ? (
+                <div className="cm-mou-loading" role="alert">
+                  <Icon as={AlertCircle} size={24} />
+                  <div>{mouError}</div>
+                  <button type="button" onClick={() => handleOpenMOU()} className="cm-btn cm-btn--secondary cm-btn--sm">
+                    Try again
+                  </button>
+                </div>
               ) : (
                 <>
-                  {/* Digital Signature & Audit Strip */}
+                  {/* Acceptance record */}
                   <div className="cm-mou-audit-strip">
                     <div>
                       <div className="cm-mou-audit-title">
@@ -783,55 +796,37 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                       </div>
                     </div>
                     <div className="cm-mou-audit-meta-right">
-                      <div>Document Version: <strong>{mouData?.document?.version || "v1.0"}</strong></div>
-                      <div>Effective Date: <strong>{mouData?.document?.effective_date || "2026-01-01"}</strong></div>
-                      <div>Status: <strong className="cm-mou-audit-status">ENFORCED &amp; BINDING</strong></div>
+                      <div>
+                        Accepted:{" "}
+                        <strong>
+                          {mouAcceptedAt
+                            ? new Date(mouAcceptedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+                            : "At account activation"}
+                        </strong>
+                      </div>
+                      {mouData?.acceptance?.ip_address && (
+                        <div>Recorded IP: <strong>{mouData.acceptance.ip_address}</strong></div>
+                      )}
+                      <div>
+                        {mouDocuments.length > 0
+                          ? <>Original documents: <strong>{mouDocuments.length}</strong></>
+                          : <>Document Version: <strong>{mouData?.document?.version || "v1.0"}</strong></>}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Subtype Selector (e.g. for Phlebotomists: Full-Time vs Part-Time; Organizations: Diagnostic vs ECG/X-Ray) */}
-                  {(role === "phlebotomist" || role === "organization") && (
-                    <div className="cm-mou-subtypes">
-                      {role === "phlebotomist" && [
-                        { id: "full_time", label: "Full-Time Phlebotomist Agreement" },
-                        { id: "part_time", label: "Part-Time Phlebotomist Agreement" },
-                      ].map((sub) => {
-                        const active = (selectedSubtype || "full_time") === sub.id;
-                        return (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => handleOpenMOU(sub.id)}
-                            className={`cm-mou-subtype-btn ${active ? "cm-mou-subtype-btn--active" : ""}`}
-                          >
-                            {sub.label}
-                          </button>
-                        );
-                      })}
-
-                      {role === "organization" && [
-                        { id: "diagnostic", label: "Diagnostic Services Agreement" },
-                        { id: "ecg_xray", label: "ECG & X-Ray Center Agreement" },
-                      ].map((sub) => {
-                        const active = (selectedSubtype || "diagnostic") === sub.id;
-                        return (
-                          <button
-                            key={sub.id}
-                            type="button"
-                            onClick={() => handleOpenMOU(sub.id)}
-                            className={`cm-mou-subtype-btn ${active ? "cm-mou-subtype-btn--active" : ""}`}
-                          >
-                            {sub.label}
-                          </button>
-                        );
-                      })}
+                  {mouDocuments.length > 0 ? (
+                    <MouDocuments
+                      documents={mouDocuments}
+                      bearer={getToken()}
+                      downloadUrl={(d) => `${apiBase}/api/providers/mou/documents/${encodeURIComponent(d.key)}/download`}
+                      paperMaxHeight="56vh"
+                    />
+                  ) : (
+                    <div className="cm-mou-content">
+                      {mouData?.document?.content_text || "Document text currently unavailable."}
                     </div>
                   )}
-
-                  {/* Complete Unabridged Text Content */}
-                  <div className="cm-mou-content">
-                    {mouData?.document?.content_text || "Document text currently unavailable."}
-                  </div>
                 </>
               )}
             </div>
@@ -843,7 +838,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                 <span>CallMedex Legal Protocol · ABDM &amp; DPDP Act 2023 Compliant</span>
               </div>
               <div className="cm-mou-foot-actions">
-                {mouData?.document?.content_text && (
+                {!mouLoading && !mouError && mouDocuments.length === 0 && mouData?.document?.content_text && (
                   <button
                     type="button"
                     onClick={() => {

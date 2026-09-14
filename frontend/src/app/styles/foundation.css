@@ -1747,6 +1747,69 @@ input[type="radio"] {
   gap: 6px;
 }
 
+/* ── Original MOU document viewer (components/MouDocuments.tsx) ─────────
+   The document is shown on white "paper" — the signed .docx read the same
+   way on the dark dashboard modal and the light acceptance page. The body
+   markup carries its own inline typography from the backend renderer; the
+   element rules below only stop global heading styles leaking into it. */
+.cm-mou-docs { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cm-mou-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.cm-mou-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: pointer;
+}
+.cm-mou-tab:hover { background: #e2e8f0; }
+.cm-mou-tab:disabled { opacity: 0.6; cursor: progress; }
+.cm-mou-tab--active, .cm-mou-tab--active:hover { background: #0284c7; border-color: #38bdf8; color: #ffffff; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35); }
+.cm-mou-paper {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 32px 36px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  text-align: left;
+  white-space: normal;
+}
+.cm-mou-paper h1, .cm-mou-paper h2, .cm-mou-paper h3, .cm-mou-paper h4,
+.cm-mou-paper p, .cm-mou-paper td, .cm-mou-paper strong, .cm-mou-paper em, .cm-mou-paper u {
+  color: inherit;
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.cm-mou-docmeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  font-size: 12px;
+}
+.cm-mou-docmeta__info { display: flex; flex-wrap: wrap; gap: 4px 16px; opacity: 0.85; }
+.cm-mou-docmeta__info code { font-size: 11px; }
+.cm-mou-docmeta__ok, .cm-mou-docmeta__warn { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.cm-mou-docmeta__ok { color: #16a34a; }
+.cm-mou-docmeta__warn { color: #d97706; font-size: 12px; }
+@media (max-width: 640px) {
+  .cm-mou-paper { padding: 18px 16px; }
+  .cm-mou-docmeta__download { width: 100%; justify-content: center; }
+}
+
 /* ── Modern Dashboard KPI & Telemetry Widgets ────────────────────────── */
 .cm-kpi-grid {
   display: grid;

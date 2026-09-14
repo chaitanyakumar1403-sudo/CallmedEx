@@ -755,26 +755,27 @@ async def apply_standard_tariffs(
 
 # ─── Provider MOU & Legal Agreement Viewer ───────────────────────────────────
 
-@router.get("/mou")
-async def get_provider_mou(
-    subtype: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-):
+def _provider_mou(current_user: dict) -> dict:
     """
-    Get official active MOU and legal acceptance details for the authenticated provider.
-    Accessible from Doctor Profile and other provider profile workstations.
+    The original agreement(s) this provider accepted, plus the acceptance record.
+
+    When the acceptance row names the documents, those exact keys are shown —
+    what the partner signed, even if their organization type changed since.
+    Accounts that accepted before documents were fingerprinted fall back to the
+    originals for their role and current subtype.
     """
     from app.services.legal import LegalService
+    user_id = current_user["sub"]
     role = current_user.get("role", "doctor")
-    doc = LegalService.get_active_document(role, subtype=subtype)
 
     acceptance = None
     if supabase:
         try:
             acc_res = (
                 supabase.table("legal_acceptances")
-                .select("*")
-                .eq("user_id", current_user["sub"])
+                .select("status,accepted_at,ip_address,device_info")
+                .eq("user_id", user_id)
+                .eq("status", "accepted")
                 .order("created_at", desc=True)
                 .limit(1)
                 .execute()
@@ -782,14 +783,60 @@ async def get_provider_mou(
             if acc_res.data:
                 acceptance = acc_res.data[0]
         except Exception as e:
-            logger.warning(f"Could not read legal acceptance for user {current_user['sub']}: {e}")
+            logger.warning(f"Could not read legal acceptance for user {user_id}: {e}")
 
-    return {
-        "success": True,
-        "document": doc,
-        "acceptance": acceptance,
-        "role": role,
-    }
+    accepted_docs = ((acceptance or {}).get("device_info") or {}).get("documents") or []
+    accepted_keys = [d.get("key") for d in accepted_docs if d.get("key")]
+
+    phleb_type = organization_type = None
+    if not accepted_keys and supabase and role in ("phlebotomist", "organization"):
+        table, column = ("phlebotomists", "phleb_type") if role == "phlebotomist" else ("organizations", "organization_type")
+        try:
+            prof = supabase.table(table).select(column).eq("user_id", user_id).limit(1).execute()
+            value = prof.data[0].get(column) if prof.data else None
+            phleb_type, organization_type = (value, None) if role == "phlebotomist" else (None, value)
+        except Exception as e:
+            logger.warning(f"Could not read {column} for MOU of user {user_id}: {e}")
+
+    mou = LegalService.get_partner_mou(
+        role, phleb_type=phleb_type, organization_type=organization_type, document_keys=accepted_keys or None,
+    )
+    accepted_hashes = {d.get("key"): d.get("sha256") for d in accepted_docs}
+    documents = [
+        {**doc, "matches_accepted_version": (accepted_hashes[doc["key"]] == doc["sha256"]) if doc["key"] in accepted_hashes else None}
+        for doc in mou["documents"]
+    ]
+    return {"role": role, "acceptance": acceptance, "document": mou["document"], "documents": documents}
+
+
+@router.get("/mou")
+async def get_provider_mou(current_user: dict = Depends(get_current_user)):
+    """
+    The authenticated provider's MOU: the original agreement(s) rendered word
+    for word, the legacy single-document view, and the acceptance record.
+    """
+    from app.services.mou_loader import MouDocumentError
+    try:
+        mou = _provider_mou(current_user)
+    except MouDocumentError as e:
+        logger.error(f"Provider MOU could not render the original agreement: {e}")
+        raise HTTPException(status_code=503, detail="The agreement document is temporarily unavailable.")
+    return {"success": True, **mou}
+
+
+@router.get("/mou/documents/{key}/download")
+async def download_provider_mou(key: str, current_user: dict = Depends(get_current_user)):
+    """The untouched original .docx — only one of this provider's own agreements."""
+    from app.routers.auth import mou_download_response
+    from app.services.mou_loader import MouDocumentError
+    try:
+        mou = _provider_mou(current_user)
+        if key not in {d["key"] for d in mou["documents"]}:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return mou_download_response(key)
+    except MouDocumentError as e:
+        logger.error(f"Provider MOU download failed for {key}: {e}")
+        raise HTTPException(status_code=503, detail="The agreement document is temporarily unavailable.")
 
 
 # ─── Provider Profile & Presentation Editor ──────────────────────────────────

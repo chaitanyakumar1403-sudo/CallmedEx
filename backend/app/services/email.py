@@ -1,9 +1,10 @@
 """
 Email Service — Next-Gen CallMedex
 Sends role-specific MOU emails with secure magic links.
-Uses version-controlled legal documents from the database.
+MOU emails carry the original partner agreements (app/services/mou_loader.py).
 """
-import os
+import base64
+import html
 import uuid
 import logging
 import smtplib
@@ -24,26 +25,24 @@ ALGORITHM = settings.JWT_ALGORITHM
 
 class EmailService:
     @staticmethod
-    def _read_mou_terms() -> str:
-        """Legacy: Reads the MOU template from the assets folder."""
-        try:
-            mou_path = os.path.join(os.getcwd(), "assets", "MOU_Terms.txt")
-            with open(mou_path, "r") as f:
-                return f.read()
-        except Exception as e:
-            logger.error(f"Could not read MOU file: {e}")
-            return "MOU Terms could not be loaded. Please contact support."
-
-    @staticmethod
     def send_mou_email_for_role(to_email: str, role: str, user_payload: dict, registrant_email: str = None):
         """
-        Sends role-specific MOU email with a secure magic link.
-        Fetches the correct MOU from the legal_documents table (or fallback).
-        If registrant_email is provided, it means the MOU is being sent to the owner
-        on behalf of the registrant.
+        Sends the partner's MOU email: the complete original agreement(s) in the
+        body, the untouched .docx originals attached, and the secure magic link
+        to accept. The emailed copy is the partner's own record of what they
+        were asked to sign, so it carries the documents themselves, not a link.
+        If registrant_email is provided, the MOU is being sent to the owner on
+        behalf of the registrant.
         """
-        # Get the correct legal document for this role
-        legal_doc = LegalService.get_active_document(role)
+        from app.services.mou_loader import original_file
+
+        profile = user_payload.get("profile_data") or {}
+        mou = LegalService.get_partner_mou(
+            role,
+            phleb_type=profile.get("phleb_type"),
+            organization_type=profile.get("organization_type"),
+        )
+        legal_doc, documents = mou["document"], mou["documents"]
 
         # Create a token containing the signup data + document info
         expire = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -57,38 +56,78 @@ class EmailService:
         }
         token = jwt.encode(payload, EMAIL_TOKEN_SECRET, algorithm=ALGORITHM)
 
-        # Build the magic link
         magic_link = f"{settings.FRONTEND_URL}/auth/accept-mou?token={token}"
-        mou_title = legal_doc.get("title", "CallMedex MOU")
-        mou_text = legal_doc.get("content_text", "MOU content unavailable.")
-
         role_display = role.replace("_", " ").title()
-        registrant_name = user_payload.get('user_data', {}).get('full_name', 'Partner')
+        registrant_name = user_payload.get("user_data", {}).get("full_name", "Partner")
+        greeting = "Owner" if registrant_email else html.escape(registrant_name)
+        intro = (
+            f"Your representative ({html.escape(registrant_name)}, {html.escape(registrant_email)}) "
+            f"has initiated a {role_display} registration."
+            if registrant_email else f"Thank you for registering as a {role_display} on CallMedex."
+        )
 
-        # Build HTML content
+        if documents:
+            plural = len(documents) > 1
+            doc_list = "".join(f"<li>{html.escape(d['title'])}</li>" for d in documents)
+            summary = (
+                f"<p>Please read the complete agreement{'s' if plural else ''} below "
+                f"(the original document{'s are' if plural else ' is'} also attached):</p><ul>{doc_list}</ul>"
+            )
+            agreement_html = "".join(
+                '<div style="margin:28px 0 0;padding:24px;border:1px solid #d1d5db;border-radius:8px;background:#ffffff">'
+                '<div style="font-family:Arial,sans-serif;font-size:12px;color:#6b7280;margin-bottom:14px">'
+                f"Agreement {i} of {len(documents)} &middot; {html.escape(d['filename'])} &middot; SHA-256 {d['sha256']}"
+                f"</div>{d['html']}</div>"
+                for i, d in enumerate(documents, 1)
+            )
+            agreement_text = "\n\n".join(
+                f"===== Agreement {i} of {len(documents)}: {d['filename']} (SHA-256 {d['sha256']}) =====\n\n{d['text']}"
+                for i, d in enumerate(documents, 1)
+            )
+            attachments = [original_file(d["key"]) for d in documents]
+        else:
+            summary = f"<p>Please review the <strong>{html.escape(legal_doc.get('title') or 'CallMedex MOU')}</strong> below.</p>"
+            agreement_html = (
+                '<div style="margin:28px 0 0;padding:24px;border:1px solid #d1d5db;border-radius:8px;'
+                'white-space:pre-wrap;font-family:Georgia,serif;font-size:15px;line-height:1.6;color:#111827">'
+                f"{html.escape(legal_doc.get('content_text') or '')}</div>"
+            )
+            agreement_text = legal_doc.get("content_text") or ""
+            attachments = []
+
+        button = (
+            '<div style="margin: 25px 0;">'
+            f'<a href="{magic_link}" style="background-color: #7e22ce; color: white; padding: 12px 24px; '
+            'text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">'
+            "Review &amp; Accept MOU</a></div>"
+        )
+
         subject = f"Action Required: Accept {role_display} MOU to Activate Your CallMedex Account"
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px;">
-            <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px;">
+            <div style="max-width: 760px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px;">
                 <h2 style="color: #1e293b;">📋 CallMedex Partner Registration</h2>
-                <p>Dear {'Owner' if registrant_email else registrant_name},</p>
-                <p>{f"Your representative ({registrant_name}, {registrant_email}) has initiated a {role_display} registration." if registrant_email else f"Thank you for registering as a {role_display} on CallMedex."}</p>
-                <p>Please review and accept the <strong>{mou_title}</strong> to activate the account:</p>
-                <div style="margin: 25px 0;">
-                    <a href="{magic_link}" style="background-color: #7e22ce; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
-                        Review & Accept MOU
-                    </a>
-                </div>
-                <p style="color: #64748b; font-size: 13px;">This link will expire in 24 hours.</p>
+                <p>Dear {greeting},</p>
+                <p>{intro}</p>
+                {summary}
+                <p>When you have read it, accept it here to activate the account:</p>
+                {button}
+                <p style="color: #64748b; font-size: 13px;">This link will expire in 24 hours. Keep this email: it is your copy of the agreement.</p>
+                {agreement_html}
+                {button}
             </div>
         </body>
         </html>
         """
-        text_content = f"Accept MOU to activate account: {magic_link}"
+        text_content = (
+            f"Accept MOU to activate account: {magic_link}\n"
+            "This link will expire in 24 hours. Keep this email: it is your copy of the agreement.\n\n"
+            f"{agreement_text}\n\nAccept MOU to activate account: {magic_link}"
+        )
 
         # Dispatch via Resend API / SMTP or fallback to console log
-        if not EmailService._send_real_email(to_email, subject, html_content, text_content):
+        if not EmailService._send_real_email(to_email, subject, html_content, text_content, attachments):
             logger.warning(f"Email delivery degraded to console fallback (MOU email, {to_email}) — RESEND_API_KEY/SMTP not configured or send failed")
             print("\n" + "=" * 70)
             print(f"[EMAIL DISPATCHED TO] {to_email}")
@@ -96,19 +135,11 @@ class EmailService:
                 print(f"[INITIATED BY] {registrant_email} (Registrant)")
             print(f"[SUBJECT] {subject}")
             print("=" * 70)
-            print(f"Dear {'Owner' if registrant_email else registrant_name},\n")
+            print(f"Dear {greeting},\n")
             print(f"Review and accept MOU link: {magic_link}\n")
             print("=" * 70 + "\n")
 
         return token
-
-    @staticmethod
-    def send_mou_email(to_email: str, user_payload: dict):
-        """
-        Legacy method — kept for backward compatibility.
-        Now delegates to send_mou_email_for_role with 'organization' role.
-        """
-        EmailService.send_mou_email_for_role(to_email, "organization", user_payload)
 
     @staticmethod
     def send_welcome_email(to_email: str, provider_name: str, role: str = "organization"):
@@ -228,7 +259,8 @@ class EmailService:
             print("=" * 70 + "\n")
 
     @staticmethod
-    def _send_real_email(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
+    def _send_real_email(to_email: str, subject: str, html_content: str, text_content: str,
+                         attachments: list = None) -> bool:
         """
         Internal helper to send real email using Resend API or SMTP if configured.
         Returns True if sent via Resend or SMTP, False otherwise.
@@ -254,6 +286,11 @@ class EmailService:
                     "html": html_content,
                     "text": text_content,
                 }
+                if attachments:
+                    payload["attachments"] = [
+                        {"filename": name, "content": base64.b64encode(data).decode("ascii")}
+                        for data, name in attachments
+                    ]
                 headers = {
                     "Authorization": f"Bearer {settings.RESEND_API_KEY}",
                     "Content-Type": "application/json",
@@ -301,6 +338,12 @@ class EmailService:
                 msg['To'] = to_email
                 msg.set_content(text_content)
                 msg.add_alternative(html_content, subtype='html')
+                for data, name in attachments or []:
+                    msg.add_attachment(
+                        data, maintype="application",
+                        subtype="vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        filename=name,
+                    )
 
                 with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
                     server.starttls()

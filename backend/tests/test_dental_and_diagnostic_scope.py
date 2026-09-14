@@ -49,14 +49,12 @@ def test_dentist_role_and_signup_schema():
 
 
 def test_dentist_mou_configuration():
+    # A dentist is sent the original dental clinics agreement, never a paraphrase.
     assert ROLE_MOU_MAP.get("dentist") == "mou_dentist"
-    assert "dentist" in FALLBACK_MOU
-    mou_entry = FALLBACK_MOU["dentist"]
-    mou_content = mou_entry["content"]
-    assert "IN-CLINIC WALK-IN APPOINTMENTS & PROCEDURES" in mou_content
-    assert "80% of gross patient billing" in mou_content
-    assert "20% technology and administrative fee" in mou_content
-    assert "100% IN-CLINIC WALK-IN ONLY" in mou_content
+    assert "dentist" not in FALLBACK_MOU
+    mou = LegalService.get_partner_mou("dentist")
+    assert [d["filename"] for d in mou["documents"]] == ["CALLMEDEX_Dental_Clinics_Terms_and_Conditions.docx"]
+    assert "CALLMEDEX will charge a 20% platform fee." in mou["document"]["content_text"]
 
 
 def test_dentist_profile_initialization_is_walk_in_only():

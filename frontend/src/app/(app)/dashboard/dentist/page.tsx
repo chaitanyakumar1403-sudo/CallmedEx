@@ -6,6 +6,7 @@ import DashboardShell, { SkeletonRows, type DashTab } from "../components/Dashbo
 import DashboardProfile from "../components/DashboardProfile";
 import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
+import MouDocuments, { type MouDocument } from "@/components/MouDocuments";
 import {
   Calendar,
   Clock,
@@ -299,6 +300,23 @@ export default function DentistDashboard() {
   const [activeTab, setActiveTab] = useState("procedures");
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Original MOU (loaded when the MOU tab is first opened)
+  const [mouDocs, setMouDocs] = useState<MouDocument[]>([]);
+  const [mouState, setMouState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+
+  useEffect(() => {
+    if (activeTab !== "mou" || mouState !== "idle") return;
+    setMouState("loading");
+    fetch(`${apiBase}/api/providers/mou`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok || !data.success || !Array.isArray(data.documents) || data.documents.length === 0) throw new Error();
+        setMouDocs(data.documents);
+        setMouState("ready");
+      })
+      .catch(() => setMouState("error"));
+  }, [activeTab, mouState]);
 
   // Procedures & Tariffs state
   const [scopeList, setScopeList] = useState<DentalScopeItem[]>(CANONICAL_19_DENTAL_PROCEDURES);
@@ -1109,7 +1127,7 @@ export default function DentistDashboard() {
                   CallMedex Dental Partner Agreement &amp; MOU
                 </h2>
                 <p style={{ fontSize: "0.82rem", color: "#64748b", margin: 0 }}>
-                  Executed Memorandum of Understanding between CallMedex Technologies Pvt. Ltd. and {profile?.clinic_name || "Partner Dental Practice"}.
+                  The original agreement accepted by {profile?.clinic_name || "your dental practice"}, word for word.
                 </p>
               </div>
               <span
@@ -1130,64 +1148,34 @@ export default function DentistDashboard() {
               </span>
             </div>
 
-            <div
-              style={{
-                padding: "20px",
-                borderRadius: 10,
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
-                fontSize: "0.84rem",
-                color: "#334155",
-                lineHeight: 1.6,
-                marginBottom: 20,
-              }}
-            >
-              <h4 style={{ margin: "0 0 10px 0", color: "#0f172a", fontSize: "0.95rem" }}>
-                1. SCOPE OF SERVICES &amp; MODALITY GOVERNANCE
-              </h4>
-              <p>
-                The Dental Partner agrees to deliver dental consultations and clinical procedures strictly as <strong>100% In-Clinic Walk-In Services</strong> at the registered clinic operatory. Due to statutory infection control requirements, aerosol management, and autoclave sterilization standards, teleconsultations and home visit modalities are strictly excluded from dental procedure offerings.
-              </p>
-
-              <h4 style={{ margin: "16px 0 10px 0", color: "#0f172a", fontSize: "0.95rem" }}>
-                2. COMMERCIAL SPLIT &amp; PAYMENT SETTLEMENT
-              </h4>
-              <p>
-                Commercial remuneration is governed by CallMedex Healthcare Commercial Guidelines:
-                <br />
-                • <strong>80% Net Provider Remuneration:</strong> Payable to the Dentist on a verified weekly disbursement cycle.
-                <br />
-                • <strong>20% CallMedex Platform &amp; Technology Fee:</strong> Covering patient booking automation, digital records, and SMS/Email transaction receipts.
-              </p>
-
-              <h4 style={{ margin: "16px 0 10px 0", color: "#0f172a", fontSize: "0.95rem" }}>
-                3. CLINICAL STERILIZATION &amp; STATUTORY COMPLIANCE
-              </h4>
-              <p>
-                The Dental Partner certifies compliance with State Dental Council / Dental Council of India (DCI) protocols, including valid autoclaving monitoring (Class B autoclave verification), biomedical waste management, and patient informed consent for all invasive surgical procedures.
-              </p>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button
-                onClick={() => window.print()}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 8,
-                  background: "#0f172a",
-                  color: "#fff",
-                  border: "none",
-                  fontWeight: 700,
-                  fontSize: "0.84rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <FileText size={16} /> Print / Save MOU Copy
-              </button>
-            </div>
+            {mouState === "ready" && mouDocs.length > 0 ? (
+              <div style={{ color: "#475569" }}>
+                <MouDocuments
+                  documents={mouDocs}
+                  bearer={getToken()}
+                  downloadUrl={(d) => `${apiBase}/api/providers/mou/documents/${encodeURIComponent(d.key)}/download`}
+                  paperMaxHeight="70vh"
+                />
+              </div>
+            ) : (
+              <div style={{ padding: "32px 0", textAlign: "center", color: "#64748b", fontSize: "0.9rem" }}>
+                {mouState === "error" ? (
+                  <>
+                    <AlertCircle size={20} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                    Your agreement could not be loaded.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setMouState("idle")}
+                      style={{ background: "none", border: "none", color: "#0f172a", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                    >
+                      Try again
+                    </button>
+                  </>
+                ) : (
+                  <><FileText size={18} style={{ verticalAlign: "middle", marginRight: 6 }} /> Loading your original agreement…</>
+                )}
+              </div>
+            )}
           </div>
         )}
 

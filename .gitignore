@@ -32,8 +32,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Partner MOU source documents — kept local, not version-controlled
-mous/
+# Partner MOU working copies — kept local. The deployed originals live in
+# backend/legal_docs/mous/ and ARE version-controlled (the backend image is
+# built from backend/), so anchor this to the repo root only.
+/mous/
+/mou_errors/
 
 # Commercial pricing source sheets — kept local, not version-controlled
 pricing_details/

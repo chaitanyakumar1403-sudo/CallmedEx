@@ -25,7 +25,9 @@ from app.utils.security import (
 from app.middleware.auth import get_current_user
 from app.database import supabase
 from app.services.email import EmailService, EMAIL_TOKEN_SECRET, ALGORITHM
-from app.services.legal import LegalService
+from app.services.legal import LegalService, acceptance_manifest
+from app.services.mou_loader import MouDocumentError, document_keys_for, original_file
+from app.middleware.rate_limiter import _get_client_ip
 from app.services.sms_otp import sms_otp_service, normalize_indian_phone
 from app.config import settings
 from jose import jwt, JWTError
@@ -594,15 +596,17 @@ async def preview_mou(token: str):
                 "message": "This account has already been activated.",
             }
 
-        # Get the legal document for this role
-        legal_doc = LegalService.get_active_document(role)
-        from app.services.scope_catalogs import get_master_catalog_for_role, sanitize_selected_scope
+        # The original agreement(s) for this role and subtype
+        mou = _partner_mou_for_signup(role, signup_data)
+        legal_doc = mou["document"]
+        from app.services.scope_catalogs import get_master_catalog_for_role
 
         scope_catalog = get_master_catalog_for_role(role)
 
         return {
             "success": True,
             "already_accepted": False,
+            "documents": [_public_document(d) for d in mou["documents"]],
             "document": {
                 "id": legal_doc.get("id"),
                 "title": legal_doc.get("title"),
@@ -627,6 +631,66 @@ async def preview_mou(token: str):
             status_code=400,
             detail="This link has expired or is invalid. Please register again.",
         )
+    except MouDocumentError as e:
+        logger.error(f"MOU preview could not render the original agreement: {e}")
+        raise HTTPException(status_code=503, detail=_MOU_UNAVAILABLE)
+
+
+_MOU_UNAVAILABLE = "The agreement document is temporarily unavailable. Please try again shortly or contact support."
+
+
+def _partner_mou_for_signup(role: str, signup_data: dict) -> dict:
+    """The originals for a pending signup, chosen by the subtype it registered with."""
+    profile = (signup_data or {}).get("profile_data") or {}
+    return LegalService.get_partner_mou(
+        role,
+        phleb_type=profile.get("phleb_type"),
+        organization_type=profile.get("organization_type"),
+    )
+
+
+def _public_document(doc: dict) -> dict:
+    return {k: doc[k] for k in ("key", "label", "filename", "title", "sha256", "html", "text")}
+
+
+def mou_download_response(key: str):
+    """The untouched original .docx, as an attachment."""
+    from urllib.parse import quote
+    from fastapi.responses import Response
+    data, filename = original_file(key)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.get("/mou/documents/{key}/download")
+async def download_signup_mou(key: str, token: str):
+    """Original agreement download for the acceptance page. Only a document that
+    applies to the pending signup in the token can be fetched."""
+    try:
+        payload = jwt.decode(token, EMAIL_TOKEN_SECRET, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=400, detail="This link has expired or is invalid. Please register again.")
+    if payload.get("type") != "mou_acceptance":
+        raise HTTPException(status_code=400, detail="Invalid token type")
+    profile = (payload.get("signup_data") or {}).get("profile_data") or {}
+    allowed = document_keys_for(
+        payload.get("role", ""),
+        phleb_type=profile.get("phleb_type"),
+        organization_type=profile.get("organization_type"),
+    )
+    if key not in allowed:
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        return mou_download_response(key)
+    except MouDocumentError as e:
+        logger.error(f"MOU download failed for {key}: {e}")
+        raise HTTPException(status_code=503, detail=_MOU_UNAVAILABLE)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -635,9 +699,12 @@ async def preview_mou(token: str):
 
 class AcceptMOURequest(BaseModel):
     token: str
-    ip_address: str = "unknown"
+    ip_address: str = "unknown"  # ignored: a client cannot vouch for its own IP
     user_agent: str = "unknown"
     selected_scope: Optional[List[dict]] = None
+    # SHA-256 of each original the page displayed. When sent, acceptance is
+    # refused if the agreement changed after the page loaded.
+    document_hashes: Optional[List[str]] = None
 
 
 @router.post("/accept-mou", response_model=APIResponse)
@@ -660,14 +727,10 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
         profile_data = signup_data.get("profile_data")
         role = payload.get("role", user_data.get("role", "organization"))
 
-        # Extract real IP and user agent from the request if not provided by frontend
-        client_ip = req.ip_address
-        if client_ip == "unknown":
-            client_ip = request.client.host if request.client else "unknown"
-
-        client_ua = req.user_agent
-        if client_ua == "unknown":
-            client_ua = request.headers.get("user-agent", "unknown")
+        # The audit trail records the IP the server saw. The page used to send
+        # the literal string "client-side", which was stored as the IP.
+        client_ip = _get_client_ip(request)
+        client_ua = request.headers.get("user-agent") or req.user_agent or "unknown"
 
         # Check if already activated (double-click protection)
         if _get_user_by_email(user_data["email"]):
@@ -675,6 +738,21 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
                 success=True,
                 message="Account is already active. You can log in now.",
                 data={"status": "already_active"},
+            )
+
+        # The exact originals being accepted — resolved before anything is written.
+        try:
+            mou = _partner_mou_for_signup(role, signup_data)
+        except MouDocumentError as e:
+            logger.error(f"MOU acceptance could not render the original agreement: {e}")
+            raise HTTPException(status_code=503, detail=_MOU_UNAVAILABLE)
+        accepted_documents = mou["documents"]
+        if req.document_hashes is not None and sorted(req.document_hashes) != sorted(
+            d["sha256"] for d in accepted_documents
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="The agreement was updated after this page was opened. Please reload the page and review the current agreement before accepting.",
             )
 
         # 1. Activate the user — change registration_status to 'active'
@@ -713,18 +791,23 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
                         )
                 raise
 
-        # 3. Record the legal acceptance with full audit trail
-        document_id = payload.get("document_id")
-        document_version = payload.get("document_version", "v1.0")
+        # 3. Record the legal acceptance with full audit trail. document_id is
+        # the seeded legal_documents row (FK), never the token's — older tokens
+        # carry a random id that no row has.
+        document_id = mou["document"].get("id")
+        document_version = mou["document"].get("version", "v1.0")
 
-        LegalService.complete_acceptance(
-            token=req.token,
+        acceptance = LegalService.record_acceptance(
             user_id=user_data["id"],
+            token=req.token,
+            document_id=document_id,
+            documents=accepted_documents,
             ip_address=client_ip,
             user_agent=client_ua,
         )
 
-        # 4. Audit log
+        # 4. Audit log — also carries the document fingerprints, so the record
+        # survives even if the legal_acceptances insert did not.
         LegalService.log_audit(
             actor_id=user_data["id"],
             action="mou.accepted",
@@ -733,6 +816,8 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
             details={
                 "role": role,
                 "document_version": document_version,
+                "documents": acceptance_manifest(accepted_documents),
+                "acceptance_recorded": acceptance is not None,
                 "ip_address": client_ip,
                 "user_agent": client_ua[:200],  # Truncate for storage
             },

@@ -16,6 +16,9 @@ import {
   Info,
   Check,
 } from "lucide-react";
+import MouDocuments, { type MouDocument } from "@/components/MouDocuments";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ScopeItem {
   id: string;
@@ -40,8 +43,12 @@ function AcceptMOUContent() {
     title: string;
     content_text: string;
     version: string;
-    effective_date: string;
+    effective_date: string | null;
   } | null>(null);
+  // The original agreement(s), word for word. Empty only for a role with no
+  // original yet, which falls back to mouDocument.content_text.
+  const [mouDocuments, setMouDocuments] = useState<MouDocument[]>([]);
+  const [agreementChanged, setAgreementChanged] = useState(false);
   const [userInfo, setUserInfo] = useState<{
     email: string;
     full_name: string;
@@ -103,6 +110,7 @@ function AcceptMOUContent() {
         }
 
         setMouDocument(data.document);
+        setMouDocuments(Array.isArray(data.documents) ? data.documents : []);
         setUserInfo(data.user_info);
 
         if (Array.isArray(data.scope_catalog) && data.scope_catalog.length > 0) {
@@ -164,16 +172,22 @@ function AcceptMOUContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             token,
-            ip_address: "client-side",
             user_agent: navigator.userAgent,
             selected_scope: scopeCatalog.length > 0 ? scopeCatalog : undefined,
+            // Fingerprints of the exact originals shown on this page; the
+            // server refuses the acceptance if they changed meanwhile.
+            document_hashes: mouDocuments.length > 0 ? mouDocuments.map((d) => d.sha256) : undefined,
           }),
         }
       );
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.status === 409) {
+        setAgreementChanged(true);
+        setStage("error");
+        setMessage(data.detail || "The agreement was updated. Please reload the page and review it again.");
+      } else if (data.success) {
         setStage("success");
         setMessage(data.message || "Account successfully activated!");
         setTimeout(() => {
@@ -214,7 +228,7 @@ function AcceptMOUContent() {
                   Official Partner Agreement
                 </span>
               </div>
-              <h1 style={{ fontSize: "1.75rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em" }}>
+              <h1 style={{ fontSize: "1.75rem", fontWeight: 800, margin: 0, letterSpacing: "-0.02em", color: "#ffffff" }}>
                 CallMedex — {roleDisplay} Onboarding
               </h1>
               {userInfo && (
@@ -333,17 +347,34 @@ function AcceptMOUContent() {
                   >
                     <Info size={18} color="#0284c7" style={{ flexShrink: 0 }} />
                     <div>
-                      Please scroll through the official memorandum below. Once reviewed, you can customize your scope of services and agree to proceed.
+                      {mouDocuments.length > 1
+                        ? `Your registration is governed by ${mouDocuments.length} original agreement documents. Please read each one in full (use the numbered tabs), then customize your scope of services and agree to proceed.`
+                        : "Please read the original agreement below in full. Once reviewed, you can customize your scope of services and agree to proceed."}{" "}
+                      A copy has also been sent to your email.
                     </div>
                   </div>
 
+                  {mouDocuments.length > 0 ? (
+                    <div style={{ marginBottom: 24, color: "#475569" }}>
+                      <MouDocuments
+                        documents={mouDocuments}
+                        downloadUrl={(d) =>
+                          `${API_BASE}/api/auth/mou/documents/${encodeURIComponent(d.key)}/download?token=${encodeURIComponent(token || "")}`
+                        }
+                        paperMaxHeight="480px"
+                        onPaperScroll={handleScroll}
+                        paperRef={scrollRefCallback}
+                      />
+                    </div>
+                  ) : (
+                  <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <h3 style={{ color: "#0f172a", margin: 0, fontSize: "1.15rem", fontWeight: 700 }}>
                       {mouDocument.title}
                     </h3>
                     <div style={{ display: "flex", gap: 12, fontSize: "0.8rem", color: "#64748b" }}>
                       <span>Version: <strong>{mouDocument.version}</strong></span>
-                      <span>Effective: <strong>{mouDocument.effective_date}</strong></span>
+                      {mouDocument.effective_date && <span>Effective: <strong>{mouDocument.effective_date}</strong></span>}
                     </div>
                   </div>
 
@@ -369,6 +400,8 @@ function AcceptMOUContent() {
                   >
                     {mouDocument.content_text}
                   </div>
+                  </>
+                  )}
                 </div>
               )}
 
@@ -520,7 +553,9 @@ function AcceptMOUContent() {
                     lineHeight: 1.5,
                   }}
                 >
-                  I have read, understood, and solemnly accept the Memorandum of Understanding (MOU), terms of clinical service, 80/20 commercial split, and the customized scope of services above.
+                  {mouDocuments.length > 1
+                    ? `I have read, understood, and solemnly accept all ${mouDocuments.length} original agreement documents above, and the customized scope of services.`
+                    : "I have read, understood, and solemnly accept the original agreement above, and the customized scope of services."}
                 </label>
               </div>
 
@@ -701,11 +736,13 @@ function AcceptMOUContent() {
               <div style={{ display: "inline-flex", padding: 18, borderRadius: "50%", background: "#fef2f2", marginBottom: 16 }}>
                 <AlertCircle size={40} color="#dc2626" />
               </div>
-              <h2 style={{ color: "#991b1b", margin: "0 0 8px" }}>Verification Link Error</h2>
+              <h2 style={{ color: "#991b1b", margin: "0 0 8px" }}>
+                {agreementChanged ? "Agreement Updated" : "Verification Link Error"}
+              </h2>
               <p style={{ color: "#4b5563", marginBottom: 24 }}>{message}</p>
               <button
                 type="button"
-                onClick={() => router.push("/auth/signup")}
+                onClick={() => (agreementChanged ? window.location.reload() : router.push("/auth/signup"))}
                 style={{
                   padding: "12px 28px",
                   backgroundColor: "#0f172a",
@@ -716,7 +753,7 @@ function AcceptMOUContent() {
                   fontWeight: 700,
                 }}
               >
-                Back to Sign Up
+                {agreementChanged ? "Reload Agreement" : "Back to Sign Up"}
               </button>
             </div>
           )}
