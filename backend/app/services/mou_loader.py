@@ -345,12 +345,15 @@ _CELL = "border:1px solid #9ca3af;padding:5px 8px;vertical-align:top"
 
 def _block_html(block, in_cell: bool = False) -> str:
     if block["type"] == "table":
-        rows = "".join(
-            "<tr>" + "".join(
-                f'<td{f" colspan=\"{c["span"]}\"" if c["span"] > 1 else ""} style="{_CELL}">'
-                + ("" if c["merged"] else "".join(_block_html(b, True) for b in c["blocks"])) + "</td>"
-                for c in cells) + "</tr>"
-            for cells in block["rows"])
+        row_chunks = []
+        for cells in block["rows"]:
+            cell_chunks = []
+            for c in cells:
+                colspan = f' colspan="{c["span"]}"' if c["span"] > 1 else ""
+                inner = "" if c["merged"] else "".join(_block_html(b, True) for b in c["blocks"])
+                cell_chunks.append(f'<td{colspan} style="{_CELL}">{inner}</td>')
+            row_chunks.append(f"<tr>{''.join(cell_chunks)}</tr>")
+        rows = "".join(row_chunks)
         return ('<div style="overflow-x:auto;margin:8px 0 14px">'
                 f'<table style="border-collapse:collapse;width:100%;font-size:0.92em">{rows}</table></div>')
 
