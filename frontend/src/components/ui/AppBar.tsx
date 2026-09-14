@@ -95,9 +95,6 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
       <a className="cm-appbar__brand" href={getDashboardRoute()} onClick={handleBrandClick}>
         CallMedex
       </a>
-      {resolvedRole && resolvedRole !== "My Portal" && !isPatientRoute && (
-        <span className="cm-appbar__role">{resolvedRole}</span>
-      )}
       <a
         href="/about"
         className="cm-appbar__home-link"
@@ -105,7 +102,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
           display: "inline-flex",
           alignItems: "center",
           gap: "6px",
-          marginLeft: isPatientRoute ? "12px" : "10px",
+          marginLeft: "12px",
           padding: "5px 12px",
           borderRadius: "8px",
           fontSize: "0.82rem",

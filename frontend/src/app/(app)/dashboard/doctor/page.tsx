@@ -57,6 +57,12 @@ interface ProviderFee {
   amount: number;
 }
 
+const formatDoctorName = (name?: string, fallback = "Dr. Verified Medical Specialist") => {
+  if (!name) return fallback;
+  const trimmed = name.trim();
+  return /^Dr\.?\s+/i.test(trimmed) || /^Doctor\s+/i.test(trimmed) ? trimmed : `Dr. ${trimmed}`;
+};
+
 export default function DoctorDashboard() {
   const router = useRouter();
   // Appointments is first and default
@@ -332,7 +338,7 @@ export default function DoctorDashboard() {
         body: JSON.stringify({
           patient_email: rxPatientEmail.trim(),
           patient_name: rxPatientName.trim(),
-          doctor_name: profile?.full_name ? `Dr. ${profile.full_name}` : "Dr. CallMedex Consultant",
+          doctor_name: formatDoctorName(profile?.full_name, "Dr. CallMedex Consultant"),
           doctor_qualification: profile?.qualification || "MBBS, MD",
           doctor_reg_number: profile?.registration_number || "NMC-VERIFIED-2026",
           diagnosis: rxDiagnosis,
@@ -420,7 +426,7 @@ export default function DoctorDashboard() {
   return (
     <DashboardShell
       role="doctor"
-      title={profile?.full_name ? `Dr. ${profile.full_name}` : "Dr. Verified Medical Specialist"}
+      title={formatDoctorName(profile?.full_name, "Dr. Verified Medical Specialist")}
       subtitle={`${profile?.qualification || "MBBS, MD"} · ${profile?.specialization || "General Medicine & Cardiology"} · ${profile?.hospital_clinic_name || "CallMedex Clinical Network"}`}
       tabs={tabs}
       activeTab={activeTab}
@@ -1374,7 +1380,7 @@ export default function DoctorDashboard() {
                       CALLMEDEX HEALTHCARE NETWORK · TELEMEDICINE &amp; BEDSIDE
                     </div>
                     <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
-                      {profile?.full_name ? `Dr. ${profile.full_name}` : "Dr. Verified Medical Specialist"}
+                      {formatDoctorName(profile?.full_name, "Dr. Verified Medical Specialist")}
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 600 }}>
                       {profile?.qualification || "MBBS, MD"} · {profile?.specialization || "General Medicine & Telehealth"}
@@ -1515,7 +1521,7 @@ export default function DoctorDashboard() {
                       <CheckCircle2 size={13} /> DIGITALLY SIGNED &amp; VERIFIED
                     </div>
                     <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", fontFamily: "cursive, Georgia, serif" }}>
-                      {profile?.full_name ? `Dr. ${profile.full_name}` : "Verified Medical Officer"}
+                      {formatDoctorName(profile?.full_name, "Verified Medical Officer")}
                     </div>
                     <div style={{ fontSize: "10px", color: "#64748b" }}>
                       Secured under IT Act 2000 &amp; NMC Guidelines

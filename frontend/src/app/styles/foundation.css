@@ -5862,18 +5862,35 @@ input[type="radio"] {
    PROVIDER WORKSPACE TWO-COLUMN LAYOUT & GLASSMORPHIC SIDEBAR WIDGET
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Ensure all non-patient dashboard headers and layouts are completely flush-left */
+.cm-dash:not([data-role="patient"]) .cm-dash__head {
+  padding: var(--cm-6, 24px) var(--cm-5, 20px);
+}
+
+.cm-dash:not([data-role="patient"]) .cm-dash__head-inner {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 .cm-dash--provider .cm-dash__head {
-  padding-bottom: var(--cm-6, 24px);
+  padding: var(--cm-6, 24px) var(--cm-5, 20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.cm-dash--provider .cm-dash__head-inner {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 .cm-provider-layout {
-  max-width: 1460px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
   display: flex;
   align-items: flex-start;
   gap: var(--cm-6, 28px);
-  padding: var(--cm-6, 24px) var(--cm-6, 24px) var(--cm-12, 48px);
+  padding: var(--cm-6, 24px) var(--cm-5, 20px) var(--cm-12, 48px);
   min-height: calc(100vh - 120px);
 }
 

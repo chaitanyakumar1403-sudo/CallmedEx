@@ -537,7 +537,7 @@ export default function DentistDashboard() {
     <DashboardShell
       role="dentist"
       title="Dental Surgery &amp; Practice Workstation"
-      subtitle={`${profile?.clinic_name || "Dental Practice"} · Dr. ${profile?.full_name || "Dentist Partner"} (${profile?.qualification || "BDS / MDS Surgery"}) · 100% In-Clinic Walk-In`}
+      subtitle={`${profile?.clinic_name || "Dental Practice"} · ${profile?.full_name ? (/^dr\.?\s+/i.test(profile.full_name) ? profile.full_name : `Dr. ${profile.full_name}`) : "Dr. Dentist Partner"} (${profile?.qualification || "BDS / MDS Surgery"}) · 100% In-Clinic Walk-In`}
       tabs={TABS}
       activeTab={activeTab}
       onTabChange={setActiveTab}
