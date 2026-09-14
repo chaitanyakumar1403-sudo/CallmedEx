@@ -27,6 +27,7 @@ import {
   Check,
   Search,
   FileSpreadsheet,
+  FileText,
   Edit3,
   Download,
 } from "lucide-react";
@@ -106,7 +107,7 @@ export default function OrganizationDashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success && data.data.role === "organization") {
+      if (data.success && (data.data.role === "organization" || data.data.role === "admin" || data.data?.is_owner || data.data?.master_owner)) {
         setProfile(data.data);
       } else {
         router.push("/dashboard/staff");
@@ -991,27 +992,23 @@ export default function OrganizationDashboard() {
         {currentTab === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Financial Revenue & Payout Export Card */}
-            <div style={{
-              background: "linear-gradient(135deg, #2e1065 0%, #3b0764 100%)",
-              borderRadius: 16, padding: 28, color: "white",
-              boxShadow: "0 10px 25px -5px rgba(59, 7, 100, 0.4)",
-              border: "1px solid rgba(255,255,255,0.1)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div className="cm-org-revenue-card">
+              <div className="cm-org-revenue-header">
                 <div>
-                  <span style={{ backgroundColor: "#f0abfc", color: "#701a75", fontSize: "0.7rem", fontWeight: 800, padding: "3px 10px", borderRadius: 12, textTransform: "uppercase" }}>
-                    📊 Financial Ledger & Payout Analytics
+                  <span className="cm-org-revenue-badge">
+                    <BarChart3 size={13} /> Financial Ledger &amp; Payout Analytics
                   </span>
-                  <h3 style={{ margin: "6px 0 2px", fontSize: "1.3rem", fontWeight: 800, color: "white" }}>
-                    Diagnostic Revenue & Booking Payouts
+                  <h3 className="cm-org-revenue-title">
+                    Diagnostic Revenue &amp; Booking Payouts
                   </h3>
-                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#e9d5ff" }}>
+                  <p className="cm-org-revenue-subtitle">
                     Track lab bookings, payout releases, commission deductions, and GST invoices.
                   </p>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div className="cm-org-revenue-actions">
                   <button
+                    type="button"
                     onClick={() => {
                       const csvHeader = "Booking ID,Date,Patient Name,Service Type,Total Amount (INR),Org Payout (85%),Platform Fee (15%),Status\n";
                       const sampleRows = [
@@ -1029,31 +1026,23 @@ export default function OrganizationDashboard() {
                       link.click();
                       document.body.removeChild(link);
                     }}
-                    style={{
-                      padding: "10px 18px", borderRadius: 10, border: "none",
-                      background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                      color: "white", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 6, boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)"
-                    }}
+                    className="cm-org-btn-export-csv"
                   >
-                    📊 Export Revenue CSV
+                    <FileSpreadsheet size={15} /> Export Revenue CSV
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => window.print()}
-                    style={{
-                      padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)",
-                      background: "rgba(255,255,255,0.1)", color: "white", fontWeight: 700, fontSize: "0.85rem",
-                      cursor: "pointer", display: "flex", alignItems: "center", gap: 6
-                    }}
+                    className="cm-org-btn-download-pdf"
                   >
-                    📄 Download PDF Report
+                    <FileText size={15} /> Download PDF Report
                   </button>
                 </div>
               </div>
 
               {/* Ledger Summary Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 20 }}>
+              <div className="cm-org-revenue-grid">
                 {/*
                   Only gross revenue is shown, because only gross revenue is real:
                   the backend sums it from actual booking prices
@@ -1064,22 +1053,22 @@ export default function OrganizationDashboard() {
                   a rate this screen invented. They return when settlement
                   supplies real figures.
                 */}
-                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Total Gross Revenue</div>
-                  <div style={{ fontSize: "1.6rem", fontWeight: 800, color: "white", marginTop: 4 }}>
+                <div className="cm-org-revenue-subcard">
+                  <div className="cm-org-revenue-subcard-label">Total Gross Revenue</div>
+                  <div className="cm-org-revenue-subcard-value">
                     {typeof orgStats?.total_revenue === "number"
                       ? `₹${orgStats.total_revenue.toFixed(2)}`
                       : "—"}
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>Gross patient payments</div>
+                  <div className="cm-org-revenue-subcard-meta">Gross patient payments</div>
                 </div>
 
-                <div style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 12, padding: 16 }}>
-                  <div style={{ fontSize: "0.75rem", color: "#d8b4fe" }}>Payout &amp; commission</div>
-                  <div style={{ fontSize: "1rem", fontWeight: 700, color: "white", marginTop: 4 }}>
+                <div className="cm-org-revenue-subcard">
+                  <div className="cm-org-revenue-subcard-label">Payout &amp; commission</div>
+                  <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
                     Not yet settled
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#a855f7", marginTop: 2 }}>
+                  <div className="cm-org-revenue-subcard-meta">
                     Your share and the platform fee appear here once your MOU rate is
                     configured and the first settlement runs.
                   </div>
@@ -1091,7 +1080,9 @@ export default function OrganizationDashboard() {
               backgroundColor: "white", borderRadius: 12, padding: 32,
               textAlign: "center", border: "2px dashed #d1d5db",
             }}>
-              <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🚀</div>
+              <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}>
+                <Sparkles size={36} style={{ color: "#0284c7" }} />
+              </div>
               <h3 style={{ fontSize: "1.1rem", marginBottom: 8, color: "#1e293b" }}>
                 Welcome to Your Organization Hub
               </h3>

@@ -11,7 +11,7 @@ export default function PublicLayout({
     <>
       {/* Top Utility Bar */}
       <div className="utility-bar">
-        <div className="container">
+        <div className="utility-bar__wide-container">
           <div className="utility-bar__left">
             <a href="tel:108" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <ShieldAlert size={14} style={{ color: "var(--cm-urgent)" }} /> Ambulance: 108

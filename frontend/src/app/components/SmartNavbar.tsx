@@ -179,51 +179,53 @@ export default function SmartNavbar() {
 
   return (
     <nav className="navbar" style={{ position: "relative" }}>
-      <div className="container">
-        <Link href={getDashboardLink()} className="navbar__logo" style={{ display: "flex", alignItems: "center" }}>
-          <img src="/logo.png" alt="CallMedex Logo" style={{ height: "55px", width: "auto", objectFit: "contain" }} />
-        </Link>
-        <ul className="navbar__nav">
-          <li><Link href="/about">About</Link></li>
-          <li><Link href="/packages">Health Packages</Link></li>
-          {(!user || user.role === "patient") && (
-            <>
-              <li><Link href="/diagnostics">Book a Test</Link></li>
-              <li><Link href="/consultation">Consultation</Link></li>
-              <li><Link href="/pharmacy">Pharmacy</Link></li>
-              <li>
-                <Link
-                  href="/home-services"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    color: "inherit",
-                    textDecoration: "none",
-                  }}
-                >
-                  <Sparkles size={13} style={{ color: "#38bdf8" }} />
-                  <span>Home Services</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/nri-consultation"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "5px",
-                    color: "inherit",
-                    textDecoration: "none",
-                  }}
-                >
-                  <Globe size={13} style={{ color: "#0284c7" }} />
-                  <span>NRI Consultation</span>
-                </Link>
-              </li>
-            </>
-          )}
-        </ul>
+      <div className="navbar__wide-container">
+        <div className="navbar__brand-nav-group">
+          <Link href={getDashboardLink()} className="navbar__logo" style={{ display: "flex", alignItems: "center" }}>
+            <img src="/logo.png" alt="CallMedex Logo" style={{ height: "55px", width: "auto", objectFit: "contain" }} />
+          </Link>
+          <ul className="navbar__nav--unified">
+            <li><Link href="/about">About</Link></li>
+            <li><Link href="/packages">Health Packages</Link></li>
+            {(!user || user.role === "patient") && (
+              <>
+                <li><Link href="/diagnostics">Book a Test</Link></li>
+                <li><Link href="/consultation">Consultation</Link></li>
+                <li><Link href="/pharmacy">Pharmacy</Link></li>
+                <li>
+                  <Link
+                    href="/home-services"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      color: "inherit",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Sparkles size={13} style={{ color: "#38bdf8" }} />
+                    <span>Home Services</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/nri-consultation"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      color: "inherit",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Globe size={13} style={{ color: "#0284c7" }} />
+                    <span>NRI Consultation</span>
+                  </Link>
+                </li>
+              </>
+            )}
+          </ul>
+        </div>
         <div className="navbar__actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {user ? (
             <>
