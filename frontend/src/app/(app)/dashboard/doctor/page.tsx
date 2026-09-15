@@ -10,6 +10,7 @@ import SelfieVerificationCard from "../components/SelfieVerificationCard";
 import DoctorClinicalAnalytics3D from "../components/DoctorClinicalAnalytics3D";
 import DoctorVerificationModal from "../components/DoctorVerificationModal";
 import DoctorAppointmentAlertWidget from "../components/DoctorAppointmentAlertWidget";
+import { formatDoctorName, prescriberRegNumber, REG_MISSING_MESSAGE } from "@/lib/prescriber";
 import {
   Calendar,
   Clock,
@@ -57,11 +58,6 @@ interface ProviderFee {
   amount: number;
 }
 
-const formatDoctorName = (name?: string, fallback = "Dr. Verified Medical Specialist") => {
-  if (!name) return fallback;
-  const trimmed = name.trim();
-  return /^Dr\.?\s+/i.test(trimmed) || /^Doctor\s+/i.test(trimmed) ? trimmed : `Dr. ${trimmed}`;
-};
 
 export default function DoctorDashboard() {
   const router = useRouter();
@@ -302,7 +298,7 @@ export default function DoctorDashboard() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setStatusMsg({ text: `✓ Fee updated: ₹${amount} for ${feeForm.fee_type.replace("_", " ")}`, type: "success" });
+        setStatusMsg({ text: `Fee updated: ₹${amount} for ${feeForm.fee_type.replace("_", " ")}`, type: "success" });
         setFeeForm({ ...feeForm, amount: "" });
         fetchFees();
       } else {
@@ -317,6 +313,10 @@ export default function DoctorDashboard() {
 
   // Transmit e-Prescription directly to Patient Email
   const handleTransmitRxEmail = async () => {
+    if (!prescriberRegNumber(profile)) {
+      setStatusMsg({ text: REG_MISSING_MESSAGE, type: "error" });
+      return;
+    }
     if (!rxPatientName.trim()) {
       setStatusMsg({ text: "Patient Name is mandatory for e-Prescription.", type: "error" });
       return;
@@ -339,8 +339,7 @@ export default function DoctorDashboard() {
           patient_email: rxPatientEmail.trim(),
           patient_name: rxPatientName.trim(),
           doctor_name: formatDoctorName(profile?.full_name, "Dr. CallMedex Consultant"),
-          doctor_qualification: profile?.qualification || "MBBS, MD",
-          doctor_reg_number: profile?.registration_number || "NMC-VERIFIED-2026",
+          doctor_qualification: profile?.qualification || "",
           diagnosis: rxDiagnosis,
           medicines: rxItems,
           lab_tests: rxLabTests,
@@ -352,7 +351,7 @@ export default function DoctorDashboard() {
       const data = await res.json();
       if (res.ok && data.success) {
         setStatusMsg({
-          text: `✓ Official e-Prescription successfully transmitted to ${rxPatientEmail} and recorded on patient's digital EHR.`,
+          text: `Official e-Prescription successfully transmitted to ${rxPatientEmail} and recorded on patient's digital EHR.`,
           type: "success",
         });
       } else {
@@ -372,7 +371,7 @@ export default function DoctorDashboard() {
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--cm-surface-2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--cm-navy)" }}>
             <Stethoscope size={32} />
           </div>
-          <h2 style={{ color: "var(--cm-ink)", fontWeight: 800, fontSize: "var(--cm-text-lg)" }}>
+          <h2 style={{ color: "var(--cm-ink)", fontWeight: 600, fontSize: "var(--cm-text-lg)" }}>
             Loading Clinical Doctor Workstation...
           </h2>
         </div>
@@ -427,33 +426,17 @@ export default function DoctorDashboard() {
     <DashboardShell
       role="doctor"
       title={formatDoctorName(profile?.full_name, "Dr. Verified Medical Specialist")}
-      subtitle={`${profile?.qualification || "MBBS, MD"} · ${profile?.specialization || "General Medicine & Cardiology"} · ${profile?.hospital_clinic_name || "CallMedex Clinical Network"}`}
+      subtitle={[profile?.qualification, profile?.specialization, profile?.hospital_clinic_name].filter(Boolean).join(" · ")}
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
       aside={
         <button
           type="button"
+          className="cm-btn cm-btn--primary"
           onClick={() => router.push("/dashboard/doctor/consult/instant")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            fontWeight: 800,
-            fontSize: "var(--cm-text-sm)",
-            padding: "9px 18px",
-            borderRadius: "9999px",
-            background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-            color: "#fff",
-            border: "1px solid rgba(255, 255, 255, 0.3)",
-            boxShadow: "0 4px 14px rgba(2, 132, 199, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35)",
-            cursor: "pointer",
-            backdropFilter: "blur(12px)",
-            transition: "all 0.2s ease",
-          }}
         >
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 10px #4ade80" }} />
-          <Video size={16} /> Instant Teleconsult Room
+          <Video size={16} /> Instant teleconsult room
         </button>
       }
     >
@@ -497,7 +480,7 @@ export default function DoctorDashboard() {
           title="Click to view NMC Credential Audit & Live Status"
         >
           <div className="cm-metric-card__label">
-            <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "#0284c7" }} /> Clinical Status
+            <ShieldCheck size={14} style={{ color: isVerified ? "var(--cm-done)" : "var(--cm-active)" }} /> Clinical Status
           </div>
           <div style={{ marginTop: 6, marginBottom: 4 }}>
             <span
@@ -508,14 +491,14 @@ export default function DoctorDashboard() {
                 padding: "3px 10px",
                 borderRadius: "9999px",
                 fontSize: "1.1rem",
-                fontWeight: 800,
+                fontWeight: 600,
                 letterSpacing: "0.01em",
-                background: isVerified ? "rgba(34, 197, 94, 0.12)" : "rgba(2, 132, 199, 0.12)",
-                color: isVerified ? "#15803d" : "#0369a1",
-                border: `1px solid ${isVerified ? "rgba(34, 197, 94, 0.3)" : "rgba(2, 132, 199, 0.3)"}`,
+                background: isVerified ? "rgba(34, 197, 94, 0.12)" : "var(--cm-active-bg)",
+                color: isVerified ? "#15803d" : "var(--cm-active)",
+                border: `1px solid ${isVerified ? "rgba(34, 197, 94, 0.3)" : "var(--cm-active-line)"}`,
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: isVerified ? "#22c55e" : "#0284c7" }} />
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: isVerified ? "#22c55e" : "var(--cm-navy)" }} />
               {isVerified ? "Active" : "Pending"}
             </span>
           </div>
@@ -535,7 +518,7 @@ export default function DoctorDashboard() {
             border: `1px solid ${statusMsg.type === "success" ? "var(--cm-done-line)" : "var(--cm-urgent-line)"}`,
             marginBottom: "var(--cm-4)",
             fontSize: "var(--cm-text-sm)",
-            fontWeight: 700,
+            fontWeight: 600,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -572,7 +555,7 @@ export default function DoctorDashboard() {
           <div className="cm-widget-header">
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "var(--cm-active-bg)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid var(--cm-active-line)" }}>
                   Teleconsultation Radar
                 </span>
                 <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
@@ -593,7 +576,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={fetchActiveTelemedQueue}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
               >
                 <RefreshCw size={14} className={queueLoading ? "animate-spin" : ""} /> {queueLoading ? "Polling..." : "Refresh Queue"}
               </button>
@@ -605,11 +588,11 @@ export default function DoctorDashboard() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  fontWeight: 800,
+                  fontWeight: 600,
                   borderRadius: "9999px",
                   padding: "8px 18px",
-                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                  boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
+                  background: "var(--cm-navy)",
+                  boxShadow: "0 4px 14px rgba(15, 29, 51, 0.12)",
                 }}
               >
                 <Video size={14} /> Launch Instant Exam Room
@@ -622,7 +605,7 @@ export default function DoctorDashboard() {
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 8px rgba(239, 68, 68, 0.6)" }} />
-                <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                   Patients In Waiting Room Now ({activeConsultations.length})
                 </h4>
               </div>
@@ -635,9 +618,9 @@ export default function DoctorDashboard() {
                       padding: "16px 20px",
                       borderRadius: 12,
                       background: "rgba(255, 255, 255, 0.9)",
-                      border: "1px solid rgba(186, 230, 253, 0.8)",
-                      borderLeft: "4px solid #0284c7",
-                      boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
+                      border: "1px solid var(--cm-line)",
+                      borderLeft: "4px solid var(--cm-active)",
+                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -651,11 +634,11 @@ export default function DoctorDashboard() {
                           width: 46,
                           height: 46,
                           borderRadius: "50%",
-                          background: "linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(224, 242, 254, 0.8) 100%)",
-                          color: "#0369a1",
+                          background: "var(--cm-active-bg)",
+                          color: "var(--cm-active)",
                           display: "grid",
                           placeItems: "center",
-                          fontWeight: 900,
+                          fontWeight: 700,
                           fontSize: "1.1rem",
                         }}
                       >
@@ -663,10 +646,10 @@ export default function DoctorDashboard() {
                       </div>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                          <span style={{ fontSize: "1rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                             {c.patient_name || "Patient in Queue"}
                           </span>
-                          <span className="cm-pill cm-pill--active" style={{ fontSize: "11px", fontWeight: 800 }}>
+                          <span className="cm-pill cm-pill--active" style={{ fontSize: "11px", fontWeight: 600 }}>
                             Lobby Active
                           </span>
                         </div>
@@ -674,7 +657,7 @@ export default function DoctorDashboard() {
                           Waiting time: <strong>{c.elapsed_minutes || 2} mins</strong> · Chief complaint: <strong>{c.notes || "Telehealth Consultation"}</strong>
                         </div>
                         {c.patient_email && (
-                          <div style={{ fontSize: "0.8rem", color: "#0284c7", marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+                          <div style={{ fontSize: "0.8rem", color: "var(--cm-active)", marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
                             <Mail size={12} /> {c.patient_email}
                           </div>
                         )}
@@ -686,7 +669,7 @@ export default function DoctorDashboard() {
                         type="button"
                         onClick={() => router.push(`/dashboard/doctor/consult/${c.id}`)}
                         className="cm-btn cm-btn--primary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 16px" }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, padding: "8px 16px" }}
                       >
                         <Video size={14} /> Connect Patient Now
                       </button>
@@ -696,9 +679,9 @@ export default function DoctorDashboard() {
               </div>
             </div>
           ) : (
-            <div style={{ padding: "36px 20px", textAlign: "center", background: "rgba(240, 249, 255, 0.5)", border: "1px dashed rgba(186, 230, 253, 0.9)", borderRadius: 12, marginBottom: 24 }}>
-              <Activity size={36} style={{ color: "#0284c7", margin: "0 auto 8px" }} />
-              <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "1rem" }}>Virtual Waiting Room is Empty</div>
+            <div style={{ padding: "36px 20px", textAlign: "center", background: "var(--cm-surface-2)", border: "1px dashed var(--cm-line)", borderRadius: 12, marginBottom: 24 }}>
+              <Activity size={36} style={{ color: "var(--cm-active)", margin: "0 auto 8px" }} />
+              <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "1rem" }}>Virtual Waiting Room is Empty</div>
               <p style={{ margin: "4px auto 0", fontSize: "0.82rem", color: "var(--cm-ink-3)", maxWidth: 440 }}>
                 Patients booking online teleconsultations will appear live on this radar as soon as they enter your virtual clinic lobby.
               </p>
@@ -706,14 +689,14 @@ export default function DoctorDashboard() {
           )}
 
           {/* Today's Scheduled Patients Queue */}
-          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", display: "grid", placeItems: "center" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--cm-active-bg)", color: "var(--cm-active)", display: "grid", placeItems: "center" }}>
                   <Clock size={16} />
                 </div>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                     {rosterTimeframe === "tomorrow" ? "Tomorrow's" : rosterTimeframe === "upcoming" ? "Upcoming (Next 7 Days)" : rosterTimeframe === "all" ? "All Scheduled" : "Today's"} Clinical Appointments Roster ({todayBookings.length})
                   </h4>
                   <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--cm-ink-3)" }}>
@@ -744,12 +727,12 @@ export default function DoctorDashboard() {
                       padding: "6px 12px",
                       borderRadius: 7,
                       fontSize: "0.76rem",
-                      fontWeight: 700,
+                      fontWeight: 600,
                       cursor: "pointer",
                       transition: "all 0.15s ease",
-                      background: rosterTimeframe === tf.id ? "#0284c7" : "transparent",
+                      background: rosterTimeframe === tf.id ? "var(--cm-navy)" : "transparent",
                       color: rosterTimeframe === tf.id ? "#ffffff" : "#64748b",
-                      boxShadow: rosterTimeframe === tf.id ? "0 1px 4px rgba(2, 132, 199, 0.3)" : "none",
+                      boxShadow: rosterTimeframe === tf.id ? "0 1px 4px rgba(15, 29, 51, 0.12)" : "none",
                     }}
                   >
                     {tf.label}
@@ -761,7 +744,7 @@ export default function DoctorDashboard() {
             {todayBookings.length === 0 ? (
               <div style={{ padding: "32px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
                 <Clock size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "0.95rem" }}>
                   No Scheduled Consultations for {rosterTimeframe === "tomorrow" ? "Tomorrow" : rosterTimeframe === "upcoming" ? "Upcoming Days" : rosterTimeframe === "all" ? "This Period" : "Today"}
                 </div>
                 <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 420 }}>
@@ -781,13 +764,13 @@ export default function DoctorDashboard() {
                       flexWrap: "wrap",
                       gap: 12,
                       background: "#fff",
-                      border: "1px solid rgba(186, 230, 253, 0.8)",
+                      border: "1px solid var(--cm-line)",
                       borderRadius: 10,
                     }}
                   >
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                        <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                        <span style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                           {patient.patient_name || "Patient"}
                         </span>
                         <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
@@ -796,7 +779,7 @@ export default function DoctorDashboard() {
                         <span className={`cm-pill ${patient.status === "waiting" ? "cm-pill--urgent" : "cm-pill--active"}`}>
                           {patient.status || "Scheduled"}
                         </span>
-                        <span style={{ fontSize: "0.8rem", color: "#0284c7", fontWeight: 700, background: "rgba(2, 132, 199, 0.08)", padding: "2px 8px", borderRadius: 6 }}>
+                        <span style={{ fontSize: "0.8rem", color: "var(--cm-active)", fontWeight: 600, background: "var(--cm-active-bg)", padding: "2px 8px", borderRadius: 6 }}>
                           Slot: {patient.slot_date ? `${patient.slot_date} · ` : ""}{patient.slot_time || "Scheduled"}
                         </span>
                         {patient.booking_type && (
@@ -828,7 +811,7 @@ export default function DoctorDashboard() {
                           setActiveTab("erx_studio");
                         }}
                         className="cm-btn cm-btn--secondary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
                       >
                         <FileText size={14} /> Draft e-Rx
                       </button>
@@ -836,7 +819,7 @@ export default function DoctorDashboard() {
                         type="button"
                         onClick={() => router.push(`/dashboard/doctor/consult/${patient.id}`)}
                         className="cm-btn cm-btn--primary cm-btn--sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800 }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
                       >
                         <Video size={14} /> Open Exam Room
                       </button>
@@ -857,7 +840,7 @@ export default function DoctorDashboard() {
           <div className="cm-widget-header">
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "var(--cm-active-bg)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid var(--cm-active-line)" }}>
                   Autonomous Practice Tariffs
                 </span>
                 <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
@@ -876,17 +859,17 @@ export default function DoctorDashboard() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20, alignItems: "start" }}>
             {/* Active Configured Practice Tariffs Card */}
-            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid var(--cm-line)", borderRadius: 12, boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>
-                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                     Current Active Practice Tariffs
                   </h4>
                   <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
                     Live rates charged to patients at checkout
                   </div>
                 </div>
-                <span className="cm-pill cm-pill--active" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 800, fontSize: "11px" }}>
+                <span className="cm-pill cm-pill--active" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600, fontSize: "11px" }}>
                   <ShieldCheck size={12} /> Custom Tariffs Active
                 </span>
               </div>
@@ -921,8 +904,8 @@ export default function DoctorDashboard() {
                       key={item.type}
                       style={{
                         padding: "14px 16px",
-                        background: "linear-gradient(135deg, rgba(240, 249, 255, 0.5) 0%, rgba(255, 255, 255, 0.95) 100%)",
-                        border: "1px solid rgba(186, 230, 253, 0.7)",
+                        background: "var(--cm-surface)",
+                        border: "1px solid var(--cm-line)",
                         borderRadius: 10,
                         display: "flex",
                         justifyContent: "space-between",
@@ -930,22 +913,22 @@ export default function DoctorDashboard() {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
                           {item.label}
                         </div>
                         <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
                           {item.desc}
                         </div>
-                        <div style={{ fontSize: "11px", color: "#16a34a", fontWeight: 800, marginTop: 4 }}>
+                        <div style={{ fontSize: "11px", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
                           Doctor Net Payout (80%): ₹{doctorNet}
                         </div>
                       </div>
 
                       <div style={{ textAlign: "right", marginLeft: 16 }}>
-                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>
                           ₹{activeAmount}
                         </div>
-                        <span style={{ fontSize: "11px", color: feeObj ? "#0284c7" : "var(--cm-ink-3)", fontWeight: 800 }}>
+                        <span style={{ fontSize: "11px", color: feeObj ? "var(--cm-active)" : "var(--cm-ink-3)", fontWeight: 600 }}>
                           {feeObj ? "Customized" : "Default"}
                         </span>
                       </div>
@@ -954,15 +937,15 @@ export default function DoctorDashboard() {
                 })}
               </div>
 
-              <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "rgba(2, 132, 199, 0.06)", border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "12px", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
-                💡 <strong>Autonomy Note:</strong> Tariff adjustments take effect immediately for upcoming patient bookings. You retain 80% with daily direct bank settlement.
+              <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", fontSize: "12px", color: "var(--cm-ink-2)", lineHeight: 1.5 }}>
+                <strong>Autonomy Note:</strong> Tariff adjustments take effect immediately for upcoming patient bookings. You retain 80% with daily direct bank settlement.
               </div>
             </div>
 
             {/* Customize Practice Fee Form */}
-            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-              <h4 style={{ margin: "0 0 4px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
-                <IndianRupee size={16} style={{ color: "#0284c7" }} />
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid var(--cm-line)", borderRadius: 12, boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+              <h4 style={{ margin: "0 0 4px 0", fontSize: "1rem", fontWeight: 600, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                <IndianRupee size={16} style={{ color: "var(--cm-active)" }} />
                 <span>Customize Practice Fee</span>
               </h4>
               <p style={{ margin: "0 0 16px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
@@ -971,13 +954,13 @@ export default function DoctorDashboard() {
 
               <form onSubmit={handleSaveCustomFee} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
                     Consultation Modality
                   </label>
                   <select
                     value={feeForm.fee_type}
                     onChange={(e) => setFeeForm({ ...feeForm, fee_type: e.target.value })}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.88rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 600 }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line)", fontSize: "0.88rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 600 }}
                   >
                     <option value="in_person">Walk-in Clinic Consultation</option>
                     <option value="online">Online HD Teleconsultation</option>
@@ -986,7 +969,7 @@ export default function DoctorDashboard() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
+                  <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 6, textTransform: "uppercase" }}>
                     New Practice Fee (₹)
                   </label>
                   <input
@@ -996,10 +979,10 @@ export default function DoctorDashboard() {
                     placeholder="e.g. 600"
                     value={feeForm.amount}
                     onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.95rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 800 }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--cm-line)", fontSize: "0.95rem", background: "#fff", color: "var(--cm-ink)", fontWeight: 600 }}
                   />
                   {feeForm.amount && Number(feeForm.amount) > 0 && (
-                    <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800, marginTop: 6 }}>
+                    <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 600, marginTop: 6 }}>
                       Estimated Net Payout (80%): ₹{Math.round(Number(feeForm.amount) * 0.8)}
                     </div>
                   )}
@@ -1011,11 +994,11 @@ export default function DoctorDashboard() {
                   className="cm-btn cm-btn--primary cm-btn--sm"
                   style={{
                     marginTop: 6,
-                    fontWeight: 800,
+                    fontWeight: 600,
                     padding: "10px 18px",
                     borderRadius: 8,
-                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                    boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                    background: "var(--cm-navy)",
+                    boxShadow: "0 4px 12px rgba(15, 29, 51, 0.12)",
                   }}
                 >
                   {feeSaving ? "Saving Fee..." : "Update Practice Tariff"}
@@ -1023,7 +1006,7 @@ export default function DoctorDashboard() {
               </form>
 
               <div style={{ marginTop: 20, paddingTop: 14, borderTop: "1px solid #e2e8f0", fontSize: "11px", color: "var(--cm-ink-3)", lineHeight: 1.5 }}>
-                ⚖️ <strong>MOU Terms:</strong> All fee payouts are governed under your accepted CallMedex Provider MOU. View your complete legal agreement anytime in the <strong>Doctor Profile</strong> tab.
+                <strong>MOU Terms:</strong> All fee payouts are governed under your accepted CallMedex Provider MOU. View your complete legal agreement anytime in the <strong>Doctor Profile</strong> tab.
               </div>
             </div>
           </div>
@@ -1039,15 +1022,15 @@ export default function DoctorDashboard() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "var(--cm-active-bg)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid var(--cm-active-line)" }}>
                   NMC Clinical Standard · Registered Tele-Rx Studio
                 </span>
                 <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
-                  Dr. {profile?.full_name || "Verified Practitioner"} · Reg: {profile?.registration_number || "NMC-2026-REG"}
+                  {formatDoctorName(profile?.full_name, "Doctor")} · Reg: {prescriberRegNumber(profile) || "not on file"}
                 </span>
               </div>
-              <h2 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-                <FileText size={22} style={{ color: "#0284c7" }} />
+              <h2 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 600, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                <FileText size={22} style={{ color: "var(--cm-active)" }} />
                 <span>Digital e-Prescription Pad Studio</span>
               </h2>
               <p style={{ margin: "3px 0 0 0", fontSize: "0.85rem", color: "var(--cm-ink-3)" }}>
@@ -1059,7 +1042,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={() => window.print()}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
               >
                 <Printer size={14} /> Print / Save PDF
               </button>
@@ -1068,7 +1051,7 @@ export default function DoctorDashboard() {
                 onClick={handleTransmitRxEmail}
                 disabled={transmittingRx}
                 className="cm-btn cm-btn--primary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 18px" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, padding: "8px 18px" }}
               >
                 <Send size={14} /> {transmittingRx ? "Transmitting e-Rx..." : "Transmit e-Rx to Patient Email"}
               </button>
@@ -1081,14 +1064,14 @@ export default function DoctorDashboard() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Quick Patient Selector */}
               {allActivePatients.length > 0 && (
-                <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "12px 16px", borderRadius: 10, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 6px rgba(2, 132, 199, 0.05)" }}>
-                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "12px 16px", borderRadius: 10, border: "1px solid var(--cm-line)", boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 6 }}>
                     Auto-Fill From Active Patients
                   </label>
                   <select
                     value={selectedPatientId}
                     onChange={(e) => handleSelectPatientForRx(e.target.value)}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #bae6fd", fontSize: "0.85rem", background: "#f8fafc", color: "var(--cm-ink)", fontWeight: 600 }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid var(--cm-line)", fontSize: "0.85rem", background: "#f8fafc", color: "var(--cm-ink)", fontWeight: 600 }}
                   >
                     <option value="custom">— Manual Entry / New Patient —</option>
                     {allActivePatients.map((p) => (
@@ -1099,13 +1082,13 @@ export default function DoctorDashboard() {
               )}
 
               {/* Patient Demographics Card */}
-              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+                <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
                   <User size={14} /> Patient Demographics
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
                   <div>
-                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                       Full Name *
                     </label>
                     <input
@@ -1117,7 +1100,7 @@ export default function DoctorDashboard() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                       Age
                     </label>
                     <input
@@ -1129,7 +1112,7 @@ export default function DoctorDashboard() {
                     />
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                    <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                       Gender
                     </label>
                     <select
@@ -1147,7 +1130,7 @@ export default function DoctorDashboard() {
                 {/* Patient Contact & Mandatory Email Field */}
                 <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1.2fr", gap: 10 }}>
                   <div>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 800, color: rxPatientEmail ? "#0369a1" : "var(--cm-urgent)", marginBottom: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 600, color: rxPatientEmail ? "var(--cm-active)" : "var(--cm-urgent)", marginBottom: 4 }}>
                       <Mail size={13} /> Patient Email Address (MANDATORY) *
                     </label>
                     <input
@@ -1160,8 +1143,8 @@ export default function DoctorDashboard() {
                         width: "100%",
                         padding: "8px 12px",
                         borderRadius: 8,
-                        border: rxPatientEmail ? "1.5px solid #0284c7" : "1.5px solid rgba(225, 29, 72, 0.5)",
-                        background: rxPatientEmail ? "#f0f9ff" : "#fff",
+                        border: rxPatientEmail ? "1.5px solid var(--cm-active)" : "1.5px solid rgba(225, 29, 72, 0.5)",
+                        background: rxPatientEmail ? "var(--cm-surface-2)" : "#fff",
                         fontSize: "0.85rem",
                         fontWeight: 600,
                       }}
@@ -1171,7 +1154,7 @@ export default function DoctorDashboard() {
                     </div>
                   </div>
                   <div>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 700, color: "var(--cm-ink-2)", marginBottom: 4 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-ink-2)", marginBottom: 4 }}>
                       <Phone size={13} /> Mobile Number
                     </label>
                     <input
@@ -1186,8 +1169,8 @@ export default function DoctorDashboard() {
               </div>
 
               {/* ICD-10 Diagnosis Card */}
-              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-                <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+                <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
                   Primary Clinical Diagnosis (ICD-10 Standard)
                 </label>
                 <input
@@ -1212,9 +1195,9 @@ export default function DoctorDashboard() {
               </div>
 
               {/* Formulation Builder & Current Medications Deck */}
-              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div style={{ fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <div style={{ fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     ℞ Prescribed Generic Formulations ({rxItems.length})
                   </div>
                   <span style={{ fontSize: "11px", color: "var(--cm-ink-3)" }}>
@@ -1228,8 +1211,8 @@ export default function DoctorDashboard() {
                     <div
                       key={idx}
                       style={{
-                        background: "#f0f9ff",
-                        border: "1px solid #bae6fd",
+                        background: "var(--cm-surface-2)",
+                        border: "1px solid var(--cm-line)",
                         borderRadius: 8,
                         padding: "10px 14px",
                         display: "flex",
@@ -1238,10 +1221,10 @@ export default function DoctorDashboard() {
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#0369a1" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--cm-active)" }}>
                           {idx + 1}. {item.name}
                         </div>
-                        <div style={{ fontSize: "0.76rem", color: "#0284c7", marginTop: 2 }}>
+                        <div style={{ fontSize: "0.76rem", color: "var(--cm-active)", marginTop: 2 }}>
                           {item.dose} · {item.freq} · {item.days} · <em>{item.notes}</em>
                         </div>
                       </div>
@@ -1258,8 +1241,8 @@ export default function DoctorDashboard() {
                 </div>
 
                 {/* Add Formulation Form */}
-                <div style={{ background: "linear-gradient(135deg, rgba(240, 249, 255, 0.7), rgba(255, 255, 255, 0.95))", border: "1px dashed #7dd3fc", borderRadius: 10, padding: 14 }}>
-                  <div style={{ fontSize: "0.74rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                <div style={{ background: "var(--cm-surface)", border: "1px dashed var(--cm-line)", borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
                     + Add Generic Salt / Formulation
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -1312,7 +1295,7 @@ export default function DoctorDashboard() {
                       type="button"
                       onClick={handleAddRxItem}
                       className="cm-btn cm-btn--primary cm-btn--sm"
-                      style={{ fontWeight: 800, padding: "8px 16px" }}
+                      style={{ fontWeight: 600, padding: "8px 16px" }}
                     >
                       <Plus size={14} /> Add
                     </button>
@@ -1321,10 +1304,10 @@ export default function DoctorDashboard() {
               </div>
 
               {/* Diagnostic Labs & Clinical Advice Deck */}
-              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+              <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "16px 18px", borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
                 {/* Diagnostic Lab Tests */}
                 <div style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 6 }}>
                     Diagnostic Lab Investigations (Optional)
                   </label>
                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -1335,15 +1318,15 @@ export default function DoctorDashboard() {
                       onChange={(e) => setNewLabTest(e.target.value)}
                       style={{ flex: 1, padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.82rem", background: "#fff" }}
                     />
-                    <button type="button" onClick={handleAddLabTest} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ fontWeight: 700 }}>
+                    <button type="button" onClick={handleAddLabTest} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ fontWeight: 600 }}>
                       Add Test
                     </button>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {rxLabTests.map((t, idx) => (
-                      <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "#f0f9ff", color: "#0369a1", fontSize: "11px", fontWeight: 700, border: "1px solid #bae6fd" }}>
+                      <span key={idx} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "var(--cm-surface-2)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, border: "1px solid var(--cm-line)" }}>
                         {t}
-                        <button type="button" onClick={() => setRxLabTests(rxLabTests.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", cursor: "pointer", color: "#0284c7", padding: 0, fontWeight: "bold" }}>×</button>
+                        <button type="button" onClick={() => setRxLabTests(rxLabTests.filter((_, i) => i !== idx))} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--cm-active)", padding: 0, fontWeight: "bold" }}>×</button>
                       </span>
                     ))}
                   </div>
@@ -1351,7 +1334,7 @@ export default function DoctorDashboard() {
 
                 {/* Clinical Notes & Advice */}
                 <div>
-                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 6 }}>
+                  <label style={{ display: "block", fontSize: "0.76rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 6 }}>
                     Doctor Advice &amp; Lifestyle Instructions
                   </label>
                   <textarea
@@ -1374,24 +1357,26 @@ export default function DoctorDashboard() {
                 </div>
 
                 {/* Doctor & Clinic Official Header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #0284c7", paddingBottom: 14, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid var(--cm-active)", paddingBottom: 14, marginBottom: 16 }}>
                   <div>
-                    <div style={{ fontSize: "10px", fontWeight: 800, letterSpacing: "0.08em", color: "#0284c7", textTransform: "uppercase" }}>
+                    <div style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.08em", color: "var(--cm-active)", textTransform: "uppercase" }}>
                       CALLMEDEX HEALTHCARE NETWORK · TELEMEDICINE &amp; BEDSIDE
                     </div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#0f172a", marginTop: 2 }}>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 600, color: "#0f172a", marginTop: 2 }}>
                       {formatDoctorName(profile?.full_name, "Dr. Verified Medical Specialist")}
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 600 }}>
-                      {profile?.qualification || "MBBS, MD"} · {profile?.specialization || "General Medicine & Telehealth"}
+                      {[profile?.qualification, profile?.specialization].filter(Boolean).join(" · ")}
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
-                      Reg. No: <strong style={{ color: "#0f172a" }}>{profile?.registration_number || "NMC-DL-2026-88421"}</strong> (National Medical Commission)
+                      Reg. No: {prescriberRegNumber(profile)
+                        ? <strong style={{ color: "#0f172a" }}>{prescriberRegNumber(profile)}</strong>
+                        : <strong style={{ color: "var(--cm-urgent)" }}>Not on file — add it in Doctor Profile</strong>}
                     </div>
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 6, background: "rgba(2, 132, 199, 0.1)", border: "1px solid rgba(2, 132, 199, 0.25)", color: "#0284c7", fontSize: "11px", fontWeight: 800 }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 6, background: "var(--cm-active-bg)", border: "1px solid var(--cm-active-line)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600 }}>
                       <ShieldCheck size={13} /> NMC Compliant
                     </div>
                     <div style={{ fontSize: "10px", color: "#64748b", marginTop: 4 }}>
@@ -1404,10 +1389,10 @@ export default function DoctorDashboard() {
                 </div>
 
                 {/* Patient Summary Strip */}
-                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, padding: "10px 14px", background: "rgba(240, 249, 255, 0.6)", borderRadius: 8, border: "1px solid #e0f2fe", marginBottom: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, padding: "10px 14px", background: "var(--cm-surface-2)", borderRadius: 8, border: "1px solid #e0f2fe", marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: "0.7rem", color: "#0284c7", fontWeight: 800, textTransform: "uppercase" }}>Patient Details</div>
-                    <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a" }}>
+                    <div style={{ fontSize: "0.7rem", color: "var(--cm-active)", fontWeight: 600, textTransform: "uppercase" }}>Patient Details</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0f172a" }}>
                       {rxPatientName || "Patient Name (Pending)"}
                     </div>
                     <div style={{ fontSize: "0.78rem", color: "#475569" }}>
@@ -1415,9 +1400,9 @@ export default function DoctorDashboard() {
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: "0.7rem", color: "#0284c7", fontWeight: 800, textTransform: "uppercase" }}>Registered Delivery Email</div>
-                    <div style={{ fontSize: "0.82rem", fontWeight: 700, color: rxPatientEmail ? "#0369a1" : "#e11d48", wordBreak: "break-all" }}>
-                      {rxPatientEmail || "⚠️ Mandatory email required"}
+                    <div style={{ fontSize: "0.7rem", color: "var(--cm-active)", fontWeight: 600, textTransform: "uppercase" }}>Registered Delivery Email</div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 600, color: rxPatientEmail ? "var(--cm-active)" : "#e11d48", wordBreak: "break-all" }}>
+                      {rxPatientEmail || "Mandatory email required"}
                     </div>
                     {rxPatientMobile && (
                       <div style={{ fontSize: "0.76rem", color: "#64748b" }}>
@@ -1429,17 +1414,17 @@ export default function DoctorDashboard() {
 
                 {/* Diagnosis Banner */}
                 {rxDiagnosis && (
-                  <div style={{ marginBottom: 14, padding: "8px 12px", borderRadius: 6, background: "#f8fafc", borderLeft: "3px solid #0284c7" }}>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Clinical Diagnosis: </span>
-                    <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>{rxDiagnosis}</span>
+                  <div style={{ marginBottom: 14, padding: "8px 12px", borderRadius: 6, background: "#f8fafc", borderLeft: "3px solid var(--cm-active)" }}>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Clinical Diagnosis: </span>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0f172a" }}>{rxDiagnosis}</span>
                   </div>
                 )}
 
                 {/* ℞ Prescription Body */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "1.1rem", fontWeight: 900, color: "#0284c7", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "1.1rem", fontWeight: 700, color: "var(--cm-active)", marginBottom: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 4 }}>
                     <span>℞</span>
-                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.05em" }}>Prescribed Medications</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155", textTransform: "uppercase", letterSpacing: "0.05em" }}>Prescribed Medications</span>
                   </div>
 
                   {rxItems.length === 0 ? (
@@ -1460,11 +1445,11 @@ export default function DoctorDashboard() {
                       <tbody>
                         {rxItems.map((med, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "8px", fontWeight: 700, color: "#64748b" }}>{idx + 1}</td>
-                            <td style={{ padding: "8px", fontWeight: 700, color: "#0f172a" }}>{med.name}</td>
+                            <td style={{ padding: "8px", fontWeight: 600, color: "#64748b" }}>{idx + 1}</td>
+                            <td style={{ padding: "8px", fontWeight: 600, color: "#0f172a" }}>{med.name}</td>
                             <td style={{ padding: "8px", color: "#334155" }}>{med.dose} · {med.freq}</td>
                             <td style={{ padding: "8px", color: "#334155" }}>{med.days}</td>
-                            <td style={{ padding: "8px", color: "#0284c7", fontWeight: 600 }}>{med.notes || "After food"}</td>
+                            <td style={{ padding: "8px", color: "var(--cm-active)", fontWeight: 600 }}>{med.notes || "After food"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1475,12 +1460,12 @@ export default function DoctorDashboard() {
                 {/* Investigations */}
                 {rxLabTests.length > 0 && (
                   <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
                       Recommended Diagnostic Investigations
                     </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                       {rxLabTests.map((t, idx) => (
-                        <span key={idx} style={{ padding: "3px 8px", borderRadius: 4, background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 700, border: "1px solid #dbeafe" }}>
+                        <span key={idx} style={{ padding: "3px 8px", borderRadius: 4, background: "#eff6ff", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, border: "1px solid #dbeafe" }}>
                           {t}
                         </span>
                       ))}
@@ -1491,7 +1476,7 @@ export default function DoctorDashboard() {
                 {/* Advice & Instructions */}
                 {rxClinicalNotes && (
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>
                       Clinical Advice &amp; Lifestyle Precautions
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#334155", background: "#f8fafc", padding: "8px 12px", borderRadius: 6, border: "1px solid #e2e8f0", whiteSpace: "pre-wrap" }}>
@@ -1504,10 +1489,10 @@ export default function DoctorDashboard() {
                 <div style={{ borderTop: "2px solid #e2e8f0", paddingTop: 14, marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ padding: 6, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, display: "grid", placeItems: "center" }}>
-                      <QrCode size={40} style={{ color: "#0284c7" }} />
+                      <QrCode size={40} style={{ color: "var(--cm-active)" }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: "10px", fontWeight: 800, color: "#0284c7", textTransform: "uppercase" }}>
+                      <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase" }}>
                         CallMedex Tamper-Proof QR
                       </div>
                       <div style={{ fontSize: "10px", color: "#64748b", maxWidth: 180 }}>
@@ -1517,10 +1502,10 @@ export default function DoctorDashboard() {
                   </div>
 
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: "11px", fontWeight: 800 }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: "11px", fontWeight: 600 }}>
                       <CheckCircle2 size={13} /> DIGITALLY SIGNED &amp; VERIFIED
                     </div>
-                    <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a", fontFamily: "cursive, Georgia, serif" }}>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0f172a", fontFamily: "cursive, Georgia, serif" }}>
                       {formatDoctorName(profile?.full_name, "Verified Medical Officer")}
                     </div>
                     <div style={{ fontSize: "10px", color: "#64748b" }}>
@@ -1531,16 +1516,16 @@ export default function DoctorDashboard() {
               </div>
 
               {/* Transmit action bar */}
-              <div style={{ marginTop: 12, padding: "12px 16px", background: "rgba(255, 255, 255, 0.9)", borderRadius: 10, border: "1px solid rgba(186, 230, 253, 0.8)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div style={{ marginTop: 12, padding: "12px 16px", background: "rgba(255, 255, 255, 0.9)", borderRadius: 10, border: "1px solid var(--cm-line)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                 <div style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
-                  Recipient: <strong style={{ color: rxPatientEmail ? "#0369a1" : "var(--cm-urgent)" }}>{rxPatientEmail || "Enter email on left to enable dispatch"}</strong>
+                  Recipient: <strong style={{ color: rxPatientEmail ? "var(--cm-active)" : "var(--cm-urgent)" }}>{rxPatientEmail || "Enter email on left to enable dispatch"}</strong>
                 </div>
                 <button
                   type="button"
                   onClick={handleTransmitRxEmail}
                   disabled={transmittingRx || !rxPatientEmail}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 800, padding: "8px 20px" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600, padding: "8px 20px" }}
                 >
                   <Send size={14} /> {transmittingRx ? "Transmitting..." : "Send e-Prescription to Patient"}
                 </button>
@@ -1558,7 +1543,7 @@ export default function DoctorDashboard() {
           <div className="cm-widget-header">
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "var(--cm-active-bg)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid var(--cm-active-line)" }}>
                   Provider Payout Ledger
                 </span>
                 <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
@@ -1578,7 +1563,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={fetchEarnings}
                 className="cm-btn cm-btn--secondary cm-btn--sm"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
               >
                 <RefreshCw size={14} className={earningsLoading ? "animate-spin" : ""} /> {earningsLoading ? "Refreshing..." : "Refresh Ledger"}
               </button>
@@ -1586,29 +1571,29 @@ export default function DoctorDashboard() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 20 }}>
-            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-              <div style={{ fontSize: "0.75rem", color: "#0369a1", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Total Net Earned</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#0f172a", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--cm-active)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Total Net Earned</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0f172a", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.total_earned || 0).toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 700, marginTop: 4 }}>
+              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
                 {earnings?.transactions?.length || 0} completed consultation(s)
               </div>
             </div>
 
-            <div style={{ background: "linear-gradient(135deg, rgba(240, 253, 244, 0.85) 0%, rgba(255, 255, 255, 0.95) 100%)", padding: 20, borderRadius: 12, border: "1px solid rgba(134, 239, 172, 0.8)", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.06)" }}>
-              <div style={{ fontSize: "0.75rem", color: "#15803d", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Settled to Bank</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#15803d", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ background: "var(--cm-done-bg)", padding: 20, borderRadius: 12, border: "1px solid rgba(134, 239, 172, 0.8)", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.06)" }}>
+              <div style={{ fontSize: "0.75rem", color: "#15803d", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Settled to Bank</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#15803d", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.settled || 0).toLocaleString()}
               </div>
-              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 700, marginTop: 4 }}>
+              <div style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
                 Cleared to verified bank account
               </div>
             </div>
 
-            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-              <div style={{ fontSize: "0.75rem", color: "#0369a1", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.05em" }}>Pending Daily Settlement</div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 900, color: "#0284c7", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 20, borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--cm-active)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>Pending Daily Settlement</div>
+              <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "var(--cm-active)", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
                 ₹{(earnings?.pending_settlement || 0).toLocaleString()}
               </div>
               <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 4 }}>
@@ -1618,9 +1603,9 @@ export default function DoctorDashboard() {
           </div>
 
           {/* Transaction Ledger Table */}
-          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 12, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
-            <h4 style={{ margin: "0 0 14px 0", fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-              <IndianRupee size={18} style={{ color: "#0284c7" }} />
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: 22, border: "1px solid var(--cm-line)", borderRadius: 12, boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
+            <h4 style={{ margin: "0 0 14px 0", fontSize: "1rem", fontWeight: 600, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+              <IndianRupee size={18} style={{ color: "var(--cm-active)" }} />
               <span>Settlement Ledger History</span>
             </h4>
             {earnings?.transactions && earnings.transactions.length > 0 ? (
@@ -1633,13 +1618,13 @@ export default function DoctorDashboard() {
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "12px 16px",
-                      background: "linear-gradient(135deg, rgba(240, 249, 255, 0.5) 0%, rgba(255, 255, 255, 0.95) 100%)",
+                      background: "var(--cm-surface)",
                       borderRadius: 10,
-                      border: "1px solid rgba(186, 230, 253, 0.7)",
+                      border: "1px solid var(--cm-line)",
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--cm-ink)" }}>
                         {tx.description || "Clinical Consultation Settlement"}
                       </div>
                       <div style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1647,10 +1632,10 @@ export default function DoctorDashboard() {
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: 900, color: "#16a34a", fontSize: "0.95rem" }}>
+                      <div style={{ fontWeight: 700, color: "#16a34a", fontSize: "0.95rem" }}>
                         +₹{tx.provider_payout || tx.amount}
                       </div>
-                      <span className={`cm-pill ${tx.status === "settled" ? "cm-pill--done" : "cm-pill--active"}`} style={{ fontSize: "10px", fontWeight: 800 }}>
+                      <span className={`cm-pill ${tx.status === "settled" ? "cm-pill--done" : "cm-pill--active"}`} style={{ fontSize: "10px", fontWeight: 600 }}>
                         {tx.status}
                       </span>
                     </div>
@@ -1660,7 +1645,7 @@ export default function DoctorDashboard() {
             ) : (
               <div style={{ padding: "36px 20px", textAlign: "center", background: "rgba(248, 250, 252, 0.8)", borderRadius: 10, border: "1px dashed #cbd5e1" }}>
                 <IndianRupee size={32} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Financial Transactions Recorded Yet</div>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "0.95rem" }}>No Financial Transactions Recorded Yet</div>
                 <p style={{ margin: "4px auto 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", maxWidth: 440 }}>
                   As a newly registered doctor account, your settlement ledger will begin accruing daily payouts as soon as patients complete consultations.
                 </p>
@@ -1684,7 +1669,7 @@ export default function DoctorDashboard() {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: 12 }}>
             <div>
-              <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 800 }}>
+              <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 600 }}>
                 Clinical Appointments &amp; Consultations Roster
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
@@ -1702,7 +1687,7 @@ export default function DoctorDashboard() {
                     borderRadius: 6,
                     border: "1px solid var(--cm-line)",
                     fontSize: "var(--cm-text-xs)",
-                    fontWeight: 700,
+                    fontWeight: 600,
                     textTransform: "capitalize",
                     background: appointmentsFilter === filter ? "var(--cm-navy)" : "var(--cm-surface)",
                     color: appointmentsFilter === filter ? "#fff" : "var(--cm-ink-2)",
@@ -1731,7 +1716,7 @@ export default function DoctorDashboard() {
               display: "flex",
               gap: 8,
               padding: "8px",
-              background: "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)",
+              background: "var(--cm-navy-deep)",
               borderRadius: "var(--cm-radius)",
               border: "1px solid rgba(255, 255, 255, 0.1)",
               backdropFilter: "blur(12px)",
@@ -1776,11 +1761,11 @@ export default function DoctorDashboard() {
                   style={{
                     padding: "8px 16px",
                     borderRadius: "var(--cm-radius-sm)",
-                    border: isActive ? "1px solid rgba(56, 189, 248, 0.5)" : "1px solid transparent",
-                    background: isActive ? "linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(3, 105, 161, 0.6) 100%)" : "transparent",
-                    color: isActive ? "#38bdf8" : "rgba(226, 232, 240, 0.75)",
+                    border: isActive ? "1px solid rgba(255, 255, 255, 0.28)" : "1px solid transparent",
+                    background: isActive ? "rgba(255, 255, 255, 0.14)" : "transparent",
+                    color: isActive ? "var(--cm-active)" : "rgba(226, 232, 240, 0.75)",
                     fontSize: "var(--cm-text-xs)",
-                    fontWeight: 800,
+                    fontWeight: 600,
                     cursor: "pointer",
                     display: "inline-flex",
                     alignItems: "center",
@@ -1794,7 +1779,7 @@ export default function DoctorDashboard() {
                       padding: "2px 6px",
                       borderRadius: 9999,
                       fontSize: "10px",
-                      background: isActive ? "rgba(56, 189, 248, 0.25)" : "rgba(255, 255, 255, 0.1)",
+                      background: isActive ? "rgba(255, 255, 255, 0.16)" : "rgba(255, 255, 255, 0.1)",
                       color: isActive ? "#e0f2fe" : "#94a3b8",
                       fontVariantNumeric: "tabular-nums",
                     }}
@@ -1809,7 +1794,7 @@ export default function DoctorDashboard() {
           {filteredBookings.length === 0 ? (
             <div style={{ padding: "40px 20px", textAlign: "center", background: "var(--cm-surface)", border: "1px dashed var(--cm-line)", borderRadius: "var(--cm-radius)" }}>
               <Clock size={36} style={{ color: "#94a3b8", margin: "0 auto 8px" }} />
-              <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
+              <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
                 No Appointments in This Filter View
               </div>
               <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
@@ -1834,13 +1819,13 @@ export default function DoctorDashboard() {
                 >
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
+                      <span style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
                         {b.patient_name || "Patient"}
                       </span>
                       <span className={`cm-pill ${b.status === "waiting" ? "cm-pill--urgent" : "cm-pill--active"}`}>
                         {b.status || "Scheduled"}
                       </span>
-                      <span style={{ color: "var(--cm-active)", fontSize: "var(--cm-text-xs)", fontWeight: 700 }}>
+                      <span style={{ color: "var(--cm-active)", fontSize: "var(--cm-text-xs)", fontWeight: 600 }}>
                         Slot: {b.slot_time}
                       </span>
                     </div>
@@ -1872,13 +1857,13 @@ export default function DoctorDashboard() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
-                        fontWeight: 700,
-                        background: "linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(2, 132, 199, 0.15) 100%)",
-                        border: "1px solid rgba(2, 132, 199, 0.3)",
+                        fontWeight: 600,
+                        background: "var(--cm-active-bg)",
+                        border: "1px solid var(--cm-active-line)",
                         color: "var(--cm-active)",
                       }}
                     >
-                      <FileText size={14} /> ⚡ Draft &amp; Transmit e-Rx
+                      <FileText size={14} /> Draft &amp; Transmit e-Rx
                     </button>
                     <button
                       type="button"
@@ -1905,7 +1890,7 @@ export default function DoctorDashboard() {
           <div className="cm-widget-header">
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.25)" }}>
+                <span style={{ padding: "4px 10px", borderRadius: 999, background: "var(--cm-active-bg)", color: "var(--cm-active)", fontSize: "11px", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid var(--cm-active-line)" }}>
                   On-Demand Bedside Care Console
                 </span>
                 <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
@@ -1913,7 +1898,7 @@ export default function DoctorDashboard() {
                 </span>
               </div>
               <h2 className="cm-widget-title">
-                <Home size={22} style={{ color: "#0284c7" }} />
+                <Home size={22} style={{ color: "var(--cm-active)" }} />
                 <span>Doctor Home Visits &amp; Bedside Care Management</span>
               </h2>
               <p className="cm-widget-subtitle">
@@ -1924,7 +1909,7 @@ export default function DoctorDashboard() {
               type="button"
               onClick={() => setShowGpsMap(!showGpsMap)}
               className="cm-btn cm-btn--secondary cm-btn--sm"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 600 }}
             >
               <Navigation size={14} /> {showGpsMap ? "Hide Live GPS Map" : "View Live Route Tracker"}
             </button>
@@ -1934,7 +1919,7 @@ export default function DoctorDashboard() {
           <div
             style={{
               padding: "16px 20px",
-              border: "1px solid rgba(186, 230, 253, 0.8)",
+              border: "1px solid var(--cm-line)",
               borderRadius: 12,
               marginBottom: 20,
               display: "flex",
@@ -1943,9 +1928,9 @@ export default function DoctorDashboard() {
               flexWrap: "wrap",
               gap: 16,
               background: homeVisitOnDuty
-                ? "linear-gradient(135deg, rgba(240, 253, 244, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%)"
+                ? "var(--cm-done-bg)"
                 : "rgba(255, 255, 255, 0.8)",
-              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
+              boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -1964,11 +1949,11 @@ export default function DoctorDashboard() {
               </div>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
                     Bedside Visit Duty Status:
                   </span>
-                  <span className={`cm-pill ${homeVisitOnDuty ? "cm-pill--done" : "cm-pill--neutral"}`}>
-                    {homeVisitOnDuty ? "● ON DUTY FOR VISITS" : "○ OFF-DUTY"}
+                  <span className={`cm-pill ${homeVisitOnDuty ? "cm-pill--done" : "cm-pill--halted"}`}>
+                    {homeVisitOnDuty ? "On duty for visits" : "Off duty"}
                   </span>
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1984,7 +1969,7 @@ export default function DoctorDashboard() {
                 style={{
                   padding: "8px 12px",
                   borderRadius: 8,
-                  border: "1px solid #bae6fd",
+                  border: "1px solid var(--cm-line)",
                   fontSize: "0.82rem",
                   background: "#fff",
                   color: "var(--cm-ink)",
@@ -2001,7 +1986,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={() => setHomeVisitOnDuty(!homeVisitOnDuty)}
                 className={`cm-btn cm-btn--sm ${homeVisitOnDuty ? "cm-btn--secondary" : "cm-btn--primary"}`}
-                style={{ fontWeight: 800, padding: "8px 18px" }}
+                style={{ fontWeight: 600, padding: "8px 18px" }}
               >
                 {homeVisitOnDuty ? "Go Off-Duty" : "Go On-Duty"}
               </button>
@@ -2014,21 +1999,21 @@ export default function DoctorDashboard() {
             <div
               style={{
                 padding: "20px",
-                border: "1px solid rgba(186, 230, 253, 0.8)",
+                border: "1px solid var(--cm-line)",
                 borderRadius: 12,
                 background: "rgba(255, 255, 255, 0.9)",
-                boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
+                boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 800 }}>
+                <span className="cm-pill cm-pill--active" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 600 }}>
                   Scheduled Bedside Care
                 </span>
-                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800 }}>
+                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 600 }}>
                   Doctor Net: ₹{Math.round(Number(normalVisitFee) * 0.8)} (80%)
                 </span>
               </div>
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 800, color: "var(--cm-ink)" }}>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 600, color: "var(--cm-ink)" }}>
                 Normal Home Visit
               </h3>
               <p style={{ margin: "0 0 14px 0", fontSize: "0.8rem", color: "var(--cm-ink-3)", lineHeight: 1.4 }}>
@@ -2037,7 +2022,7 @@ export default function DoctorDashboard() {
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ position: "relative", flex: 1 }}>
-                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "var(--cm-ink-3)" }}>₹</span>
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 600, color: "var(--cm-ink-3)" }}>₹</span>
                   <input
                     type="number"
                     min={400}
@@ -2048,9 +2033,9 @@ export default function DoctorDashboard() {
                       width: "100%",
                       padding: "8px 12px 8px 24px",
                       borderRadius: 8,
-                      border: "1px solid #bae6fd",
+                      border: "1px solid var(--cm-line)",
                       fontSize: "0.9rem",
-                      fontWeight: 800,
+                      fontWeight: 600,
                       background: "#fff",
                     }}
                   />
@@ -2063,10 +2048,10 @@ export default function DoctorDashboard() {
                       headers: authHeaders(),
                       body: JSON.stringify({ fee_type: "home_visit", amount: Number(normalVisitFee) }),
                     });
-                    setStatusMsg({ text: `✓ Normal home visit fee set to ₹${normalVisitFee}.`, type: "success" });
+                    setStatusMsg({ text: `Normal home visit fee set to ₹${normalVisitFee}.`, type: "success" });
                   }}
                   className="cm-btn cm-btn--secondary cm-btn--sm"
-                  style={{ fontWeight: 800, padding: "8px 16px" }}
+                  style={{ fontWeight: 600, padding: "8px 16px" }}
                 >
                   Save Fee
                 </button>
@@ -2079,19 +2064,19 @@ export default function DoctorDashboard() {
                 padding: "20px",
                 border: "1px solid rgba(244, 63, 94, 0.4)",
                 borderRadius: 12,
-                background: "linear-gradient(135deg, rgba(255, 241, 242, 0.7) 0%, rgba(255, 255, 255, 0.95) 100%)",
+                background: "var(--cm-urgent-bg)",
                 boxShadow: "0 2px 8px rgba(225, 29, 72, 0.06)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <span className="cm-pill cm-pill--urgent" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 800 }}>
+                <span className="cm-pill cm-pill--urgent" style={{ textTransform: "uppercase", fontSize: "10px", fontWeight: 600 }}>
                   Urgent Priority Dispatch
                 </span>
-                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 800 }}>
+                <span style={{ fontSize: "0.8rem", color: "#16a34a", fontWeight: 600 }}>
                   Doctor Net: ₹{Math.round(Number(urgentVisitFee) * 0.8)} (80%)
                 </span>
               </div>
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 800, color: "#9f1239" }}>
+              <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", fontWeight: 600, color: "#9f1239" }}>
                 Urgent Home Visit
               </h3>
               <p style={{ margin: "0 0 14px 0", fontSize: "0.8rem", color: "#881337", lineHeight: 1.4 }}>
@@ -2100,7 +2085,7 @@ export default function DoctorDashboard() {
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ position: "relative", flex: 1 }}>
-                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 700, color: "#be123c" }}>₹</span>
+                  <span style={{ position: "absolute", left: 10, top: 8, fontSize: "14px", fontWeight: 600, color: "#be123c" }}>₹</span>
                   <input
                     type="number"
                     min={600}
@@ -2113,7 +2098,7 @@ export default function DoctorDashboard() {
                       borderRadius: 8,
                       border: "1px solid rgba(244, 63, 94, 0.4)",
                       fontSize: "0.9rem",
-                      fontWeight: 800,
+                      fontWeight: 600,
                       background: "#fff",
                     }}
                   />
@@ -2121,10 +2106,10 @@ export default function DoctorDashboard() {
                 <button
                   type="button"
                   onClick={() => {
-                    setStatusMsg({ text: `✓ Urgent priority home visit fee set to ₹${urgentVisitFee}.`, type: "success" });
+                    setStatusMsg({ text: `Urgent priority home visit fee set to ₹${urgentVisitFee}.`, type: "success" });
                   }}
                   className="cm-btn cm-btn--primary cm-btn--sm"
-                  style={{ fontWeight: 800, padding: "8px 16px" }}
+                  style={{ fontWeight: 600, padding: "8px 16px" }}
                 >
                   Save Fee
                 </button>
@@ -2134,17 +2119,17 @@ export default function DoctorDashboard() {
 
           {/* Optional Satellite GPS Map */}
           {showGpsMap && (
-            <div style={{ marginBottom: 20, borderRadius: 12, overflow: "hidden", border: "1px solid rgba(186, 230, 253, 0.8)" }}>
+            <div style={{ marginBottom: 20, borderRadius: 12, overflow: "hidden", border: "1px solid var(--cm-line)" }}>
               <ProviderDispatchTracker title="Live Satellite Bedside Navigation" providerType="doctor" />
             </div>
           )}
 
           {/* Active Home Visit Dispatch & ETA Broadcast Roster */}
-          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "20px", borderRadius: 12, border: "1px solid rgba(186, 230, 253, 0.8)", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)" }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.9)", padding: "20px", borderRadius: 12, border: "1px solid var(--cm-line)", boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <Activity size={18} style={{ color: "#0284c7" }} />
+                <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600, color: "var(--cm-ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Activity size={18} style={{ color: "var(--cm-active)" }} />
                   <span>Bedside Patient Dispatches ({activeDispatches.length})</span>
                 </h3>
                 <div style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -2158,13 +2143,13 @@ export default function DoctorDashboard() {
                 style={{
                   padding: "40px 24px",
                   textAlign: "center",
-                  background: "rgba(240, 249, 255, 0.5)",
+                  background: "var(--cm-surface-2)",
                   borderRadius: 12,
-                  border: "1px dashed rgba(186, 230, 253, 0.9)",
+                  border: "1px dashed var(--cm-line)",
                 }}
               >
-                <Activity size={36} style={{ color: "#0284c7", margin: "0 auto 10px" }} />
-                <div style={{ fontWeight: 800, color: "var(--cm-ink)", fontSize: "1rem" }}>
+                <Activity size={36} style={{ color: "var(--cm-active)", margin: "0 auto 10px" }} />
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "1rem" }}>
                   No Active Bedside Patient Dispatches
                 </div>
                 <p style={{ margin: "6px auto 0", fontSize: "0.82rem", color: "var(--cm-ink-3)", maxWidth: 460, lineHeight: 1.5 }}>
@@ -2189,14 +2174,14 @@ export default function DoctorDashboard() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
+                          <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--cm-ink)" }}>
                             {dispatch.patient_name}
                           </span>
                           <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)" }}>
                             ({dispatch.patient_gender})
                           </span>
                           <span className={`cm-pill ${dispatch.tier === "urgent" ? "cm-pill--urgent" : "cm-pill--active"}`} style={{ textTransform: "uppercase" }}>
-                            {dispatch.tier === "urgent" ? "⚡ Urgent Visit" : "Normal Visit"}
+                            {dispatch.tier === "urgent" ? "Urgent Visit" : "Normal Visit"}
                           </span>
                           <span className="cm-pill cm-pill--done" style={{ textTransform: "capitalize" }}>
                             {dispatch.status}
@@ -2204,7 +2189,7 @@ export default function DoctorDashboard() {
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "var(--cm-ink-2)", marginTop: 4 }}>
-                          <MapPin size={13} style={{ color: "#0284c7", flexShrink: 0 }} />
+                          <MapPin size={13} style={{ color: "var(--cm-active)", flexShrink: 0 }} />
                           <span>{dispatch.address}</span>
                         </div>
 
@@ -2214,8 +2199,8 @@ export default function DoctorDashboard() {
                       </div>
 
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--cm-ink)" }}>
-                          Current ETA: <span style={{ color: "#0284c7" }}>{dispatch.eta_mins} mins</span>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--cm-ink)" }}>
+                          Current ETA: <span style={{ color: "var(--cm-active)" }}>{dispatch.eta_mins} mins</span>
                         </div>
                         <div style={{ fontSize: "11px", color: "var(--cm-ink-3)", marginTop: 2 }}>
                           Requested: {dispatch.requested_at}
@@ -2226,7 +2211,7 @@ export default function DoctorDashboard() {
                     {/* Dispatch Actions & Live ETA Broadcast */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed #cbd5e1", paddingTop: 10, flexWrap: "wrap", gap: 10 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 800, color: "#0369a1", textTransform: "uppercase" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase" }}>
                           Broadcast Live ETA to Patient:
                         </span>
                         {[15, 25, 45].map((mins) => (
@@ -2242,7 +2227,7 @@ export default function DoctorDashboard() {
                                 );
                                 setEtaUpdatingId(null);
                                 setStatusMsg({
-                                  text: `✓ Live ETA of ${mins} minutes broadcasted to ${dispatch.patient_name} via CallMedex SMS & Patient App.`,
+                                  text: `Live ETA of ${mins} minutes broadcasted to ${dispatch.patient_name} via CallMedex SMS & Patient App.`,
                                   type: "success",
                                 });
                               }, 400);
@@ -2250,11 +2235,11 @@ export default function DoctorDashboard() {
                             style={{
                               padding: "4px 10px",
                               borderRadius: 6,
-                              border: dispatch.eta_mins === mins ? "1px solid #0284c7" : "1px solid #cbd5e1",
-                              background: dispatch.eta_mins === mins ? "#0284c7" : "#fff",
+                              border: dispatch.eta_mins === mins ? "1px solid var(--cm-active)" : "1px solid #cbd5e1",
+                              background: dispatch.eta_mins === mins ? "var(--cm-navy)" : "#fff",
                               color: dispatch.eta_mins === mins ? "#fff" : "var(--cm-ink)",
                               fontSize: "11px",
-                              fontWeight: 800,
+                              fontWeight: 600,
                               cursor: "pointer",
                               transition: "all 0.2s ease",
                             }}
@@ -2269,7 +2254,7 @@ export default function DoctorDashboard() {
                               prev.map((d) => (d.id === dispatch.id ? { ...d, eta_mins: 0, status: "arrived" } : d))
                             );
                             setStatusMsg({
-                              text: `✓ Doctor marked as ARRIVED at ${dispatch.patient_name}'s bedside.`,
+                              text: `Doctor marked as ARRIVED at ${dispatch.patient_name}'s bedside.`,
                               type: "success",
                             });
                           }}
@@ -2280,7 +2265,7 @@ export default function DoctorDashboard() {
                             background: "#dcfce7",
                             color: "#15803d",
                             fontSize: "11px",
-                            fontWeight: 800,
+                            fontWeight: 600,
                             cursor: "pointer",
                             transition: "all 0.2s ease",
                           }}
@@ -2300,14 +2285,14 @@ export default function DoctorDashboard() {
                             setActiveTab("erx_studio");
                           }}
                           className="cm-btn cm-btn--secondary cm-btn--sm"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
                         >
                           <FileText size={13} /> Draft Bedside e-Rx
                         </button>
                         <a
                           href={`tel:${dispatch.patient_mobile}`}
                           className="cm-btn cm-btn--secondary cm-btn--sm"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
                         >
                           <Phone size={13} /> Call Patient
                         </a>

@@ -15,5 +15,6 @@ export {
   Ban, BarChart3, CircleDot, ArrowRight, Award, Droplets, Tag, TrendingDown,
   Bike, Sparkles, Smile, Ear, Brain, Heart, Wind, Droplet, Bone, HeartHandshake, Video, Activity,
   UserCheck, Shield, AlertCircle, Calendar, Check, Lock, Zap, Pill, Box, Compass, LayoutDashboard, ExternalLink, Home, Send, Globe, Thermometer,
+  CalendarOff, LayoutGrid, Moon, Rows3, Settings2, Sun, Sunrise,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";

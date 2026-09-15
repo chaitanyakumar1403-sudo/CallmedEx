@@ -173,6 +173,8 @@ function BookingPageContent() {
   // Real dynamic data state
   const [realOrgs, setRealOrgs] = useState<any[]>([]);
   const [realDoctors, setRealDoctors] = useState<any[]>([]);
+  const [doctorRealSlots, setDoctorRealSlots] = useState<string[] | null>(null);
+  const [doctorSlotDuration, setDoctorSlotDuration] = useState<number>(10);
 
   // On-demand dispatch fields
   const [dispatchAddress, setDispatchAddress] = useState("");
@@ -319,6 +321,9 @@ function BookingPageContent() {
             consultation_fee: initFee,
           };
           setSelectedDoctor(docObj);
+          if (orgParam) {
+            setSelectedOrg({ id: orgParam, isReal: true, name: "Selected Facility" });
+          }
           setStep(4);
           fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/providers/doctor/${doctorParam}/presentation`)
             .then((r) => r.json())
@@ -495,6 +500,7 @@ function BookingPageContent() {
         .then((r) => r.json())
         .then((data) => {
           if (data.success && data.data) {
+            const orgInfo = data.data.organization || {};
             const svcs = data.data.services || [];
             const pkgs = data.data.packages || [];
             const docs = data.data.doctors || [];
@@ -502,8 +508,14 @@ function BookingPageContent() {
 
             setSelectedOrg((prev: any) => ({
               ...prev,
+              ...orgInfo,
               fetchedDetails: true,
-              name: prev?.organization_name || prev?.name || "Selected Facility",
+              name: orgInfo.name || prev?.organization_name || prev?.name || "Selected Facility",
+              address: orgInfo.address || prev?.address || "",
+              city: orgInfo.city || prev?.city || "",
+              state: orgInfo.state || prev?.state || "",
+              pincode: orgInfo.pincode || prev?.pincode || "",
+              operating_hours: orgInfo.operating_hours || prev?.operating_hours || "",
               tests: svcs.length > 0 ? svcs : DEFAULT_DIAGNOSTIC_TESTS,
               packages: pkgs.length > 0 ? pkgs : DEFAULT_DIAGNOSTIC_PACKAGES,
               doctors: docs,
@@ -551,6 +563,37 @@ function BookingPageContent() {
         .finally(() => setOrgCatalogLoading(false));
     }
   }, [selectedOrg?.id, bookingType]);
+
+  // Fetch real OP consultation slots for doctor based on their configured availability & slot duration
+  useEffect(() => {
+    const docId = doctorParam || selectedDoctor?.doctor_user_id || selectedDoctor?.id || selectedDoctor?.doctor_id;
+    const isDoc = bookingType === "doctor" || bookingType === "home_doctor" || typeParam === "doctor" || typeParam === "home_doctor" || Boolean(doctorParam);
+    if (!docId || !selectedDate || !isDoc) {
+      setDoctorRealSlots(null);
+      return;
+    }
+    const mode = (bookingType === "home_doctor" || typeParam === "home_doctor") ? "home_visit" : "in_person";
+    fetch(`/api/providers/slots?provider_id=${encodeURIComponent(docId)}&target_date=${encodeURIComponent(selectedDate)}&mode=${mode}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.slots) && data.slots.length > 0) {
+          const slotTimes = data.slots.map((s: any) => s.time);
+          setDoctorRealSlots(slotTimes);
+          if (data.slots.length >= 2) {
+            const [h1, m1] = data.slots[0].time.split(":").map(Number);
+            const [h2, m2] = data.slots[1].time.split(":").map(Number);
+            const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+            if (diff > 0 && diff <= 60) setDoctorSlotDuration(diff);
+          }
+        } else {
+          setDoctorRealSlots(null);
+        }
+      })
+      .catch((err) => {
+        console.error("[SLOTS FETCH ERROR]", err);
+        setDoctorRealSlots(null);
+      });
+  }, [doctorParam, typeParam, selectedDoctor, selectedDate, bookingType]);
 
   // Fetch family members when we reach the "Who is this for?" step
   useEffect(() => {
@@ -656,6 +699,14 @@ function BookingPageContent() {
     };
   });
 
+  // Auto-select first available date when entering step 4 if none selected
+  useEffect(() => {
+    if (step === 4 && !selectedDate && dates.length > 0) {
+      const firstOpen = dates.find((d) => !isDayClosed(d.value)) || dates[0];
+      setSelectedDate(firstOpen.value);
+    }
+  }, [step, selectedDate, dates]);
+
   const handleConfirm = async () => {
     setLoading(true);
     setError("");
@@ -667,8 +718,10 @@ function BookingPageContent() {
         return;
       }
 
-      const providerId = selectedOrg?.id || selectedDoctor?.id || "";
-      const providerType = selectedDoctor && !selectedOrg ? "doctor" : "organization";
+      const isDoctorBooking = bookingType === "doctor" || bookingType === "home_doctor" || Boolean(selectedDoctor);
+      const docIdVal = selectedDoctor?.doctor_user_id || selectedDoctor?.id || selectedDoctor?.doctor_id;
+      const providerId = (isDoctorBooking && docIdVal) ? docIdVal : (selectedOrg?.id || selectedDoctor?.id || "");
+      const providerType = isDoctorBooking ? "doctor" : "organization";
       const serviceType =
         bookingType === "doctor" || bookingType === "home_doctor"
           ? "doctor_appointment"
@@ -682,13 +735,19 @@ function BookingPageContent() {
 
       const slotKey = `${providerId}|${selectedDate}|${selectedSlot}`;
 
-      // Build notes with all selected tests
+      // Build notes with facility, doctor, and test details
+      const facilityNotes = selectedOrg ? `Facility: ${selectedOrg.name}${selectedOrg.address ? ` (${selectedOrg.address})` : (selectedOrg.city ? ` (${selectedOrg.city})` : "")} | ` : "";
       const testNotes =
         selectedTests.length > 0
-          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${fee}`
+          ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal}`
           : selectedTest
           ? `Test: ${selectedTest.name}`
           : "";
+      const bookingNotes = packageParam
+        ? `Package: ${packageParam}`
+        : selectedDoctor
+        ? `${facilityNotes}Doctor: ${selectedDoctor.name} (${selectedDoctor.specialization || "OP Specialist"})`
+        : testNotes;
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/bookings`, {
         method: "POST",
@@ -701,7 +760,9 @@ function BookingPageContent() {
           provider_type: providerType,
           service_type: serviceType,
           slot_id: slotKey,
-          notes: packageParam ? `Package: ${packageParam}` : (selectedDoctor ? `Doctor: ${selectedDoctor.name}` : testNotes),
+          facility_id: selectedOrg?.id || undefined,
+          consultation_mode: bookingType === "home_doctor" ? "home_visit" : (bookingType === "video_consult" ? "video" : "in_person"),
+          notes: bookingNotes,
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
           total_price: selectedTests.length > 0 ? multiTestTotal : (packageParam ? (Number(priceParam) || 0) : selectedTest?.price || selectedDoctor?.fee || 0),
           preferred_date: selectedDate,
@@ -2057,21 +2118,28 @@ function BookingPageContent() {
             {/* ── Time Slot Picker (all booking types) ── */}
             {selectedDate && (() => {
               const closed = isDayClosed(selectedDate);
-              const isWalkin = modeParam === "walkin" || Boolean(orgParam);
+              const isDoctorBooking = bookingType === "doctor" || bookingType === "home_doctor" || Boolean(selectedDoctor);
+              const isDoctorWalkin = isDoctorBooking && (modeParam === "walkin" || Boolean(selectedOrg?.id) || Boolean(orgParam));
+              const isWalkin = (modeParam === "walkin" || Boolean(orgParam) || Boolean(selectedOrg?.id)) && !isDoctorBooking;
               const isHomeCollection = 
-                !isWalkin && (
+                !isWalkin && !isDoctorBooking && (
                   bookingType === "home_collection" || 
                   modeParam === "home" || 
                   (bookingType === "lab" && !selectedOrg?.id) ||
                   Boolean(packageParam)
                 );
 
-              // Home collection is strictly 5:30 AM to 11:00 AM. Walk-ins use org operating hours or WALKIN_CENTRE_SLOTS.
-              const dynamicSlots = isHomeCollection
-                ? HOME_COLLECTION_SLOTS
-                : (selectedOrg?.timings?.length > 0
-                    ? getDynamicSlots(selectedDate)
-                    : (isWalkin ? WALKIN_CENTRE_SLOTS : TIME_SLOTS));
+              // Doctor OP consultation uses doctorRealSlots (configured intervals, e.g. 10m) if loaded, or facility dynamic slots, or TIME_SLOTS.
+              // Home collection is strictly 5:30 AM to 11:00 AM. Lab walk-ins use org operating hours or WALKIN_CENTRE_SLOTS.
+              const dynamicSlots = isDoctorBooking
+                ? (doctorRealSlots && doctorRealSlots.length > 0
+                    ? doctorRealSlots
+                    : (selectedOrg?.timings?.length > 0 ? getDynamicSlots(selectedDate) : TIME_SLOTS))
+                : (isHomeCollection
+                    ? HOME_COLLECTION_SLOTS
+                    : (selectedOrg?.timings?.length > 0
+                        ? getDynamicSlots(selectedDate)
+                        : (isWalkin ? WALKIN_CENTRE_SLOTS : TIME_SLOTS)));
 
               if (closed) {
                 return (
@@ -2105,6 +2173,41 @@ function BookingPageContent() {
 
               return (
                 <>
+                  {/* Doctor Walk-in OP Clinical Facility Banner */}
+                  {isDoctorWalkin && (
+                    <div style={{
+                      padding: "14px 18px",
+                      backgroundColor: "rgba(239, 246, 255, 0.9)",
+                      border: "1.5px solid #bfdbfe",
+                      borderRadius: 14,
+                      marginBottom: 20,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 12,
+                      fontSize: "0.85rem",
+                      color: "#1e40af",
+                      backdropFilter: "blur(12px)",
+                    }}>
+                      <Building2 size={20} style={{ color: "#2563eb", flexShrink: 0, marginTop: 2 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#1e3a8a", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span>In-Person OP Consultation at Facility</span>
+                          <span style={{ fontSize: "0.72rem", padding: "2px 8px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontWeight: 700 }}>
+                            {doctorSlotDuration}m OP Slots
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.82rem", color: "#1e40af", marginTop: 4, fontWeight: 600 }}>
+                          {selectedOrg?.name || selectedOrg?.organization_name || "Verified Medical Facility"}
+                          {(selectedOrg?.address || selectedOrg?.full_address) ? ` • ${selectedOrg.address || selectedOrg.full_address}` : (selectedOrg?.city ? ` • ${selectedOrg.city}` : "")}
+                        </div>
+                        <div style={{ fontSize: "0.78rem", color: "#3b82f6", marginTop: 4 }}>
+                          Consulting Specialist: <strong>{selectedDoctor?.name || "Specialist Doctor"}</strong> ({selectedDoctor?.specialization || "Clinical Physician"})
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Diagnostic Centre Walk-in Banner (strictly for lab/test walkins) */}
                   {isWalkin && (
                     <div style={{
                       padding: "12px 16px",
@@ -2140,7 +2243,15 @@ function BookingPageContent() {
                         alignItems: "center",
                         gap: 6
                       }}>
-                        <span style={{ fontSize: "1.1rem" }}>🌅</span> {isHomeCollection ? "Home Sample Collection Window (5:30 AM – 11:00 AM Only)" : (isWalkin ? "Morning Walk-in Hours (7:00 AM – 11:30 AM)" : "Morning Slots (8:00 AM – 11:30 AM)")}
+                        <span style={{ fontSize: "1.1rem" }}>🌅</span> {
+                          isDoctorBooking
+                            ? `Doctor OP Morning Slots (${doctorSlotDuration}m intervals)`
+                            : isHomeCollection
+                            ? "Home Sample Collection Window (5:30 AM – 11:00 AM Only)"
+                            : isWalkin
+                            ? "Morning Walk-in Hours (7:00 AM – 11:30 AM)"
+                            : "Morning Slots (8:00 AM – 11:30 AM)"
+                        }
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {morningSlots.map((t) => {
@@ -2196,7 +2307,7 @@ function BookingPageContent() {
                     </div>
                   )}
 
-                  {/* Afternoon & Evening Slots (12:00 PM – 8:30 PM) */}
+                  {/* Afternoon & Evening Slots */}
                   {afternoonEveningSlots.length > 0 && (
                     <div style={{ marginBottom: 20 }}>
                       <div style={{
@@ -2208,7 +2319,13 @@ function BookingPageContent() {
                         alignItems: "center",
                         gap: 6
                       }}>
-                        <span style={{ fontSize: "1.1rem" }}>🌆</span> {isWalkin ? "Afternoon & Evening Walk-in Hours (12:00 PM – 8:30 PM)" : "Afternoon & Evening Slots (12:00 PM – 8:00 PM)"}
+                        <span style={{ fontSize: "1.1rem" }}>🌆</span> {
+                          isDoctorBooking
+                            ? `Doctor OP Afternoon & Evening Slots (${doctorSlotDuration}m intervals)`
+                            : isWalkin
+                            ? "Afternoon & Evening Walk-in Hours (12:00 PM – 8:30 PM)"
+                            : "Afternoon & Evening Slots (12:00 PM – 8:00 PM)"
+                        }
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
                         {afternoonEveningSlots.map((t) => {

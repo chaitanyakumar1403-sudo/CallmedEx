@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDoctorName, prescriberRegNumber } from "@/lib/prescriber";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell, { SkeletonRows, type DashTab } from "../components/DashboardShell";
@@ -595,7 +596,7 @@ export default function DentistDashboard() {
                 </span>
               </div>
               <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", opacity: 0.9 }}>
-                Dr. {profile?.full_name || "Dentist Partner"} | {profile?.qualification || "BDS / MDS Surgery"} | Reg: {profile?.dental_license_number || "DCI Verified"}
+                {[formatDoctorName(profile?.full_name, "Dentist"), profile?.qualification, `Reg: ${prescriberRegNumber(profile) || "not on file"}`].filter(Boolean).join(" | ")}
               </p>
             </div>
           </div>

@@ -2149,7 +2149,9 @@ async def get_org_services_for_booking(org_id: str):
         try:
             status_row = _rows(
                 supabase.table("organizations")
-                .select("verification_status").eq("id", org_id).limit(1).execute()
+                .select("id, user_id, organization_name, organization_type, verification_status, head_of_institution, operating_hours, created_at")
+                .or_(f"id.eq.{org_id},user_id.eq.{org_id}")
+                .limit(1).execute()
             )
         except Exception as e:
             logger.warning(f"Could not read verification for org {org_id}: {e}")
@@ -2165,26 +2167,54 @@ async def get_org_services_for_booking(org_id: str):
                 data=empty,
             )
 
+        org_info = status_row[0]
+        actual_org_id = org_info["id"]
+
+        # Fetch organization details (address, coordinates, timings)
+        org_details = {}
+        try:
+            user_res = _rows(
+                supabase.table("users")
+                .select("full_name, email, mobile, address, city, district, state, pincode")
+                .eq("id", org_info.get("user_id", "")).limit(1).execute()
+            )
+            user_info = user_res[0] if user_res else {}
+            org_details = {
+                "id": actual_org_id,
+                "user_id": org_info.get("user_id"),
+                "name": org_info.get("organization_name") or user_info.get("full_name", ""),
+                "organization_type": org_info.get("organization_type", "clinic"),
+                "head_of_institution": org_info.get("head_of_institution") or "",
+                "address": user_info.get("address") or "",
+                "city": user_info.get("city") or "",
+                "district": user_info.get("district") or "",
+                "state": user_info.get("state") or "",
+                "pincode": user_info.get("pincode") or "",
+                "phone": user_info.get("mobile") or "",
+                "operating_hours": org_info.get("operating_hours") or "",
+            }
+        except Exception as oe:
+            logger.warning(f"Could not load full org details for {org_id}: {oe}")
+
         # Fetch active services
-        services_res = supabase.table("organization_services").select("*").eq("organization_id", org_id).eq("is_active", True).execute()
+        services_res = supabase.table("organization_services").select("*").eq("organization_id", actual_org_id).eq("is_active", True).execute()
         services = services_res.data or []
         
         # Fetch active packages (graceful fallback if table missing)
         packages = []
         try:
-            packages_res = supabase.table("organization_packages").select("*").eq("organization_id", org_id).eq("is_active", True).execute()
+            packages_res = supabase.table("organization_packages").select("*").eq("organization_id", actual_org_id).eq("is_active", True).execute()
             packages = packages_res.data or []
         except Exception:
             pass
-        
         
         # Fetch active doctors (graceful fallback)
         doctors = []
         try:
             doctors_res = (
                 supabase.table("organization_doctors")
-                .select("*, doctors(specialization, consultation_mode), users(full_name, email)")
-                .eq("organization_id", org_id)
+                .select("*, doctors(id, specialization, consultation_mode, years_of_experience, qualification, consultation_fee), users!doctor_user_id(id, full_name, email, mobile)")
+                .eq("organization_id", actual_org_id)
                 .eq("is_active", True)
                 .execute()
             )
@@ -2194,12 +2224,16 @@ async def get_org_services_for_booking(org_id: str):
             for d in docs_raw:
                 user = d.get("users", {}) or {}
                 doc = d.get("doctors", {}) or {}
+                doc_user_id = d.get("doctor_user_id") or user.get("id") or d.get("doctor_id")
                 doctors.append({
-                    "doctor_id": d.get("doctor_id"),
+                    "doctor_id": d.get("doctor_id") or doc.get("id") or doc_user_id,
+                    "doctor_user_id": doc_user_id,
                     "name": user.get("full_name", ""),
-                    "specialization": doc.get("specialization", ""),
+                    "specialization": d.get("specialization") or doc.get("specialization", ""),
+                    "qualification": doc.get("qualification", ""),
+                    "experience_years": doc.get("years_of_experience", 0),
                     "consultation_mode": doc.get("consultation_mode", "both"),
-                    "consultation_fee": d.get("consultation_fee", 0),
+                    "consultation_fee": d.get("consultation_fee") or doc.get("consultation_fee") or 500,
                 })
         except Exception as e:
             logger.error(f"Error fetching doctors: {e}")
@@ -2207,7 +2241,7 @@ async def get_org_services_for_booking(org_id: str):
         # Fetch organization operating hours (timings)
         timings = []
         try:
-            timings_res = supabase.table("organization_timings").select("*").eq("organization_id", org_id).order("day_of_week").execute()
+            timings_res = supabase.table("organization_timings").select("*").eq("organization_id", actual_org_id).order("day_of_week").execute()
             timings = timings_res.data or []
         except Exception:
             pass
@@ -2216,6 +2250,7 @@ async def get_org_services_for_booking(org_id: str):
             success=True,
             message="Organization services fetched",
             data={
+                "organization": org_details,
                 "services": services,
                 "packages": packages,
                 "doctors": doctors,
@@ -2224,7 +2259,7 @@ async def get_org_services_for_booking(org_id: str):
         )
     except Exception as e:
         logger.error(f"Error fetching org services for booking: {e}")
-        return APIResponse(success=False, message="Failed to fetch services", data={"services": [], "packages": [], "doctors": []})
+        return APIResponse(success=False, message="Failed to fetch services", data={"organization": {}, "services": [], "packages": [], "doctors": [], "timings": []})
 
 
 @router.get("/provider/today", response_model=APIResponse)
@@ -2281,6 +2316,7 @@ async def get_provider_today_bookings(
 
     try:
         doc_profile_id = None
+        org_linked_provider_ids = []
         if role == "doctor":
             try:
                 doc_rows = _rows(
@@ -2292,10 +2328,33 @@ async def get_provider_today_bookings(
                         doc_profile_id = doc_id
             except Exception:
                 pass
+        elif role == "organization":
+            try:
+                org_rows = _rows(
+                    supabase.table("organizations").select("id").eq("user_id", current_user["sub"]).execute()
+                )
+                org_id = org_rows[0]["id"] if org_rows else None
+                org_linked_provider_ids = [current_user["sub"]]
+                if org_id and org_id != current_user["sub"]:
+                    org_linked_provider_ids.append(org_id)
+                if org_id:
+                    l_docs = _rows(
+                        supabase.table("organization_doctors").select("doctor_id, doctor_user_id").eq("organization_id", org_id).eq("is_active", True).execute()
+                    )
+                    for ld in l_docs:
+                        if ld.get("doctor_user_id"):
+                            org_linked_provider_ids.append(ld["doctor_user_id"])
+                        if ld.get("doctor_id"):
+                            org_linked_provider_ids.append(ld["doctor_id"])
+            except Exception as oe:
+                logger.warning(f"Failed to query linked doctors for org roster: {oe}")
 
         b_query = supabase.table("bookings").select("*")
         if doc_profile_id:
             b_query = b_query.or_(f"provider_id.eq.{current_user['sub']},provider_id.eq.{doc_profile_id}")
+        elif role == "organization" and org_linked_provider_ids:
+            unique_ids = list(set(org_linked_provider_ids))
+            b_query = b_query.in_("provider_id", unique_ids)
         else:
             b_query = b_query.eq("provider_id", current_user["sub"])
 
@@ -2352,6 +2411,24 @@ async def get_provider_today_bookings(
                 b.setdefault("patient_name", "Patient")
                 b.setdefault("patient_mobile", "")
                 b.setdefault("patient_email", "")
+
+    # For organizations, also resolve provider/doctor names if bookings are for linked doctors
+    if role == "organization":
+        provider_ids = [b["provider_id"] for b in bookings if b.get("provider_id")]
+        if provider_ids:
+            try:
+                doc_users = _rows(
+                    supabase.table("users")
+                    .select("id, full_name")
+                    .in_("id", list(set(provider_ids)))
+                    .execute()
+                )
+                doc_name_by_id = {u["id"]: u["full_name"] for u in doc_users}
+                for b in bookings:
+                    if b.get("provider_id") in doc_name_by_id:
+                        b["doctor_name"] = doc_name_by_id[b["provider_id"]]
+            except Exception as de:
+                logger.warning(f"Could not attach doctor names to org bookings: {de}")
 
     return APIResponse(
         success=True,

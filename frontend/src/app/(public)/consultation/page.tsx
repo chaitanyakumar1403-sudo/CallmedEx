@@ -64,14 +64,33 @@ interface Doctor {
   profile_photo_url?: string;
 }
 
+interface LinkedDoctor {
+  doctor_id: string;
+  doctor_user_id: string;
+  name: string;
+  specialization: string;
+  qualification?: string;
+  experience_years?: number;
+  consultation_fee?: number;
+}
+
 interface OrgCard {
   id: string;
   name: string;
   organization_type: string;
+  address?: string;
   city: string;
+  district?: string;
   state: string;
+  pincode?: string;
+  lat?: number | null;
+  lng?: number | null;
+  phone?: string;
+  operating_hours?: string;
+  head_of_institution?: string;
   min_price?: number | null;
   home_service_enabled?: boolean;
+  linked_doctors?: LinkedDoctor[];
 }
 
 const SPECIALIZATIONS = [
@@ -367,9 +386,18 @@ function ConsultationContent() {
             id: o.id,
             name: o.organization_name || o.name || '',
             organization_type: o.organization_type,
+            address: o.address || '',
             city: o.city || '',
+            district: o.district || '',
             state: o.state || '',
+            pincode: o.pincode || '',
+            lat: o.lat,
+            lng: o.lng,
+            phone: o.phone || '',
+            operating_hours: o.operating_hours || '',
+            head_of_institution: o.head_of_institution || '',
             min_price: o.min_price,
+            linked_doctors: o.linked_doctors || [],
           }));
         const docs = [...seen.values()];
         cache.current[mode] = { doctors: docs, orgs: walkinOrgs };
@@ -441,12 +469,18 @@ function ConsultationContent() {
     let docs = doctors;
     let facilities = orgs;
 
+    if (consultMode === 'walkin') {
+      // In walk-in consultation, ONLY verified facilities appear in the root grid; doctors are accessed through the facility cards
+      docs = [];
+    }
+
     if (selectedSpec !== 'All') {
       docs = docs.filter((d) => matchesSpecialization(d.specialization, selectedSpec));
       facilities = facilities.filter(
         (o) =>
           matchesSpecialization(o.organization_type, selectedSpec) ||
-          matchesSpecialization(o.name, selectedSpec)
+          matchesSpecialization(o.name, selectedSpec) ||
+          (o.linked_doctors && o.linked_doctors.some((ld) => matchesSpecialization(ld.specialization, selectedSpec)))
       );
     }
 
@@ -462,7 +496,9 @@ function ConsultationContent() {
         (o) =>
           o.name.toLowerCase().includes(q) ||
           (ORG_TYPE_LABEL[o.organization_type] || '').toLowerCase().includes(q) ||
-          o.city.toLowerCase().includes(q)
+          (o.address && o.address.toLowerCase().includes(q)) ||
+          o.city.toLowerCase().includes(q) ||
+          (o.linked_doctors && o.linked_doctors.some((ld) => ld.name.toLowerCase().includes(q) || ld.specialization.toLowerCase().includes(q)))
       );
     }
 
@@ -475,12 +511,15 @@ function ConsultationContent() {
     }
 
     return { filteredDoctors: docs, filteredOrgs: facilities };
-  }, [doctors, orgs, selectedSpec, searchQuery, needsLocation, locState, district]);
+  }, [doctors, orgs, selectedSpec, searchQuery, needsLocation, locState, district, consultMode]);
 
   const requireAuth = () => {
     if (!isAuthenticated) {
-      router.push('/auth/login?redirect=/consultation');
-      return false;
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) {
+        router.push('/auth/login?redirect=/consultation');
+        return false;
+      }
     }
     return true;
   };
@@ -504,9 +543,15 @@ function ConsultationContent() {
     }
   };
 
-  const handleOrgBooking = (org: OrgCard) => {
+  const handleOrgBooking = (org: OrgCard, doctor?: LinkedDoctor) => {
     if (!requireAuth()) return;
-    router.push(`/booking?type=doctor&org=${org.id}`);
+    if (doctor) {
+      const docId = doctor.doctor_user_id || doctor.doctor_id;
+      const fee = doctor.consultation_fee || 500;
+      router.push(`/booking?type=doctor&org=${org.id}&doctor=${docId}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}`);
+    } else {
+      router.push(`/booking?type=doctor&org=${org.id}`);
+    }
   };
 
   const meta = MODE_META[consultMode];
@@ -1305,7 +1350,7 @@ function ConsultationContent() {
                       padding: 24,
                       display: 'flex',
                       gap: 20,
-                      alignItems: 'center',
+                      alignItems: 'flex-start',
                       background: 'rgba(255, 255, 255, 0.88)',
                       backdropFilter: 'blur(14px)',
                       WebkitBackdropFilter: 'blur(14px)',
@@ -1316,15 +1361,15 @@ function ConsultationContent() {
                     }}
                   >
                     <ModeSymbol3D mode="org" isOrg={true} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                         <div>
-                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1.02rem', fontWeight: 800, color: 'var(--cm-navy, #0f172a)', marginBottom: 4 }}>
+                          <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: 800, color: 'var(--cm-navy, #0f172a)', marginBottom: 3 }}>
                             {org.name}
                           </h4>
-                          <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)' }}>
+                          <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)', fontWeight: 500 }}>
                             {ORG_TYPE_LABEL[org.organization_type] || org.organization_type}
-                            {consultMode === 'home' && org.home_service_enabled ? ' · Home service' : ''}
+                            {consultMode === 'home' && org.home_service_enabled ? ' · Doorstep visit' : ''}
                           </div>
                         </div>
                         <span style={{
@@ -1337,22 +1382,135 @@ function ConsultationContent() {
                           border: '1px solid rgba(34, 197, 94, 0.3)',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 4
+                          gap: 4,
+                          flexShrink: 0,
                         }}>
-                          ● Verified
+                          ● Verified Facility
                         </span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          {(org.city || org.state) && (
-                            <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                              <MapPin size={12} /> {[org.city, org.state].filter(Boolean).join(', ')}
+
+                      {/* Physical Address & Location Details */}
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(org.address || org.city || org.state) && (
+                          <div style={{ fontSize: '0.8rem', color: '#334155', display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.45 }}>
+                            <MapPin size={14} style={{ color: '#0284c7', flexShrink: 0, marginTop: 2 }} />
+                            <span>
+                              {org.address ? `${org.address}, ` : ''}{[org.city, org.state].filter(Boolean).join(', ')}{org.pincode ? ` - ${org.pincode}` : ''}
                             </span>
-                          )}
+                          </div>
+                        )}
+                        {org.operating_hours && (
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 20 }}>
+                            <span>🕒 <strong>Hours:</strong> {org.operating_hours}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Linked Specialist Doctors Available at this Facility */}
+                      {org.linked_doctors && org.linked_doctors.length > 0 && (
+                        <div style={{
+                          marginTop: 14,
+                          padding: '12px 14px',
+                          borderRadius: 12,
+                          background: 'rgba(240, 249, 255, 0.75)',
+                          border: '1px solid rgba(2, 132, 199, 0.16)',
+                        }}>
+                          <div style={{
+                            fontSize: '0.74rem',
+                            fontWeight: 800,
+                            color: '#0369a1',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.4px',
+                            marginBottom: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}>
+                            <span>🩺 Practicing Specialists ({org.linked_doctors.length})</span>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#0284c7' }}>OP Appointments Available</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {org.linked_doctors.map((ld) => (
+                              <div
+                                key={ld.doctor_id || ld.doctor_user_id}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  background: '#ffffff',
+                                  borderRadius: 10,
+                                  padding: '10px 12px',
+                                  border: '1px solid rgba(2, 132, 199, 0.12)',
+                                  boxShadow: '0 2px 5px rgba(0, 0, 0, 0.03)',
+                                  gap: 12,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <div style={{ minWidth: 150 }}>
+                                  <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0f172a' }}>
+                                    Dr. {ld.name.replace(/^Dr\.?\s*/i, '')}
+                                  </div>
+                                  <div style={{ fontSize: '0.74rem', color: '#475569', marginTop: 1 }}>
+                                    {ld.specialization} {ld.experience_years ? `· ${ld.experience_years} yrs exp` : ''}
+                                  </div>
+                                  {ld.qualification && (
+                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                      {ld.qualification}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Walk-in OP</div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0284c7' }}>
+                                      ₹{ld.consultation_fee || 500}
+                                    </div>
+                                  </div>
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => handleOrgBooking(org, ld)}
+                                    style={{
+                                      padding: '7px 14px',
+                                      fontSize: '0.78rem',
+                                      fontWeight: 700,
+                                      borderRadius: 8,
+                                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                      border: 'none',
+                                      color: '#ffffff',
+                                      boxShadow: '0 3px 10px rgba(2, 132, 199, 0.3)',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Book OP Visit
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+                      )}
+
+                      {/* Card Footer Actions */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 10, borderTop: '1px solid rgba(226, 232, 240, 0.8)' }}>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([org.name, org.address, org.city].filter(Boolean).join(', '))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            color: '#0284c7',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <MapPin size={13} /> View on Map
+                        </a>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          {org.min_price != null && (
-                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-navy)' }}>
+                          {(!org.linked_doctors || org.linked_doctors.length === 0) && org.min_price != null && (
+                            <span style={{ fontWeight: 800, fontSize: '1.02rem', color: 'var(--color-navy)' }}>
                               from ₹{org.min_price}
                             </span>
                           )}
@@ -1360,7 +1518,7 @@ function ConsultationContent() {
                             className="btn btn-primary btn-sm"
                             onClick={() => handleOrgBooking(org)}
                             style={{
-                              minWidth: 110,
+                              minWidth: 120,
                               borderRadius: 10,
                               fontWeight: 700,
                               background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
@@ -1369,7 +1527,7 @@ function ConsultationContent() {
                               color: '#ffffff',
                             }}
                           >
-                            {consultMode === 'home' ? 'Book Home Visit' : 'Book Visit'}
+                            {consultMode === 'home' ? 'Book Home Visit' : (org.linked_doctors && org.linked_doctors.length > 0 ? 'Visit Facility' : 'Book Visit')}
                           </button>
                         </div>
                       </div>
@@ -1377,7 +1535,7 @@ function ConsultationContent() {
                   </div>
                 ))}
 
-                {filteredDoctors.map((doc) => (
+                {consultMode !== 'walkin' && filteredDoctors.map((doc) => (
                   <div
                     key={doc.doctor_id}
                     className="card doctor-card"

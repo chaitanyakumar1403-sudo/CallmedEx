@@ -4,17 +4,24 @@
  * ProviderSchedulePanel — a consulting provider's bookable schedule.
  *
  * Supports:
- *   - 🌅 🌆 Shift-Based Availability (Morning & Evening Shifts) matching clinical standards
- *   - ⏱️ Minimum Slot Duration starting from 10 minutes (10, 15, 20, 30, 45, 60, 90)
- *   - 📑 Consolidated Weekly Availability grouping identical shifts & branches into unified cards
- *   - 🏥 Multi-Branch Clinic Management & Selection for Walk-In OPD (e.g. MVP Colony, Gajuwaka)
- *   - ⚡ 1-Click Multi-Day Batch Presets (Weekdays Mon–Fri, Mon–Sat 6 Days, All 7 Days)
- *   - 🛡️ Outage Safeguard: Leave & Blocked Date Management
+ *   - Shift-based availability (morning & evening shifts)
+ *   - Slot durations from 10 minutes (10, 15, 20, 30, 45, 60, 90)
+ *   - Consolidated weekly view grouping identical shifts & branches into one card
+ *   - Multi-branch clinic management for walk-in OPD
+ *   - 1-click multi-day presets (Mon–Fri, Mon–Sat, all 7 days, weekend)
+ *   - Leave & blocked-date management
+ *
+ * Presentation is class-based (foundation.css `.cm-sched*`) and gated by
+ * scripts/lint-ui.mjs — no inline styles, colour literals or emoji here.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { Button, Icon } from "@/components/ui";
-import { Calendar, CalendarDays, Clock, MapPin, Plus, Trash2, Building2 } from "@/components/ui/icons";
+import {
+  AlertCircle, Building2, Calendar, CalendarOff, CheckCircle2, Clock,
+  LayoutGrid, MapPin, Moon, Plus, Rows3, Settings2, Sun, Sunrise, Trash2, X,
+} from "@/components/ui/icons";
+import type { LucideIcon } from "@/components/ui/icons";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () =>
@@ -36,22 +43,27 @@ const MODES = [
     label: "Walk-in centre",
     hint: "Patients travel to your clinic or hospital OPD",
     needsLocation: true,
+    icon: MapPin,
   },
   {
     value: "online",
     label: "Online consultation",
-    hint: "1-on-1 HD Video teleconsultation from anywhere",
+    hint: "1-on-1 HD video teleconsultation from anywhere",
     needsLocation: false,
+    icon: Calendar,
   },
   {
     value: "home_visit",
     label: "Home visit",
     hint: "Doorstep bedside clinical evaluation",
     needsLocation: false,
+    icon: Clock,
   },
 ];
 
 const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60, 90];
+
+const LEAVE_PRESETS = ["Medical Conference", "Weekly Off", "Personal Leave", "Emergency / Sabbatical", "CME Training"];
 
 interface Availability {
   id: string;
@@ -96,7 +108,7 @@ interface ConsolidatedShiftGroup {
 
 function formatDaysRange(days: number[]): string {
   if (!days || days.length === 0) return "No days configured";
-  if (days.length === 7) return "All 7 Days (Mon – Sun)";
+  if (days.length === 7) return "Every day";
 
   // Standard medical week ordering: Mon (1) to Sun (0)
   const sorted = [...days].sort((a, b) => {
@@ -108,20 +120,27 @@ function formatDaysRange(days: number[]): string {
   const isSeq = (arr: number[], expected: number[]) =>
     arr.length === expected.length && arr.every((v, i) => v === expected[i]);
 
-  if (isSeq(sorted, [1, 2, 3, 4, 5])) return "Monday – Friday (5 Days)";
-  if (isSeq(sorted, [1, 2, 3, 4, 5, 6])) return "Monday – Saturday (6 Days)";
-  if (isSeq(sorted, [6, 0])) return "Saturday & Sunday (Weekend)";
+  if (isSeq(sorted, [1, 2, 3, 4, 5])) return "Monday – Friday";
+  if (isSeq(sorted, [1, 2, 3, 4, 5, 6])) return "Monday – Saturday";
+  if (isSeq(sorted, [6, 0])) return "Weekends";
+  if (sorted.length === 1) return DAYS.find((d) => d.value === sorted[0])?.label || "";
 
-  const dayMap: Record<number, string> = {
-    1: "Mon",
-    2: "Tue",
-    3: "Wed",
-    4: "Thu",
-    5: "Fri",
-    6: "Sat",
-    0: "Sun",
-  };
-  return sorted.map((d) => dayMap[d]).join(", ");
+  return sorted.map((d) => DAYS.find((x) => x.value === d)?.short).join(", ");
+}
+
+/** "09:30:00" → "9:30 AM". Falls back to the raw value if it isn't HH:MM. */
+function formatTime(t: string): string {
+  const [h, m] = (t || "").split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return t;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function shiftPeriod(start: string): { label: string; icon: LucideIcon; tone: "morning" | "afternoon" | "evening" } {
+  if (start < "13:00") return { label: "Morning", icon: Sunrise, tone: "morning" };
+  if (start >= "16:00") return { label: "Evening", icon: Moon, tone: "evening" };
+  return { label: "Afternoon", icon: Sun, tone: "afternoon" };
 }
 
 export default function ProviderSchedulePanel({
@@ -162,9 +181,8 @@ export default function ProviderSchedulePanel({
   // Consolidated View vs Day-by-Day View
   const [scheduleViewMode, setScheduleViewMode] = useState<"consolidated" | "day_by_day">("consolidated");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("all");
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  // Reference-matched Morning & Evening Shift Configurator with Batch Day Selection
+  // Morning & Evening Shift Configurator with Batch Day Selection
   const [shiftForm, setShiftForm] = useState({
     consultation_mode: "in_person",
     slot_duration_minutes: 10, // Default starts from 10 minutes
@@ -298,7 +316,7 @@ export default function ProviderSchedulePanel({
     }));
     setNewBranchName("");
     setNewBranchAddress("");
-    setMsg({ text: `✓ Added new clinic branch: ${newB.name}`, ok: true });
+    setMsg({ text: `Added clinic branch: ${newB.name}`, ok: true });
   };
 
   const handleDeleteBranch = (bId: string) => {
@@ -410,7 +428,7 @@ export default function ProviderSchedulePanel({
       const data = await res.json();
       if (res.ok && data.success) {
         setMsg({
-          text: `✓ Shifts published: ${data.created_records_count || shiftForm.selected_days.length * 2} blocks created across ${data.days_count || shiftForm.selected_days.length} day(s) (${data.total_slots_week || shiftStats.weekly} total slots/week).`,
+          text: `Shifts published: ${data.created_records_count || shiftForm.selected_days.length * 2} blocks across ${data.days_count || shiftForm.selected_days.length} day(s) · ${data.total_slots_week || shiftStats.weekly} bookable slots per week.`,
           ok: true,
         });
         setShowForm(false);
@@ -473,6 +491,8 @@ export default function ProviderSchedulePanel({
   // Remove a consolidated group across multiple days
   const removeAvailabilityGroup = async (blockIds: string[], label: string) => {
     if (!blockIds || blockIds.length === 0) return;
+    // One click here deletes every shift on every matching day — confirm first.
+    if (!window.confirm(`Remove all shifts for ${label}? Patients will no longer be able to book these hours.`)) return;
     setDeletingGroup(blockIds[0]);
     try {
       await Promise.all(
@@ -484,7 +504,7 @@ export default function ProviderSchedulePanel({
         )
       );
       setMsg({
-        text: `✓ Removed schedule for ${label} (${blockIds.length} shift record${blockIds.length === 1 ? "" : "s"} cleared).`,
+        text: `Removed schedule for ${label} (${blockIds.length} shift record${blockIds.length === 1 ? "" : "s"} cleared).`,
         ok: true,
       });
       load();
@@ -603,598 +623,408 @@ export default function ProviderSchedulePanel({
   };
 
   if (loading) {
-    return <div className="card" style={{ padding: 24, color: "#64748b" }}>Loading clinical schedule cockpit…</div>;
+    return (
+      <div className="cm-sched-card cm-sched-loading" aria-busy="true">
+        Loading your schedule…
+      </div>
+    );
   }
 
+  const activeDayCount = new Set(availability.map((a) => a.day_of_week)).size;
+  const sameDays = (a: number[], b: number[]) =>
+    JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort());
+  const presets = [
+    { label: "Mon – Fri", days: [1, 2, 3, 4, 5] },
+    { label: "Mon – Sat", days: [1, 2, 3, 4, 5, 6] },
+    { label: "All 7 days", days: [0, 1, 2, 3, 4, 5, 6] },
+    { label: "Weekend", days: [0, 6] },
+  ];
+
+  const shiftEditors = [
+    {
+      key: "morning",
+      label: "Morning shift",
+      icon: Sunrise,
+      tone: "morning",
+      enabled: shiftForm.morning_shift_enabled,
+      start: shiftForm.morning_start,
+      end: shiftForm.morning_end,
+      slots: shiftStats.mSlots,
+      toggle: (v: boolean) => setShiftForm({ ...shiftForm, morning_shift_enabled: v }),
+      setStart: (v: string) => setShiftForm({ ...shiftForm, morning_start: v }),
+      setEnd: (v: string) => setShiftForm({ ...shiftForm, morning_end: v }),
+    },
+    {
+      key: "evening",
+      label: "Evening shift",
+      icon: Moon,
+      tone: "evening",
+      enabled: shiftForm.evening_shift_enabled,
+      start: shiftForm.evening_start,
+      end: shiftForm.evening_end,
+      slots: shiftStats.eSlots,
+      toggle: (v: boolean) => setShiftForm({ ...shiftForm, evening_shift_enabled: v }),
+      setStart: (v: string) => setShiftForm({ ...shiftForm, evening_start: v }),
+      setEnd: (v: string) => setShiftForm({ ...shiftForm, evening_end: v }),
+    },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="cm-sched">
       {msg && (
-        <div
-          role="status"
-          style={{
-            padding: "12px 16px",
-            borderRadius: 10,
-            fontSize: "0.88rem",
-            fontWeight: 700,
-            backgroundColor: msg.ok ? "var(--cm-done-surface, #f0fdf4)" : "var(--cm-urgent-surface, #fef2f2)",
-            color: msg.ok ? "var(--cm-done, #166534)" : "var(--cm-urgent, #b91c1c)",
-            border: `1px solid ${msg.ok ? "var(--cm-done-line, #86efac)" : "var(--cm-urgent-line, #fca5a5)"}`,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span>{msg.text}</span>
-          <button
-            type="button"
-            onClick={() => setMsg(null)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontWeight: "bold" }}
-          >
-            ×
+        <div role="status" className={`cm-banner ${msg.ok ? "cm-banner--done" : "cm-banner--urgent"} cm-sched-msg`}>
+          <Icon as={msg.ok ? CheckCircle2 : AlertCircle} size={20} />
+          <span className="cm-banner__body">{msg.text}</span>
+          <button type="button" className="cm-banner__x" onClick={() => setMsg(null)} aria-label="Dismiss message">
+            <Icon as={X} size={16} />
           </button>
         </div>
       )}
 
-      {/* ── Weekly Availability & Shift Scheduler Widget ───────────────── */}
-      <div className="cm-widget-glass-light" style={{ marginBottom: 24 }}>
-        <div className="cm-widget-header">
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-              <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(2, 132, 199, 0.3)" }}>
-                Enterprise Clinical Roster
-              </span>
-              <span style={{ fontSize: "12px", color: "var(--cm-ink-3)" }}>
-                {availability.length} active shift{availability.length === 1 ? "" : "s"} · {new Set(availability.map((a) => a.day_of_week)).size} days active
-              </span>
+      {/* ── Weekly availability ─────────────────────────────────────────── */}
+      <section className="cm-sched-card" aria-labelledby="cm-sched-title">
+        <header className="cm-sched-card__head">
+          <div className="cm-sched-card__intro">
+            <p className="cm-sched-eyebrow">Clinical roster</p>
+            <h3 id="cm-sched-title" className="cm-sched-card__title">Weekly availability</h3>
+            <p className="cm-sched-card__desc">
+              Publish the hours patients can book — across your clinic branches, online consultations and home visits.
+            </p>
+            <div className="cm-sched-meta">
+              <span><strong>{availability.length}</strong> shift block{availability.length === 1 ? "" : "s"}</span>
+              <span><strong>{activeDayCount}</strong> day{activeDayCount === 1 ? "" : "s"} active</span>
               {branches.length > 1 && (
-                <span className="cm-branch-badge">
-                  <Icon as={Building2} size={14} /> {branches.length} Clinic Branches
-                </span>
+                <span><Icon as={Building2} size={14} /> <strong>{branches.length}</strong> clinic branches</span>
               )}
             </div>
-            <h3 className="cm-widget-title">
-              <Icon as={CalendarDays} size={20} />
-              <span>Weekly Availability &amp; Multi-Branch Practice</span>
-            </h3>
-            <p className="cm-widget-subtitle">
-              Define morning and evening shifts with 1-click batch day selection, assign shifts across multiple clinic branches, and view consolidated schedules without clutter.
-            </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            {/* View Mode Toggle: Consolidated vs Day-by-Day */}
-            <div className="cm-view-toggle">
+          <div className="cm-sched-card__actions">
+            <div className="cm-seg" role="group" aria-label="Schedule layout">
               <button
                 type="button"
+                className="cm-seg__btn"
+                aria-pressed={scheduleViewMode === "consolidated"}
                 onClick={() => setScheduleViewMode("consolidated")}
-                className={`cm-view-toggle-btn ${scheduleViewMode === "consolidated" ? "cm-view-toggle-btn--active" : ""}`}
-                title="Consolidate days sharing identical shifts into unified cards"
+                title="Group days that share identical shifts"
               >
-                📑 Consolidated View
+                <Icon as={LayoutGrid} size={16} /> Consolidated
               </button>
               <button
                 type="button"
+                className="cm-seg__btn"
+                aria-pressed={scheduleViewMode === "day_by_day"}
                 onClick={() => setScheduleViewMode("day_by_day")}
-                className={`cm-view-toggle-btn ${scheduleViewMode === "day_by_day" ? "cm-view-toggle-btn--active" : ""}`}
-                title="View full week day-by-day (7 individual cards)"
+                title="Show every day separately"
               >
-                📅 Day-by-Day View
+                <Icon as={Rows3} size={16} /> By day
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowForm((s) => !s)}
-              className="cm-btn cm-btn--primary cm-btn--sm"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                fontWeight: 800,
-                borderRadius: "9999px",
-                padding: "8px 18px",
-                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                boxShadow: "0 4px 14px rgba(2, 132, 199, 0.35)",
-              }}
-            >
-              <Icon as={Plus} size={16} />
-              <span>{showForm ? "Close Shift Builder" : "Configure Shifts / Add Hours"}</span>
-            </button>
+            <Button type="button" variant="primary" onClick={() => setShowForm((s) => !s)} aria-expanded={showForm}>
+              <Icon as={showForm ? X : Plus} size={16} />
+              {showForm ? "Close builder" : "Configure shifts"}
+            </Button>
           </div>
-        </div>
+        </header>
 
-        {/* Shift Builder Form (Frosted Glass Drawer) */}
+        {/* ── Shift builder ─────────────────────────────────────────────── */}
         {showForm && (
-          <div
-            style={{
-              borderRadius: "var(--cm-radius-lg)",
-              padding: 24,
-              margin: "0 0 24px 0",
-              background: "linear-gradient(135deg, rgba(240, 249, 255, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%)",
-              border: "1px solid rgba(186, 230, 253, 0.9)",
-              boxShadow: "0 10px 25px -5px rgba(2, 132, 199, 0.08)",
-              backdropFilter: "blur(16px)",
-            }}
-          >
-            <div style={{ display: "flex", gap: 10, borderBottom: "1px solid rgba(224, 242, 254, 0.9)", paddingBottom: 12, marginBottom: 18 }}>
-              <button
-                type="button"
-                onClick={() => setBuilderTab("shift")}
-                style={{
-                  padding: "7px 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  fontWeight: 800,
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                  background: builderTab === "shift" ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "rgba(2, 132, 199, 0.06)",
-                  color: builderTab === "shift" ? "#ffffff" : "var(--cm-ink-2, #334155)",
-                  boxShadow: builderTab === "shift" ? "0 4px 12px rgba(2, 132, 199, 0.25)" : "none",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                🌅 🌆 Morning &amp; Evening Shift Builder (Recommended)
+          <div className="cm-sched-builder">
+            <div className="cm-seg cm-sched-builder__tabs" role="group" aria-label="Builder type">
+              <button type="button" className="cm-seg__btn" aria-pressed={builderTab === "shift"} onClick={() => setBuilderTab("shift")}>
+                Shift builder <span className="cm-sched-tag">Recommended</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setBuilderTab("custom")}
-                style={{
-                  padding: "7px 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  fontWeight: 800,
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                  background: builderTab === "custom" ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "rgba(2, 132, 199, 0.06)",
-                  color: builderTab === "custom" ? "#ffffff" : "var(--cm-ink-2, #334155)",
-                  boxShadow: builderTab === "custom" ? "0 4px 12px rgba(2, 132, 199, 0.25)" : "none",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                Single Custom Block
+              <button type="button" className="cm-seg__btn" aria-pressed={builderTab === "custom"} onClick={() => setBuilderTab("custom")}>
+                Single custom block
               </button>
             </div>
 
             {builderTab === "shift" ? (
-              <form onSubmit={handlePublishShifts}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
-                    Practice Modality
+              <form onSubmit={handlePublishShifts} className="cm-sched-form">
+                <div className="cm-sched-grid-2">
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Practice mode</span>
                     <select
+                      className="cm-input cm-input--select"
                       value={shiftForm.consultation_mode}
                       onChange={(e) => setShiftForm({ ...shiftForm, consultation_mode: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "0.85rem", background: "#fff" }}
                     >
                       {MODES.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
                     </select>
                   </label>
-
-                  {/* Slot Duration starting from 10 min */}
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2, #334155)" }}>
-                    Slot Duration (Starting from 10 minutes)
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Slot duration</span>
                     <select
+                      className="cm-input cm-input--select"
                       value={shiftForm.slot_duration_minutes}
                       onChange={(e) => setShiftForm({ ...shiftForm, slot_duration_minutes: Number(e.target.value) })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", fontSize: "0.85rem", background: "#fff" }}
                     >
                       {SLOT_DURATIONS.map((d) => (
-                        <option key={d} value={d}>{d} minutes per patient slot</option>
+                        <option key={d} value={d}>{d} minutes per patient</option>
                       ))}
                     </select>
                   </label>
                 </div>
 
-                {/* Morning Shift Card */}
-                <div style={{ background: "rgba(255, 255, 255, 0.92)", border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 10, padding: 16, marginBottom: 14, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)" }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={shiftForm.morning_shift_enabled}
-                      onChange={(e) => setShiftForm({ ...shiftForm, morning_shift_enabled: e.target.checked })}
-                      style={{ width: 18, height: 18 }}
-                    />
-                    🌅 Enable Morning Shift
-                  </label>
-
-                  {shiftForm.morning_shift_enabled && (
-                    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
-                        MORNING START
-                        <input
-                          type="time"
-                          value={shiftForm.morning_start}
-                          onChange={(e) => setShiftForm({ ...shiftForm, morning_start: e.target.value })}
-                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                        />
+                <div className="cm-sched-grid-2">
+                  {shiftEditors.map((s) => (
+                    <div key={s.key} className="cm-sched-shift-edit" data-enabled={s.enabled}>
+                      <label className="cm-sched-shift-edit__head">
+                        <input type="checkbox" checked={s.enabled} onChange={(e) => s.toggle(e.target.checked)} />
+                        <span className={`cm-sched-glyph cm-sched-glyph--${s.tone}`}><Icon as={s.icon} size={16} /></span>
+                        <span className="cm-sched-shift-edit__label">{s.label}</span>
+                        {s.enabled && <span className="cm-sched-shift-edit__slots">{s.slots} slots / day</span>}
                       </label>
-                      <span style={{ marginTop: 20, color: "#94a3b8" }}>to</span>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
-                        MORNING END
-                        <input
-                          type="time"
-                          value={shiftForm.morning_end}
-                          onChange={(e) => setShiftForm({ ...shiftForm, morning_end: e.target.value })}
-                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                        />
-                      </label>
-                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 700, marginTop: 18 }}>
-                        ({shiftStats.mSlots} morning slots per active day)
-                      </div>
+                      {s.enabled && (
+                        <div className="cm-sched-grid-2 cm-sched-grid-2--tight">
+                          <label className="cm-sched-field">
+                            <span className="cm-sched-field__label">Starts</span>
+                            <input type="time" className="cm-input" value={s.start} onChange={(e) => s.setStart(e.target.value)} />
+                          </label>
+                          <label className="cm-sched-field">
+                            <span className="cm-sched-field__label">Ends</span>
+                            <input type="time" className="cm-input" value={s.end} onChange={(e) => s.setEnd(e.target.value)} />
+                          </label>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
 
-                {/* Evening Shift Card */}
-                <div style={{ background: "rgba(255, 255, 255, 0.92)", border: "1px solid rgba(186, 230, 253, 0.8)", borderRadius: 10, padding: 16, marginBottom: 14, boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)" }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: "0.9rem", color: "var(--cm-ink, #0f172a)", marginBottom: 10, cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={shiftForm.evening_shift_enabled}
-                      onChange={(e) => setShiftForm({ ...shiftForm, evening_shift_enabled: e.target.checked })}
-                      style={{ width: 18, height: 18 }}
-                    />
-                    🌆 Enable Evening Shift
-                  </label>
-
-                  {shiftForm.evening_shift_enabled && (
-                    <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
-                        EVENING START
-                        <input
-                          type="time"
-                          value={shiftForm.evening_start}
-                          onChange={(e) => setShiftForm({ ...shiftForm, evening_start: e.target.value })}
-                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                        />
-                      </label>
-                      <span style={{ marginTop: 20, color: "#94a3b8" }}>to</span>
-                      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "var(--cm-ink-3, #64748b)" }}>
-                        EVENING END
-                        <input
-                          type="time"
-                          value={shiftForm.evening_end}
-                          onChange={(e) => setShiftForm({ ...shiftForm, evening_end: e.target.value })}
-                          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
-                        />
-                      </label>
-                      <div style={{ fontSize: "0.8rem", color: "var(--cm-active, #0284c7)", fontWeight: 700, marginTop: 18 }}>
-                        ({shiftStats.eSlots} evening slots per active day)
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Multi-Day Batch Selector & Presets */}
-                <div style={{ marginBottom: 16, background: "rgba(255, 255, 255, 0.92)", padding: 16, borderRadius: 10, border: "1px solid rgba(186, 230, 253, 0.8)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "var(--cm-navy, #1e3a8a)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      📅 Practice Days Selection (Multi-Day Batch)
-                    </div>
-                    <span style={{ fontSize: "0.78rem", color: "#0284c7", fontWeight: 700 }}>
-                      {shiftForm.selected_days.length} day{shiftForm.selected_days.length === 1 ? "" : "s"} selected
+                <fieldset className="cm-sched-fieldset">
+                  <legend className="cm-sched-fieldset__legend">
+                    Practice days
+                    <span className="cm-sched-fieldset__count">
+                      {shiftForm.selected_days.length} selected
                     </span>
-                  </div>
-
-                  {/* 1-Click Preset Buttons */}
-                  <div className="cm-day-presets-row">
-                    <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-ink-3)", display: "flex", alignItems: "center", gap: 4 }}>
-                      ⚡ 1-Click Presets:
-                    </span>
+                  </legend>
+                  <div className="cm-sched-chips">
+                    {presets.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className="cm-sched-chip"
+                        aria-pressed={sameDays(shiftForm.selected_days, p.days)}
+                        onClick={() => setShiftForm({ ...shiftForm, selected_days: p.days })}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
                     <button
                       type="button"
-                      onClick={() => setShiftForm({ ...shiftForm, selected_days: [1, 2, 3, 4, 5] })}
-                      className={`cm-day-preset-btn ${JSON.stringify(shiftForm.selected_days.slice().sort()) === JSON.stringify([1, 2, 3, 4, 5]) ? "cm-day-preset-btn--active" : ""}`}
-                    >
-                      Weekdays (Mon–Fri)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShiftForm({ ...shiftForm, selected_days: [1, 2, 3, 4, 5, 6] })}
-                      className={`cm-day-preset-btn ${JSON.stringify(shiftForm.selected_days.slice().sort()) === JSON.stringify([1, 2, 3, 4, 5, 6]) ? "cm-day-preset-btn--active" : ""}`}
-                    >
-                      Mon–Sat (6 Days)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShiftForm({ ...shiftForm, selected_days: [0, 1, 2, 3, 4, 5, 6] })}
-                      className={`cm-day-preset-btn ${shiftForm.selected_days.length === 7 ? "cm-day-preset-btn--active" : ""}`}
-                    >
-                      All 7 Days (Mon–Sun)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShiftForm({ ...shiftForm, selected_days: [6, 0] })}
-                      className={`cm-day-preset-btn ${JSON.stringify(shiftForm.selected_days.slice().sort()) === JSON.stringify([0, 6]) ? "cm-day-preset-btn--active" : ""}`}
-                    >
-                      Weekend (Sat &amp; Sun)
-                    </button>
-                    <button
-                      type="button"
+                      className="cm-sched-chip cm-sched-chip--quiet"
                       onClick={() => setShiftForm({ ...shiftForm, selected_days: [] })}
-                      className="cm-day-preset-btn"
-                      style={{ color: "#ef4444" }}
                     >
                       Clear
                     </button>
                   </div>
-
-                  {/* Individual Day Checkboxes */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div className="cm-sched-days">
                     {DAYS.map((d) => {
                       const isSelected = shiftForm.selected_days.includes(d.value);
                       return (
-                        <label
-                          key={d.value}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "6px 14px",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                            fontSize: "0.85rem",
-                            fontWeight: 700,
-                            border: `1px solid ${isSelected ? "#0284c7" : "rgba(186, 230, 253, 0.8)"}`,
-                            background: isSelected ? "linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(224, 242, 254, 0.8) 100%)" : "rgba(255, 255, 255, 0.8)",
-                            color: isSelected ? "var(--cm-navy, #1e3a8a)" : "#64748b",
-                            transition: "all 0.2s ease",
-                          }}
-                        >
+                        <label key={d.value} className="cm-sched-day-toggle" data-selected={isSelected}>
                           <input
                             type="checkbox"
+                            className="cm-sr"
                             checked={isSelected}
                             onChange={() => handleToggleDay(d.value)}
-                            style={{ width: 16, height: 16 }}
                           />
-                          {d.short.toUpperCase()}
+                          <span aria-hidden="true">{d.short}</span>
+                          <span className="cm-sr">{d.label}</span>
                         </label>
                       );
                     })}
                   </div>
-                </div>
+                </fieldset>
 
-                {/* ── Multi-Branch Clinic Practice Selector for Walk-in centre ── */}
+                {/* ── Branch selector for walk-in centre ── */}
                 {shiftForm.consultation_mode === "in_person" && (
-                  <div style={{ background: "rgba(255, 255, 255, 0.95)", border: "1px solid rgba(186, 230, 253, 0.9)", borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                      <label style={{ fontSize: "0.82rem", fontWeight: 800, color: "var(--cm-navy, #1e3a8a)", textTransform: "uppercase", letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 6 }}>
-                        <Icon as={MapPin} size={16} /> Multi-Branch Clinic Practice (Select Active Branch)
-                      </label>
+                  <fieldset className="cm-sched-fieldset">
+                    <legend className="cm-sched-fieldset__legend">
+                      Clinic branch
                       <button
                         type="button"
+                        className="cm-sched-link"
                         onClick={() => setShowBranchManager((s) => !s)}
-                        style={{ fontSize: "11px", fontWeight: 800, color: "#0284c7", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                        aria-expanded={showBranchManager}
                       >
-                        {showBranchManager ? "Close Branch Manager" : "⚙️ Manage Saved Branches"}
+                        <Icon as={Settings2} size={14} />
+                        {showBranchManager ? "Done" : "Manage branches"}
                       </button>
-                    </div>
+                    </legend>
 
-                    {/* Saved Branch Chips */}
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                    <div className="cm-sched-chips">
                       {branches.map((b) => {
                         const isSelected = selectedBranchId === b.id || (shiftForm.location_name === b.name && shiftForm.location_address === b.address);
                         return (
                           <button
                             key={b.id}
                             type="button"
+                            className="cm-sched-chip"
+                            aria-pressed={isSelected}
                             onClick={() => {
                               setSelectedBranchId(b.id);
                               setShiftForm({ ...shiftForm, location_name: b.name, location_address: b.address });
                             }}
-                            style={{
-                              padding: "8px 14px",
-                              borderRadius: 8,
-                              border: isSelected ? "1.5px solid #0284c7" : "1px solid rgba(186, 230, 253, 0.8)",
-                              background: isSelected ? "linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(224, 242, 254, 0.8) 100%)" : "#fff",
-                              color: isSelected ? "var(--cm-navy, #1e3a8a)" : "#475569",
-                              fontWeight: isSelected ? 800 : 600,
-                              fontSize: "0.82rem",
-                              cursor: "pointer",
-                              textAlign: "left",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 6,
-                              boxShadow: isSelected ? "0 2px 6px rgba(2, 132, 199, 0.15)" : "none",
-                              transition: "all 0.2s ease",
-                            }}
                           >
-                            <span>📍 {b.name}</span>
-                            {isSelected && <span style={{ fontSize: "10px", color: "#0284c7", fontWeight: 900 }}>✓</span>}
+                            <Icon as={MapPin} size={14} /> {b.name}
                           </button>
                         );
                       })}
                       <button
                         type="button"
+                        className="cm-sched-chip cm-sched-chip--dashed"
+                        aria-pressed={selectedBranchId === "new"}
                         onClick={() => {
                           setSelectedBranchId("new");
                           setShiftForm({ ...shiftForm, location_name: "", location_address: "" });
                         }}
-                        style={{
-                          padding: "8px 14px",
-                          borderRadius: 8,
-                          border: selectedBranchId === "new" ? "1.5px solid #0284c7" : "1px dashed #7dd3fc",
-                          background: selectedBranchId === "new" ? "rgba(2, 132, 199, 0.08)" : "transparent",
-                          color: "#0284c7",
-                          fontWeight: 800,
-                          fontSize: "0.82rem",
-                          cursor: "pointer",
-                        }}
                       >
-                        + Add New Branch...
+                        <Icon as={Plus} size={14} /> New branch
                       </button>
                     </div>
 
-                    {/* Branch Detail Inputs */}
                     {(selectedBranchId === "new" || !shiftForm.location_name) && (
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, padding: 12, background: "rgba(240, 249, 255, 0.7)", borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.7)" }}>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "#334155" }}>
-                          Clinic / Branch Name *
+                      <div className="cm-sched-grid-2 cm-sched-inset">
+                        <label className="cm-sched-field">
+                          <span className="cm-sched-field__label">Clinic / branch name</span>
                           <input
+                            className="cm-input"
                             value={shiftForm.location_name}
                             onChange={(e) => setShiftForm({ ...shiftForm, location_name: e.target.value })}
-                            placeholder="e.g. Apex Polyclinic - MVP Colony"
-                            style={{ padding: 8, borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                            placeholder="e.g. Apex Polyclinic – MVP Colony"
                             required
                           />
                         </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.78rem", fontWeight: 700, color: "#334155" }}>
-                          Branch Address *
+                        <label className="cm-sched-field">
+                          <span className="cm-sched-field__label">Branch address</span>
                           <input
+                            className="cm-input"
                             value={shiftForm.location_address}
                             onChange={(e) => setShiftForm({ ...shiftForm, location_address: e.target.value })}
-                            placeholder="Street, area, city (e.g. Sector 3, MVP Colony, Visakhapatnam)"
-                            style={{ padding: 8, borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.85rem", background: "#fff" }}
+                            placeholder="Street, area, city"
                             required
                           />
                         </label>
                       </div>
                     )}
 
-                    {/* Branch Manager Drawer */}
                     {showBranchManager && (
-                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed #bae6fd" }}>
-                        <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginBottom: 8 }}>
-                          Manage Registered Branches ({branches.length})
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                      <div className="cm-sched-inset">
+                        <ul className="cm-sched-branch-list">
                           {branches.map((b) => {
                             const count = availability.filter((a) => a.location_name?.trim() === b.name.trim()).length;
                             return (
-                              <div
-                                key={b.id}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  padding: "8px 12px",
-                                  background: "#f8fafc",
-                                  borderRadius: 6,
-                                  border: "1px solid #e2e8f0",
-                                }}
-                              >
-                                <div>
-                                  <strong style={{ fontSize: "0.85rem", color: "var(--cm-navy, #1e3a8a)" }}>{b.name}</strong>
-                                  <span style={{ fontSize: "0.76rem", color: "#64748b", marginLeft: 8 }}>• {b.address}</span>
-                                  <span style={{ marginLeft: 8, fontSize: "10px", background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
-                                    {count} shift block{count === 1 ? "" : "s"}
-                                  </span>
-                                </div>
+                              <li key={b.id} className="cm-sched-branch-row">
+                                <span className="cm-sched-branch-row__text">
+                                  <strong>{b.name}</strong>
+                                  <span>{b.address}</span>
+                                </span>
+                                <span className="cm-sched-count">{count} block{count === 1 ? "" : "s"}</span>
                                 <button
                                   type="button"
+                                  className="cm-sched-icon-btn"
                                   onClick={() => handleDeleteBranch(b.id)}
                                   disabled={branches.length <= 1}
-                                  style={{ background: "none", border: "none", color: branches.length <= 1 ? "#cbd5e1" : "#ef4444", cursor: branches.length <= 1 ? "not-allowed" : "pointer", padding: 2 }}
+                                  aria-label={`Delete saved branch ${b.name}`}
                                   title="Delete saved branch"
                                 >
-                                  <Icon as={Trash2} size={14} />
+                                  <Icon as={Trash2} size={16} />
                                 </button>
-                              </div>
+                              </li>
                             );
                           })}
-                        </div>
-
-                        {/* Add branch inline */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr auto", gap: 8, alignItems: "center" }}>
+                        </ul>
+                        <div className="cm-sched-branch-add">
                           <input
-                            placeholder="New Branch Name (e.g. Apollo Cradle Gajuwaka)"
+                            className="cm-input"
+                            placeholder="New branch name"
+                            aria-label="New branch name"
                             value={newBranchName}
                             onChange={(e) => setNewBranchName(e.target.value)}
-                            style={{ padding: 7, borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.8rem", background: "#fff" }}
                           />
                           <input
-                            placeholder="Branch Address (e.g. Near Old Post Office, Gajuwaka)"
+                            className="cm-input"
+                            placeholder="Branch address"
+                            aria-label="Branch address"
                             value={newBranchAddress}
                             onChange={(e) => setNewBranchAddress(e.target.value)}
-                            style={{ padding: 7, borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.8rem", background: "#fff" }}
                           />
-                          <button
-                            type="button"
-                            onClick={handleAddNewBranch}
-                            className="cm-btn cm-btn--secondary cm-btn--sm"
-                            style={{ fontWeight: 800, padding: "7px 12px" }}
-                          >
-                            + Save Branch
-                          </button>
+                          <Button type="button" variant="secondary" onClick={handleAddNewBranch}>
+                            <Icon as={Plus} size={16} /> Save branch
+                          </Button>
                         </div>
                       </div>
                     )}
-                  </div>
+                  </fieldset>
                 )}
 
-                {/* Live Slot Calculation Summary */}
-                <div style={{ padding: "12px 16px", borderRadius: 10, background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", color: "#15803d", fontSize: "0.85rem", fontWeight: 700, marginBottom: 16 }}>
-                  ✨ Generates {shiftStats.mSlots} morning + {shiftStats.eSlots} evening slots ({shiftStats.daily} slots/day × {shiftForm.selected_days.length} days = {shiftStats.weekly} bookable slots per week)
-                </div>
+                {/* Live slot calculation */}
+                <dl className="cm-sched-summary" aria-live="polite">
+                  <div><dt>Morning</dt><dd>{shiftStats.mSlots}</dd></div>
+                  <div><dt>Evening</dt><dd>{shiftStats.eSlots}</dd></div>
+                  <div><dt>Per day</dt><dd>{shiftStats.daily}</dd></div>
+                  <div className="cm-sched-summary__total"><dt>Bookable per week</dt><dd>{shiftStats.weekly}</dd></div>
+                </dl>
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#475569" }}>
+                <div className="cm-sched-form__foot">
+                  <label className="cm-sched-check">
                     <input
                       type="checkbox"
                       checked={shiftForm.replace_existing}
                       onChange={(e) => setShiftForm({ ...shiftForm, replace_existing: e.target.checked })}
                     />
-                    Replace existing hours on those selected days for this mode
+                    Replace existing hours on the selected days for this mode
                   </label>
-                  <Button type="submit" variant="primary" disabled={savingShift}>
-                    {savingShift ? "Publishing Shifts..." : "Publish Shift Schedule"}
+                  <Button type="submit" variant="primary" loading={savingShift}>
+                    {savingShift ? "Publishing…" : "Publish schedule"}
                   </Button>
                 </div>
               </form>
             ) : (
-              /* Custom Single Block Form */
-              <form onSubmit={addAvailability}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                    Consultation Modality
+              <form onSubmit={addAvailability} className="cm-sched-form">
+                <div className="cm-sched-grid-auto">
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Practice mode</span>
                     <select
+                      className="cm-input cm-input--select"
                       value={form.consultation_mode}
                       onChange={(e) => setForm({ ...form, consultation_mode: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {MODES.map((m) => (
                         <option key={m.value} value={m.value}>{m.label}</option>
                       ))}
                     </select>
                   </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                    Day of Week
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Day of week</span>
                     <select
+                      className="cm-input cm-input--select"
                       value={form.day_of_week}
                       onChange={(e) => setForm({ ...form, day_of_week: Number(e.target.value) })}
                       disabled={form.apply_to_all_days}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {DAYS.map((d) => (
                         <option key={d.value} value={d.value}>{d.label}</option>
                       ))}
                     </select>
                   </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                    Start Time
-                    <input
-                      type="time"
-                      value={form.start_time}
-                      onChange={(e) => setForm({ ...form, start_time: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-                    />
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Starts</span>
+                    <input type="time" className="cm-input" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
                   </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                    End Time
-                    <input
-                      type="time"
-                      value={form.end_time}
-                      onChange={(e) => setForm({ ...form, end_time: e.target.value })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-                    />
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Ends</span>
+                    <input type="time" className="cm-input" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
                   </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                    Slot Duration
+                  <label className="cm-sched-field">
+                    <span className="cm-sched-field__label">Slot duration</span>
                     <select
+                      className="cm-input cm-input--select"
                       value={form.slot_duration_minutes}
                       onChange={(e) => setForm({ ...form, slot_duration_minutes: Number(e.target.value) })}
-                      style={{ padding: 9, borderRadius: 8, border: "1px solid rgba(186, 230, 253, 0.9)", background: "#fff" }}
                     >
                       {SLOT_DURATIONS.map((d) => (
                         <option key={d} value={d}>{d} minutes</option>
@@ -1204,31 +1034,31 @@ export default function ProviderSchedulePanel({
                 </div>
 
                 {form.consultation_mode === "in_person" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                      Clinic / Centre Name
+                  <div className="cm-sched-grid-2">
+                    <label className="cm-sched-field">
+                      <span className="cm-sched-field__label">Clinic / centre name</span>
                       <input
+                        className="cm-input"
                         value={form.location_name}
                         onChange={(e) => setForm({ ...form, location_name: e.target.value })}
                         placeholder="e.g. Visakha Multispeciality Clinics"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                       />
                     </label>
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 600, color: "#334155" }}>
-                      Branch Address
+                    <label className="cm-sched-field">
+                      <span className="cm-sched-field__label">Branch address</span>
                       <input
+                        className="cm-input"
                         value={form.location_address}
                         onChange={(e) => setForm({ ...form, location_address: e.target.value })}
                         placeholder="Street, area, city"
-                        style={{ padding: 9, borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
                       />
                     </label>
                   </div>
                 )}
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-                  <div style={{ display: "flex", gap: 16 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "#334155" }}>
+                <div className="cm-sched-form__foot">
+                  <div className="cm-sched-checks">
+                    <label className="cm-sched-check">
                       <input
                         type="checkbox"
                         checked={form.apply_to_all_days}
@@ -1236,7 +1066,7 @@ export default function ProviderSchedulePanel({
                       />
                       Same hours every day
                     </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.83rem", color: "#334155" }}>
+                    <label className="cm-sched-check">
                       <input
                         type="checkbox"
                         checked={form.replace_existing}
@@ -1245,18 +1075,17 @@ export default function ProviderSchedulePanel({
                       Replace existing hours
                     </label>
                   </div>
-                  <Button type="submit" variant="primary">Publish Block</Button>
+                  <Button type="submit" variant="primary">Publish block</Button>
                 </div>
               </form>
             )}
           </div>
         )}
 
-        {/* ── Grouped & Consolidated Weekly Schedule Display ───────────── */}
+        {/* ── Published schedule, per mode ──────────────────────────────── */}
         {MODES.map((m) => {
           let modeRows = availability.filter((a) => a.consultation_mode === m.value);
 
-          // If walk-in OPD and a branch filter is applied
           const branchNames = Array.from(
             new Set(modeRows.map((r) => r.location_name?.trim()).filter(Boolean))
           );
@@ -1268,33 +1097,25 @@ export default function ProviderSchedulePanel({
           const consolidatedGroups = buildConsolidatedGroups(modeRows);
 
           return (
-            <div key={m.value} style={{ marginBottom: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 8, borderBottom: "1px solid rgba(224, 242, 254, 0.8)", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(2, 132, 199, 0.15)", color: "#0284c7", display: "grid", placeItems: "center" }}>
-                    <Icon as={m.value === "in_person" ? MapPin : m.value === "online" ? Calendar : Clock} size={16} />
-                  </div>
-                  <span style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", color: "var(--cm-navy, #1e3a8a)", letterSpacing: "0.03em" }}>
-                    {m.label}
-                  </span>
-                  <span style={{ fontSize: "0.76rem", background: "rgba(2, 132, 199, 0.1)", color: "#0284c7", padding: "2px 10px", borderRadius: 999, fontWeight: 700, border: "1px solid rgba(2, 132, 199, 0.25)" }}>
-                    {modeRows.length} active block{modeRows.length === 1 ? "" : "s"}
-                  </span>
-                </div>
+            <div key={m.value} className="cm-sched-mode">
+              <div className="cm-sched-mode__head">
+                <span className="cm-sched-mode__icon"><Icon as={m.icon} size={16} /></span>
+                <h4 className="cm-sched-mode__title">{m.label}</h4>
+                <span className="cm-sched-count">
+                  {modeRows.length} block{modeRows.length === 1 ? "" : "s"}
+                </span>
               </div>
 
-              {/* Multi-Branch Filter Bar for Walk-In OPD */}
               {m.value === "in_person" && branchNames.length > 1 && (
-                <div className="cm-branch-filter-bar">
-                  <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--cm-navy, #1e3a8a)", display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon as={Building2} size={14} /> Filter Branch:
-                  </span>
+                <div className="cm-sched-chips cm-sched-filter" role="group" aria-label="Filter by branch">
                   <button
                     type="button"
+                    className="cm-sched-chip"
+                    aria-pressed={selectedBranchFilter === "all"}
                     onClick={() => setSelectedBranchFilter("all")}
-                    className={`cm-day-preset-btn ${selectedBranchFilter === "all" ? "cm-day-preset-btn--active" : ""}`}
                   >
-                    All Branches ({availability.filter((a) => a.consultation_mode === "in_person").length})
+                    All branches
+                    <span className="cm-sched-chip__n">{availability.filter((a) => a.consultation_mode === "in_person").length}</span>
                   </button>
                   {branchNames.map((bName) => {
                     const count = availability.filter(
@@ -1304,10 +1125,12 @@ export default function ProviderSchedulePanel({
                       <button
                         key={bName}
                         type="button"
+                        className="cm-sched-chip"
+                        aria-pressed={selectedBranchFilter === bName}
                         onClick={() => setSelectedBranchFilter(bName!)}
-                        className={`cm-day-preset-btn ${selectedBranchFilter === bName ? "cm-day-preset-btn--active" : ""}`}
                       >
-                        📍 {bName} ({count})
+                        <Icon as={MapPin} size={14} /> {bName}
+                        <span className="cm-sched-chip__n">{count}</span>
                       </button>
                     );
                   })}
@@ -1315,161 +1138,102 @@ export default function ProviderSchedulePanel({
               )}
 
               {modeRows.length === 0 ? (
-                <div style={{ fontSize: "0.85rem", color: "#64748b", padding: "20px 24px", background: "rgba(255, 255, 255, 0.7)", borderRadius: 10, border: "1px dashed rgba(186, 230, 253, 0.9)", textAlign: "center" }}>
-                  No active hours published for {m.label.toLowerCase()} yet. Click &quot;Configure Shifts / Add Hours&quot; above to publish your schedule.
+                <div className="cm-sched-empty">
+                  <p>No hours published for {m.label.toLowerCase()} yet.</p>
+                  {!showForm && (
+                    <button
+                      type="button"
+                      className="cm-sched-link"
+                      onClick={() => {
+                        setShiftForm((prev) => ({ ...prev, consultation_mode: m.value }));
+                        setBuilderTab("shift");
+                        setShowForm(true);
+                      }}
+                    >
+                      <Icon as={Plus} size={14} /> Add hours
+                    </button>
+                  )}
                 </div>
               ) : scheduleViewMode === "consolidated" ? (
-                /* ── Consolidated View: Unified Cards Grouped Across Days ── */
-                <div className="cm-consolidated-grid">
+                <div className="cm-sched-groups">
                   {consolidatedGroups.map((group) => {
-                    const isExpanded = !!expandedGroups[group.key];
                     const isDeleting = deletingGroup === group.allBlockIds[0];
 
                     return (
-                      <div key={group.key} className="cm-consolidated-card">
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <h4 style={{ margin: 0, fontWeight: 900, fontSize: "1.05rem", color: "var(--cm-navy, #1e3a8a)" }}>
-                                {group.dayLabel}
-                              </h4>
-                              <span style={{ fontSize: "0.72rem", background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", padding: "2px 8px", borderRadius: 999, fontWeight: 800, border: "1px solid rgba(2, 132, 199, 0.2)" }}>
-                                {group.days.length} Day{group.days.length === 1 ? "" : "s"} Active
-                              </span>
-                            </div>
-                            {group.location_name && (
-                              <div style={{ fontSize: "0.78rem", color: "#0284c7", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                                <Icon as={MapPin} size={14} />
-                                <span>{group.location_name}</span>
-                                {group.location_address && <span style={{ color: "#64748b", fontWeight: 500 }}>• {group.location_address}</span>}
-                              </div>
-                            )}
+                      <article key={group.key} className="cm-sched-group">
+                        <header className="cm-sched-group__head">
+                          <div className="cm-sched-group__titles">
+                            <h5 className="cm-sched-group__title">{group.dayLabel}</h5>
+                            <ol className="cm-sched-week" aria-label={`Active on ${group.days.length} day${group.days.length === 1 ? "" : "s"}`}>
+                              {DAYS.map((d) => {
+                                const on = group.days.includes(d.value);
+                                return (
+                                  <li key={d.value} className="cm-sched-week__day" data-on={on} title={d.label}>
+                                    <span aria-hidden="true">{d.short.charAt(0)}</span>
+                                    <span className="cm-sr">{d.label}{on ? " (active)" : ""}</span>
+                                  </li>
+                                );
+                              })}
+                            </ol>
                           </div>
-
                           <button
                             type="button"
+                            className="cm-sched-icon-btn"
                             onClick={() => removeAvailabilityGroup(group.allBlockIds, group.dayLabel)}
                             disabled={isDeleting}
                             aria-label={`Remove shifts for ${group.dayLabel}`}
-                            title="Remove shifts across all matching days"
-                            style={{
-                              background: "rgba(239, 68, 68, 0.08)",
-                              border: "1px solid rgba(239, 68, 68, 0.3)",
-                              color: "#ef4444",
-                              borderRadius: 6,
-                              padding: "4px 8px",
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              fontSize: "11px",
-                              fontWeight: 800,
-                            }}
+                            title="Remove these shifts on all listed days"
                           >
-                            <Icon as={Trash2} size={14} />
-                            <span>{isDeleting ? "Removing..." : "Remove"}</span>
+                            <Icon as={Trash2} size={16} />
                           </button>
-                        </div>
+                        </header>
 
-                        {/* Shift blocks */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                        {group.location_name && (
+                          <p className="cm-sched-loc">
+                            <Icon as={MapPin} size={14} />
+                            <span>
+                              <span className="cm-sched-loc__name">{group.location_name}</span>
+                              {group.location_address && <span className="cm-sched-loc__addr">{group.location_address}</span>}
+                            </span>
+                          </p>
+                        )}
+
+                        <ul className="cm-sched-shifts">
                           {group.distinctShifts.map((s, idx) => {
-                            const isMorning = s.start_time < "13:00";
-                            const isEvening = s.start_time >= "16:00";
-                            const icon = isMorning ? "🌅" : isEvening ? "🌆" : "☀️";
-                            const title = isMorning ? "Morning Shift" : isEvening ? "Evening Shift" : "Afternoon Shift";
-
+                            const p = shiftPeriod(s.start_time);
                             return (
-                              <div
-                                key={idx}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  padding: "8px 12px",
-                                  background: "#ffffff",
-                                  borderRadius: 8,
-                                  border: "1px solid rgba(186, 230, 253, 0.7)",
-                                  boxShadow: "0 1px 3px rgba(2, 132, 199, 0.04)",
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span style={{ fontSize: "1rem" }}>{icon}</span>
-                                  <div>
-                                    <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#0f172a" }}>
-                                      {title}: {s.start_time.slice(0, 5)} – {s.end_time.slice(0, 5)}
-                                    </span>
-                                    <span style={{ marginLeft: 8, fontSize: "0.72rem", color: "#0284c7", background: "rgba(2, 132, 199, 0.1)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
-                                      {s.slot_duration_minutes}m slots
-                                    </span>
-                                  </div>
-                                </div>
-                                <span style={{ fontSize: "0.76rem", color: "#16a34a", fontWeight: 700 }}>
-                                  {s.slots} slots/day
+                              <li key={idx} className="cm-sched-shift">
+                                <span className={`cm-sched-glyph cm-sched-glyph--${p.tone}`}><Icon as={p.icon} size={16} /></span>
+                                <span className="cm-sched-shift__main">
+                                  <span className="cm-sched-shift__name">{p.label}</span>
+                                  <span className="cm-sched-shift__time">
+                                    {formatTime(s.start_time)} – {formatTime(s.end_time)}
+                                  </span>
                                 </span>
-                              </div>
+                                <span className="cm-sched-shift__side">
+                                  <span className="cm-sched-shift__slots">{s.slots} slots</span>
+                                  <span className="cm-sched-shift__dur">{s.slot_duration_minutes} min each</span>
+                                </span>
+                              </li>
                             );
                           })}
-                        </div>
+                        </ul>
 
-                        {/* Summary & Day Breakdown Toggle */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px dashed rgba(186, 230, 253, 0.9)", paddingTop: 10, flexWrap: "wrap", gap: 8 }}>
-                          <span style={{ fontSize: "0.76rem", color: "#64748b", fontWeight: 700 }}>
-                            ✨ Capacity: <strong>{group.totalSlotsDaily}</strong> slots/day · <strong>{group.totalSlotsWeekly}</strong> slots/week
+                        <footer className="cm-sched-group__foot">
+                          <span className="cm-sched-group__cap-label">Capacity</span>
+                          <span className="cm-sched-group__cap">
+                            <strong>{group.totalSlotsDaily}</strong> / day
+                            <span aria-hidden="true" className="cm-sched-dot" />
+                            <strong>{group.totalSlotsWeekly}</strong> / week
                           </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedGroups((prev) => ({
-                                ...prev,
-                                [group.key]: !prev[group.key],
-                              }))
-                            }
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "#0284c7",
-                              fontSize: "11px",
-                              fontWeight: 800,
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                            }}
-                          >
-                            {isExpanded ? "Hide Days" : `View Days (${group.days.length})`}
-                          </button>
-                        </div>
-
-                        {/* Expanded individual days list */}
-                        {isExpanded && (
-                          <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #e0f2fe", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {group.days.map((d) => {
-                              const dayObj = DAYS.find((item) => item.value === d);
-                              return (
-                                <span
-                                  key={d}
-                                  style={{
-                                    padding: "3px 8px",
-                                    borderRadius: 4,
-                                    background: "rgba(2, 132, 199, 0.08)",
-                                    color: "#0369a1",
-                                    fontSize: "11px",
-                                    fontWeight: 700,
-                                    border: "1px solid rgba(186, 230, 253, 0.8)",
-                                  }}
-                                >
-                                  {dayObj?.label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                          {isDeleting && <span className="cm-sched-group__busy">Removing…</span>}
+                        </footer>
+                      </article>
                     );
                   })}
                 </div>
               ) : (
-                /* ── Day-by-Day View (7 Separate Cards) ── */
-                <div className="cm-shift-day-grid">
+                <div className="cm-sched-daygrid">
                   {DAYS.map((dayObj) => {
                     const dayBlocks = modeRows
                       .filter((r) => r.day_of_week === dayObj.value)
@@ -1481,71 +1245,50 @@ export default function ProviderSchedulePanel({
                     const primaryAddress = dayBlocks.find((b) => b.location_address)?.location_address;
 
                     return (
-                      <div key={dayObj.value} className="cm-shift-day-card">
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, borderBottom: "1px solid rgba(224, 242, 254, 0.9)", paddingBottom: 8 }}>
-                          <span style={{ fontWeight: 800, fontSize: "0.98rem", color: "var(--cm-navy, #1e3a8a)" }}>
-                            {dayObj.label}
-                          </span>
-                          <span style={{ fontSize: "0.72rem", background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", padding: "2px 8px", borderRadius: 999, fontWeight: 800, border: "1px solid rgba(2, 132, 199, 0.2)" }}>
+                      <article key={dayObj.value} className="cm-sched-group">
+                        <header className="cm-sched-group__head">
+                          <h5 className="cm-sched-group__title">{dayObj.label}</h5>
+                          <span className="cm-sched-count">
                             {dayBlocks.length} shift{dayBlocks.length === 1 ? "" : "s"}
                           </span>
-                        </div>
+                        </header>
 
-                        {/* Shift rows */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: primaryLocation ? 10 : 0 }}>
+                        <ul className="cm-sched-shifts">
                           {dayBlocks.map((blk) => {
-                            const isMorning = blk.start_time < "13:00";
-                            const isEvening = blk.start_time >= "16:00";
-                            const shiftIcon = isMorning ? "🌅" : isEvening ? "🌆" : "☀️";
+                            const p = shiftPeriod(blk.start_time);
                             return (
-                              <div
-                                key={blk.id}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  padding: "8px 12px",
-                                  background: "linear-gradient(135deg, rgba(240, 249, 255, 0.6) 0%, rgba(255, 255, 255, 0.9) 100%)",
-                                  borderRadius: 8,
-                                  border: "1px solid rgba(186, 230, 253, 0.7)",
-                                  boxShadow: "0 1px 3px rgba(2, 132, 199, 0.04)",
-                                }}
-                              >
-                                <div>
-                                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>
-                                    {shiftIcon} {blk.start_time.slice(0, 5)} – {blk.end_time.slice(0, 5)}
+                              <li key={blk.id} className="cm-sched-shift">
+                                <span className={`cm-sched-glyph cm-sched-glyph--${p.tone}`}><Icon as={p.icon} size={16} /></span>
+                                <span className="cm-sched-shift__main">
+                                  <span className="cm-sched-shift__name">{p.label} · {blk.slot_duration_minutes} min slots</span>
+                                  <span className="cm-sched-shift__time">
+                                    {formatTime(blk.start_time)} – {formatTime(blk.end_time)}
                                   </span>
-                                  <span style={{ marginLeft: 8, fontSize: "0.75rem", color: "#0284c7", fontWeight: 700, background: "rgba(2, 132, 199, 0.1)", padding: "1px 6px", borderRadius: 4 }}>
-                                    {blk.slot_duration_minutes} min slots
-                                  </span>
-                                </div>
+                                </span>
                                 <button
                                   type="button"
+                                  className="cm-sched-icon-btn"
                                   onClick={() => removeAvailability(blk.id)}
-                                  aria-label="Remove this shift"
+                                  aria-label={`Remove ${dayObj.label} ${formatTime(blk.start_time)} shift`}
                                   title="Remove this shift"
-                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", padding: 2, display: "grid", placeItems: "center" }}
                                 >
-                                  <Icon as={Trash2} size={14} />
+                                  <Icon as={Trash2} size={16} />
                                 </button>
-                              </div>
+                              </li>
                             );
                           })}
-                        </div>
+                        </ul>
 
-                        {/* Location Badge */}
                         {primaryLocation && (
-                          <div style={{ fontSize: "0.74rem", color: "#64748b", borderTop: "1px dashed rgba(186, 230, 253, 0.8)", paddingTop: 8, display: "flex", alignItems: "flex-start", gap: 6 }}>
-                            <span style={{ marginTop: 2, flexShrink: 0, color: "#0284c7", display: "inline-flex" }}>
-                              <Icon as={MapPin} size={14} />
-                            </span>
+                          <p className="cm-sched-loc cm-sched-loc--foot">
+                            <Icon as={MapPin} size={14} />
                             <span>
-                              <strong style={{ color: "var(--cm-navy, #1e3a8a)" }}>{primaryLocation}</strong>
-                              {primaryAddress ? ` • ${primaryAddress}` : ""}
+                              <span className="cm-sched-loc__name">{primaryLocation}</span>
+                              {primaryAddress && <span className="cm-sched-loc__addr">{primaryAddress}</span>}
                             </span>
-                          </div>
+                          </p>
                         )}
-                      </div>
+                      </article>
                     );
                   })}
                 </div>
@@ -1553,161 +1296,97 @@ export default function ProviderSchedulePanel({
             </div>
           );
         })}
-      </div>
+      </section>
 
-      {/* ── Blocked Dates / Leave Management Studio Widget ───────────────── */}
-      <div
-        className="cm-widget-glass-light"
-        style={{
-          border: "1px solid rgba(244, 63, 94, 0.25)",
-          background: "linear-gradient(135deg, rgba(255, 241, 242, 0.6) 0%, rgba(255, 255, 255, 0.95) 100%)",
-        }}
-      >
-        <div className="cm-widget-header" style={{ borderBottomColor: "rgba(254, 205, 211, 0.8)" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ padding: "4px 10px", borderRadius: 999, background: "rgba(225, 29, 72, 0.12)", color: "#e11d48", fontSize: "11px", fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", border: "1px solid rgba(225, 29, 72, 0.25)" }}>
-                Slot Outage Safeguard
-              </span>
-            </div>
-            <h3 className="cm-widget-title" style={{ color: "#9f1239" }}>
-              <Icon as={CalendarDays} size={20} />
-              <span>Leave &amp; Blocked Dates Management</span>
-            </h3>
-            <p className="cm-widget-subtitle">
-              Mark dates as blocked to temporarily suspend patient slot booking. Existing confirmed appointments remain safeguarded.
+      {/* ── Leave & blocked dates ───────────────────────────────────────── */}
+      <section className="cm-sched-card" aria-labelledby="cm-leave-title">
+        <header className="cm-sched-card__head">
+          <div className="cm-sched-card__intro">
+            <p className="cm-sched-eyebrow">Time off</p>
+            <h3 id="cm-leave-title" className="cm-sched-card__title">Leave &amp; blocked dates</h3>
+            <p className="cm-sched-card__desc">
+              Blocking a date stops new bookings for that day. Appointments already confirmed are not affected.
             </p>
           </div>
-          <div style={{ padding: "6px 14px", borderRadius: 999, background: "rgba(225, 29, 72, 0.1)", color: "#be123c", border: "1px solid rgba(225, 29, 72, 0.3)", fontSize: "0.8rem", fontWeight: 800 }}>
-            {blockedDates.length} Date{blockedDates.length === 1 ? "" : "s"} Blocked
-          </div>
-        </div>
-
-        {/* Quick Reason Presets */}
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#9f1239", textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 8 }}>
-            Quick Reason Presets:
+          <span className={`cm-pill ${blockedDates.length > 0 ? "cm-pill--waiting" : "cm-pill--halted"}`}>
+            {blockedDates.length} date{blockedDates.length === 1 ? "" : "s"} blocked
           </span>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["Medical Conference", "Weekly Off", "Personal Leave", "Emergency / Sabbatical", "CME Training"].map((preset) => (
+        </header>
+
+        <form onSubmit={addBlockedDate} className="cm-sched-form">
+          <div className="cm-sched-leave-row">
+            <label className="cm-sched-field">
+              <span className="cm-sched-field__label">Date</span>
+              <input
+                type="date"
+                className="cm-input"
+                value={blockDate}
+                onChange={(e) => setBlockDate(e.target.value)}
+                required
+              />
+            </label>
+            <label className="cm-sched-field cm-sched-field--grow">
+              <span className="cm-sched-field__label">Reason <span className="cm-sched-optional">optional</span></span>
+              <input
+                className="cm-input"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="e.g. National Medical Council annual summit"
+              />
+            </label>
+            <Button type="submit" variant="secondary">
+              <Icon as={CalendarOff} size={16} /> Block date
+            </Button>
+          </div>
+          <div className="cm-sched-chips" role="group" aria-label="Quick reasons">
+            {LEAVE_PRESETS.map((preset) => (
               <button
                 key={preset}
                 type="button"
+                className="cm-sched-chip"
+                aria-pressed={blockReason === preset}
                 onClick={() => setBlockReason(preset)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 8,
-                  border: blockReason === preset ? "1px solid #e11d48" : "1px solid rgba(244, 63, 94, 0.2)",
-                  background: blockReason === preset ? "linear-gradient(135deg, #e11d48 0%, #be123c 100%)" : "rgba(255, 255, 255, 0.8)",
-                  color: blockReason === preset ? "#ffffff" : "#881337",
-                  fontSize: "0.78rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: blockReason === preset ? "0 4px 10px rgba(225, 29, 72, 0.25)" : "none",
-                  transition: "all 0.2s ease",
-                }}
               >
                 {preset}
               </button>
             ))}
           </div>
-        </div>
-
-        <form onSubmit={addBlockedDate} style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 20 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#881337" }}>
-            Select Date to Block *
-            <input
-              type="date"
-              value={blockDate}
-              onChange={(e) => setBlockDate(e.target.value)}
-              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(244, 63, 94, 0.3)", fontSize: "0.85rem", background: "#fff" }}
-              required
-            />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: "0.8rem", fontWeight: 700, color: "#881337", flex: 1, minWidth: 220 }}>
-            Reason for Unavailability (Optional)
-            <input
-              value={blockReason}
-              onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="e.g. National Medical Council Annual Summit"
-              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid rgba(244, 63, 94, 0.3)", fontSize: "0.85rem", background: "#fff" }}
-            />
-          </label>
-          <button
-            type="submit"
-            className="cm-btn cm-btn--secondary cm-btn--sm"
-            style={{
-              borderColor: "#e11d48",
-              color: "#be123c",
-              fontWeight: 800,
-              height: 40,
-              padding: "0 18px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              borderRadius: 8,
-              background: "rgba(255, 255, 255, 0.9)",
-              boxShadow: "0 2px 8px rgba(225, 29, 72, 0.1)",
-            }}
-          >
-            <Icon as={CalendarDays} size={16} /> Block This Date
-          </button>
         </form>
 
         {blockedDates.length === 0 ? (
-          <div style={{ fontSize: "0.85rem", color: "#881337", padding: "18px 20px", background: "rgba(255, 255, 255, 0.7)", borderRadius: 10, border: "1px dashed rgba(244, 63, 94, 0.3)", textAlign: "center" }}>
-            No upcoming leaves or blocked dates recorded. Your published shifts are fully active and bookable by patients.
+          <div className="cm-sched-empty">
+            <p>No leave scheduled. All published shifts are open for booking.</p>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
-            {blockedDates.map((b) => (
-              <div
-                key={b.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 16px",
-                  borderRadius: 10,
-                  background: "rgba(255, 255, 255, 0.9)",
-                  border: "1px solid rgba(244, 63, 94, 0.3)",
-                  boxShadow: "0 2px 8px rgba(225, 29, 72, 0.08)",
-                  color: "#9f1239",
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: "0.9rem", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon as={CalendarDays} size={14} />
-                    {new Date(b.blocked_date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: "#be123c", marginTop: 3 }}>
-                    Reason: <strong>{b.reason || "Scheduled Leave"}</strong>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeBlockedDate(b.id)}
-                  aria-label={`Unblock ${b.blocked_date}`}
-                  title="Unblock date and restore slots"
-                  style={{
-                    background: "linear-gradient(135deg, rgba(225, 29, 72, 0.1) 0%, rgba(244, 63, 94, 0.15) 100%)",
-                    border: "1px solid rgba(225, 29, 72, 0.35)",
-                    borderRadius: 6,
-                    padding: "5px 10px",
-                    cursor: "pointer",
-                    color: "#be123c",
-                    fontSize: "0.76rem",
-                    fontWeight: 800,
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  Unblock
-                </button>
-              </div>
-            ))}
-          </div>
+          <ul className="cm-sched-leave-list">
+            {blockedDates.map((b) => {
+              const d = new Date(b.blocked_date + "T00:00:00");
+              return (
+                <li key={b.id} className="cm-sched-leave">
+                  <span className="cm-sched-leave__date" aria-hidden="true">
+                    <span className="cm-sched-leave__mon">{d.toLocaleDateString(undefined, { month: "short" })}</span>
+                    <span className="cm-sched-leave__day">{d.getDate()}</span>
+                  </span>
+                  <span className="cm-sched-leave__text">
+                    <strong>{d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</strong>
+                    <span>{b.reason || "Scheduled leave"}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeBlockedDate(b.id)}
+                    aria-label={`Unblock ${b.blocked_date}`}
+                    title="Unblock date and restore slots"
+                  >
+                    Unblock
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }

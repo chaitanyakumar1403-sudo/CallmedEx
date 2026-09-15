@@ -447,14 +447,59 @@ async def order_prescribed_actions(
 class SendRxEmailRequest(BaseModel):
     patient_email: str
     patient_name: str
-    doctor_name: Optional[str] = "Dr. CallMedex Practitioner"
-    doctor_qualification: Optional[str] = "MBBS, MD"
-    doctor_reg_number: Optional[str] = "NMC-VERIFIED-2026"
+    # Prescriber identity is read from the authenticated provider's profile.
+    # These are accepted for backward compatibility only; doctor_reg_number is
+    # always ignored — a registration number typed by the client is not proof
+    # of registration.
+    doctor_name: Optional[str] = None
+    doctor_qualification: Optional[str] = None
+    doctor_reg_number: Optional[str] = None
     diagnosis: str
     medicines: List[dict]
     lab_tests: Optional[List[str]] = []
     clinical_notes: Optional[str] = ""
     consultation_id: Optional[str] = ""
+
+
+# Where each consulting role keeps its registration number. Checked in order;
+# the first non-empty value wins.
+_PRESCRIBER_TABLES = {"doctor": "doctors", "dietitian": "dietitians", "physiotherapist": "physiotherapists"}
+_REG_FIELDS = (
+    "medical_license_number",
+    "license_number",
+    "dietitian_license_number",
+    "physio_license_number",
+    "registration_number",
+)
+
+
+def _prescriber_credentials(user_id: str, role: str) -> dict:
+    """Name, qualification and registration number from the provider's own records."""
+    creds = {"name": "", "qualification": "", "reg_number": ""}
+    if not supabase:
+        return creds
+    merged: dict = {}
+    try:
+        u = supabase.table("users").select("*").eq("id", user_id).limit(1).execute()
+        if u.data:
+            merged.update(u.data[0])
+        table = _PRESCRIBER_TABLES.get(role)
+        if table:
+            r = supabase.table(table).select("*").eq("user_id", user_id).limit(1).execute()
+            if r.data:
+                merged.update({k: v for k, v in r.data[0].items() if v not in (None, "")})
+    except Exception:
+        return creds
+
+    name = str(merged.get("full_name") or "").strip()
+    if name and role == "doctor" and not name.lower().startswith(("dr ", "dr.", "doctor ")):
+        name = f"Dr. {name}"
+    creds["name"] = name
+    creds["qualification"] = str(merged.get("qualification") or "").strip()
+    creds["reg_number"] = next(
+        (str(merged[f]).strip() for f in _REG_FIELDS if str(merged.get(f) or "").strip()), ""
+    )
+    return creds
 
 
 @router.post("/send-rx-email")
@@ -472,13 +517,22 @@ async def send_rx_email(
     if not req.patient_email or "@" not in req.patient_email:
         raise HTTPException(status_code=400, detail="A valid patient email address is mandatory to transmit an e-prescription.")
 
+    creds = _prescriber_credentials(current_user["sub"], role)
+    if not creds["reg_number"]:
+        # NMC Telemedicine Practice Guidelines require the prescriber's
+        # registration number on every prescription. Never substitute one.
+        raise HTTPException(
+            status_code=400,
+            detail="Your medical registration number is not on file. Add it under your profile before issuing e-prescriptions.",
+        )
+
     from app.services.email import EmailService
     EmailService.send_eprescription_email(
         to_email=req.patient_email.strip(),
         patient_name=req.patient_name,
-        doctor_name=req.doctor_name or "Dr. CallMedex Practitioner",
-        doctor_qualification=req.doctor_qualification or "MBBS, MD",
-        doctor_reg_number=req.doctor_reg_number or "NMC-VERIFIED-2026",
+        doctor_name=creds["name"] or req.doctor_name or "",
+        doctor_qualification=creds["qualification"] or req.doctor_qualification or "",
+        doctor_reg_number=creds["reg_number"],
         diagnosis=req.diagnosis,
         medicines=req.medicines,
         lab_tests=req.lab_tests or [],

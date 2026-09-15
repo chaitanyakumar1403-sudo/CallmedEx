@@ -97,6 +97,22 @@ export default function OrganizationDashboard() {
   const [allotMessage, setAllotMessage] = useState("");
   const [allotting, setAllotting] = useState(false);
 
+  // Doctor Walk-in OP Schedule Modal State
+  const [scheduleModalDoctor, setScheduleModalDoctor] = useState<any | null>(null);
+  const [scheduleFee, setScheduleFee] = useState<number>(500);
+  const [scheduleSlotDuration, setScheduleSlotDuration] = useState<number>(10);
+  const [scheduleShifts, setScheduleShifts] = useState<Array<{ start_time: string; end_time: string; days_of_week: number[] }>>([
+    { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
+    { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+  ]);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleSuccessMsg, setScheduleSuccessMsg] = useState("");
+
+  // Organization Bookings Roster State
+  const [orgBookings, setOrgBookings] = useState<any[]>([]);
+  const [fetchingBookings, setFetchingBookings] = useState(false);
+  const [bookingFilter, setBookingFilter] = useState<string>("all"); // "all" | "today" | "upcoming" | "completed"
+
   // ─── Data Fetching ─────────────────────────────────────────────────────
 
   const fetchProfile = useCallback(async () => {
@@ -179,6 +195,97 @@ export default function OrganizationDashboard() {
     } catch (e) { console.error(e); }
   }, []);
 
+  const fetchOrgBookings = useCallback(async () => {
+    setFetchingBookings(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/bookings/provider/today?timeframe=all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data && Array.isArray(data.data.bookings)) {
+        setOrgBookings(data.data.bookings);
+      } else if (data.success && Array.isArray(data.data)) {
+        setOrgBookings(data.data);
+      } else {
+        setOrgBookings([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch org bookings:", e);
+      setOrgBookings([]);
+    } finally {
+      setFetchingBookings(false);
+    }
+  }, []);
+
+  const handleOpenDoctorScheduleModal = (doc: any) => {
+    setScheduleModalDoctor(doc);
+    setScheduleFee(doc.consultation_fee || 500);
+    const avail = doc.availability || [];
+    if (avail.length > 0) {
+      const firstDur = avail[0].slot_duration_minutes || 10;
+      setScheduleSlotDuration(firstDur);
+      const grouped: Record<string, number[]> = {};
+      avail.forEach((a: any) => {
+        const key = `${a.start_time || "09:30"}_${a.end_time || "12:30"}`;
+        if (!grouped[key]) grouped[key] = [];
+        if (!grouped[key].includes(a.day_of_week)) grouped[key].push(a.day_of_week);
+      });
+      const parsedShifts = Object.entries(grouped).map(([key, days]) => {
+        const [st, et] = key.split("_");
+        return { start_time: st, end_time: et, days_of_week: days.sort() };
+      });
+      setScheduleShifts(parsedShifts.length > 0 ? parsedShifts : [
+        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
+        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+      ]);
+    } else {
+      setScheduleSlotDuration(10);
+      setScheduleShifts([
+        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
+        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+      ]);
+    }
+    setScheduleSuccessMsg("");
+  };
+
+  const handleSaveDoctorSchedule = async () => {
+    if (!scheduleModalDoctor) return;
+    setSavingSchedule(true);
+    setScheduleSuccessMsg("");
+    try {
+      const token = getToken();
+      const docUserId = scheduleModalDoctor.doctor_user_id || scheduleModalDoctor.id;
+      const res = await fetch(`${apiBase}/api/providers/org/doctor/${docUserId}/schedule`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          slot_duration_minutes: Number(scheduleSlotDuration) || 10,
+          consultation_fee: Number(scheduleFee) || 500,
+          shifts: scheduleShifts,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setScheduleSuccessMsg("Walk-in OP schedule saved successfully!");
+        fetchDoctors();
+        setTimeout(() => {
+          setScheduleModalDoctor(null);
+          setScheduleSuccessMsg("");
+        }, 1200);
+      } else {
+        alert(data.detail || "Failed to update doctor schedule");
+      }
+    } catch {
+      alert("Network error updating doctor schedule");
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
   const handleAllotSlot = async () => {
     if (!allotDialog || !allotStartTime || !allotEndTime) return;
     setAllotting(true);
@@ -201,6 +308,7 @@ export default function OrganizationDashboard() {
         setAllotEndTime("");
         setAllotMessage("");
         fetchPendingBookings();
+        fetchOrgBookings();
       } else {
         setStatusMsg(`❌ ${data.detail || "Failed to allot slot"}`);
       }
@@ -219,7 +327,8 @@ export default function OrganizationDashboard() {
     fetchTimings();
     fetchStats();
     fetchPendingBookings();
-  }, [fetchProfile, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats, fetchPendingBookings]);
+    fetchOrgBookings();
+  }, [fetchProfile, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats, fetchPendingBookings, fetchOrgBookings]);
 
   // ─── Verification Handler ──────────────────────────────────────────────
 
@@ -531,7 +640,7 @@ export default function OrganizationDashboard() {
     { id: "services", label: `${servicesLabel} (${orgServices.length})`, icon: TestTubes },
     { id: "packages", label: `Packages (${orgPackages.length})`, icon: Package },
     { id: "timings", label: "Timings", icon: Clock },
-    { id: "bookings", label: "Bookings", icon: ClipboardList },
+    { id: "bookings", label: `Bookings${orgBookings.length > 0 ? ` (${orgBookings.length})` : ""}`, icon: ClipboardList },
     { id: "profile", label: "Profile Details", icon: User },
   ];
 
@@ -1205,15 +1314,29 @@ export default function OrganizationDashboard() {
                                 <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>Walk-in Fee</div>
                                 <div style={{ fontWeight: 800, color: "#059669", fontSize: "1rem" }}>₹{doc.consultation_fee || 500}</div>
                               </div>
-                              <button
-                                onClick={() => handleRemoveDoctor(doc.doctor_user_id)}
-                                style={{
-                                  backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
-                                  padding: "6px 12px", borderRadius: 6, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
-                                }}
-                              >
-                                Remove
-                              </button>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDoctorScheduleModal(doc)}
+                                  style={{
+                                    backgroundColor: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe",
+                                    padding: "6px 12px", borderRadius: 6, fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
+                                    display: "inline-flex", alignItems: "center", gap: 5,
+                                  }}
+                                >
+                                  <Clock size={13} />
+                                  Edit Walk-in OP Slots
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveDoctor(doc.doctor_user_id)}
+                                  style={{
+                                    backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca",
+                                    padding: "6px 12px", borderRadius: 6, fontSize: "0.78rem", fontWeight: 600, cursor: "pointer",
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </div>
 
@@ -1225,7 +1348,12 @@ export default function OrganizationDashboard() {
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: formattedShifts.length > 0 ? 6 : 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "#166534" }}>
                                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a", display: "inline-block" }}></span>
-                                <span>Live Walk-in Practice Schedule (Synced)</span>
+                                <span>Live Walk-in Practice Schedule</span>
+                                {avail[0]?.slot_duration_minutes && (
+                                  <span style={{ fontSize: "0.7rem", background: "#dcfce7", color: "#15803d", padding: "1px 6px", borderRadius: 4, fontWeight: 800 }}>
+                                    {avail[0].slot_duration_minutes}m OP Slots
+                                  </span>
+                                )}
                               </div>
                               <span style={{ fontSize: "0.72rem", color: "#15803d", fontWeight: 600 }}>
                                 {avail.length > 0 ? `${avail.length} Active Weekly Blocks` : "No slots set"}
@@ -1244,8 +1372,19 @@ export default function OrganizationDashboard() {
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ color: "#64748b", fontSize: "0.75rem", fontStyle: "italic" }}>
-                                Doctor has not published walk-in hours for this facility yet. When updated in doctor workstation, they reflect here automatically.
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                                <div style={{ color: "#64748b", fontSize: "0.75rem", fontStyle: "italic" }}>
+                                  No walk-in hours configured for this facility yet. Configure OP shifts and duration directly from this dashboard.
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDoctorScheduleModal(doc)}
+                                  style={{
+                                    background: "none", border: "none", color: "#2563eb", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", textDecoration: "underline"
+                                  }}
+                                >
+                                  Configure OP Shifts →
+                                </button>
                               </div>
                             )}
                           </div>
@@ -1256,6 +1395,248 @@ export default function OrganizationDashboard() {
                 )}
               </div>
             </div>
+
+            {/* Edit Doctor Walk-in OP Schedule Modal */}
+            {scheduleModalDoctor && (
+              <div style={{
+                position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: "rgba(15, 23, 42, 0.65)", backdropFilter: "blur(6px)",
+                display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+                padding: "20px"
+              }}>
+                <div style={{
+                  backgroundColor: "white", borderRadius: 16, padding: 28, width: "100%", maxWidth: 640,
+                  maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+                  border: "1px solid #e2e8f0", overflowY: "auto"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "1.2rem", color: "#0f172a", fontWeight: 800 }}>
+                        Configure Doctor Walk-in OP Schedule
+                      </h3>
+                      <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+                        Facility: <strong>{profile?.organization_name || profile?.name || "This Facility"}</strong> • Doctor: <strong>{scheduleModalDoctor.user?.full_name || scheduleModalDoctor.doctor_name || "Doctor"}</strong>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalDoctor(null)}
+                      style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "1.2rem" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {scheduleSuccessMsg && (
+                    <div style={{ padding: "10px 14px", borderRadius: 8, background: "#dcfce7", color: "#15803d", fontWeight: 700, fontSize: "0.85rem", marginBottom: 14 }}>
+                      ✅ {scheduleSuccessMsg}
+                    </div>
+                  )}
+
+                  {/* Consultation Fee */}
+                  <div style={{ marginBottom: 18, background: "#f8fafc", padding: "14px 16px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
+                      In-Person Walk-in OP Consultation Fee (₹)
+                    </label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#64748b" }}>₹</span>
+                      <input
+                        type="number"
+                        min={100}
+                        step={50}
+                        value={scheduleFee}
+                        onChange={(e) => setScheduleFee(Number(e.target.value))}
+                        style={{
+                          width: 140, padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1",
+                          fontSize: "1rem", fontWeight: 800, color: "#059669"
+                        }}
+                      />
+                      <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                        Applicable for patients booking in-person OPD visits at this facility.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Slot Duration Selector */}
+                  <div style={{ marginBottom: 18 }}>
+                    <label style={{ display: "block", fontSize: "0.84rem", fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
+                      OP Consultation Slot Duration
+                    </label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                      {[
+                        { duration: 10, label: "10 Mins (Recommended)" },
+                        { duration: 15, label: "15 Mins" },
+                        { duration: 20, label: "20 Mins" },
+                        { duration: 30, label: "30 Mins" },
+                      ].map((item) => {
+                        const isSel = scheduleSlotDuration === item.duration;
+                        return (
+                          <button
+                            key={item.duration}
+                            type="button"
+                            onClick={() => setScheduleSlotDuration(item.duration)}
+                            style={{
+                              padding: "10px 8px",
+                              borderRadius: 8,
+                              textAlign: "center",
+                              border: isSel ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+                              background: isSel ? "#eff6ff" : "white",
+                              color: isSel ? "#0284c7" : "#334155",
+                              fontWeight: isSel ? 800 : 600,
+                              fontSize: "0.8rem",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div>{item.duration} min</div>
+                            <div style={{ fontSize: "0.68rem", color: isSel ? "#0369a1" : "#64748b", marginTop: 2 }}>{item.label}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Shifts Editor */}
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <label style={{ fontSize: "0.84rem", fontWeight: 700, color: "#1e293b" }}>
+                        Weekly OP Consultation Shifts
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleShifts([...scheduleShifts, { start_time: "09:00", end_time: "12:00", days_of_week: [1, 2, 3, 4, 5, 6] }])}
+                        style={{
+                          background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6,
+                          padding: "4px 10px", fontSize: "0.76rem", fontWeight: 700, color: "#0284c7", cursor: "pointer"
+                        }}
+                      >
+                        + Add Another Shift
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {scheduleShifts.map((shift, sIdx) => (
+                        <div key={sIdx} style={{
+                          padding: "12px 14px", borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0"
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.82rem", color: "#334155" }}>
+                              Shift #{sIdx + 1}
+                            </span>
+                            {scheduleShifts.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setScheduleShifts(scheduleShifts.filter((_, idx) => idx !== sIdx))}
+                                style={{ background: "none", border: "none", color: "#dc2626", fontSize: "0.75rem", cursor: "pointer", fontWeight: 700 }}
+                              >
+                                Remove Shift
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>Start:</span>
+                              <input
+                                type="time"
+                                value={shift.start_time}
+                                onChange={(e) => {
+                                  const updated = [...scheduleShifts];
+                                  updated[sIdx].start_time = e.target.value;
+                                  setScheduleShifts(updated);
+                                }}
+                                style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                              />
+                            </div>
+                            <span style={{ color: "#94a3b8" }}>to</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>End:</span>
+                              <input
+                                type="time"
+                                value={shift.end_time}
+                                onChange={(e) => {
+                                  const updated = [...scheduleShifts];
+                                  updated[sIdx].end_time = e.target.value;
+                                  setScheduleShifts(updated);
+                                }}
+                                style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: "0.85rem" }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Days selector */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, marginRight: 4 }}>Days:</span>
+                            {[
+                              { val: 1, label: "Mon" },
+                              { val: 2, label: "Tue" },
+                              { val: 3, label: "Wed" },
+                              { val: 4, label: "Thu" },
+                              { val: 5, label: "Fri" },
+                              { val: 6, label: "Sat" },
+                              { val: 0, label: "Sun" },
+                            ].map((d) => {
+                              const isChecked = shift.days_of_week.includes(d.val);
+                              return (
+                                <button
+                                  key={d.val}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...scheduleShifts];
+                                    const currentDays = updated[sIdx].days_of_week;
+                                    updated[sIdx].days_of_week = isChecked
+                                      ? currentDays.filter((x) => x !== d.val)
+                                      : [...currentDays, d.val].sort();
+                                    setScheduleShifts(updated);
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    border: isChecked ? "1px solid #0284c7" : "1px solid #cbd5e1",
+                                    background: isChecked ? "#0284c7" : "white",
+                                    color: isChecked ? "white" : "#475569",
+                                    fontSize: "0.74rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {d.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 12, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalDoctor(null)}
+                      style={{
+                        flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #cbd5e1",
+                        background: "white", cursor: "pointer", fontWeight: 600, fontSize: "0.88rem", color: "#475569"
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDoctorSchedule}
+                      disabled={savingSchedule}
+                      style={{
+                        flex: 2, padding: "10px", borderRadius: 8, border: "none",
+                        backgroundColor: "#0284c7", color: "white", cursor: savingSchedule ? "not-allowed" : "pointer",
+                        fontWeight: 700, fontSize: "0.88rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+                      }}
+                    >
+                      {savingSchedule ? "Saving Schedule..." : "Save Walk-in OP Schedule"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -2255,15 +2636,204 @@ export default function OrganizationDashboard() {
 
         {/* ═══ BOOKINGS TAB ═══ */}
         {currentTab === "bookings" && (
-          <div style={{
-            backgroundColor: "white", borderRadius: 12, padding: 32,
-            textAlign: "center", border: "2px dashed #d1d5db",
-          }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📋</div>
-            <h3 style={{ fontSize: "1.1rem", marginBottom: 8, color: "#1e293b" }}>Bookings Dashboard</h3>
-            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              All confirmed appointments and completed bookings appear here with status tracking.
-            </p>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h3 style={{ fontSize: "1.15rem", color: "#1e293b", margin: 0, fontWeight: 800 }}>
+                  Facility &amp; Specialist Appointments Roster
+                </h3>
+                <p style={{ margin: "2px 0 0 0", color: "#64748b", fontSize: "0.82rem" }}>
+                  Real-time visibility into all in-person doctor walk-in OP consultations, diagnostic tests, and facility appointments.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {/* Filter Pills */}
+                <div style={{ display: "flex", background: "#f1f5f9", padding: 3, borderRadius: 8, gap: 2 }}>
+                  {[
+                    { id: "all", label: "All Bookings" },
+                    { id: "today", label: "Today" },
+                    { id: "upcoming", label: "Upcoming" },
+                    { id: "completed", label: "Completed" },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setBookingFilter(f.id)}
+                      style={{
+                        padding: "5px 12px",
+                        border: "none",
+                        borderRadius: 6,
+                        fontSize: "0.78rem",
+                        fontWeight: bookingFilter === f.id ? 700 : 500,
+                        backgroundColor: bookingFilter === f.id ? "white" : "transparent",
+                        color: bookingFilter === f.id ? "#0284c7" : "#64748b",
+                        boxShadow: bookingFilter === f.id ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchOrgBookings}
+                  disabled={fetchingBookings}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "white",
+                    cursor: fetchingBookings ? "not-allowed" : "pointer",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  🔄 {fetchingBookings ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
+            </div>
+
+            {/* Bookings Content */}
+            {(() => {
+              const todayStr = new Date().toISOString().split("T")[0];
+              const filtered = orgBookings.filter((b) => {
+                const bDate = b.preferred_date || b.slot_start?.split("T")[0] || "";
+                if (bookingFilter === "today") return bDate === todayStr;
+                if (bookingFilter === "upcoming") return bDate >= todayStr && b.status !== "completed" && b.status !== "cancelled";
+                if (bookingFilter === "completed") return b.status === "completed";
+                return true;
+              });
+
+              if (fetchingBookings && orgBookings.length === 0) {
+                return (
+                  <div style={{ backgroundColor: "white", borderRadius: 12, padding: 48, textAlign: "center", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏳</div>
+                    <div style={{ color: "#64748b", fontSize: "0.9rem" }}>Loading facility appointments...</div>
+                  </div>
+                );
+              }
+
+              if (filtered.length === 0) {
+                return (
+                  <div style={{
+                    backgroundColor: "white", borderRadius: 12, padding: 48,
+                    textAlign: "center", border: "2px dashed #cbd5e1",
+                  }}>
+                    <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>📋</div>
+                    <h3 style={{ fontSize: "1.1rem", marginBottom: 6, color: "#1e293b", fontWeight: 700 }}>
+                      No {bookingFilter !== "all" ? bookingFilter : ""} Bookings Found
+                    </h3>
+                    <p style={{ color: "#64748b", fontSize: "0.85rem", maxWidth: 420, margin: "0 auto" }}>
+                      Appointments booked by patients for linked specialist doctors and diagnostic services will appear here in real time.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {filtered.map((b: any) => {
+                    const isDoctor = b.provider_type === "doctor" || b.service_type === "doctor_appointment" || Boolean(b.doctor_name);
+                    const slotTime = b.slot_start ? new Date(b.slot_start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : (b.slot_id?.split("|")[2] || "Standard Slot");
+                    const dateDisplay = b.preferred_date || b.slot_start?.split("T")[0] || "—";
+                    const isConfirmed = b.status === "confirmed" || b.status === "completed";
+                    const isPendingSlot = b.status === "pending" || b.status === "pending_review";
+
+                    return (
+                      <div
+                        key={b.id}
+                        style={{
+                          backgroundColor: "white",
+                          borderRadius: 12,
+                          padding: "18px 22px",
+                          border: isDoctor ? "1.5px solid #bfdbfe" : "1px solid #e2e8f0",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: 16,
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 260 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                            <span style={{
+                              fontSize: "0.72rem",
+                              fontWeight: 800,
+                              padding: "2px 8px",
+                              borderRadius: 6,
+                              backgroundColor: isDoctor ? "#eff6ff" : "#f0fdf4",
+                              color: isDoctor ? "#1d4ed8" : "#15803d",
+                              border: isDoctor ? "1px solid #bfdbfe" : "1px solid #bbf7d0",
+                            }}>
+                              {isDoctor ? "DOCTOR OP WALK-IN" : "DIAGNOSTIC SERVICE"}
+                            </span>
+                            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                              ID: {b.id.substring(0, 8)}
+                            </span>
+                          </div>
+
+                          <div style={{ fontWeight: 800, fontSize: "1.02rem", color: "#0f172a" }}>
+                            {isDoctor ? (
+                              <span>Doctor: {b.doctor_name || "Specialist Physician"}</span>
+                            ) : (
+                              <span>{b.notes || (b.selected_tests && b.selected_tests.join(", ")) || "Diagnostic Package"}</span>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6, fontSize: "0.82rem", color: "#475569", flexWrap: "wrap" }}>
+                            <div>
+                              👤 Patient: <strong style={{ color: "#0f172a" }}>{b.patient_name || (b.patient_id ? `Patient (${b.patient_id.substring(0, 8)})` : "Registered Patient")}</strong>
+                              {b.patient_phone ? ` • ${b.patient_phone}` : ""}
+                            </div>
+                            <div>
+                              📅 Date: <strong>{dateDisplay}</strong>
+                            </div>
+                            <div>
+                              ⏰ Slot: <strong>{slotTime}</strong>
+                            </div>
+                          </div>
+
+                          {b.notes && isDoctor && (
+                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 4 }}>
+                              📝 {b.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase" }}>Fee / Total</div>
+                            <div style={{ fontWeight: 800, color: "#059669", fontSize: "1.1rem" }}>
+                              ₹{b.total_price || 0}
+                            </div>
+                          </div>
+
+                          <span style={{
+                            padding: "6px 14px",
+                            borderRadius: 20,
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            backgroundColor: isConfirmed ? "#dcfce7" : isPendingSlot ? "#fef3c7" : "#f1f5f9",
+                            color: isConfirmed ? "#15803d" : isPendingSlot ? "#b45309" : "#475569",
+                            border: isConfirmed ? "1px solid #86efac" : isPendingSlot ? "1px solid #fde68a" : "1px solid #cbd5e1",
+                            textTransform: "uppercase",
+                          }}>
+                            {b.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState, useEffect, use, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Video,
@@ -26,7 +26,12 @@ import {
   Phone,
   AlertCircle,
   Pill,
+  RefreshCw,
 } from "lucide-react";
+import { formatDoctorName, prescriberRegNumber, REG_MISSING_MESSAGE } from "@/lib/prescriber";
+
+type CheckLevel = "ok" | "warn" | "fail" | "pending";
+interface ReadinessCheck { level: CheckLevel; detail: string }
 
 interface PrescribedMedicine {
   generic_name: string;
@@ -98,8 +103,8 @@ export default function DoctorConsultationRoom({
     gender: "Not specified",
     uhid: `CM-2026-${resolvedParams.id.slice(0, 5).toUpperCase()}`,
     symptoms: "Virtual consultation requested",
-    allergies: "None reported",
-    medications: "None",
+    allergies: "Not recorded",
+    medications: "Not recorded",
   });
   const [patientEmailInput, setPatientEmailInput] = useState("");
   const [isSendingRxEmail, setIsSendingRxEmail] = useState(false);
@@ -118,6 +123,107 @@ export default function DoctorConsultationRoom({
       // ignore
     }
   }, []);
+
+  // The signed-in provider's real profile — name, qualification, registration
+  // number and verification status. localStorage "user" carries none of these.
+  const [doctorProfile, setDoctorProfile] = useState<any>(null);
+  const [profileError, setProfileError] = useState(false);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${apiBase}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.success && d.data) setDoctorProfile(d.data);
+        else setProfileError(true);
+      })
+      .catch(() => setProfileError(true));
+  }, []);
+
+  // Readiness checks — each reflects something actually measured in this browser.
+  const [mediaCheck, setMediaCheck] = useState<ReadinessCheck>({ level: "pending", detail: "Checking camera and microphone…" });
+  const [networkCheck, setNetworkCheck] = useState<ReadinessCheck>({ level: "pending", detail: "Measuring connection…" });
+  const [scribeSupported, setScribeSupported] = useState<boolean | null>(null);
+
+  const checkMedia = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+      setMediaCheck({ level: "fail", detail: "This browser can't access a camera here. Use a current Chrome, Edge or Safari over HTTPS." });
+      return;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasCam = devices.some((d) => d.kind === "videoinput");
+      const hasMic = devices.some((d) => d.kind === "audioinput");
+      if (!hasCam || !hasMic) {
+        const missing = !hasCam && !hasMic ? "camera or microphone" : !hasCam ? "camera" : "microphone";
+        setMediaCheck({ level: "fail", detail: `No ${missing} detected. Connect one and run the checks again.` });
+        return;
+      }
+      const permission = async (name: string) => {
+        try {
+          return (await navigator.permissions.query({ name } as PermissionDescriptor)).state;
+        } catch {
+          return "unknown";
+        }
+      };
+      const [cam, mic] = await Promise.all([permission("camera"), permission("microphone")]);
+      // Device labels are only exposed once access has been granted.
+      const labelled = devices.some((d) => d.kind === "videoinput" && d.label);
+      if (cam === "denied" || mic === "denied") {
+        setMediaCheck({ level: "fail", detail: "Camera or microphone access is blocked. Allow it in this site's browser settings." });
+      } else if (labelled || (cam === "granted" && mic === "granted")) {
+        setMediaCheck({ level: "ok", detail: "Camera and microphone detected, access allowed." });
+      } else {
+        setMediaCheck({ level: "warn", detail: "Camera and microphone detected. Test them now or allow access when the browser asks." });
+      }
+    } catch {
+      setMediaCheck({ level: "fail", detail: "Couldn't read your media devices." });
+    }
+  }, []);
+
+  const testMedia = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      // checkMedia reports the resulting state (denied / missing)
+    }
+    checkMedia();
+  }, [checkMedia]);
+
+  const checkNetwork = useCallback(async () => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setNetworkCheck({ level: "fail", detail: "You're offline." });
+      return;
+    }
+    setNetworkCheck({ level: "pending", detail: "Measuring connection…" });
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const ping = async () => {
+      const t0 = performance.now();
+      const res = await fetch(`${apiBase}/api/health`, { cache: "no-store" });
+      return { ok: res.ok, status: res.status, ms: Math.round(performance.now() - t0) };
+    };
+    try {
+      // The first request pays for connection setup; the second is the real round-trip.
+      await ping();
+      const r = await ping();
+      if (!r.ok) setNetworkCheck({ level: "warn", detail: `CallMedex servers returned an error (${r.status}).` });
+      else if (r.ms < 400) setNetworkCheck({ level: "ok", detail: `${r.ms} ms round-trip to CallMedex servers.` });
+      else setNetworkCheck({ level: "warn", detail: `${r.ms} ms round-trip — video may lag or freeze.` });
+    } catch {
+      setNetworkCheck({ level: "fail", detail: "Can't reach CallMedex servers." });
+    }
+  }, []);
+
+  useEffect(() => {
+    checkMedia();
+    checkNetwork();
+    setScribeSupported(
+      typeof window !== "undefined" &&
+        Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    );
+  }, [checkMedia, checkNetwork]);
 
   // Fetch Consulting Patient Details
   useEffect(() => {
@@ -225,14 +331,36 @@ export default function DoctorConsultationRoom({
     };
   }, [isRecording]);
 
-  const doctorName = doctorUser?.name || "Dr. CallMedex Consultant";
-  const doctorDegree = doctorUser?.qualification || "MBBS, MD (General Medicine)";
+  const doctorName = formatDoctorName(doctorProfile?.full_name || doctorUser?.full_name, "Doctor");
+  const doctorDegree = [doctorProfile?.qualification, doctorProfile?.specialization].filter(Boolean).join(" · ");
+  const regNumber = prescriberRegNumber(doctorProfile);
+  const isVerified = String(doctorProfile?.verification_status || "").toLowerCase() === "verified";
+  const regCheck: ReadinessCheck = profileError
+    ? { level: "fail", detail: "Couldn't load your profile. Refresh the page." }
+    : !doctorProfile
+    ? { level: "pending", detail: "Loading your profile…" }
+    : !regNumber
+    ? { level: "fail", detail: "Not on file — add it in Doctor Profile before issuing e-prescriptions." }
+    : isVerified
+    ? { level: "ok", detail: `${regNumber} · verified by CallMedex` }
+    : { level: "warn", detail: `${regNumber} · verification pending` };
+  const scribeCheck: ReadinessCheck =
+    scribeSupported === null
+      ? { level: "pending", detail: "Checking browser support…" }
+      : scribeSupported
+      ? { level: "ok", detail: "Browser speech recognition is available for live notes." }
+      : { level: "warn", detail: "Not supported in this browser — use Chrome or Edge, or type notes manually." };
   const doctorId = doctorUser?.id || "doc-callmedex-active";
 
   const handleSendRxEmail = async () => {
     const targetEmail = (patientEmailInput || patientData.email || "").trim();
     if (!targetEmail || !targetEmail.includes("@")) {
       setRxEmailError("A valid patient email is mandatory to transmit the digital e-Prescription.");
+      return;
+    }
+
+    if (!regNumber) {
+      setRxEmailError(REG_MISSING_MESSAGE);
       return;
     }
 
@@ -252,7 +380,6 @@ export default function DoctorConsultationRoom({
           patient_name: patientData.name || "Patient",
           doctor_name: doctorName,
           doctor_qualification: doctorDegree,
-          doctor_reg_number: doctorUser?.registration_number || "APMC/2019/92144",
           diagnosis: aiAnalysis?.diagnosis || diagnosis,
           medicines: (aiAnalysis?.medicines || medicines).map((m: any) => ({
             name: m.generic_name || m.name,
@@ -441,10 +568,10 @@ export default function DoctorConsultationRoom({
   return (
     <div
       style={{
-        background: "radial-gradient(ellipse at 50% 0%, rgba(2, 132, 199, 0.08) 0%, #f1f5f9 60%, #e2e8f0 100%)",
+        background: "var(--cm-surface-2)",
         minHeight: "100vh",
         color: "var(--cm-ink)",
-        fontFamily: "var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif)",
+        fontFamily: "var(--cm-font-ui)",
         paddingBottom: "48px",
       }}
     >
@@ -473,7 +600,7 @@ export default function DoctorConsultationRoom({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              fontWeight: 750,
+              fontWeight: 600,
               fontSize: "0.84rem",
               borderRadius: 12,
               padding: "9px 16px",
@@ -490,25 +617,25 @@ export default function DoctorConsultationRoom({
 
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h1 style={{ margin: 0, fontSize: "1.22rem", fontWeight: 950, letterSpacing: "-0.03em", color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: "1.22rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
                 <span>CallMedex Telemedicine Cockpit</span>
                 <span
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
-                    background: "linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(56, 189, 248, 0.18) 100%)",
-                    color: "#0284c7",
-                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    background: "var(--cm-active-bg)",
+                    color: "var(--cm-active)",
+                    border: "1px solid rgba(255, 255, 255, 0.28)",
                     borderRadius: 8,
                     padding: "2px 9px",
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                    fontWeight: 800,
+                    fontWeight: 600,
                     fontSize: "0.82rem",
                     letterSpacing: "0.02em",
                   }}
                 >
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0284c7", boxShadow: "0 0 6px #0284c7" }} />
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cm-navy)", boxShadow: "0 0 6px rgba(15, 29, 51, 0.12)" }} />
                   #{resolvedParams.id}
                 </span>
               </h1>
@@ -518,28 +645,32 @@ export default function DoctorConsultationRoom({
                   alignItems: "center",
                   gap: 5,
                   fontSize: "0.72rem",
-                  fontWeight: 850,
+                  fontWeight: 600,
                   letterSpacing: "0.05em",
                   textTransform: "uppercase",
-                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.14) 100%)",
+                  background: "var(--cm-done-bg)",
                   color: "#065f46",
                   border: "1px solid rgba(16, 185, 129, 0.35)",
                   padding: "4px 10px",
                   borderRadius: 999,
                 }}
               >
-                <ShieldCheck size={14} style={{ color: "#059669" }} /> NMC 2026 Compliant
+                <ShieldCheck size={14} style={{ color: "#059669" }} /> NMC telemedicine guidelines
               </span>
             </div>
             <div style={{ fontSize: "0.82rem", color: "#64748b", display: "flex", alignItems: "center", gap: 8, marginTop: 4, letterSpacing: "-0.01em" }}>
-              <span style={{ color: "#0369a1", fontWeight: 800 }}>{doctorName}</span>
-              <span style={{ color: "#cbd5e1" }}>·</span>
-              <span style={{ fontWeight: 650, color: "#475569" }}>{doctorDegree}</span>
+              <span style={{ color: "var(--cm-active)", fontWeight: 600 }}>{doctorName}</span>
+              {doctorDegree && (
+                <>
+                  <span style={{ color: "#cbd5e1" }}>·</span>
+                  <span style={{ fontWeight: 600, color: "#475569" }}>{doctorDegree}</span>
+                </>
+              )}
               <span style={{ color: "#cbd5e1" }}>·</span>
               <span
                 style={{
                   color: started ? "#059669" : "#d97706",
-                  fontWeight: 750,
+                  fontWeight: 600,
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
@@ -562,16 +693,16 @@ export default function DoctorConsultationRoom({
                 display: "flex",
                 alignItems: "center",
                 gap: 9,
-                fontWeight: 850,
+                fontWeight: 600,
                 fontSize: "0.92rem",
                 letterSpacing: "-0.01em",
                 padding: "11px 24px",
                 borderRadius: 14,
                 border: "none",
                 cursor: "pointer",
-                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                background: "var(--cm-navy)",
                 color: "#ffffff",
-                boxShadow: "0 6px 20px -2px rgba(2, 132, 199, 0.45)",
+                boxShadow: "0 6px 20px -2px rgba(15, 29, 51, 0.12)",
                 transition: "all 0.2s ease",
               }}
             >
@@ -587,11 +718,11 @@ export default function DoctorConsultationRoom({
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                fontWeight: 850,
+                fontWeight: 600,
                 fontSize: "0.9rem",
                 borderRadius: 14,
                 padding: "11px 22px",
-                background: "linear-gradient(135deg, #e11d48 0%, #be123c 100%)",
+                background: "var(--cm-urgent)",
                 color: "#ffffff",
                 border: "none",
                 cursor: "pointer",
@@ -611,13 +742,13 @@ export default function DoctorConsultationRoom({
             {/* Patient Clinical Intake Card (High-Precision Medical Monitor) */}
             <div
               style={{
-                background: "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%)",
+                background: "var(--cm-surface)",
                 backdropFilter: "blur(24px)",
                 WebkitBackdropFilter: "blur(24px)",
                 borderRadius: 24,
                 border: "1px solid rgba(226, 232, 240, 0.95)",
                 padding: "32px 30px",
-                boxShadow: "0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(2, 132, 199, 0.04)",
+                boxShadow: "0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04)",
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
@@ -635,15 +766,15 @@ export default function DoctorConsultationRoom({
                           width: 58,
                           height: 58,
                           borderRadius: 18,
-                          background: "linear-gradient(135deg, #0284c7 0%, #0f172a 100%)",
+                          background: "var(--cm-navy)",
                           color: "#ffffff",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontWeight: 950,
+                          fontWeight: 700,
                           fontSize: "1.28rem",
                           letterSpacing: "-0.02em",
-                          boxShadow: "0 6px 18px rgba(2, 132, 199, 0.28)",
+                          boxShadow: "0 6px 18px rgba(15, 29, 51, 0.12)",
                           border: "2px solid #ffffff",
                         }}
                       >
@@ -676,36 +807,33 @@ export default function DoctorConsultationRoom({
                           style={{
                             padding: "4px 11px",
                             borderRadius: 999,
-                            background: "linear-gradient(135deg, rgba(2, 132, 199, 0.1) 0%, rgba(56, 189, 248, 0.15) 100%)",
-                            color: "#0284c7",
+                            background: "var(--cm-active-bg)",
+                            color: "var(--cm-active)",
                             fontSize: "10.5px",
-                            fontWeight: 850,
+                            fontWeight: 600,
                             letterSpacing: "0.08em",
                             textTransform: "uppercase",
-                            border: "1px solid rgba(56, 189, 248, 0.35)",
+                            border: "1px solid rgba(255, 255, 255, 0.28)",
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
                           }}
                         >
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0284c7" }} />
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cm-navy)" }} />
                           Patient Waiting in Virtual Lobby
                         </span>
                       </div>
 
-                      <h2 style={{ margin: "2px 0 0 0", fontSize: "1.65rem", fontWeight: 950, letterSpacing: "-0.035em", color: "#0f172a" }}>
+                      <h2 style={{ margin: "2px 0 0 0", fontSize: "1.65rem", fontWeight: 700, letterSpacing: "-0.035em", color: "#0f172a" }}>
                         {patientData.name}
                       </h2>
 
                       <div style={{ fontSize: "0.84rem", color: "#64748b", marginTop: 7, display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-                        <span style={{ fontWeight: 700, color: "#334155", background: "#f1f5f9", padding: "2px 9px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#334155", background: "#f1f5f9", padding: "2px 9px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                           {patientData.age}
                         </span>
-                        <span style={{ fontWeight: 700, color: "#334155", background: "#f1f5f9", padding: "2px 9px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                        <span style={{ fontWeight: 600, color: "#334155", background: "#f1f5f9", padding: "2px 9px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                           {patientData.gender}
-                        </span>
-                        <span style={{ fontWeight: 800, color: "#0369a1", background: "#e0f2fe", padding: "2px 9px", borderRadius: 6, border: "1px solid #bae6fd" }}>
-                          Blood: O+
                         </span>
                         <span
                           style={{
@@ -713,7 +841,7 @@ export default function DoctorConsultationRoom({
                             padding: "2px 9px",
                             borderRadius: 6,
                             border: "1px solid #cbd5e1",
-                            fontWeight: 800,
+                            fontWeight: 600,
                             color: "#1e293b",
                             fontFamily: "ui-monospace, monospace",
                             fontSize: "0.78rem",
@@ -727,12 +855,12 @@ export default function DoctorConsultationRoom({
                       {(patientData.email || patientData.phone) && (
                         <div style={{ fontSize: "0.8rem", color: "#475569", marginTop: 9, display: "flex", flexWrap: "wrap", gap: "8px" }}>
                           {patientData.email && (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(240, 249, 255, 0.9)", color: "#0369a1", padding: "4px 10px", borderRadius: 8, border: "1px solid #bae6fd", fontWeight: 650 }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--cm-surface-2)", color: "var(--cm-active)", padding: "4px 10px", borderRadius: 8, border: "1px solid var(--cm-line)", fontWeight: 600 }}>
                               <Mail size={12} /> {patientData.email}
                             </span>
                           )}
                           {patientData.phone && (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(248, 250, 252, 0.9)", color: "#475569", padding: "4px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontWeight: 650 }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(248, 250, 252, 0.9)", color: "#475569", padding: "4px 10px", borderRadius: 8, border: "1px solid #e2e8f0", fontWeight: 600 }}>
                               <Phone size={12} /> {patientData.phone}
                             </span>
                           )}
@@ -743,12 +871,12 @@ export default function DoctorConsultationRoom({
 
                   <span
                     style={{
-                      background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                      color: "#38bdf8",
-                      border: "1px solid rgba(56, 189, 248, 0.35)",
+                      background: "var(--cm-navy-deep)",
+                      color: "#ffffff",
+                      border: "1px solid rgba(255, 255, 255, 0.28)",
                       borderRadius: 12,
                       padding: "8px 16px",
-                      fontWeight: 850,
+                      fontWeight: 600,
                       fontSize: "12px",
                       letterSpacing: "0.03em",
                       boxShadow: "0 4px 14px rgba(15, 23, 42, 0.15)",
@@ -759,142 +887,49 @@ export default function DoctorConsultationRoom({
                       flexShrink: 0,
                     }}
                   >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#38bdf8", boxShadow: "0 0 8px #38bdf8" }} />
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80" }} />
                     {resolvedParams.id === "instant" ? "Direct Tele-Call" : `Booking #${resolvedParams.id.slice(0, 6)}`}
                   </span>
                 </div>
 
-                {/* Vitals Telemetry Grid (Hospital Clinical Monitor Workstation Standard) */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
-                  {/* BP */}
-                  <div
-                    style={{
-                      padding: "16px 14px",
-                      borderRadius: 16,
-                      background: "linear-gradient(160deg, #ffffff 0%, #f0f9ff 100%)",
-                      border: "1.5px solid rgba(56, 189, 248, 0.4)",
-                      boxShadow: "0 4px 16px -2px rgba(2, 132, 199, 0.08)",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: "10px", color: "#0369a1", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
-                        <Activity size={13} style={{ color: "#0284c7" }} /> BP
+                {/* Vitals — no device feed exists yet, so nothing is shown as measured.
+                    Reference ranges stay as a prompt for the doctor to ask. */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 24 }}>
+                  {[
+                    { label: "BP", icon: Activity, unit: "mmHg", ref: "Norm <120/80" },
+                    { label: "Pulse", icon: Heart, unit: "bpm", ref: "60–100" },
+                    { label: "Temp", icon: Thermometer, unit: "°F", ref: "98.6° norm" },
+                    { label: "SpO2", icon: Activity, unit: "%", ref: ">95% sat" },
+                  ].map((v) => (
+                    <div
+                      key={v.label}
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: 14,
+                        background: "var(--cm-surface)",
+                        border: "1px solid var(--cm-line)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: "11px", color: "var(--cm-ink-3)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+                        <v.icon size={13} /> {v.label}
                       </span>
-                      <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 750 }}>Norm &lt;120/80</span>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                        <span style={{ fontWeight: 600, fontSize: "1.3rem", color: "var(--cm-ink-faint)", fontVariantNumeric: "tabular-nums" }}>—</span>
+                        <span style={{ fontSize: "11px", color: "var(--cm-ink-faint)" }}>{v.unit}</span>
+                      </div>
+                      <span style={{ fontSize: "11px", color: "var(--cm-ink-3)" }}>Not recorded</span>
+                      <span style={{ fontSize: "11px", color: "var(--cm-ink-faint)", whiteSpace: "nowrap" }}>Ref {v.ref}</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 3, margin: "2px 0 6px 0" }}>
-                      <span style={{ fontWeight: 950, fontSize: "1.32rem", color: "#0f172a", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>118/76</span>
-                      <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 750 }}>mmHg</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed rgba(56, 189, 248, 0.3)" }}>
-                      <span style={{ fontSize: "10px", color: "#0284c7", fontWeight: 850 }}>Optimal Target</span>
-                      <svg width="34" height="12" viewBox="0 0 34 12" fill="none">
-                        <path d="M0 6 L8 6 L12 2 L16 10 L20 4 L24 8 L34 6" stroke="#0284c7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* PULSE */}
-                  <div
-                    style={{
-                      padding: "16px 14px",
-                      borderRadius: 16,
-                      background: "linear-gradient(160deg, #ffffff 0%, #fff1f2 100%)",
-                      border: "1.5px solid rgba(244, 63, 94, 0.35)",
-                      boxShadow: "0 4px 16px -2px rgba(225, 29, 72, 0.08)",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: "10px", color: "#be123c", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
-                        <Heart size={13} style={{ color: "#e11d48" }} /> Pulse
-                      </span>
-                      <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 750 }}>60-100</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 3, margin: "2px 0 6px 0" }}>
-                      <span style={{ fontWeight: 950, fontSize: "1.32rem", color: "#881337", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>74</span>
-                      <span style={{ fontSize: "10px", color: "#9f1239", fontWeight: 750 }}>bpm</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed rgba(244, 63, 94, 0.3)" }}>
-                      <span style={{ fontSize: "10px", color: "#e11d48", fontWeight: 850 }}>Resting Rhythm</span>
-                      <svg width="34" height="12" viewBox="0 0 34 12" fill="none">
-                        <path d="M0 6 L6 6 L10 1 L14 11 L18 3 L22 9 L26 6 L34 6" stroke="#e11d48" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* TEMP */}
-                  <div
-                    style={{
-                      padding: "16px 14px",
-                      borderRadius: 16,
-                      background: "linear-gradient(160deg, #ffffff 0%, #fffbeb 100%)",
-                      border: "1.5px solid rgba(245, 158, 11, 0.35)",
-                      boxShadow: "0 4px 16px -2px rgba(245, 158, 11, 0.08)",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: "10px", color: "#b45309", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
-                        <Thermometer size={13} style={{ color: "#d97706" }} /> Temp
-                      </span>
-                      <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 750 }}>98.6° Norm</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 3, margin: "2px 0 6px 0" }}>
-                      <span style={{ fontWeight: 950, fontSize: "1.32rem", color: "#78350f", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>98.6</span>
-                      <span style={{ fontSize: "10px", color: "#b45309", fontWeight: 750 }}>°F</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed rgba(245, 158, 11, 0.3)" }}>
-                      <span style={{ fontSize: "10px", color: "#d97706", fontWeight: 850 }}>Afebrile Normal</span>
-                      <svg width="34" height="12" viewBox="0 0 34 12" fill="none">
-                        <path d="M0 6 L14 6 L18 4 L22 8 L26 6 L34 6" stroke="#d97706" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  </div>
-
-                  {/* SPO2 */}
-                  <div
-                    style={{
-                      padding: "16px 14px",
-                      borderRadius: 16,
-                      background: "linear-gradient(160deg, #ffffff 0%, #f0fdf4 100%)",
-                      border: "1.5px solid rgba(34, 197, 94, 0.35)",
-                      boxShadow: "0 4px 16px -2px rgba(34, 197, 94, 0.08)",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: "10px", color: "#15803d", fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 4 }}>
-                        <Activity size={13} style={{ color: "#16a34a" }} /> SpO2
-                      </span>
-                      <span style={{ fontSize: "9.5px", color: "#64748b", fontWeight: 750 }}>&gt;95% Sat</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 3, margin: "2px 0 6px 0" }}>
-                      <span style={{ fontWeight: 950, fontSize: "1.32rem", color: "#14532d", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em" }}>99</span>
-                      <span style={{ fontSize: "10px", color: "#166534", fontWeight: 750 }}>%</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 6, borderTop: "1px dashed rgba(34, 197, 94, 0.3)" }}>
-                      <span style={{ fontSize: "10px", color: "#16a34a", fontWeight: 850 }}>Room Air Normal</span>
-                      <svg width="34" height="12" viewBox="0 0 34 12" fill="none">
-                        <path d="M0 6 L10 6 L14 3 L18 9 L22 6 L34 6" stroke="#16a34a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  </div>
+                  ))}
                 </div>
 
                 {/* Chief Complaints & History */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                    <div style={{ fontSize: "0.74rem", fontWeight: 850, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       Chief Complaint &amp; Intake Telemetry
                     </div>
                     <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
@@ -905,73 +940,46 @@ export default function DoctorConsultationRoom({
                     style={{
                       padding: "16px 20px",
                       borderRadius: "0 14px 14px 0",
-                      background: "linear-gradient(135deg, rgba(240, 249, 255, 0.85) 0%, rgba(224, 242, 254, 0.4) 100%)",
-                      border: "1px solid rgba(186, 230, 253, 0.9)",
-                      borderLeft: "4px solid #0284c7",
+                      background: "var(--cm-surface)",
+                      border: "1px solid var(--cm-line)",
+                      borderLeft: "4px solid var(--cm-active)",
                       fontSize: "0.94rem",
                       color: "#0f172a",
                       fontWeight: 600,
                       lineHeight: 1.6,
-                      boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)",
+                      boxShadow: "0 2px 8px rgba(15, 23, 42, 0.04)",
                     }}
                   >
                     {patientData.symptoms}
                   </div>
                 </div>
 
-                {/* Allergies & Medications */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
-                  <div>
-                    <div style={{ fontSize: "0.74rem", fontWeight: 850, color: "#991b1b", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                      <AlertCircle size={13} style={{ color: "#e11d48" }} /> Known Clinical Allergies
-                    </div>
-                    <div
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: 14,
-                        background: "linear-gradient(135deg, #fff5f5 0%, #fef2f2 100%)",
-                        border: "1.5px solid rgba(244, 63, 94, 0.35)",
-                        boxShadow: "0 2px 8px rgba(225, 29, 72, 0.04)",
-                      }}
-                    >
-                      <div style={{ fontSize: "0.86rem", color: "#991b1b", fontWeight: 850, letterSpacing: "-0.01em" }}>
-                        Penicillin
+                {/* Allergies & Medications — shown exactly as recorded; never assumed. */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 20 }}>
+                  {[
+                    { label: "Known allergies", icon: AlertCircle, value: patientData.allergies },
+                    { label: "Active medications", icon: Pill, value: patientData.medications },
+                  ].map((f) => (
+                    <div key={f.label}>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--cm-ink-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                        <f.icon size={13} /> {f.label}
                       </div>
-                      <div style={{ fontSize: "11px", color: "#b91c1c", marginTop: 2, fontWeight: 600 }}>
-                        Mild cutaneous rash (documented reaction)
+                      <div style={{ padding: "12px 16px", borderRadius: 12, background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
+                        <div style={{ fontSize: "0.9rem", color: "var(--cm-ink)", fontWeight: 600 }}>{f.value}</div>
+                        <div style={{ fontSize: "12px", color: "var(--cm-ink-3)", marginTop: 2 }}>
+                          Confirm with the patient before prescribing
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: "0.74rem", fontWeight: 850, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
-                      <Pill size={13} style={{ color: "#0284c7" }} /> Active Medications
-                    </div>
-                    <div
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: 14,
-                        background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
-                        border: "1.5px solid rgba(56, 189, 248, 0.4)",
-                        boxShadow: "0 2px 8px rgba(2, 132, 199, 0.04)",
-                      }}
-                    >
-                      <div style={{ fontSize: "0.86rem", color: "#0369a1", fontWeight: 850, letterSpacing: "-0.01em" }}>
-                        Multivitamins daily
-                      </div>
-                      <div style={{ fontSize: "11px", color: "#0284c7", marginTop: 2, fontWeight: 600 }}>
-                        Self-reported OTC dietary supplement
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
               {/* Footer Consent & Action */}
               <div style={{ borderTop: "1px solid rgba(226, 232, 240, 0.95)", paddingTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: "0.82rem", color: "#64748b", fontWeight: 600, display: "flex", alignItems: "center", gap: 7 }}>
-                  <ShieldCheck size={18} style={{ color: "#0284c7" }} />
-                  <span>Digital patient consent verified · SHA-256 bound</span>
+                  <ShieldCheck size={18} style={{ color: "var(--cm-active)" }} />
+                  <span>Confirm the patient's identity and consent at the start of the call</span>
                 </div>
                 <button
                   type="button"
@@ -980,204 +988,165 @@ export default function DoctorConsultationRoom({
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     fontSize: "0.94rem",
                     letterSpacing: "-0.01em",
                     padding: "12px 26px",
                     borderRadius: 14,
                     border: "none",
                     cursor: "pointer",
-                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    background: "var(--cm-navy)",
                     color: "#ffffff",
-                    boxShadow: "0 6px 22px -2px rgba(2, 132, 199, 0.45)",
+                    boxShadow: "0 6px 22px -2px rgba(15, 29, 51, 0.12)",
                     transition: "all 0.2s ease",
                   }}
                 >
                   <span>Enter Room</span>
                   <ChevronRight size={17} />
-                  <span style={{ background: "rgba(255,255,255,0.22)", fontSize: "10.5px", padding: "2px 6px", borderRadius: 4, fontWeight: 800 }}>↵</span>
+                  <span style={{ background: "rgba(255,255,255,0.22)", fontSize: "10.5px", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>↵</span>
                 </button>
               </div>
             </div>
 
-            {/* Doctor Telehealth Ready Checklist */}
-            <div
-              style={{
-                background: "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%)",
-                backdropFilter: "blur(24px)",
-                WebkitBackdropFilter: "blur(24px)",
-                borderRadius: 24,
-                border: "1px solid rgba(226, 232, 240, 0.95)",
-                padding: "32px 30px",
-                boxShadow: "0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(2, 132, 199, 0.04)",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                gap: 24,
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span
-                    style={{
-                      padding: "4px 11px",
-                      borderRadius: 999,
-                      background: "linear-gradient(135deg, rgba(34, 197, 94, 0.12) 0%, rgba(74, 222, 128, 0.15) 100%)",
-                      color: "#15803d",
-                      fontSize: "10.5px",
-                      fontWeight: 850,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      border: "1px solid rgba(34, 197, 94, 0.35)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} />
-                    Hardware &amp; Clinical Scribe Ready
-                  </span>
-                  <span style={{ fontSize: "11px", color: "#15803d", fontWeight: 800, background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "3px 9px", borderRadius: 999 }}>
-                    3/3 Checks Passing
-                  </span>
-                </div>
+            {/* Doctor console readiness — every row is a live check, not a label. */}
+            {(() => {
+              const tone: Record<CheckLevel, { bg: string; line: string; fg: string; label: string }> = {
+                ok: { bg: "var(--cm-done-bg)", line: "var(--cm-done-line)", fg: "var(--cm-done)", label: "Ready" },
+                warn: { bg: "var(--cm-waiting-bg)", line: "var(--cm-waiting-line)", fg: "var(--cm-waiting)", label: "Review" },
+                fail: { bg: "var(--cm-urgent-bg)", line: "var(--cm-urgent-line)", fg: "var(--cm-urgent)", label: "Action needed" },
+                pending: { bg: "var(--cm-surface-2)", line: "var(--cm-line)", fg: "var(--cm-ink-3)", label: "Checking" },
+              };
+              const checks = [
+                { key: "media", title: "Camera & microphone", icon: Video, check: mediaCheck },
+                { key: "scribe", title: "Live speech-to-text notes", icon: Mic, check: scribeCheck },
+                { key: "reg", title: "Medical registration", icon: ShieldCheck, check: regCheck },
+                { key: "net", title: "Connection", icon: Activity, check: networkCheck },
+              ];
+              const ready = checks.filter((c) => c.check.level === "ok").length;
+              const failing = checks.filter((c) => c.check.level === "fail").length;
+              const pending = checks.some((c) => c.check.level === "pending");
+              const summary: { level: CheckLevel; text: string } = pending
+                ? { level: "pending", text: "Running checks" }
+                : failing > 0
+                ? { level: "fail", text: `${failing} need${failing === 1 ? "s" : ""} action` }
+                : ready === checks.length
+                ? { level: "ok", text: "All checks passed" }
+                : { level: "warn", text: `${checks.length - ready} to review` };
 
-                <h3 style={{ margin: "4px 0 20px 0", fontSize: "1.5rem", fontWeight: 950, letterSpacing: "-0.03em", color: "#0f172a" }}>
-                  Doctor Console Readiness Check
-                </h3>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 22 }}>
-                  {/* Camera Module */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "16px 20px",
-                      borderRadius: 16,
-                      background: "linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)",
-                      border: "1.5px solid rgba(34, 197, 94, 0.3)",
-                      boxShadow: "0 3px 12px rgba(34, 197, 94, 0.05)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.2)" }}>
-                        <Video size={22} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 850, fontSize: "0.95rem", color: "#0f172a", letterSpacing: "-0.01em" }}>Camera Sensor Active</div>
-                        <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 2 }}>1080p HD Video Room Calibrated &amp; Low Latency (14ms)</div>
-                      </div>
-                    </div>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#dcfce7", color: "#15803d", padding: "4px 10px", borderRadius: 999, fontSize: "11px", fontWeight: 850, letterSpacing: "0.04em" }}>
-                      <CheckCircle2 size={13} /> READY
-                    </span>
-                  </div>
-
-                  {/* Scribe Audio Module */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "16px 20px",
-                      borderRadius: 16,
-                      background: "linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%)",
-                      border: "1.5px solid rgba(56, 189, 248, 0.35)",
-                      boxShadow: "0 3px 12px rgba(2, 132, 199, 0.05)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)", color: "#0369a1", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.2)" }}>
-                        <Mic size={22} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 850, fontSize: "0.95rem", color: "#0f172a", letterSpacing: "-0.01em" }}>Speech-to-Text Audio Scribe</div>
-                        <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 2 }}>Whisper-Medical Engine Armed · Indian Dialects Active</div>
-                      </div>
-                    </div>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#e0f2fe", color: "#0369a1", padding: "4px 10px", borderRadius: 999, fontSize: "11px", fontWeight: 850, letterSpacing: "0.04em" }}>
-                      <Activity size={13} /> ARMED
-                    </span>
-                  </div>
-
-                  {/* NMC Credential Module */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "16px 20px",
-                      borderRadius: 16,
-                      background: "linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)",
-                      border: "1.5px solid rgba(34, 197, 94, 0.3)",
-                      boxShadow: "0 3px 12px rgba(34, 197, 94, 0.05)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(34, 197, 94, 0.2)" }}>
-                        <ShieldCheck size={22} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 850, fontSize: "0.95rem", color: "#0f172a", letterSpacing: "-0.01em" }}>National Medical Commission Mandate</div>
-                        <div style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 2 }}>Registered Practitioner: <strong style={{ color: "#0369a1" }}>{doctorUser?.name || "Dr. Verified"}</strong></div>
-                      </div>
-                    </div>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#dcfce7", color: "#15803d", padding: "4px 10px", borderRadius: 999, fontSize: "11px", fontWeight: 850, letterSpacing: "0.04em" }}>
-                      <CheckCircle2 size={13} /> VERIFIED
-                    </span>
-                  </div>
-                </div>
-
-                {/* Network & Hardware Telemetry Strip */}
+              return (
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                    padding: "12px 18px",
-                    borderRadius: 14,
-                    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                    border: "1px solid #e2e8f0",
-                    marginBottom: 20,
+                    background: "var(--cm-surface)",
+                    borderRadius: 24,
+                    border: "1px solid var(--cm-line)",
+                    padding: "32px 30px",
+                    boxShadow: "0 20px 45px -10px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 22,
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: "10px", fontWeight: 850, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                      NETWORK LATENCY
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                      <span
+                        style={{
+                          padding: "4px 11px",
+                          borderRadius: 999,
+                          background: tone[summary.level].bg,
+                          color: tone[summary.level].fg,
+                          border: `1px solid ${tone[summary.level].line}`,
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                        {summary.text}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "var(--cm-ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {ready}/{checks.length} ready
+                      </span>
                     </div>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#059669", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 6px #10b981" }} />
-                      14ms · Ultra-Low Latency
-                    </div>
+                    <h3 style={{ margin: "4px 0 0", fontSize: "1.5rem", fontWeight: 700, letterSpacing: "-0.03em", color: "var(--cm-ink)" }}>
+                      Console readiness
+                    </h3>
                   </div>
-                  <div>
-                    <div style={{ fontSize: "10px", fontWeight: 850, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                      STREAM ENCRYPTION
-                    </div>
-                    <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0369a1", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
-                      <ShieldCheck size={14} style={{ color: "#0284c7" }} />
-                      DTLS-SRTP 256-Bit
-                    </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* NMC Telemedicine Advisory Banner */}
-              <div style={{ background: "linear-gradient(135deg, rgba(240, 249, 255, 0.95) 0%, rgba(224, 242, 254, 0.6) 100%)", border: "1.5px solid #7dd3fc", borderRadius: 16, padding: "18px 22px", boxShadow: "0 4px 16px rgba(2, 132, 199, 0.08)" }}>
-                <div style={{ fontWeight: 850, fontSize: "0.86rem", color: "#0284c7", marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <ShieldCheck size={17} /> NMC Telemedicine Practice Guidelines (2020 / 2026)
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {checks.map(({ key, title, icon: Glyph, check }) => (
+                      <div
+                        key={key}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 14,
+                          padding: "14px 18px",
+                          borderRadius: 16,
+                          background: check.level === "ok" || check.level === "pending" ? "var(--cm-surface)" : tone[check.level].bg,
+                          border: `1px solid ${check.level === "ok" || check.level === "pending" ? "var(--cm-line)" : tone[check.level].line}`,
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                          <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 11, background: tone[check.level].bg, color: tone[check.level].fg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Glyph size={20} />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--cm-ink)" }}>{title}</div>
+                            <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", marginTop: 2, overflowWrap: "anywhere" }}>{check.detail}</div>
+                            {key === "media" && check.level === "warn" && (
+                              <button
+                                type="button"
+                                onClick={testMedia}
+                                className="cm-btn cm-btn--secondary cm-btn--sm"
+                                style={{ marginTop: 8 }}
+                              >
+                                <Video size={14} /> Test camera &amp; mic
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, color: tone[check.level].fg, fontSize: "12px", fontWeight: 600 }}>
+                          {check.level === "ok" ? <CheckCircle2 size={14} /> : check.level === "pending" ? <Clock size={14} /> : <AlertCircle size={14} />}
+                          {tone[check.level].label}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <span style={{ fontSize: "10.5px", fontWeight: 800, background: "#ffffff", color: "#0369a1", padding: "2px 8px", borderRadius: 6, border: "1px solid #bae6fd" }}>
-                    Statutory Compliance
-                  </span>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.8rem", color: "var(--cm-ink-3)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <ShieldCheck size={14} /> Video is encrypted in transit (WebRTC DTLS-SRTP)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        checkMedia();
+                        checkNetwork();
+                      }}
+                      className="cm-btn cm-btn--ghost cm-btn--sm"
+                    >
+                      <RefreshCw size={14} /> Run checks again
+                    </button>
+                  </div>
+
+                  <div style={{ background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)", borderRadius: 16, padding: "16px 20px" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.86rem", color: "var(--cm-ink)", marginBottom: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                      <ShieldCheck size={16} /> NMC Telemedicine Practice Guidelines
+                    </div>
+                    <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--cm-ink-2)", lineHeight: 1.6 }}>
+                      Confirm the patient&apos;s identity and consent before you begin, and include your registration number on every prescription. Medicines on the guidelines&apos; prohibited list (for example Schedule X and NDPS drugs) must not be prescribed by teleconsultation.
+                    </p>
+                  </div>
                 </div>
-                <p style={{ margin: 0, fontSize: "0.82rem", color: "#334155", lineHeight: 1.6 }}>
-                  The patient has granted verified digital consent. Prescriptions issued from this cockpit carry full legal validity under Section 33 of the Indian Medical Council Act. All Schedule X drugs remain hard-locked by protocol.
-                </p>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1216,14 +1185,14 @@ export default function DoctorConsultationRoom({
             <div
               style={{
                 borderRadius: 20,
-                border: "1px solid rgba(186, 230, 253, 0.85)",
+                border: "1px solid var(--cm-line)",
                 background: "rgba(255, 255, 255, 0.97)",
                 backdropFilter: "blur(20px)",
                 WebkitBackdropFilter: "blur(20px)",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
-                boxShadow: "0 12px 36px -6px rgba(2, 132, 199, 0.1), 0 2px 8px rgba(0,0,0,0.02)",
+                boxShadow: "0 12px 36px -6px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(0,0,0,0.02)",
               }}
             >
               {/* Right Deck Tabs */}
@@ -1231,7 +1200,7 @@ export default function DoctorConsultationRoom({
                 style={{
                   display: "flex",
                   borderBottom: "1px solid rgba(226, 232, 240, 0.9)",
-                  background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                  background: "var(--cm-surface-3)",
                   padding: "6px 8px 0 8px",
                   gap: 6,
                 }}
@@ -1243,12 +1212,12 @@ export default function DoctorConsultationRoom({
                     flex: 1,
                     padding: "12px 14px",
                     background: activeRightTab === "scribe" ? "#ffffff" : "transparent",
-                    color: activeRightTab === "scribe" ? "#0369a1" : "#64748b",
+                    color: activeRightTab === "scribe" ? "var(--cm-active)" : "#64748b",
                     border: "none",
-                    borderBottom: activeRightTab === "scribe" ? "3px solid #0284c7" : "3px solid transparent",
+                    borderBottom: activeRightTab === "scribe" ? "3px solid var(--cm-active)" : "3px solid transparent",
                     borderTopLeftRadius: 10,
                     borderTopRightRadius: 10,
-                    fontWeight: activeRightTab === "scribe" ? 850 : 650,
+                    fontWeight: activeRightTab === "scribe" ? 600 : 600,
                     fontSize: "0.82rem",
                     letterSpacing: "-0.01em",
                     cursor: "pointer",
@@ -1256,7 +1225,7 @@ export default function DoctorConsultationRoom({
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 7,
-                    boxShadow: activeRightTab === "scribe" ? "0 -2px 8px rgba(2, 132, 199, 0.05)" : "none",
+                    boxShadow: activeRightTab === "scribe" ? "0 -2px 8px rgba(15, 23, 42, 0.04)" : "none",
                     transition: "all 0.15s ease",
                   }}
                 >
@@ -1278,12 +1247,12 @@ export default function DoctorConsultationRoom({
                     flex: 1,
                     padding: "12px 14px",
                     background: activeRightTab === "erx" ? "#ffffff" : "transparent",
-                    color: activeRightTab === "erx" ? "#0369a1" : "#64748b",
+                    color: activeRightTab === "erx" ? "var(--cm-active)" : "#64748b",
                     border: "none",
-                    borderBottom: activeRightTab === "erx" ? "3px solid #0284c7" : "3px solid transparent",
+                    borderBottom: activeRightTab === "erx" ? "3px solid var(--cm-active)" : "3px solid transparent",
                     borderTopLeftRadius: 10,
                     borderTopRightRadius: 10,
-                    fontWeight: activeRightTab === "erx" ? 850 : 650,
+                    fontWeight: activeRightTab === "erx" ? 600 : 600,
                     fontSize: "0.82rem",
                     letterSpacing: "-0.01em",
                     cursor: "pointer",
@@ -1291,20 +1260,20 @@ export default function DoctorConsultationRoom({
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 7,
-                    boxShadow: activeRightTab === "erx" ? "0 -2px 8px rgba(2, 132, 199, 0.05)" : "none",
+                    boxShadow: activeRightTab === "erx" ? "0 -2px 8px rgba(15, 23, 42, 0.04)" : "none",
                     transition: "all 0.15s ease",
                   }}
                 >
-                  <FileText size={15} style={{ color: activeRightTab === "erx" ? "#0284c7" : "#94a3b8" }} />
+                  <FileText size={15} style={{ color: activeRightTab === "erx" ? "var(--cm-active)" : "#94a3b8" }} />
                   <span>Digital e-Rx Pad</span>
                   <span
                     style={{
                       background: activeRightTab === "erx" ? "#e0f2fe" : "#e2e8f0",
-                      color: activeRightTab === "erx" ? "#0284c7" : "#64748b",
+                      color: activeRightTab === "erx" ? "var(--cm-active)" : "#64748b",
                       padding: "1px 7px",
                       borderRadius: 999,
                       fontSize: "0.72rem",
-                      fontWeight: 800,
+                      fontWeight: 600,
                     }}
                   >
                     {medicines.length}
@@ -1317,12 +1286,12 @@ export default function DoctorConsultationRoom({
                     flex: 1,
                     padding: "12px 14px",
                     background: activeRightTab === "history" ? "#ffffff" : "transparent",
-                    color: activeRightTab === "history" ? "#0369a1" : "#64748b",
+                    color: activeRightTab === "history" ? "var(--cm-active)" : "#64748b",
                     border: "none",
-                    borderBottom: activeRightTab === "history" ? "3px solid #0284c7" : "3px solid transparent",
+                    borderBottom: activeRightTab === "history" ? "3px solid var(--cm-active)" : "3px solid transparent",
                     borderTopLeftRadius: 10,
                     borderTopRightRadius: 10,
-                    fontWeight: activeRightTab === "history" ? 850 : 650,
+                    fontWeight: activeRightTab === "history" ? 600 : 600,
                     fontSize: "0.82rem",
                     letterSpacing: "-0.01em",
                     cursor: "pointer",
@@ -1330,11 +1299,11 @@ export default function DoctorConsultationRoom({
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 7,
-                    boxShadow: activeRightTab === "history" ? "0 -2px 8px rgba(2, 132, 199, 0.05)" : "none",
+                    boxShadow: activeRightTab === "history" ? "0 -2px 8px rgba(15, 23, 42, 0.04)" : "none",
                     transition: "all 0.15s ease",
                   }}
                 >
-                  <User size={15} style={{ color: activeRightTab === "history" ? "#0284c7" : "#94a3b8" }} />
+                  <User size={15} style={{ color: activeRightTab === "history" ? "var(--cm-active)" : "#94a3b8" }} />
                   <span>Patient EHR</span>
                 </button>
               </div>
@@ -1380,7 +1349,7 @@ export default function DoctorConsultationRoom({
                     </div>
 
                     <div style={{ marginTop: 14 }}>
-                      <label style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>
+                      <label style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>
                         Doctor&apos;s Clinical Observations (Optional notes)
                       </label>
                       <textarea
@@ -1408,7 +1377,7 @@ export default function DoctorConsultationRoom({
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     {/* Diagnosis Selector */}
                     <div>
-                      <label style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>
+                      <label style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-ink)", display: "block", marginBottom: 6 }}>
                         Primary Diagnosis (ICD-10 Standard)
                       </label>
                       <select
@@ -1442,7 +1411,7 @@ export default function DoctorConsultationRoom({
                     {/* Prescribed Items Table */}
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <span style={{ fontSize: "var(--cm-text-xs)", fontWeight: 800, color: "var(--cm-ink)", textTransform: "uppercase" }}>
+                        <span style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-ink)", textTransform: "uppercase" }}>
                           Medicines to Prescribe ({medicines.length})
                         </span>
                       </div>
@@ -1462,7 +1431,7 @@ export default function DoctorConsultationRoom({
                             }}
                           >
                             <div>
-                              <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                              <div style={{ fontWeight: 600, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
                                 {med.generic_name}
                               </div>
                               <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1497,7 +1466,7 @@ export default function DoctorConsultationRoom({
                         padding: "12px",
                       }}
                     >
-                      <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-active)", marginBottom: 8, textTransform: "uppercase" }}>
+                      <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-active)", marginBottom: 8, textTransform: "uppercase" }}>
                         + Add Medication
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, marginBottom: 8 }}>
@@ -1568,7 +1537,7 @@ export default function DoctorConsultationRoom({
 
                     {/* Diagnostic Lab Tests Emitter */}
                     <div>
-                      <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-ink)", textTransform: "uppercase", marginBottom: 6 }}>
+                      <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-ink)", textTransform: "uppercase", marginBottom: 6 }}>
                         Diagnostic Lab Tests Order
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1605,12 +1574,12 @@ export default function DoctorConsultationRoom({
                 {/* TAB 3: PATIENT EHR */}
                 {activeRightTab === "history" && (
                   <div>
-                    <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 700, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 10 }}>
+                    <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-active)", textTransform: "uppercase", marginBottom: 10 }}>
                       Electronic Health Record · {patientData.name}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ padding: "12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
-                        <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
                           Last Teleconsult: 14 Jan 2026
                         </div>
                         <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1618,7 +1587,7 @@ export default function DoctorConsultationRoom({
                         </div>
                       </div>
                       <div style={{ padding: "12px", borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", border: "1px solid var(--cm-line)" }}>
-                        <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
                           Home Lab Report: 22 Dec 2025
                         </div>
                         <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1660,13 +1629,13 @@ export default function DoctorConsultationRoom({
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <Stethoscope size={24} style={{ color: "var(--cm-active)" }} />
-                  <span style={{ fontWeight: 800, fontSize: "1.3rem", letterSpacing: "-0.01em" }}>
+                  <Stethoscope size={24} style={{ color: "var(--cm-active-line)" }} />
+                  <span style={{ fontWeight: 600, fontSize: "1.3rem", letterSpacing: "-0.01em" }}>
                     {doctorName}
                   </span>
                 </div>
                 <div style={{ fontSize: "var(--cm-text-sm)", color: "#cbd5e1" }}>
-                  {doctorDegree} · NMC Reg: APMC/2019/92144
+                  {[doctorDegree, `NMC Reg: ${regNumber || "not on file"}`].filter(Boolean).join(" · ")}
                 </div>
                 <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-active)", marginTop: 2 }}>
                   CallMedex Digital Telehealth Network
@@ -1697,25 +1666,25 @@ export default function DoctorConsultationRoom({
             >
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Patient Name</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>{patientData.name}</div>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-sm)" }}>{patientData.name}</div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Age / Gender</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>{patientData.age} / {patientData.gender}</div>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)" }}>{patientData.age} / {patientData.gender}</div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Patient Email (Mandatory)</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-active)" }}>
+                <div style={{ fontWeight: 600, color: "var(--cm-active)" }}>
                   {patientEmailInput || patientData.email || "Pending verification"}
                 </div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>UHID</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>{patientData.uhid}</div>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)" }}>{patientData.uhid}</div>
               </div>
               <div>
                 <div style={{ color: "var(--cm-ink-3)", textTransform: "uppercase" }}>Consultation Date</div>
-                <div style={{ fontWeight: 700, color: "var(--cm-ink)" }}>{new Date().toLocaleDateString("en-IN")}</div>
+                <div style={{ fontWeight: 600, color: "var(--cm-ink)" }}>{new Date().toLocaleDateString("en-IN")}</div>
               </div>
             </div>
 
@@ -1723,10 +1692,10 @@ export default function DoctorConsultationRoom({
             <div style={{ padding: "28px 32px" }}>
               {/* Diagnosis & Clinical Summary */}
               <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>
+                <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>
                   Diagnosis
                 </div>
-                <div style={{ fontSize: "var(--cm-text-lg)", fontWeight: 800, color: "var(--cm-active)" }}>
+                <div style={{ fontSize: "var(--cm-text-lg)", fontWeight: 600, color: "var(--cm-active)" }}>
                   {aiAnalysis.diagnosis || diagnosis}
                 </div>
                 <p style={{ margin: "8px 0 0 0", color: "var(--cm-ink-2)", fontSize: "var(--cm-text-sm)", lineHeight: 1.6 }}>
@@ -1736,7 +1705,7 @@ export default function DoctorConsultationRoom({
 
               {/* Rx Medicines Table */}
               <div style={{ marginBottom: 28 }}>
-                <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 800, color: "var(--cm-ink)", textTransform: "uppercase", borderBottom: "2px solid var(--cm-active)", paddingBottom: 6, marginBottom: 12 }}>
+                <div style={{ fontSize: "var(--cm-text-sm)", fontWeight: 600, color: "var(--cm-ink)", textTransform: "uppercase", borderBottom: "2px solid var(--cm-active)", paddingBottom: 6, marginBottom: 12 }}>
                   ℞ Prescribed Medications
                 </div>
 
@@ -1755,7 +1724,7 @@ export default function DoctorConsultationRoom({
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                        <div style={{ fontWeight: 600, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
                           {idx + 1}. {med.generic_name}
                         </div>
                         <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", marginTop: 2 }}>
@@ -1781,7 +1750,7 @@ export default function DoctorConsultationRoom({
               {/* Advised Lab Investigations */}
               {(orderedLabTests.length > 0 || aiAnalysis.lab_tests) && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                  <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
                     Advised Investigations / Home Sample Collection
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1816,7 +1785,7 @@ export default function DoctorConsultationRoom({
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Mail size={16} style={{ color: "var(--cm-active)" }} />
-                      <span style={{ fontWeight: 800, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
+                      <span style={{ fontWeight: 600, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink)" }}>
                         Dispatch Official NMC-Compliant e-Prescription to Patient
                       </span>
                     </div>
@@ -1854,7 +1823,7 @@ export default function DoctorConsultationRoom({
                       onClick={handleSendRxEmail}
                       disabled={isSendingRxEmail || rxEmailSent}
                       className="cm-btn cm-btn--primary"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 700 }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}
                     >
                       {rxEmailSent ? (
                         <>
@@ -1877,7 +1846,7 @@ export default function DoctorConsultationRoom({
                   )}
 
                   {rxEmailSent && (
-                    <div style={{ marginTop: 10, fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+                    <div style={{ marginTop: 10, fontSize: "var(--cm-text-xs)", color: "var(--cm-done)", display: "flex", alignItems: "center", gap: 6, fontWeight: 600 }}>
                       <CheckCircle2 size={14} /> Official e-Prescription successfully delivered to {patientEmailInput || patientData.email}. A cryptographic audit trail was generated.
                     </div>
                   )}

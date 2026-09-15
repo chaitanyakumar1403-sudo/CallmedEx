@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, Field
 from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
+from app.models.schemas import APIResponse
 from app.services import provider_modes
 from app.services.storage import StorageService
 from app.utils.db_helpers import _rows
@@ -74,7 +75,6 @@ class ShiftScheduleCreate(BaseModel):
     replace_existing: bool = True
 
 
-
 class AvailabilityUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -101,6 +101,21 @@ class OrgDoctorAdd(BaseModel):
     doctor_email: str = Field(..., description="Email of an existing doctor on CallMedex")
     specialization: Optional[str] = ""
     consultation_fee: Optional[float] = 0
+
+
+class OrgDoctorShift(BaseModel):
+    day_of_week: Optional[int] = Field(None, ge=0, le=6, description="0=Sunday, 6=Saturday")
+    days_of_week: Optional[List[int]] = Field(default=None, description="0=Sunday, 6=Saturday list")
+    start_time: str = Field(..., description="HH:MM format, e.g. '09:30'")
+    end_time: str = Field(..., description="HH:MM format, e.g. '12:00'")
+    slot_duration_minutes: Optional[int] = Field(10, ge=5, le=120)
+
+
+class OrgDoctorScheduleUpdate(BaseModel):
+    shifts: List[OrgDoctorShift]
+    slot_duration_minutes: Optional[int] = Field(10, ge=5, le=120)
+    consultation_fee: Optional[float] = None
+    specialization: Optional[str] = None
 
 
 class OrgServiceCreate(BaseModel):
@@ -1164,14 +1179,33 @@ async def get_available_slots(
         return {"success": True, "slots": [], "message": "Cannot book past dates"}
 
     # Check if date is blocked
+    # Resolve provider doctor IDs (supports both doctors.id and users.id)
+    doc_ids = [provider_id]
     try:
-        blocked = (
-            supabase.table("doctor_blocked_dates")
-            .select("id")
-            .eq("doctor_id", provider_id)
-            .eq("blocked_date", target_date)
+        doc_match = (
+            supabase.table("doctors")
+            .select("id, user_id")
+            .or_(f"id.eq.{provider_id},user_id.eq.{provider_id}")
+            .limit(1)
             .execute()
         )
+        if doc_match.data:
+            d_row = doc_match.data[0]
+            if d_row.get("id"):
+                doc_ids.append(d_row["id"])
+            if d_row.get("user_id"):
+                doc_ids.append(d_row["user_id"])
+        doc_ids = list(set(doc_ids))
+    except Exception:
+        pass
+
+    # Check if date is blocked
+    try:
+        blocked_query = supabase.table("doctor_blocked_dates").select("id")
+        if len(doc_ids) > 1 and hasattr(blocked_query, "in_"):
+            blocked = blocked_query.in_("doctor_id", doc_ids).eq("blocked_date", target_date).execute()
+        else:
+            blocked = blocked_query.eq("doctor_id", doc_ids[0]).eq("blocked_date", target_date).execute()
         if blocked.data:
             return {"success": True, "slots": [], "message": "Doctor is not available on this date"}
     except Exception:
@@ -1183,13 +1217,12 @@ async def get_available_slots(
     db_day = (day_of_week + 1) % 7
 
     try:
-        avail_query = (
-            supabase.table("doctor_availability")
-            .select("*")
-            .eq("doctor_id", provider_id)
-            .eq("day_of_week", db_day)
-            .eq("is_active", True)
-        )
+        avail_base = supabase.table("doctor_availability").select("*")
+        if len(doc_ids) > 1 and hasattr(avail_base, "in_"):
+            avail_query = avail_base.in_("doctor_id", doc_ids)
+        else:
+            avail_query = avail_base.eq("doctor_id", doc_ids[0])
+        avail_query = avail_query.eq("day_of_week", db_day).eq("is_active", True)
         if mode:
             avail_query = avail_query.eq("consultation_mode", mode)
         avail_result = avail_query.execute()
@@ -1522,6 +1555,117 @@ async def org_remove_doctor(
     except Exception as e:
         logger.error(f"Error removing doctor: {e}")
         raise HTTPException(500, "Failed to remove doctor")
+
+
+@router.post("/org/doctor/{doctor_user_id}/schedule")
+async def org_update_doctor_schedule(
+    doctor_user_id: str,
+    body: OrgDoctorScheduleUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Organization updates the walk-in OP shifts, consultation timings, slot duration,
+    and facility consultation fee for a linked doctor at this organization.
+    """
+    if current_user.get("role") not in ("organization", "admin"):
+        raise HTTPException(403, "Only organizations or admins can configure facility doctor schedules")
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    try:
+        org_result = (
+            supabase.table("organizations")
+            .select("id, organization_name, user_id")
+            .eq("user_id", current_user["sub"])
+            .execute()
+        )
+        if not org_result.data:
+            raise HTTPException(404, "Organization not found")
+
+        org_id = org_result.data[0]["id"]
+        org_name = org_result.data[0].get("organization_name", "")
+
+        # Fetch org user record for physical address
+        org_user = (
+            supabase.table("users")
+            .select("address, city, state, pincode")
+            .eq("id", current_user["sub"])
+            .limit(1)
+            .execute()
+        )
+        org_address = ""
+        if org_user.data:
+            u_row = org_user.data[0]
+            org_address = ", ".join(filter(None, [u_row.get("address"), u_row.get("city"), u_row.get("state"), u_row.get("pincode")]))
+
+        # Verify doctor is linked to this organization
+        link_res = (
+            supabase.table("organization_doctors")
+            .select("id")
+            .eq("organization_id", org_id)
+            .eq("doctor_user_id", doctor_user_id)
+            .execute()
+        )
+        if not link_res.data:
+            raise HTTPException(404, "Doctor is not linked to this organization")
+
+        # Update fee / specialization in organization_doctors if provided
+        link_updates = {}
+        if body.consultation_fee is not None:
+            link_updates["consultation_fee"] = float(body.consultation_fee)
+        if body.specialization:
+            link_updates["specialization"] = body.specialization
+        if link_updates:
+            supabase.table("organization_doctors").update(link_updates).eq("id", link_res.data[0]["id"]).execute()
+
+        # Delete existing walk-in availability blocks for this doctor at this org
+        try:
+            supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).eq("organization_id", org_id).eq("consultation_mode", "in_person").execute()
+            if org_name:
+                supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).ilike("location_name", f"%{org_name}%").eq("consultation_mode", "in_person").execute()
+        except Exception as del_err:
+            logger.warning(f"Error cleaning old availability blocks: {del_err}")
+
+        # Insert new shift blocks
+        now_iso = datetime.now(timezone.utc).isoformat()
+        records = []
+        for s in body.shifts:
+            start_clean = str(s.start_time).strip()
+            end_clean = str(s.end_time).strip()
+            if len(start_clean) == 5:
+                start_clean += ":00"
+            if len(end_clean) == 5:
+                end_clean += ":00"
+            records.append({
+                "id": str(uuid.uuid4()),
+                "doctor_id": doctor_user_id,
+                "day_of_week": s.day_of_week,
+                "start_time": start_clean,
+                "end_time": end_clean,
+                "slot_duration_minutes": s.slot_duration_minutes,
+                "consultation_mode": "in_person",
+                "max_patients_per_slot": 1,
+                "is_active": True,
+                "organization_id": org_id,
+                "location_name": org_name,
+                "location_address": org_address,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            })
+
+        if records:
+            supabase.table("doctor_availability").insert(records).execute()
+
+        return {
+            "success": True,
+            "message": f"Successfully updated walk-in OP schedule ({len(records)} shift blocks active)",
+            "shifts_count": len(records),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating org doctor schedule: {e}")
+        raise HTTPException(500, f"Failed to update schedule: {str(e)}")
 
 
 # ─── Organization Services ────────────────────────────────────────────────
@@ -2643,7 +2787,8 @@ async def search_providers(
             except Exception:
                 min_price = None
             out.append({**r, "min_price": min_price})
-            if len(out) >= limit:
+            max_limit = limit if isinstance(limit, int) else 50
+            if len(out) >= max_limit:
                 break
         return {"success": True, "providers": out}
     except Exception as e:
@@ -2682,26 +2827,154 @@ async def provider_catalog(provider_user_id: str):
 async def search_organizations(org_type: Optional[str] = None, city: Optional[str] = None,
                                q: Optional[str] = None, limit: int = 50,
                                exclude_diagnostic: Optional[bool] = None):
-    """Back-compat wrapper → verified orgs from provider_directory.
+    """Verified clinical facilities (hospitals, polyclinics, clinics) from provider_directory.
     
-    Pass exclude_diagnostic=true to omit diagnostic_center and laboratory
-    types — used by the doctor-appointment booking flow so that patients
-    only see hospitals, polyclinics and clinics, never diagnostic centres.
+    Pass exclude_diagnostic=true to strictly omit diagnostic_center and laboratory
+    types — ensuring patients only see walk-in consultation facilities with full
+    physical street addresses and their registered specialist doctors.
     """
     res = await search_providers(type=org_type or "organization", city=city, q=q, limit=limit)
     DIAGNOSTIC_SUBTYPES = {"diagnostic_center", "diagnostic", "laboratory"}
-    orgs = [{
-        "id": p["provider_user_id"], "user_id": p["provider_user_id"],
-        "name": p["display_name"], "organization_name": p["display_name"],
-        "type": p["subtype"], "organization_type": p["subtype"],
-        "city": p.get("city", ""), "state": p.get("state", ""),
-        # Present once the provider_directory district migration runs; "" until
-        # then and the client falls back to city matching.
-        "district": p.get("district", ""),
-        "verification_status": p["verification_status"], "min_price": p.get("min_price"),
-    } for p in res["providers"]
+    
+    raw_providers = [
+        p for p in res["providers"]
         if (p["provider_type"] == "organization" or (org_type and org_type != "doctor"))
-        and (not exclude_diagnostic or p.get("subtype", "") not in DIAGNOSTIC_SUBTYPES)]
+        and (not exclude_diagnostic or p.get("subtype", "") not in DIAGNOSTIC_SUBTYPES)
+        and p.get("verification_status") == "verified"
+        and not is_test_persona(p)
+    ]
+
+    # Enrich with physical street address and organization details
+    user_ids = [p["provider_user_id"] for p in raw_providers if p.get("provider_user_id")]
+    user_map = {}
+    org_map = {}
+    docs_by_org = {}
+
+    if supabase and user_ids:
+        try:
+            u_rows = (
+                supabase.table("users")
+                .select("id, address, pincode, mobile, email")
+                .in_("id", user_ids)
+                .execute()
+            ).data or []
+            for u in u_rows:
+                user_map[u["id"]] = u
+        except Exception as e:
+            logger.warning(f"Failed to fetch user addresses for org search: {e}")
+
+        try:
+            o_rows = (
+                supabase.table("organizations")
+                .select("id, user_id, organization_name, organization_type, license_number, establishment_year, head_of_institution, operating_hours, emergency_phone, verification_status")
+                .in_("user_id", user_ids)
+                .execute()
+            ).data or []
+            for o in o_rows:
+                org_map[o["user_id"]] = o
+            
+            org_internal_ids = [o["id"] for o in o_rows if o.get("id")]
+            if org_internal_ids:
+                od_rows = (
+                    supabase.table("organization_doctors")
+                    .select("id, organization_id, doctor_user_id, specialization, consultation_fee, is_active, users!doctor_user_id(id, full_name, email)")
+                    .in_("organization_id", org_internal_ids)
+                    .eq("is_active", True)
+                    .execute()
+                ).data or []
+
+                # Also fetch qualifications & experience for these doctors
+                doc_uids = [od["doctor_user_id"] for od in od_rows if od.get("doctor_user_id")]
+                prof_map = {}
+                avail_map = {}
+                if doc_uids:
+                    try:
+                        p_rows = supabase.table("doctors").select("user_id, qualification, years_of_experience, verification_status").in_("user_id", doc_uids).execute().data or []
+                        for pr in p_rows:
+                            prof_map[pr["user_id"]] = pr
+                    except Exception as pe:
+                        logger.warning(f"Failed to fetch doctor profiles in search_organizations: {pe}")
+
+                    try:
+                        av_rows = (
+                            supabase.table("doctor_availability")
+                            .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode")
+                            .in_("doctor_id", doc_uids)
+                            .eq("consultation_mode", "in_person")
+                            .eq("is_active", True)
+                            .execute()
+                        ).data or []
+                        for av in av_rows:
+                            avail_map.setdefault(av["doctor_id"], []).append(av)
+                    except Exception as ae:
+                        logger.warning(f"Failed to fetch availability in search_organizations: {ae}")
+
+                for od in od_rows:
+                    o_id = od.get("organization_id")
+                    d_uid = od.get("doctor_user_id")
+                    u_info = od.get("users") or {}
+                    p_info = prof_map.get(d_uid, {})
+                    d_avails = avail_map.get(d_uid, [])
+                    
+                    docs_by_org.setdefault(o_id, []).append({
+                        "id": d_uid,
+                        "doctor_id": d_uid,
+                        "doctor_user_id": d_uid,
+                        "name": u_info.get("full_name", "Specialist Physician"),
+                        "specialization": od.get("specialization") or "Medical Specialist",
+                        "qualification": p_info.get("qualification", "MBBS"),
+                        "experience_years": p_info.get("years_of_experience", 0),
+                        "consultation_fee": od.get("consultation_fee", 500),
+                        "verification_status": p_info.get("verification_status", "verified"),
+                        "availability": d_avails,
+                        "slot_duration_minutes": d_avails[0].get("slot_duration_minutes", 10) if d_avails else 10,
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to fetch org details and linked doctors for org search: {e}")
+
+    orgs = []
+    for p in raw_providers:
+        uid = p["provider_user_id"]
+        u_info = user_map.get(uid, {})
+        o_info = org_map.get(uid, {})
+        internal_org_id = o_info.get("id") or uid
+        linked_docs = docs_by_org.get(internal_org_id, [])
+
+        # Build clean address
+        street_address = u_info.get("address") or ""
+        city_str = p.get("city") or ""
+        state_str = p.get("state") or ""
+        pincode_str = u_info.get("pincode") or ""
+        full_address_parts = [street_address, city_str, state_str, pincode_str]
+        full_address = ", ".join([part for part in full_address_parts if part])
+
+        orgs.append({
+            "id": uid,
+            "user_id": uid,
+            "organization_id": internal_org_id,
+            "name": p["display_name"],
+            "organization_name": p["display_name"],
+            "type": p["subtype"],
+            "organization_type": p["subtype"],
+            "city": city_str,
+            "state": state_str,
+            "district": p.get("district", ""),
+            "address": street_address or full_address,
+            "full_address": full_address,
+            "pincode": pincode_str,
+            "lat": u_info.get("lat") or p.get("lat"),
+            "lng": u_info.get("lng") or p.get("lng"),
+            "emergency_phone": o_info.get("emergency_phone") or u_info.get("mobile") or "",
+            "operating_hours": o_info.get("operating_hours") or "",
+            "head_of_institution": o_info.get("head_of_institution") or "",
+            "license_number": o_info.get("license_number") or "",
+            "establishment_year": o_info.get("establishment_year"),
+            "verification_status": p["verification_status"],
+            "min_price": p.get("min_price"),
+            "linked_doctors": linked_docs,
+            "doctors_count": len(linked_docs),
+        })
+
     return {"success": True, "organizations": orgs}
 
 
@@ -2716,4 +2989,110 @@ async def search_packages(limit: int = Query(50, le=100)):
     except Exception as e:
         logger.error(f"Error fetching packages: {e}")
         return {"success": True, "packages": []}
+
+
+@router.post("/org/doctor/{doctor_user_id}/schedule", response_model=APIResponse)
+async def update_org_doctor_schedule(
+    doctor_user_id: str,
+    payload: OrgDoctorScheduleUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Allow an authenticated organization (clinic, polyclinic, hospital) to configure
+    in-person walk-in OP shifts, slot duration, and consultation fee for their linked doctor.
+    """
+    role = current_user.get("role")
+    if role not in ("organization", "admin"):
+        raise HTTPException(status_code=403, detail="Only organization accounts can manage doctor facility schedules")
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    org_user_id = current_user["sub"]
+
+    # 1. Resolve internal organization id from organizations table
+    org_rows = _rows(
+        supabase.table("organizations")
+        .select("id, name, verification_status")
+        .eq("user_id", org_user_id)
+        .execute()
+    )
+    if not org_rows:
+        raise HTTPException(status_code=404, detail="Organization record not found for user")
+    org_id = org_rows[0]["id"]
+
+    # 2. Verify doctor is linked to this organization
+    link_rows = _rows(
+        supabase.table("organization_doctors")
+        .select("id, consultation_fee")
+        .eq("organization_id", org_id)
+        .eq("doctor_user_id", doctor_user_id)
+        .execute()
+    )
+    if not link_rows:
+        raise HTTPException(status_code=404, detail="Doctor is not linked to this organization")
+
+    # 3. Update consultation_fee in organization_doctors if provided
+    if payload.consultation_fee is not None:
+        try:
+            supabase.table("organization_doctors").update({
+                "consultation_fee": payload.consultation_fee
+            }).eq("organization_id", org_id).eq("doctor_user_id", doctor_user_id).execute()
+        except Exception as e:
+            logger.warning(f"Failed to update consultation fee in organization_doctors: {e}")
+
+    # 4. Replace facility-specific in_person doctor_availability records
+    try:
+        supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).eq("facility_id", org_id).eq("consultation_mode", "in_person").execute()
+    except Exception as de:
+        logger.warning(f"Failed deleting prior facility doctor_availability: {de}")
+
+    # Insert new shifts
+    new_records = []
+    import uuid
+    for shift in payload.shifts:
+        days = []
+        if shift.days_of_week:
+            days = shift.days_of_week
+        elif shift.day_of_week is not None:
+            days = [shift.day_of_week]
+        else:
+            days = [1, 2, 3, 4, 5, 6]
+
+        slot_dur = shift.slot_duration_minutes or payload.slot_duration_minutes or 10
+
+        for day in days:
+            new_records.append({
+                "id": str(uuid.uuid4()),
+                "doctor_id": doctor_user_id,
+                "day_of_week": day,
+                "start_time": shift.start_time,
+                "end_time": shift.end_time,
+                "slot_duration_minutes": slot_dur,
+                "max_patients_per_slot": 1,
+                "consultation_mode": "in_person",
+                "facility_id": org_id,
+                "is_active": True,
+            })
+
+    if new_records:
+        try:
+            supabase.table("doctor_availability").insert(new_records).execute()
+        except Exception as ie:
+            logger.error(f"Error inserting new facility doctor_availability: {ie}")
+            raise HTTPException(status_code=500, detail="Failed to save doctor availability")
+
+    return APIResponse(
+        success=True,
+        message="Doctor walk-in OP schedule updated successfully",
+        data={
+            "doctor_user_id": doctor_user_id,
+            "organization_id": org_id,
+            "slot_duration_minutes": payload.slot_duration_minutes,
+            "consultation_fee": payload.consultation_fee,
+            "shifts_count": len(payload.shifts),
+            "slots_blocks_count": len(new_records),
+        }
+    )
+
 
