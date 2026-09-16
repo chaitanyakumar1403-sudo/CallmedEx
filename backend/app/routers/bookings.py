@@ -748,6 +748,10 @@ async def create_booking(
             "created_at": now,
         }
 
+    if booking.branch_name and "[Branch:" not in (booking_data.get("notes") or ""):
+        b_note = f"[Branch: {booking.branch_name}{f', {booking.branch_address}' if booking.branch_address else ''}]"
+        booking_data["notes"] = f"{b_note} {booking_data.get('notes') or ''}".strip()
+
     if is_home_collection:
         booking_data["booking_kind"] = "home_collection"
         booking_data["collection_city"] = booking.city
@@ -2219,12 +2223,46 @@ async def get_org_services_for_booking(org_id: str):
                 .execute()
             )
             docs_raw = doctors_res.data or []
-            
+
+            doc_uids = [d.get("doctor_user_id") for d in docs_raw if d.get("doctor_user_id")]
+            doc_avails_map = {}
+            if doc_uids:
+                try:
+                    av_res = (
+                        supabase.table("doctor_availability")
+                        .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, template_group_id, location_name, location_address")
+                        .in_("doctor_id", doc_uids)
+                        .eq("consultation_mode", "in_person")
+                        .eq("is_active", True)
+                        .execute()
+                    )
+                    for av in (av_res.data or []):
+                        doc_avails_map.setdefault(av["doctor_id"], []).append(av)
+                except Exception:
+                    pass
+
             # Format doctors
             for d in docs_raw:
                 user = d.get("users", {}) or {}
                 doc = d.get("doctors", {}) or {}
                 doc_user_id = d.get("doctor_user_id") or user.get("id") or d.get("doctor_id")
+                d_avails = doc_avails_map.get(doc_user_id, [])
+
+                doc_branch_ids = []
+                branch_shifts = []
+                for av in d_avails:
+                    b_id = av.get("template_group_id") or "main"
+                    if b_id not in doc_branch_ids:
+                        doc_branch_ids.append(b_id)
+                    branch_shifts.append({
+                        "branch_id": b_id,
+                        "branch_name": av.get("location_name") or "Main Facility",
+                        "day_of_week": av.get("day_of_week"),
+                        "start_time": str(av.get("start_time", ""))[:5],
+                        "end_time": str(av.get("end_time", ""))[:5],
+                        "slot_duration_minutes": av.get("slot_duration_minutes", 10),
+                    })
+
                 doctors.append({
                     "doctor_id": d.get("doctor_id") or doc.get("id") or doc_user_id,
                     "doctor_user_id": doc_user_id,
@@ -2234,10 +2272,14 @@ async def get_org_services_for_booking(org_id: str):
                     "experience_years": doc.get("years_of_experience", 0),
                     "consultation_mode": doc.get("consultation_mode", "both"),
                     "consultation_fee": d.get("consultation_fee") or doc.get("consultation_fee") or 500,
+                    "assigned_branches": doc_branch_ids,
+                    "branch_shifts": branch_shifts,
+                    "availability": d_avails,
+                    "slot_duration_minutes": d_avails[0].get("slot_duration_minutes", 10) if d_avails else 10,
                 })
         except Exception as e:
             logger.error(f"Error fetching doctors: {e}")
-            
+
         # Fetch organization operating hours (timings)
         timings = []
         try:
@@ -2245,6 +2287,33 @@ async def get_org_services_for_booking(org_id: str):
             timings = timings_res.data or []
         except Exception:
             pass
+
+        # Fetch physical branches
+        branches = []
+        try:
+            b_res = (
+                supabase.table("provider_branches")
+                .select("id, name, address, city, phone, is_active")
+                .eq("provider_user_id", org_info.get("user_id", ""))
+                .eq("is_active", True)
+                .order("created_at")
+                .execute()
+            )
+            branches = b_res.data or []
+        except Exception as be:
+            logger.warning(f"Failed to fetch branches in get_org_services_for_booking: {be}")
+
+        main_branch = {
+            "id": "main",
+            "branch_id": "main",
+            "name": f"{org_details.get('name', 'Facility')} (Main Facility)",
+            "address": org_details.get("address") or "",
+            "city": org_details.get("city") or "Visakhapatnam",
+            "phone": org_details.get("phone") or "",
+            "operating_hours": org_details.get("operating_hours") or "",
+            "is_main_branch": True,
+        }
+        all_branches = [main_branch] + [b for b in branches if b.get("name") != main_branch["name"]]
 
         return APIResponse(
             success=True,
@@ -2255,6 +2324,8 @@ async def get_org_services_for_booking(org_id: str):
                 "packages": packages,
                 "doctors": doctors,
                 "timings": timings,
+                "branches": all_branches,
+                "branch_count": len(all_branches),
             }
         )
     except Exception as e:

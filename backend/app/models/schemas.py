@@ -533,6 +533,11 @@ class BookingCreate(BaseModel):
     # centre) need the patient's choice carried through: a home_visit booking
     # has to raise a dispatch to that provider, an in_person one must not.
     consultation_mode: Optional[str] = None  # in_person | online | home_visit
+    # Organization multi-branch practice locations
+    branch_id: Optional[str] = None
+    branch_name: Optional[str] = None
+    branch_address: Optional[str] = None
+    facility_id: Optional[str] = None
 
 
 class SlotAllotment(BaseModel):

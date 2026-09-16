@@ -103,12 +103,33 @@ class OrgDoctorAdd(BaseModel):
     consultation_fee: Optional[float] = 0
 
 
+class OrgBranchCreate(BaseModel):
+    name: str = Field(..., description="Branch name, e.g. 'MVP Colony Branch'")
+    address: str = Field(..., description="Physical street address")
+    city: Optional[str] = Field("Visakhapatnam", description="City")
+    phone: Optional[str] = Field("", description="Phone contact or operating hours")
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+
+
+class OrgBranchUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    phone: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
 class OrgDoctorShift(BaseModel):
     day_of_week: Optional[int] = Field(None, ge=0, le=6, description="0=Sunday, 6=Saturday")
     days_of_week: Optional[List[int]] = Field(default=None, description="0=Sunday, 6=Saturday list")
     start_time: str = Field(..., description="HH:MM format, e.g. '09:30'")
     end_time: str = Field(..., description="HH:MM format, e.g. '12:00'")
     slot_duration_minutes: Optional[int] = Field(10, ge=5, le=120)
+    branch_id: Optional[str] = Field(None, description="Branch UUID for this shift")
+    branch_name: Optional[str] = Field(None, description="Branch Name for this shift")
 
 
 class OrgDoctorScheduleUpdate(BaseModel):
@@ -1150,6 +1171,10 @@ async def get_available_slots(
         None,
         description="Filter to one consultation mode: in_person, online or home_visit",
     ),
+    branch_id: Optional[str] = Query(
+        None,
+        description="Optional branch UUID to filter shifts/slots specific to that physical branch",
+    ),
     current_user: Optional[dict] = Depends(get_optional_current_user),
 ):
     """
@@ -1226,6 +1251,23 @@ async def get_available_slots(
         if mode:
             avail_query = avail_query.eq("consultation_mode", mode)
         avail_result = avail_query.execute()
+
+        # Branch-specific shift filtering
+        if branch_id and branch_id not in ("all", "undefined", "null", ""):
+            raw_avail = avail_result.data or []
+            if branch_id == "main":
+                filtered_avail = [
+                    a for a in raw_avail
+                    if not a.get("template_group_id") or "main" in (a.get("location_name") or "").lower()
+                ]
+            else:
+                filtered_avail = [
+                    a for a in raw_avail
+                    if a.get("template_group_id") == branch_id
+                ]
+            # Use branch-filtered shifts if found, or if explicitly requested a non-main branch
+            if filtered_avail or branch_id != "main":
+                avail_result.data = filtered_avail
     except Exception as e:
         logger.error(f"Error fetching availability: {e}")
         raise HTTPException(500, "Failed to fetch availability")
@@ -2078,6 +2120,160 @@ async def set_org_timings(body: OrgTimingsUpdate, current_user: dict = Depends(g
         raise HTTPException(500, "Failed to update timings")
 
 
+# ─── Organization Branches CRUD ──────────────────────────────────────────
+
+@router.get("/org/branches")
+async def get_org_branches(current_user: dict = Depends(get_current_user)):
+    """List all branches of the organization, with main facility fallback."""
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+    try:
+        user_id = current_user["sub"]
+
+        # 1. Fetch organization and user profile to establish the main facility
+        org_res = supabase.table("organizations").select("id, organization_name, operating_hours, emergency_phone").or_(f"user_id.eq.{user_id},id.eq.{user_id}").limit(1).execute()
+        org_name = "Main Facility"
+        org_hours = "08:00 - 21:00"
+        emergency_phone = ""
+        if org_res.data:
+            org_name = org_res.data[0].get("organization_name") or org_name
+            org_hours = org_res.data[0].get("operating_hours") or org_hours
+            emergency_phone = org_res.data[0].get("emergency_phone") or ""
+
+        u_res = supabase.table("users").select("address, city, mobile, email").eq("id", user_id).limit(1).execute()
+        u_address = ""
+        u_city = "Visakhapatnam"
+        u_phone = emergency_phone
+        if u_res.data:
+            u_address = u_res.data[0].get("address") or ""
+            u_city = u_res.data[0].get("city") or "Visakhapatnam"
+            u_phone = u_res.data[0].get("mobile") or emergency_phone
+
+        # 2. Fetch all active provider_branches for this organization
+        b_res = (
+            supabase.table("provider_branches")
+            .select("*")
+            .eq("provider_user_id", user_id)
+            .eq("is_active", True)
+            .order("created_at")
+            .execute()
+        )
+        branches = b_res.data or []
+
+        # 3. Always ensure a synthesized or actual main branch is available
+        main_branch = {
+            "id": "main",
+            "name": f"{org_name} (Main Facility)",
+            "address": u_address,
+            "city": u_city,
+            "phone": u_phone,
+            "operating_hours": org_hours,
+            "is_main_branch": True,
+        }
+
+        # Combine main branch with custom branches
+        all_branches = [main_branch] + [b for b in branches if b.get("name") != main_branch["name"]]
+
+        return {
+            "success": True,
+            "branches": all_branches,
+            "custom_branches": branches,
+            "main_branch": main_branch,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching org branches: {e}")
+        raise HTTPException(500, "Failed to fetch branches")
+
+
+@router.post("/org/branches")
+async def create_org_branch(
+    body: OrgBranchCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Add a new physical branch for the organization."""
+    if current_user.get("role") not in ("organization", "admin"):
+        raise HTTPException(403, "Only organizations can add branches")
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+
+    try:
+        user_id = current_user["sub"]
+        branch_id = str(uuid.uuid4())
+        record = {
+            "id": branch_id,
+            "provider_user_id": user_id,
+            "name": body.name.strip(),
+            "address": body.address.strip(),
+            "city": (body.city or "Visakhapatnam").strip(),
+            "phone": (body.phone or "").strip(),
+            "lat": body.lat,
+            "lng": body.lng,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        res = supabase.table("provider_branches").insert(record).execute()
+
+        # Update total_branches count in organizations
+        try:
+            cnt_res = supabase.table("provider_branches").select("id", count="exact").eq("provider_user_id", user_id).eq("is_active", True).execute()
+            total_b = (cnt_res.count or 0) + 1  # include main facility
+            supabase.table("organizations").update({"total_branches": total_b}).eq("user_id", user_id).execute()
+        except Exception:
+            pass
+
+        return {"success": True, "message": "Branch created successfully", "branch": res.data[0] if res.data else record}
+    except Exception as e:
+        logger.error(f"Error creating branch: {e}")
+        raise HTTPException(500, "Failed to create branch")
+
+
+@router.put("/org/branches/{branch_id}")
+async def update_org_branch(
+    branch_id: str,
+    body: OrgBranchUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update a physical branch."""
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+    try:
+        user_id = current_user["sub"]
+        updates = {}
+        if body.name is not None: updates["name"] = body.name.strip()
+        if body.address is not None: updates["address"] = body.address.strip()
+        if body.city is not None: updates["city"] = body.city.strip()
+        if body.phone is not None: updates["phone"] = body.phone.strip()
+        if body.lat is not None: updates["lat"] = body.lat
+        if body.lng is not None: updates["lng"] = body.lng
+        if body.is_active is not None: updates["is_active"] = body.is_active
+
+        if not updates:
+            return {"success": True, "message": "No changes provided"}
+
+        res = supabase.table("provider_branches").update(updates).eq("id", branch_id).eq("provider_user_id", user_id).execute()
+        return {"success": True, "message": "Branch updated successfully", "data": res.data}
+    except Exception as e:
+        logger.error(f"Error updating branch: {e}")
+        raise HTTPException(500, "Failed to update branch")
+
+
+@router.delete("/org/branches/{branch_id}")
+async def delete_org_branch(
+    branch_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Deactivate a physical branch."""
+    if not supabase:
+        raise HTTPException(500, "Database not configured")
+    try:
+        user_id = current_user["sub"]
+        supabase.table("provider_branches").update({"is_active": False}).eq("id", branch_id).eq("provider_user_id", user_id).execute()
+        return {"success": True, "message": "Branch removed successfully"}
+    except Exception as e:
+        logger.error(f"Error removing branch: {e}")
+        raise HTTPException(500, "Failed to remove branch")
+
+
 @router.get("/org/stats")
 async def get_org_stats(current_user: dict = Depends(get_current_user)):
     """Get dashboard stats for organization."""
@@ -2766,9 +2962,20 @@ async def search_providers(
             "diagnostic_center", "hospital", "clinic", "poly_clinic", "polyclinic",
             "dental_clinic", "physiotherapy_center", "nursing_home",
         ) else query.eq("provider_type", t)
-        if home_service is True:
-            query = query.eq("home_service_enabled", True)
-        rows = [r for r in (query.limit(100).execute().data or []) if not is_test_persona(r)]
+        raw_rows = query.limit(100).execute().data or []
+        provider_uids = [r.get("provider_user_id") for r in raw_rows if r.get("provider_user_id")]
+        user_meta_map = {}
+        if provider_uids and supabase:
+            try:
+                um_rows = supabase.table("users").select("id, email, owner_email, registrant_role, role").in_("id", provider_uids).execute().data or []
+                user_meta_map = {u["id"]: u for u in um_rows}
+            except Exception as ue:
+                logger.warning(f"Failed to fetch user metadata for persona filtering: {ue}")
+
+        rows = [
+            r for r in raw_rows
+            if not is_test_persona(user_meta_map.get(r.get("provider_user_id"), r))
+        ]
 
         out = []
         for r in rows:
@@ -2854,7 +3061,7 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
         try:
             u_rows = (
                 supabase.table("users")
-                .select("id, address, pincode, mobile, email")
+                .select("id, address, pincode, mobile, email, owner_email, registrant_role, role")
                 .in_("id", user_ids)
                 .execute()
             ).data or []
@@ -2898,7 +3105,7 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                     try:
                         av_rows = (
                             supabase.table("doctor_availability")
-                            .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode")
+                            .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode, template_group_id, location_name, location_address")
                             .in_("doctor_id", doc_uids)
                             .eq("consultation_mode", "in_person")
                             .eq("is_active", True)
@@ -2915,7 +3122,22 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                     u_info = od.get("users") or {}
                     p_info = prof_map.get(d_uid, {})
                     d_avails = avail_map.get(d_uid, [])
-                    
+
+                    doc_branch_ids = []
+                    branch_shifts = []
+                    for av in d_avails:
+                        b_id = av.get("template_group_id") or "main"
+                        if b_id not in doc_branch_ids:
+                            doc_branch_ids.append(b_id)
+                        branch_shifts.append({
+                            "branch_id": b_id,
+                            "branch_name": av.get("location_name") or "Main Facility",
+                            "day_of_week": av.get("day_of_week"),
+                            "start_time": str(av.get("start_time", ""))[:5],
+                            "end_time": str(av.get("end_time", ""))[:5],
+                            "slot_duration_minutes": av.get("slot_duration_minutes", 10),
+                        })
+
                     docs_by_org.setdefault(o_id, []).append({
                         "id": d_uid,
                         "doctor_id": d_uid,
@@ -2927,15 +3149,44 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                         "consultation_fee": od.get("consultation_fee", 500),
                         "verification_status": p_info.get("verification_status", "verified"),
                         "availability": d_avails,
+                        "assigned_branches": doc_branch_ids,
+                        "branch_shifts": branch_shifts,
                         "slot_duration_minutes": d_avails[0].get("slot_duration_minutes", 10) if d_avails else 10,
                     })
         except Exception as e:
             logger.warning(f"Failed to fetch org details and linked doctors for org search: {e}")
 
+    # Fetch branches for organizations
+    branches_by_org = {}
+    if supabase and user_ids:
+        try:
+            b_rows = (
+                supabase.table("provider_branches")
+                .select("id, provider_user_id, name, address, city, phone, is_active")
+                .in_("provider_user_id", user_ids)
+                .eq("is_active", True)
+                .order("created_at")
+                .execute()
+            ).data or []
+            for b in b_rows:
+                branches_by_org.setdefault(b["provider_user_id"], []).append({
+                    "id": b["id"],
+                    "branch_id": b["id"],
+                    "name": b["name"],
+                    "address": b["address"],
+                    "city": b["city"],
+                    "phone": b.get("phone", ""),
+                    "is_main_branch": False,
+                })
+        except Exception as be:
+            logger.warning(f"Failed to fetch branches in search_organizations: {be}")
+
     orgs = []
     for p in raw_providers:
         uid = p["provider_user_id"]
         u_info = user_map.get(uid, {})
+        if is_test_persona(u_info):
+            continue
         o_info = org_map.get(uid, {})
         internal_org_id = o_info.get("id") or uid
         linked_docs = docs_by_org.get(internal_org_id, [])
@@ -2948,14 +3199,28 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
         full_address_parts = [street_address, city_str, state_str, pincode_str]
         full_address = ", ".join([part for part in full_address_parts if part])
 
+        # Branches list: primary facility plus any custom branches
+        custom_b = branches_by_org.get(uid, [])
+        main_b = {
+            "id": "main",
+            "branch_id": "main",
+            "name": f"{p.get('display_name') or p.get('name') or 'Facility'} (Main Facility)",
+            "address": street_address or full_address,
+            "city": city_str,
+            "phone": o_info.get("emergency_phone") or u_info.get("mobile") or "",
+            "operating_hours": o_info.get("operating_hours") or "",
+            "is_main_branch": True,
+        }
+        all_b = [main_b] + [cb for cb in custom_b if cb.get("name") != main_b["name"]]
+
         orgs.append({
             "id": uid,
             "user_id": uid,
             "organization_id": internal_org_id,
-            "name": p["display_name"],
-            "organization_name": p["display_name"],
-            "type": p["subtype"],
-            "organization_type": p["subtype"],
+            "name": p.get("display_name") or p.get("name") or "Facility",
+            "organization_name": p.get("display_name") or p.get("name") or "Facility",
+            "type": p.get("subtype") or "clinic",
+            "organization_type": p.get("subtype") or "clinic",
             "city": city_str,
             "state": state_str,
             "district": p.get("district", ""),
@@ -2971,6 +3236,8 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
             "establishment_year": o_info.get("establishment_year"),
             "verification_status": p["verification_status"],
             "min_price": p.get("min_price"),
+            "branches": all_b,
+            "branch_count": len(all_b),
             "linked_doctors": linked_docs,
             "doctors_count": len(linked_docs),
         })
@@ -3043,7 +3310,7 @@ async def update_org_doctor_schedule(
 
     # 4. Replace facility-specific in_person doctor_availability records
     try:
-        supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).eq("facility_id", org_id).eq("consultation_mode", "in_person").execute()
+        supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).or_(f"organization_id.eq.{org_id},location_name.ilike.%{org_rows[0].get('name', 'Clinic')}%").eq("consultation_mode", "in_person").execute()
     except Exception as de:
         logger.warning(f"Failed deleting prior facility doctor_availability: {de}")
 
@@ -3061,6 +3328,20 @@ async def update_org_doctor_schedule(
 
         slot_dur = shift.slot_duration_minutes or payload.slot_duration_minutes or 10
 
+        # Resolve branch info if shift specifies a branch_id
+        shift_branch_id = shift.branch_id if shift.branch_id and shift.branch_id not in ("main", "undefined", "null") else None
+        shift_location_name = shift.branch_name or org_rows[0].get("name") or "Main Facility"
+        shift_location_address = ""
+
+        if shift_branch_id:
+            try:
+                b_match = supabase.table("provider_branches").select("name, address").eq("id", shift_branch_id).limit(1).execute()
+                if b_match.data:
+                    shift_location_name = b_match.data[0].get("name") or shift_location_name
+                    shift_location_address = b_match.data[0].get("address") or ""
+            except Exception as be:
+                logger.warning(f"Could not load branch address: {be}")
+
         for day in days:
             new_records.append({
                 "id": str(uuid.uuid4()),
@@ -3071,7 +3352,10 @@ async def update_org_doctor_schedule(
                 "slot_duration_minutes": slot_dur,
                 "max_patients_per_slot": 1,
                 "consultation_mode": "in_person",
-                "facility_id": org_id,
+                "organization_id": org_id,
+                "template_group_id": shift_branch_id,
+                "location_name": shift_location_name,
+                "location_address": shift_location_address,
                 "is_active": True,
             })
 

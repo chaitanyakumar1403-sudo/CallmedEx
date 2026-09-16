@@ -70,7 +70,7 @@ async def test_org_update_doctor_schedule_success(fake_db):
         assert row["slot_duration_minutes"] == 10
         assert row["start_time"] == "09:30"
         assert row["end_time"] == "12:30"
-        assert row["facility_id"] == ORG_ID
+        assert row["organization_id"] == ORG_ID
         assert row["consultation_mode"] == "in_person"
 
 @pytest.mark.asyncio

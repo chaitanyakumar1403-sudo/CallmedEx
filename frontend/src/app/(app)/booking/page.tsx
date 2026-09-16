@@ -130,6 +130,7 @@ function BookingPageContent() {
   const searchParams = useSearchParams();
   const typeParam = searchParams.get("type");
   const orgParam = searchParams.get("org");
+  const branchParam = searchParams.get("branch");
   const serviceParam = searchParams.get("service");
   const packageParam = searchParams.get("package");
   const priceParam = searchParams.get("price");
@@ -151,7 +152,7 @@ function BookingPageContent() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [nursingService, setNursingService] = useState<string>("");
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
-  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState<any>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [selectedTest, setSelectedTest] = useState<any>(null);
   const [selectedTests, setSelectedTests] = useState<any[]>([]); // Multi-select for diagnostics
@@ -506,21 +507,32 @@ function BookingPageContent() {
             const docs = data.data.doctors || [];
             const tms = data.data.timings || [];
 
-            setSelectedOrg((prev: any) => ({
-              ...prev,
-              ...orgInfo,
-              fetchedDetails: true,
-              name: orgInfo.name || prev?.organization_name || prev?.name || "Selected Facility",
-              address: orgInfo.address || prev?.address || "",
-              city: orgInfo.city || prev?.city || "",
-              state: orgInfo.state || prev?.state || "",
-              pincode: orgInfo.pincode || prev?.pincode || "",
-              operating_hours: orgInfo.operating_hours || prev?.operating_hours || "",
-              tests: svcs.length > 0 ? svcs : DEFAULT_DIAGNOSTIC_TESTS,
-              packages: pkgs.length > 0 ? pkgs : DEFAULT_DIAGNOSTIC_PACKAGES,
-              doctors: docs,
-              timings: tms,
-            }));
+            setSelectedOrg((prev: any) => {
+              const brs = data.data.branches || orgInfo.branches || prev?.branches || [];
+              if (branchParam && brs.length > 0) {
+                const matched = brs.find((b: any) => (b.id === branchParam || b.branch_id === branchParam));
+                if (matched) setSelectedBranch(matched);
+                else setSelectedBranch(brs[0]);
+              } else if (brs.length > 0 && !selectedBranch) {
+                setSelectedBranch(brs[0]);
+              }
+              return {
+                ...prev,
+                ...orgInfo,
+                fetchedDetails: true,
+                name: orgInfo.name || prev?.organization_name || prev?.name || "Selected Facility",
+                address: orgInfo.address || prev?.address || "",
+                city: orgInfo.city || prev?.city || "",
+                state: orgInfo.state || prev?.state || "",
+                pincode: orgInfo.pincode || prev?.pincode || "",
+                operating_hours: orgInfo.operating_hours || prev?.operating_hours || "",
+                tests: svcs.length > 0 ? svcs : DEFAULT_DIAGNOSTIC_TESTS,
+                packages: pkgs.length > 0 ? pkgs : DEFAULT_DIAGNOSTIC_PACKAGES,
+                doctors: docs,
+                timings: tms,
+                branches: brs,
+              };
+            });
           } else {
             setSelectedOrg((prev: any) => ({
               ...prev,
@@ -543,7 +555,7 @@ function BookingPageContent() {
           }));
         });
     }
-  }, [selectedOrg]);
+  }, [selectedOrg, branchParam]);
 
   // Fetch the marketplace catalog for lab-with-org: services and packages
   // from the public provider catalog endpoint (keyed by provider_user_id).
@@ -573,7 +585,9 @@ function BookingPageContent() {
       return;
     }
     const mode = (bookingType === "home_doctor" || typeParam === "home_doctor") ? "home_visit" : "in_person";
-    fetch(`/api/providers/slots?provider_id=${encodeURIComponent(docId)}&target_date=${encodeURIComponent(selectedDate)}&mode=${mode}`)
+    const bId = selectedBranch?.id || (typeof selectedBranch === "string" ? selectedBranch : "") || branchParam || "";
+    const branchQuery = (bId && bId !== "main" && bId !== "undefined") ? `&branch_id=${encodeURIComponent(bId)}` : "";
+    fetch(`/api/providers/slots?provider_id=${encodeURIComponent(docId)}&target_date=${encodeURIComponent(selectedDate)}&mode=${mode}${branchQuery}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && Array.isArray(data.slots) && data.slots.length > 0) {
@@ -593,7 +607,7 @@ function BookingPageContent() {
         console.error("[SLOTS FETCH ERROR]", err);
         setDoctorRealSlots(null);
       });
-  }, [doctorParam, typeParam, selectedDoctor, selectedDate, bookingType]);
+  }, [doctorParam, typeParam, selectedDoctor, selectedDate, bookingType, selectedBranch, branchParam]);
 
   // Fetch family members when we reach the "Who is this for?" step
   useEffect(() => {
@@ -735,8 +749,9 @@ function BookingPageContent() {
 
       const slotKey = `${providerId}|${selectedDate}|${selectedSlot}`;
 
-      // Build notes with facility, doctor, and test details
-      const facilityNotes = selectedOrg ? `Facility: ${selectedOrg.name}${selectedOrg.address ? ` (${selectedOrg.address})` : (selectedOrg.city ? ` (${selectedOrg.city})` : "")} | ` : "";
+      // Build notes with facility, branch, doctor, and test details
+      const branchSuffix = selectedBranch?.name ? ` [Branch: ${selectedBranch.name}${selectedBranch.address ? `, ${selectedBranch.address}` : ""}]` : "";
+      const facilityNotes = selectedOrg ? `Facility: ${selectedOrg.name}${branchSuffix}${selectedOrg.address ? ` (${selectedOrg.address})` : (selectedOrg.city ? ` (${selectedOrg.city})` : "")} | ` : "";
       const testNotes =
         selectedTests.length > 0
           ? `Tests: ${selectedTests.map((t) => t.name).join(", ")} | Total: ₹${multiTestTotal}`
@@ -761,6 +776,9 @@ function BookingPageContent() {
           service_type: serviceType,
           slot_id: slotKey,
           facility_id: selectedOrg?.id || undefined,
+          branch_id: (selectedBranch?.id && selectedBranch.id !== "main" && selectedBranch.id !== "undefined") ? selectedBranch.id : undefined,
+          branch_name: selectedBranch?.name || undefined,
+          branch_address: selectedBranch?.address || undefined,
           consultation_mode: bookingType === "home_doctor" ? "home_visit" : (bookingType === "video_consult" ? "video" : "in_person"),
           notes: bookingNotes,
           selected_tests: selectedTests.length > 0 ? selectedTests.map((t) => t.name) : undefined,
@@ -1303,11 +1321,64 @@ function BookingPageContent() {
             <div style={{ marginBottom: 16 }}>
               <h3 style={{ fontSize: "1.05rem", margin: 0, color: "#1a2b4a" }}>
                 Select Doctor at {selectedOrg.organization_name || selectedOrg.name || "Facility"}
+                {selectedBranch?.name && (
+                  <span style={{ marginLeft: 8, fontSize: "0.82rem", background: "rgba(2, 132, 199, 0.12)", color: "#0284c7", padding: "2px 10px", borderRadius: 12, fontWeight: 700 }}>
+                    {selectedBranch.name}
+                  </span>
+                )}
               </h3>
               <p style={{ fontSize: "0.82rem", color: "#64748b", margin: "4px 0 0 0", display: "flex", alignItems: "center", gap: 4 }}>
-                <MapPin size={13} /> {[selectedOrg.address, selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
+                <MapPin size={13} color="#0284c7" /> {[selectedBranch?.address || selectedOrg.address, selectedBranch?.city || selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
+                {selectedBranch?.phone && <span style={{ marginLeft: 6, color: "#0284c7" }}>• 📞 {selectedBranch.phone}</span>}
               </p>
             </div>
+
+            {/* Branch Selector Pill Bar if multi-branch */}
+            {selectedOrg.branches && selectedOrg.branches.length > 1 && (
+              <div style={{
+                background: "rgba(2, 132, 199, 0.05)",
+                border: "1px solid rgba(2, 132, 199, 0.18)",
+                borderRadius: 12,
+                padding: "12px 16px",
+                marginBottom: 16,
+              }}>
+                <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#0369a1", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
+                  <MapPin size={13} /> Select Branch Location / OP Facility:
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {selectedOrg.branches.map((b: any) => {
+                    const isBSelected = selectedBranch?.id === b.id || selectedBranch?.branch_id === b.id;
+                    return (
+                      <button
+                        key={b.id || b.branch_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBranch(b);
+                          setSelectedSlot("");
+                        }}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: 20,
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          border: isBSelected ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+                          background: isBSelected ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "#ffffff",
+                          color: isBSelected ? "#ffffff" : "#334155",
+                          boxShadow: isBSelected ? "0 2px 8px rgba(2, 132, 199, 0.25)" : "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <MapPin size={12} /> {b.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* General OPD Option */}
             <div
@@ -2060,6 +2131,87 @@ function BookingPageContent() {
             <h3 style={{ fontSize: "1.05rem", marginBottom: 16, color: "#1a2b4a" }}>
               Select Preferred Date & Time Slot
             </h3>
+
+            {/* Facility & Branch Practice Location Banner */}
+            {selectedOrg && (
+              <div style={{
+                background: "linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(10, 25, 47, 0.03) 100%)",
+                border: "1px solid rgba(2, 132, 199, 0.2)",
+                borderRadius: 14,
+                padding: "14px 18px",
+                marginBottom: 20,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0284c7", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Healthcare Facility &amp; Practice Location
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#0a192f", display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                      <Building2 size={16} color="#0284c7" /> {selectedOrg.organization_name || selectedOrg.name}
+                      {selectedBranch?.name && (
+                        <span style={{ fontSize: "0.82rem", background: "rgba(2, 132, 199, 0.15)", color: "#0369a1", padding: "2px 10px", borderRadius: 20, fontWeight: 700 }}>
+                          {selectedBranch.name}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#475569", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                      <MapPin size={13} color="#0284c7" />
+                      {[selectedBranch?.address || selectedOrg.address, selectedBranch?.city || selectedOrg.city, selectedOrg.district].filter(Boolean).join(", ")}
+                      {selectedBranch?.phone && <span style={{ marginLeft: 4, color: "#0284c7" }}>• 📞 {selectedBranch.phone}</span>}
+                    </div>
+                  </div>
+                  {selectedDoctor && (
+                    <div style={{ background: "#ffffff", padding: "8px 14px", borderRadius: 10, border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>Practicing Doctor</div>
+                      <div style={{ fontWeight: 700, fontSize: "0.92rem", color: "#0a192f" }}>Dr. {selectedDoctor.name?.replace(/^Dr\.\s*/i, "")}</div>
+                      <div style={{ fontSize: "0.76rem", color: "#059669", fontWeight: 600 }}>{selectedDoctor.specialization || "OP Specialist"}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Branch Switcher Pill Bar if Org has multiple branches */}
+                {selectedOrg.branches && selectedOrg.branches.length > 1 && (
+                  <div style={{ borderTop: "1px dashed rgba(2, 132, 199, 0.2)", paddingTop: 10, marginTop: 10 }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#334155", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+                      <span>Switch Facility Branch:</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+                      {selectedOrg.branches.map((b: any) => {
+                        const isBSelected = selectedBranch?.id === b.id || selectedBranch?.branch_id === b.id;
+                        return (
+                          <button
+                            key={b.id || b.branch_id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBranch(b);
+                              setSelectedSlot("");
+                            }}
+                            style={{
+                              padding: "5px 12px",
+                              borderRadius: 20,
+                              fontSize: "0.76rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              border: isBSelected ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+                              background: isBSelected ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" : "#ffffff",
+                              color: isBSelected ? "#ffffff" : "#334155",
+                              boxShadow: isBSelected ? "0 2px 8px rgba(2, 132, 199, 0.25)" : "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              whiteSpace: "nowrap",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <MapPin size={12} /> {b.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Date picker */}
             <div style={{ display: "flex", gap: 10, marginBottom: 24, overflowX: "auto", paddingBottom: 6 }}>

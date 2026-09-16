@@ -32,6 +32,11 @@ import {
   Sparkles,
   Activity,
   Apple,
+  Clock,
+  Phone,
+  ExternalLink,
+  ArrowRight,
+  X,
 } from 'lucide-react';
 
 type ConsultMode = 'teleconsultation' | 'walkin' | 'home' | 'dental' | 'physiotherapy' | 'dietitian';
@@ -64,7 +69,27 @@ interface Doctor {
   profile_photo_url?: string;
 }
 
-interface LinkedDoctor {
+export interface OrgBranch {
+  id: string;
+  branch_id?: string;
+  name: string;
+  address?: string;
+  city: string;
+  phone?: string;
+  is_main_branch?: boolean;
+  operating_hours?: string;
+}
+
+export interface LinkedDoctorShift {
+  branch_id?: string;
+  branch_name?: string;
+  day_of_week?: number;
+  start_time?: string;
+  end_time?: string;
+  slot_duration_minutes?: number;
+}
+
+export interface LinkedDoctor {
   doctor_id: string;
   doctor_user_id: string;
   name: string;
@@ -72,9 +97,11 @@ interface LinkedDoctor {
   qualification?: string;
   experience_years?: number;
   consultation_fee?: number;
+  assigned_branches?: string[];
+  branch_shifts?: LinkedDoctorShift[];
 }
 
-interface OrgCard {
+export interface OrgCard {
   id: string;
   name: string;
   organization_type: string;
@@ -91,6 +118,8 @@ interface OrgCard {
   min_price?: number | null;
   home_service_enabled?: boolean;
   linked_doctors?: LinkedDoctor[];
+  branches?: OrgBranch[];
+  branch_count?: number;
 }
 
 const SPECIALIZATIONS = [
@@ -301,6 +330,8 @@ function ConsultationContent() {
   const [locState, setLocState] = useState('');
   const [district, setDistrict] = useState('');
   const [locationDetected, setLocationDetected] = useState(false);
+  const [branchModalOrg, setBranchModalOrg] = useState<OrgCard | null>(null);
+  const [selectedBranchDoctor, setSelectedBranchDoctor] = useState<LinkedDoctor | null>(null);
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -397,6 +428,8 @@ function ConsultationContent() {
             operating_hours: o.operating_hours || '',
             head_of_institution: o.head_of_institution || '',
             min_price: o.min_price,
+            branches: o.branches || [],
+            branch_count: o.branch_count || (o.branches ? o.branches.length : 1),
             linked_doctors: o.linked_doctors || [],
           }));
         const docs = [...seen.values()];
@@ -545,12 +578,17 @@ function ConsultationContent() {
 
   const handleOrgBooking = (org: OrgCard, doctor?: LinkedDoctor) => {
     if (!requireAuth()) return;
+    if (org.branches && org.branches.length > 1) {
+      setSelectedBranchDoctor(doctor || null);
+      setBranchModalOrg(org);
+      return;
+    }
     if (doctor) {
       const docId = doctor.doctor_user_id || doctor.doctor_id;
       const fee = doctor.consultation_fee || 500;
-      router.push(`/booking?type=doctor&org=${org.id}&doctor=${docId}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}`);
+      router.push(`/booking?type=doctor&org=${org.id}&doctor=${docId}&name=${encodeURIComponent(doctor.name)}&spec=${encodeURIComponent(doctor.specialization)}&fee=${fee}&mode=walkin`);
     } else {
-      router.push(`/booking?type=doctor&org=${org.id}`);
+      router.push(`/booking?type=doctor&org=${org.id}&mode=walkin`);
     }
   };
 
@@ -1367,9 +1405,36 @@ function ConsultationContent() {
                           <h4 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: 800, color: 'var(--cm-navy, #0f172a)', marginBottom: 3 }}>
                             {org.name}
                           </h4>
-                          <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)', fontWeight: 500 }}>
-                            {ORG_TYPE_LABEL[org.organization_type] || org.organization_type}
+                          <div style={{ fontSize: '0.82rem', color: 'var(--color-gray-500)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span>{ORG_TYPE_LABEL[org.organization_type] || org.organization_type}</span>
                             {consultMode === 'home' && org.home_service_enabled ? ' · Doorstep visit' : ''}
+                            {org.branches && org.branches.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBranchDoctor(null);
+                                  setBranchModalOrg(org);
+                                }}
+                                style={{
+                                  background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(14, 165, 233, 0.06) 100%)',
+                                  border: '1px solid rgba(2, 132, 199, 0.3)',
+                                  borderRadius: 20,
+                                  padding: '2px 9px',
+                                  fontSize: '0.73rem',
+                                  fontWeight: 700,
+                                  color: '#0284c7',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <MapPin size={11} />
+                                <span>{org.branches.length} Physical Branches</span>
+                                <span style={{ fontSize: '0.68rem', color: '#0369a1', fontWeight: 800 }}>• Choose Branch →</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                         <span style={{
@@ -1527,7 +1592,7 @@ function ConsultationContent() {
                               color: '#ffffff',
                             }}
                           >
-                            {consultMode === 'home' ? 'Book Home Visit' : (org.linked_doctors && org.linked_doctors.length > 0 ? 'Visit Facility' : 'Book Visit')}
+                            {consultMode === 'home' ? 'Book Home Visit' : (org.branches && org.branches.length > 1 ? 'Choose Branch & Visit' : (org.linked_doctors && org.linked_doctors.length > 0 ? 'Visit Facility' : 'Book Visit'))}
                           </button>
                         </div>
                       </div>
@@ -1669,6 +1734,351 @@ function ConsultationContent() {
               </div>
             )}
           </>
+        )}
+
+        {/* Organization Multi-Branch Selection Modal */}
+        {branchModalOrg && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              backgroundColor: 'rgba(10, 25, 47, 0.78)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+            }}
+            onClick={() => {
+              setBranchModalOrg(null);
+              setSelectedBranchDoctor(null);
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: 22,
+                width: '100%',
+                maxWidth: 760,
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 25px 65px -15px rgba(2, 132, 199, 0.35), 0 0 0 1px rgba(2, 132, 199, 0.2)',
+                overflow: 'hidden',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0a192f 0%, #0c2340 50%, #0369a1 100%)',
+                  padding: '24px 28px',
+                  color: '#ffffff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  position: 'relative',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.5px',
+                        textTransform: 'uppercase',
+                        padding: '3px 10px',
+                        borderRadius: 20,
+                        background: 'rgba(0, 229, 255, 0.2)',
+                        color: '#00e5ff',
+                        border: '1px solid rgba(0, 229, 255, 0.4)',
+                      }}
+                    >
+                      🏥 Multi-Branch Outpatient Network
+                    </span>
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                      {branchModalOrg.branches?.length || 1} Physical Locations
+                    </span>
+                  </div>
+                  <h3
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '1.35rem',
+                      fontWeight: 800,
+                      margin: 0,
+                      color: '#ffffff',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    {branchModalOrg.name}
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: '#bae6fd', maxWidth: 580 }}>
+                    {selectedBranchDoctor
+                      ? `Select the clinic branch where you wish to consult with Dr. ${selectedBranchDoctor.name.replace(/^Dr\.?\s*/i, '')} for your in-person OP visit.`
+                      : 'Select your preferred facility branch to view practicing specialists, outpatient shifts, and book your visit.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBranchModalOrg(null);
+                    setSelectedBranchDoctor(null);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.12)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: 12,
+                    width: 36,
+                    height: 36,
+                    display: 'grid',
+                    placeItems: 'center',
+                    color: '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)')}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body: Branches List */}
+              <div
+                style={{
+                  padding: '24px 28px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  background: '#f8fafc',
+                }}
+              >
+                {(branchModalOrg.branches || []).map((branch) => {
+                  const bId = branch.id || branch.branch_id || 'main';
+                  const isMain = branch.is_main_branch || bId === 'main';
+
+                  // Doctors practicing at this branch
+                  const branchDocs = (branchModalOrg.linked_doctors || []).filter((ld) => {
+                    if (selectedBranchDoctor) {
+                      const docId = selectedBranchDoctor.doctor_user_id || selectedBranchDoctor.doctor_id;
+                      const curDocId = ld.doctor_user_id || ld.doctor_id;
+                      if (curDocId !== docId) return false;
+                    }
+                    if (!ld.assigned_branches || ld.assigned_branches.length === 0) return isMain;
+                    return ld.assigned_branches.includes(bId);
+                  });
+
+                  return (
+                    <div
+                      key={bId}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: 16,
+                        padding: '20px 22px',
+                        border: '1.5px solid rgba(2, 132, 199, 0.16)',
+                        boxShadow: '0 4px 15px -2px rgba(2, 132, 199, 0.06)',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 14,
+                      }}
+                    >
+                      {/* Branch Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <h4 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: '#0f172a' }}>
+                              {branch.name}
+                            </h4>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 800,
+                                padding: '2px 8px',
+                                borderRadius: 12,
+                                background: isMain ? 'rgba(2, 132, 199, 0.12)' : 'rgba(100, 116, 139, 0.1)',
+                                color: isMain ? '#0284c7' : '#475569',
+                                border: isMain ? '1px solid rgba(2, 132, 199, 0.25)' : '1px solid rgba(100, 116, 139, 0.2)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.3px',
+                              }}
+                            >
+                              {isMain ? '★ Primary Facility' : 'Branch Clinic'}
+                            </span>
+                          </div>
+
+                          <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div style={{ fontSize: '0.82rem', color: '#334155', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                              <MapPin size={14} style={{ color: '#0284c7', flexShrink: 0, marginTop: 2 }} />
+                              <span>{branch.address || branch.city}</span>
+                            </div>
+                            {branch.phone && (
+                              <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 20 }}>
+                                <Phone size={12} style={{ color: '#0284c7' }} />
+                                <span>{branch.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([branch.name, branch.address, branch.city].filter(Boolean).join(', '))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: '0.76rem',
+                            fontWeight: 600,
+                            color: '#0284c7',
+                            textDecoration: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '4px 10px',
+                            borderRadius: 8,
+                            background: '#f0f9ff',
+                            border: '1px solid #bae6fd',
+                          }}
+                        >
+                          <ExternalLink size={12} /> Map Location
+                        </a>
+                      </div>
+
+                      {/* Specialists & Shifts at this branch */}
+                      <div
+                        style={{
+                          background: 'rgba(240, 249, 255, 0.65)',
+                          borderRadius: 12,
+                          padding: '12px 14px',
+                          border: '1px solid rgba(2, 132, 199, 0.12)',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            color: '#0369a1',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.4px',
+                            marginBottom: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <span>🩺 Practicing Specialists at this Branch ({branchDocs.length})</span>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0284c7' }}>OP Shifts Synced</span>
+                        </div>
+
+                        {branchDocs.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {branchDocs.map((bd) => {
+                              const docShifts = (bd.branch_shifts || []).filter((s) => s.branch_id === bId);
+                              const shiftSummary = docShifts.length > 0
+                                ? docShifts.map((s) => `${s.start_time || '09:30'} - ${s.end_time || '12:30'}`).join(' · ')
+                                : 'Regular Walk-in OP Hours';
+
+                              return (
+                                <div
+                                  key={bd.doctor_id || bd.doctor_user_id}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    background: '#ffffff',
+                                    padding: '8px 12px',
+                                    borderRadius: 10,
+                                    border: '1px solid rgba(2, 132, 199, 0.1)',
+                                    flexWrap: 'wrap',
+                                    gap: 8,
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#0f172a' }}>
+                                      Dr. {bd.name.replace(/^Dr\.?\s*/i, '')}
+                                    </div>
+                                    <div style={{ fontSize: '0.72rem', color: '#475569' }}>
+                                      {bd.specialization} • Fee: ₹{bd.consultation_fee || 500}
+                                    </div>
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      padding: '3px 8px',
+                                      borderRadius: 6,
+                                      background: '#f0fdf4',
+                                      color: '#15803d',
+                                      border: '1px solid #bbf7d0',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <Clock size={11} /> {shiftSummary}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.76rem', color: '#64748b', fontStyle: 'italic' }}>
+                            Consulting doctors rotate across branches. Walk-in appointments accepted during regular clinic hours.
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CTA Button */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const docId = selectedBranchDoctor
+                              ? (selectedBranchDoctor.doctor_user_id || selectedBranchDoctor.doctor_id)
+                              : (branchDocs[0]?.doctor_user_id || branchDocs[0]?.doctor_id);
+                            const docFee = selectedBranchDoctor?.consultation_fee || branchDocs[0]?.consultation_fee || 500;
+                            const docName = selectedBranchDoctor?.name || branchDocs[0]?.name;
+                            const docSpec = selectedBranchDoctor?.specialization || branchDocs[0]?.specialization;
+
+                            setBranchModalOrg(null);
+                            setSelectedBranchDoctor(null);
+
+                            let url = `/booking?type=doctor&org=${branchModalOrg.id}&branch=${bId}&mode=walkin`;
+                            if (docId) {
+                              url += `&doctor=${docId}&name=${encodeURIComponent(docName || 'Doctor')}&spec=${encodeURIComponent(docSpec || 'Specialist')}&fee=${docFee}`;
+                            }
+                            router.push(url);
+                          }}
+                          style={{
+                            padding: '9px 18px',
+                            fontSize: '0.84rem',
+                            fontWeight: 700,
+                            borderRadius: 10,
+                            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                            border: 'none',
+                            color: '#ffffff',
+                            boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <span>Select Branch &amp; Book OP Visit</span>
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Doctor Professional Presentation Modal */}

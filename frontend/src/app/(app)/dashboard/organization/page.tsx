@@ -30,6 +30,9 @@ import {
   FileText,
   Edit3,
   Download,
+  MapPin,
+  Trash2,
+  Phone,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { DIAGNOSTIC_CENTER_SCOPE_ITEMS, DIAGNOSTIC_SCOPE_CATEGORIES } from "@/data/diagnosticCenterScope";
@@ -101,12 +104,22 @@ export default function OrganizationDashboard() {
   const [scheduleModalDoctor, setScheduleModalDoctor] = useState<any | null>(null);
   const [scheduleFee, setScheduleFee] = useState<number>(500);
   const [scheduleSlotDuration, setScheduleSlotDuration] = useState<number>(10);
-  const [scheduleShifts, setScheduleShifts] = useState<Array<{ start_time: string; end_time: string; days_of_week: number[] }>>([
-    { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
-    { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+  const [scheduleShifts, setScheduleShifts] = useState<Array<{ start_time: string; end_time: string; days_of_week: number[]; branch_id?: string; branch_name?: string }>>([
+    { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
+    { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
   ]);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleSuccessMsg, setScheduleSuccessMsg] = useState("");
+
+  // Physical Branches State
+  const [branches, setBranches] = useState<any[]>([]);
+  const [fetchingBranches, setFetchingBranches] = useState(false);
+  const [branchModalOpen, setBranchModalOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<any | null>(null);
+  const [branchForm, setBranchForm] = useState({ name: "", address: "", city: "", phone: "" });
+  const [savingBranch, setSavingBranch] = useState(false);
+  const [branchError, setBranchError] = useState("");
+  const [branchFilter, setBranchFilter] = useState<string>("all");
 
   // Organization Bookings Roster State
   const [orgBookings, setOrgBookings] = useState<any[]>([]);
@@ -218,6 +231,85 @@ export default function OrganizationDashboard() {
     }
   }, []);
 
+  const fetchBranches = useCallback(async () => {
+    setFetchingBranches(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/providers/org/branches`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.branches)) {
+        setBranches(data.branches);
+      } else {
+        setBranches([]);
+      }
+    } catch (e) {
+      console.error("Failed to fetch branches:", e);
+      setBranches([]);
+    } finally {
+      setFetchingBranches(false);
+    }
+  }, []);
+
+  const handleSaveBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branchForm.name.trim() || !branchForm.address.trim()) {
+      setBranchError("Branch name and physical address are required.");
+      return;
+    }
+    setSavingBranch(true);
+    setBranchError("");
+    try {
+      const token = getToken();
+      const url = editingBranch
+        ? `${apiBase}/api/providers/org/branches/${editingBranch.id}`
+        : `${apiBase}/api/providers/org/branches`;
+      const method = editingBranch ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(branchForm),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setBranchError(data.detail || "Failed to save branch.");
+      } else {
+        setBranchModalOpen(false);
+        setEditingBranch(null);
+        setBranchForm({ name: "", address: "", city: "", phone: "" });
+        fetchBranches();
+      }
+    } catch (err: any) {
+      setBranchError(err.message || "Network error while saving branch.");
+    } finally {
+      setSavingBranch(false);
+    }
+  };
+
+  const handleDeleteBranch = async (branchId: string) => {
+    if (!confirm("Are you sure you want to remove this branch?")) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${apiBase}/api/providers/org/branches/${branchId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchBranches();
+      } else {
+        alert(data.detail || "Failed to delete branch.");
+      }
+    } catch (err) {
+      console.error("Failed to delete branch:", err);
+    }
+  };
+
   const handleOpenDoctorScheduleModal = (doc: any) => {
     setScheduleModalDoctor(doc);
     setScheduleFee(doc.consultation_fee || 500);
@@ -225,25 +317,27 @@ export default function OrganizationDashboard() {
     if (avail.length > 0) {
       const firstDur = avail[0].slot_duration_minutes || 10;
       setScheduleSlotDuration(firstDur);
-      const grouped: Record<string, number[]> = {};
+      const grouped: Record<string, { days: number[]; branch_id: string; branch_name: string }> = {};
       avail.forEach((a: any) => {
-        const key = `${a.start_time || "09:30"}_${a.end_time || "12:30"}`;
-        if (!grouped[key]) grouped[key] = [];
-        if (!grouped[key].includes(a.day_of_week)) grouped[key].push(a.day_of_week);
+        const bId = a.template_group_id || a.branch_id || "main";
+        const bName = a.location_name || a.branch_name || (bId === "main" ? "Main Facility" : "");
+        const key = `${a.start_time || "09:30"}_${a.end_time || "12:30"}_${bId}`;
+        if (!grouped[key]) grouped[key] = { days: [], branch_id: bId, branch_name: bName };
+        if (!grouped[key].days.includes(a.day_of_week)) grouped[key].days.push(a.day_of_week);
       });
-      const parsedShifts = Object.entries(grouped).map(([key, days]) => {
+      const parsedShifts = Object.entries(grouped).map(([key, item]) => {
         const [st, et] = key.split("_");
-        return { start_time: st, end_time: et, days_of_week: days.sort() };
+        return { start_time: st, end_time: et, days_of_week: item.days.sort(), branch_id: item.branch_id, branch_name: item.branch_name };
       });
       setScheduleShifts(parsedShifts.length > 0 ? parsedShifts : [
-        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
-        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
+        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
       ]);
     } else {
       setScheduleSlotDuration(10);
       setScheduleShifts([
-        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6] },
-        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6] },
+        { start_time: "09:30", end_time: "12:30", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
+        { start_time: "17:00", end_time: "20:00", days_of_week: [1, 2, 3, 4, 5, 6], branch_id: "main", branch_name: "Main Facility" },
       ]);
     }
     setScheduleSuccessMsg("");
@@ -321,6 +415,7 @@ export default function OrganizationDashboard() {
 
   useEffect(() => {
     fetchProfile();
+    fetchBranches();
     fetchDoctors();
     fetchServices();
     fetchPackages();
@@ -328,7 +423,7 @@ export default function OrganizationDashboard() {
     fetchStats();
     fetchPendingBookings();
     fetchOrgBookings();
-  }, [fetchProfile, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats, fetchPendingBookings, fetchOrgBookings]);
+  }, [fetchProfile, fetchBranches, fetchDoctors, fetchServices, fetchPackages, fetchTimings, fetchStats, fetchPendingBookings, fetchOrgBookings]);
 
   // ─── Verification Handler ──────────────────────────────────────────────
 
@@ -623,16 +718,17 @@ export default function OrganizationDashboard() {
   // clinic has neither packages nor a sample workflow. Each type therefore gets
   // its own tab set and its own vocabulary.
   const TAB_MATRIX: Record<string, string[]> = {
-    diagnostic_center: ["overview", "intake", "collectors", "pending", "services", "timings", "bookings", "profile"],
-    hospital:          ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
-    polyclinic:        ["overview", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
-    clinic:            ["overview", "pending", "doctors", "services", "timings", "bookings", "profile"],
+    diagnostic_center: ["overview", "intake", "collectors", "branches", "pending", "services", "timings", "bookings", "profile"],
+    hospital:          ["overview", "branches", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
+    polyclinic:        ["overview", "branches", "pending", "doctors", "services", "packages", "timings", "bookings", "profile"],
+    clinic:            ["overview", "branches", "pending", "doctors", "services", "timings", "bookings", "profile"],
   };
 
   const servicesLabel = isDiagnosticCentre ? "Tests & Pricing" : "Services & Fees";
 
   const allTabs = [
     { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "branches", label: `Branches (${branches.length})`, icon: Building2 },
     { id: "intake", label: "Sample Intake", icon: Inbox },
     { id: "collectors", label: "Phlebotomy Team", icon: Users2 },
     { id: "pending", label: `Pending Review${pendingBookings.length > 0 ? ` (${pendingBookings.length})` : ""}`, icon: Bell },
@@ -1204,6 +1300,360 @@ export default function OrganizationDashboard() {
         )}
 
 
+        {/* ═══ BRANCHES TAB ═══ */}
+        {currentTab === "branches" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Header / Intro Card */}
+            <div style={{
+              background: "linear-gradient(135deg, rgba(10, 25, 47, 0.95) 0%, rgba(2, 132, 199, 0.85) 100%)",
+              borderRadius: 16,
+              padding: "24px 28px",
+              color: "#ffffff",
+              boxShadow: "0 10px 30px -10px rgba(2, 132, 199, 0.4)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+            }}>
+              <div style={{ maxWidth: 650 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)", padding: "4px 12px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700, marginBottom: 8, backdropFilter: "blur(6px)" }}>
+                  <Building2 size={13} color="#00e5ff" /> Multi-Branch Facility Operations
+                </div>
+                <h2 style={{ fontSize: "1.35rem", fontWeight: 800, margin: "0 0 6px 0", letterSpacing: "-0.5px" }}>
+                  Physical Clinic &amp; Diagnostic Branches
+                </h2>
+                <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: 0, lineHeight: 1.5 }}>
+                  Manage multiple physical branch outposts for your healthcare institution. Specialists can be scheduled to practice in morning shifts at one branch and evening shifts at another, with patient slot booking strictly filtered by branch.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingBranch(null);
+                  setBranchForm({ name: "", address: "", city: profile?.city || "", phone: profile?.phone || "" });
+                  setBranchError("");
+                  setBranchModalOpen(true);
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  background: "linear-gradient(135deg, #00e5ff 0%, #0284c7 100%)",
+                  color: "#0a192f",
+                  fontWeight: 800,
+                  fontSize: "0.88rem",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  boxShadow: "0 4px 15px rgba(0, 229, 255, 0.3)",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <Plus size={16} /> Add New Branch
+              </button>
+            </div>
+
+            {/* Branches List */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
+              {/* Primary Facility Card (Main Branch) */}
+              <div style={{
+                background: "#ffffff",
+                borderRadius: 14,
+                border: "2px solid #0284c7",
+                padding: "20px",
+                boxShadow: "0 4px 12px rgba(2, 132, 199, 0.08)",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+              }}>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <span style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 800,
+                      background: "rgba(2, 132, 199, 0.12)",
+                      color: "#0284c7",
+                      padding: "3px 10px",
+                      borderRadius: 12,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}>
+                      Primary Location (HQ)
+                    </span>
+                    <span style={{ fontSize: "0.74rem", color: "#16a34a", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <CheckCircle2 size={13} /> Active
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0a192f", margin: "0 0 6px 0" }}>
+                    {profile?.organization_name || profile?.full_name || "Main Facility"}
+                  </h3>
+                  <div style={{ fontSize: "0.82rem", color: "#475569", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                      <MapPin size={14} color="#0284c7" style={{ marginTop: 2, flexShrink: 0 }} />
+                      <span>{profile?.address || "Registered Primary Address"}, {profile?.city || ""}{profile?.pincode ? ` - ${profile.pincode}` : ""}</span>
+                    </div>
+                    {profile?.phone && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Phone size={13} color="#0284c7" style={{ flexShrink: 0 }} />
+                        <span>{profile.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px dashed #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.74rem", color: "#64748b" }}>
+                    Default headquarters facility
+                  </span>
+                  <span style={{ fontSize: "0.76rem", fontWeight: 700, color: "#0284c7" }}>
+                    Primary Center
+                  </span>
+                </div>
+              </div>
+
+              {/* Additional Registered Branches */}
+              {branches.map((b) => (
+                <div key={b.id} style={{
+                  background: "#ffffff",
+                  borderRadius: 14,
+                  border: "1px solid #e2e8f0",
+                  padding: "20px",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <span style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 800,
+                        background: "#f1f5f9",
+                        color: "#475569",
+                        padding: "3px 10px",
+                        borderRadius: 12,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}>
+                        Physical Branch
+                      </span>
+                      <span style={{ fontSize: "0.74rem", color: "#16a34a", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <CheckCircle2 size={13} /> {b.is_active !== false ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "#0a192f", margin: "0 0 6px 0" }}>
+                      {b.name}
+                    </h3>
+                    <div style={{ fontSize: "0.82rem", color: "#475569", lineHeight: 1.5, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                        <MapPin size={14} color="#0284c7" style={{ marginTop: 2, flexShrink: 0 }} />
+                        <span>{b.address}{b.city ? `, ${b.city}` : ""}</span>
+                      </div>
+                      {b.phone && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Phone size={13} color="#0284c7" style={{ flexShrink: 0 }} />
+                          <span>{b.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px dashed #e2e8f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingBranch(b);
+                        setBranchForm({ name: b.name || "", address: b.address || "", city: b.city || "", phone: b.phone || "" });
+                        setBranchError("");
+                        setBranchModalOpen(true);
+                      }}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #cbd5e1",
+                        background: "#f8fafc",
+                        color: "#0369a1",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Edit3 size={12} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBranch(b.id)}
+                      style={{
+                        padding: "5px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #fecaca",
+                        background: "#fff1f2",
+                        color: "#dc2626",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal for Add / Edit Branch */}
+            {branchModalOpen && (
+              <div style={{
+                position: "fixed",
+                inset: 0,
+                backgroundColor: "rgba(10, 25, 47, 0.7)",
+                backdropFilter: "blur(6px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: 16,
+              }}>
+                <div style={{
+                  background: "#ffffff",
+                  borderRadius: 16,
+                  maxWidth: 520,
+                  width: "100%",
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                  border: "1px solid #e2e8f0",
+                  overflow: "hidden",
+                }}>
+                  <div style={{
+                    background: "linear-gradient(135deg, #0a192f 0%, #0284c7 100%)",
+                    padding: "18px 24px",
+                    color: "white",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Building2 size={20} color="#00e5ff" />
+                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>
+                        {editingBranch ? "Edit Facility Branch" : "Add New Physical Branch"}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBranchModalOpen(false)}
+                      style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "1.3rem", opacity: 0.8 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveBranch} style={{ padding: "24px" }}>
+                    {branchError && (
+                      <div style={{ padding: "10px 14px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "0.82rem", marginBottom: 16, fontWeight: 600 }}>
+                        ⚠️ {branchError}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                        Branch / Outpost Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. MVP Colony Outpatient Clinic or Sector 4 Centre"
+                        value={branchForm.name}
+                        onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem", outline: "none" }}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                        Physical Street Address &amp; Landmark *
+                      </label>
+                      <textarea
+                        required
+                        rows={2}
+                        placeholder="e.g. Plot 42, Beach Road, Opp. Kali Temple, MVP Colony"
+                        value={branchForm.address}
+                        onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem", outline: "none", resize: "vertical" }}
+                      />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                          City / District
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Visakhapatnam"
+                          value={branchForm.city}
+                          onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem", outline: "none" }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                          Contact Phone
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="e.g. +91 891 2345678"
+                          value={branchForm.phone}
+                          onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: "0.88rem", outline: "none" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => setBranchModalOpen(false)}
+                        style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#475569", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingBranch}
+                        style={{
+                          padding: "9px 22px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                          color: "#ffffff",
+                          fontWeight: 800,
+                          cursor: savingBranch ? "not-allowed" : "pointer",
+                          fontSize: "0.85rem",
+                          boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                        }}
+                      >
+                        {savingBranch ? "Saving..." : (editingBranch ? "Update Branch" : "Register Branch")}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ═══ PROFILE TAB ═══ */}
         {currentTab === "profile" && (
           <DashboardProfile profile={profile} role="organization" />
@@ -1503,7 +1953,13 @@ export default function OrganizationDashboard() {
                       </label>
                       <button
                         type="button"
-                        onClick={() => setScheduleShifts([...scheduleShifts, { start_time: "09:00", end_time: "12:00", days_of_week: [1, 2, 3, 4, 5, 6] }])}
+                        onClick={() => setScheduleShifts([...scheduleShifts, {
+                          start_time: "14:00",
+                          end_time: "17:00",
+                          days_of_week: [1, 2, 3, 4, 5, 6],
+                          branch_id: branches.length > 0 ? branches[0].id : "main",
+                          branch_name: branches.length > 0 ? branches[0].name : "Main Facility",
+                        }])}
                         style={{
                           background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6,
                           padding: "4px 10px", fontSize: "0.76rem", fontWeight: 700, color: "#0284c7", cursor: "pointer"
@@ -1531,6 +1987,44 @@ export default function OrganizationDashboard() {
                                 Remove Shift
                               </button>
                             )}
+                          </div>
+
+                          {/* Branch Selection Dropdown for this Shift */}
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                              <Building2 size={13} color="#0284c7" />
+                              <span style={{ fontSize: "0.76rem", color: "#334155", fontWeight: 700 }}>
+                                Branch / Practice Location for this Shift:
+                              </span>
+                            </div>
+                            <select
+                              value={shift.branch_id || "main"}
+                              onChange={(e) => {
+                                const updated = [...scheduleShifts];
+                                const val = e.target.value;
+                                updated[sIdx].branch_id = val;
+                                const bObj = branches.find((b) => b.id === val);
+                                updated[sIdx].branch_name = bObj ? bObj.name : "Main Facility";
+                                setScheduleShifts(updated);
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: "6px 10px",
+                                borderRadius: 8,
+                                border: "1px solid #cbd5e1",
+                                fontSize: "0.82rem",
+                                color: "#0f172a",
+                                background: "#ffffff",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <option value="main">Main Facility ({profile?.organization_name || profile?.full_name || "Primary"})</option>
+                              {branches.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name} — {b.address || b.city || "Branch Location"}
+                                </option>
+                              ))}
+                            </select>
                           </div>
 
                           <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
@@ -2647,7 +3141,35 @@ export default function OrganizationDashboard() {
                 </p>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {/* Branch Filter Dropdown */}
+                {branches.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <select
+                      value={branchFilter}
+                      onChange={(e) => setBranchFilter(e.target.value)}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        background: "#ffffff",
+                        color: "#0369a1",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="all">📍 All Physical Branches</option>
+                      <option value="main">🏢 Main Facility Only</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          📍 {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Filter Pills */}
                 <div style={{ display: "flex", background: "#f1f5f9", padding: 3, borderRadius: 8, gap: 2 }}>
                   {[
@@ -2704,9 +3226,20 @@ export default function OrganizationDashboard() {
               const todayStr = new Date().toISOString().split("T")[0];
               const filtered = orgBookings.filter((b) => {
                 const bDate = b.preferred_date || b.slot_start?.split("T")[0] || "";
-                if (bookingFilter === "today") return bDate === todayStr;
-                if (bookingFilter === "upcoming") return bDate >= todayStr && b.status !== "completed" && b.status !== "cancelled";
-                if (bookingFilter === "completed") return b.status === "completed";
+                if (bookingFilter === "today" && bDate !== todayStr) return false;
+                if (bookingFilter === "upcoming" && !(bDate >= todayStr && b.status !== "completed" && b.status !== "cancelled")) return false;
+                if (bookingFilter === "completed" && b.status !== "completed") return false;
+
+                if (branchFilter !== "all") {
+                  const bNotes = (b.notes || "").toLowerCase();
+                  if (branchFilter === "main") {
+                    const isOtherBranch = branches.some((br) => bNotes.includes(`branch: ${br.name.toLowerCase()}`));
+                    if (isOtherBranch) return false;
+                  } else {
+                    const matchB = branches.find((br) => br.id === branchFilter);
+                    if (matchB && !bNotes.includes(`branch: ${matchB.name.toLowerCase()}`)) return false;
+                  }
+                }
                 return true;
               });
 
@@ -2777,6 +3310,28 @@ export default function OrganizationDashboard() {
                             <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
                               ID: {b.id.substring(0, 8)}
                             </span>
+                            {(() => {
+                              const match = (b.notes || "").match(/\[Branch:\s*([^\]]+)\]/i);
+                              if (match && match[1]) {
+                                return (
+                                  <span style={{
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 6,
+                                    backgroundColor: "#e0f2fe",
+                                    color: "#0369a1",
+                                    border: "1px solid #bae6fd",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}>
+                                    📍 {match[1]}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
 
                           <div style={{ fontWeight: 800, fontSize: "1.02rem", color: "#0f172a" }}>
