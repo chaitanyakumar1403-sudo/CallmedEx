@@ -9,8 +9,10 @@
  * colour budget for status.
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import { PageHeader, Tabs, Icon } from "@/components/ui";
+import { ShieldAlert, ChevronRight } from "@/components/ui/icons";
+import DeleteAccountModal from "@/app/components/DeleteAccountModal";
 import type { DashTab } from "@/components/ui";
 
 export type { DashTab };
@@ -41,6 +43,24 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setUserEmail(parsed.email || "");
+          setUserName(parsed.name || parsed.full_name || "");
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const onNavKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -133,6 +153,37 @@ export default function DashboardShell({
                 })}
               </nav>
 
+              {/* Account Security & Deletion Trigger */}
+              <div
+                className="cm-provider-nav-danger-zone"
+                style={{
+                  marginTop: 12,
+                  paddingTop: 10,
+                  borderTop: "1px solid rgba(239, 68, 68, 0.2)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="cm-provider-nav-item cm-provider-nav-item--danger"
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                  }}
+                  title="Permanently delete your CallMedex account"
+                >
+                  <div className="cm-provider-nav-item__left">
+                    <span className="cm-provider-nav-item__icon" style={{ color: "#ef4444" }}>
+                      <ShieldAlert size={16} />
+                    </span>
+                    <span className="cm-provider-nav-item__label" style={{ color: "#f87171" }}>
+                      Delete Account
+                    </span>
+                  </div>
+                  <ChevronRight size={13} style={{ color: "#f87171" }} />
+                </button>
+              </div>
+
               {/* Console Status Footer */}
               <div className="cm-provider-nav-footer">
                 <div className="cm-provider-nav-footer-status">
@@ -165,6 +216,16 @@ export default function DashboardShell({
         >
           {children}
         </div>
+      )}
+
+      {role !== "patient" && (
+        <DeleteAccountModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          userRole={role}
+          userEmail={userEmail}
+          userName={userName}
+        />
       )}
     </div>
   );
