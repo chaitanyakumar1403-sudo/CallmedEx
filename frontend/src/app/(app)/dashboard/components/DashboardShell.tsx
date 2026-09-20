@@ -154,33 +154,22 @@ export default function DashboardShell({
               </nav>
 
               {/* Account Security & Deletion Trigger */}
-              <div
-                className="cm-provider-nav-danger-zone"
-                style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: "1px solid rgba(239, 68, 68, 0.2)",
-                }}
-              >
+              <div className="cm-provider-nav-danger-zone">
                 <button
                   type="button"
                   onClick={() => setIsDeleteModalOpen(true)}
                   className="cm-provider-nav-item cm-provider-nav-item--danger"
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                  }}
                   title="Permanently delete your CallMedex account"
                 >
                   <div className="cm-provider-nav-item__left">
-                    <span className="cm-provider-nav-item__icon" style={{ color: "#ef4444" }}>
+                    <span className="cm-provider-nav-item__icon">
                       <ShieldAlert size={16} />
                     </span>
-                    <span className="cm-provider-nav-item__label" style={{ color: "#f87171" }}>
+                    <span className="cm-provider-nav-item__label">
                       Delete Account
                     </span>
                   </div>
-                  <ChevronRight size={13} style={{ color: "#f87171" }} />
+                  <ChevronRight size={13} className="cm-provider-nav-chevron" />
                 </button>
               </div>
 
