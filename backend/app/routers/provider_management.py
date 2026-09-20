@@ -1598,116 +1598,9 @@ async def org_remove_doctor(
         logger.error(f"Error removing doctor: {e}")
         raise HTTPException(500, "Failed to remove doctor")
 
-
-@router.post("/org/doctor/{doctor_user_id}/schedule")
-async def org_update_doctor_schedule(
-    doctor_user_id: str,
-    body: OrgDoctorScheduleUpdate,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Organization updates the walk-in OP shifts, consultation timings, slot duration,
-    and facility consultation fee for a linked doctor at this organization.
-    """
-    if current_user.get("role") not in ("organization", "admin"):
-        raise HTTPException(403, "Only organizations or admins can configure facility doctor schedules")
-    if not supabase:
-        raise HTTPException(500, "Database not configured")
-
-    try:
-        org_result = (
-            supabase.table("organizations")
-            .select("id, organization_name, user_id")
-            .eq("user_id", current_user["sub"])
-            .execute()
-        )
-        if not org_result.data:
-            raise HTTPException(404, "Organization not found")
-
-        org_id = org_result.data[0]["id"]
-        org_name = org_result.data[0].get("organization_name", "")
-
-        # Fetch org user record for physical address
-        org_user = (
-            supabase.table("users")
-            .select("address, city, state, pincode")
-            .eq("id", current_user["sub"])
-            .limit(1)
-            .execute()
-        )
-        org_address = ""
-        if org_user.data:
-            u_row = org_user.data[0]
-            org_address = ", ".join(filter(None, [u_row.get("address"), u_row.get("city"), u_row.get("state"), u_row.get("pincode")]))
-
-        # Verify doctor is linked to this organization
-        link_res = (
-            supabase.table("organization_doctors")
-            .select("id")
-            .eq("organization_id", org_id)
-            .eq("doctor_user_id", doctor_user_id)
-            .execute()
-        )
-        if not link_res.data:
-            raise HTTPException(404, "Doctor is not linked to this organization")
-
-        # Update fee / specialization in organization_doctors if provided
-        link_updates = {}
-        if body.consultation_fee is not None:
-            link_updates["consultation_fee"] = float(body.consultation_fee)
-        if body.specialization:
-            link_updates["specialization"] = body.specialization
-        if link_updates:
-            supabase.table("organization_doctors").update(link_updates).eq("id", link_res.data[0]["id"]).execute()
-
-        # Delete existing walk-in availability blocks for this doctor at this org
-        try:
-            supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).eq("organization_id", org_id).eq("consultation_mode", "in_person").execute()
-            if org_name:
-                supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).ilike("location_name", f"%{org_name}%").eq("consultation_mode", "in_person").execute()
-        except Exception as del_err:
-            logger.warning(f"Error cleaning old availability blocks: {del_err}")
-
-        # Insert new shift blocks
-        now_iso = datetime.now(timezone.utc).isoformat()
-        records = []
-        for s in body.shifts:
-            start_clean = str(s.start_time).strip()
-            end_clean = str(s.end_time).strip()
-            if len(start_clean) == 5:
-                start_clean += ":00"
-            if len(end_clean) == 5:
-                end_clean += ":00"
-            records.append({
-                "id": str(uuid.uuid4()),
-                "doctor_id": doctor_user_id,
-                "day_of_week": s.day_of_week,
-                "start_time": start_clean,
-                "end_time": end_clean,
-                "slot_duration_minutes": s.slot_duration_minutes,
-                "consultation_mode": "in_person",
-                "max_patients_per_slot": 1,
-                "is_active": True,
-                "organization_id": org_id,
-                "location_name": org_name,
-                "location_address": org_address,
-                "created_at": now_iso,
-                "updated_at": now_iso,
-            })
-
-        if records:
-            supabase.table("doctor_availability").insert(records).execute()
-
-        return {
-            "success": True,
-            "message": f"Successfully updated walk-in OP schedule ({len(records)} shift blocks active)",
-            "shifts_count": len(records),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating org doctor schedule: {e}")
-        raise HTTPException(500, f"Failed to update schedule: {str(e)}")
+# ─── Organization Doctor Schedule Configuration ────────────────────────────
+# Note: The canonical route handler update_org_doctor_schedule is registered at /org/doctor/{doctor_user_id}/schedule.
+# org_update_doctor_schedule is preserved as an unrouted compatibility alias below to avoid duplicate route collisions.
 
 
 # ─── Organization Services ────────────────────────────────────────────────
@@ -3378,5 +3271,9 @@ async def update_org_doctor_schedule(
             "slots_blocks_count": len(new_records),
         }
     )
+
+
+# Backward compatibility alias
+org_update_doctor_schedule = update_org_doctor_schedule
 
 
