@@ -61,3 +61,92 @@ async def test_request_otp_succeeds_when_no_active_bookings():
             assert otp_record["otp"].isdigit()
             mock_email.assert_called_once()
 
+
+@pytest.mark.asyncio
+async def test_verify_otp_invalid_code():
+    from app.routers.auth import verify_account_deletion, _deletion_otps, DeleteAccountVerifyRequest
+    from datetime import datetime, timezone, timedelta
+    from fastapi import HTTPException
+
+    user_id = "test-user-inv-otp"
+    _deletion_otps[user_id] = {
+        "otp": "654321",
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "attempts": 0,
+        "created_at": datetime.now(timezone.utc),
+        "email": "test@example.com",
+    }
+
+    user = {"sub": user_id, "email": "test@example.com", "role": "patient"}
+    payload = DeleteAccountVerifyRequest(otp="999999", reason="Leaving")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await verify_account_deletion(payload=payload, current_user=user)
+    assert exc_info.value.status_code == 400
+    assert "invalid" in exc_info.value.detail.lower()
+    assert _deletion_otps[user_id]["attempts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_verify_otp_locks_after_3_attempts():
+    from app.routers.auth import verify_account_deletion, _deletion_otps, DeleteAccountVerifyRequest
+    from datetime import datetime, timezone, timedelta
+    from fastapi import HTTPException
+
+    user_id = "test-user-lock-otp"
+    _deletion_otps[user_id] = {
+        "otp": "654321",
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "attempts": 2,
+        "created_at": datetime.now(timezone.utc),
+        "email": "test@example.com",
+    }
+
+    user = {"sub": user_id, "email": "test@example.com", "role": "patient"}
+    payload = DeleteAccountVerifyRequest(otp="000000", reason="Leaving")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await verify_account_deletion(payload=payload, current_user=user)
+    assert exc_info.value.status_code == 400
+    assert "maximum invalid attempts" in exc_info.value.detail.lower() or "revoked" in exc_info.value.detail.lower()
+    assert user_id not in _deletion_otps
+
+
+@pytest.mark.asyncio
+async def test_verify_otp_executes_cascade_deletion():
+    from app.routers.auth import verify_account_deletion, _deletion_otps, DeleteAccountVerifyRequest, _local_users
+    from datetime import datetime, timezone, timedelta
+
+    user_id = "cascade-del-user-id"
+    _deletion_otps[user_id] = {
+        "otp": "777888",
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=10),
+        "attempts": 0,
+        "created_at": datetime.now(timezone.utc),
+        "email": "cascade@example.com",
+    }
+    _local_users["cascade@example.com"] = {"id": user_id, "email": "cascade@example.com", "role": "doctor"}
+
+    user = {"sub": user_id, "email": "cascade@example.com", "role": "doctor"}
+    payload = DeleteAccountVerifyRequest(otp="777888", reason="Retiring")
+
+    with patch("app.routers.auth.supabase") as mock_sp:
+        # Mock table calls
+        mock_table = mock_sp.table.return_value
+        mock_table.delete.return_value.eq.return_value.execute.return_value = None
+        mock_table.delete.return_value.in_.return_value.execute.return_value = None
+        mock_table.select.return_value.or_.return_value.execute.return_value.data = []
+        mock_table.select.return_value.eq.return_value.execute.return_value.data = []
+
+        res = await verify_account_deletion(payload=payload, current_user=user)
+        assert res["success"] is True
+        assert "deleted" in res["message"].lower()
+
+        # Check that Supabase Auth admin was called
+        mock_sp.auth.admin.delete_user.assert_called_with(user_id)
+
+        # Check local memory user cleared
+        assert "cascade@example.com" not in _local_users
+        assert user_id not in _deletion_otps
+
+
