@@ -2057,3 +2057,188 @@ async def verify_biometric_login(req: BiometricVerifyRequest):
         },
     )
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# UNIVERSAL ACCOUNT DELETION — Production-Grade Self-Service Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+_deletion_otps: dict[str, dict] = {}
+
+
+def _check_active_clinical_records(user_id: str) -> list[str]:
+    """
+    Forensic safety check for active clinical bookings, dispatches, or pharmacy orders.
+    Prevents account deletion while active patient services or provider assignments exist.
+    """
+    active_issues = []
+    if not supabase:
+        return active_issues
+
+    # 1. Active bookings (as patient or assigned provider)
+    try:
+        active_booking_statuses = [
+            "pending", "searching", "provider_notified", "provider_accepted",
+            "confirmed", "checked_in", "in_progress"
+        ]
+        b_res = (
+            supabase.table("bookings")
+            .select("id, status, service_type")
+            .or_(f"patient_id.eq.{user_id},provider_id.eq.{user_id}")
+            .in_("status", active_booking_statuses)
+            .limit(5)
+            .execute()
+        )
+        for b in (b_res.data or []):
+            active_issues.append(
+                f"Booking #{str(b.get('id', ''))[:8]} ({b.get('service_type', 'service')}: {b.get('status')})"
+            )
+    except Exception as e:
+        logger.debug(f"Error checking active bookings for deletion check: {e}")
+
+    # 2. Active dispatch requests
+    try:
+        active_dispatch_statuses = [
+            "searching", "offered", "accepted", "in_transit", "arrived", "sample_collected"
+        ]
+        d_res = (
+            supabase.table("dispatch_requests")
+            .select("id, status")
+            .or_(f"patient_id.eq.{user_id},assigned_provider_id.eq.{user_id}")
+            .in_("status", active_dispatch_statuses)
+            .limit(5)
+            .execute()
+        )
+        for d in (d_res.data or []):
+            active_issues.append(
+                f"Dispatch Request #{str(d.get('id', ''))[:8]} (status: {d.get('status')})"
+            )
+    except Exception as e:
+        logger.debug(f"Error checking active dispatches for deletion check: {e}")
+
+    # 3. Active pharmacy orders
+    try:
+        active_rx_statuses = ["pending", "confirmed", "preparing", "out_for_delivery"]
+        p_res = (
+            supabase.table("pharmacy_orders")
+            .select("id, status")
+            .eq("patient_id", user_id)
+            .in_("status", active_rx_statuses)
+            .limit(5)
+            .execute()
+        )
+        for p in (p_res.data or []):
+            active_issues.append(
+                f"Pharmacy Order #{str(p.get('id', ''))[:8]} (status: {p.get('status')})"
+            )
+    except Exception as e:
+        logger.debug(f"Error checking active pharmacy orders for deletion check: {e}")
+
+    return active_issues
+
+
+def _mask_email(email: str) -> str:
+    """Mask email for secure client presentation e.g. ch****@gmail.com."""
+    if not email or "@" not in email:
+        return "your registered email"
+    user_part, domain = email.split("@", 1)
+    if len(user_part) <= 2:
+        masked_user = user_part[0] + "***"
+    else:
+        masked_user = user_part[:2] + "***" + user_part[-1]
+    return f"{masked_user}@{domain}"
+
+
+@router.post("/delete-account/request-otp")
+async def request_account_deletion_otp(current_user: dict = Depends(get_current_user)):
+    """
+    Step 1 of Account Deletion:
+    1. Ensures user has zero active/in-progress clinical orders or dispatches.
+    2. Rate-limits requests (max 3 in 15 minutes).
+    3. Generates a 6-digit numeric OTP valid for 10 minutes.
+    4. Dispatches CallMedex Royal Blue verification email.
+    """
+    user_id = current_user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User identity not found in session token.")
+
+    # Fetch fresh user record
+    user = None
+    if supabase:
+        try:
+            u_res = supabase.table("users").select("id, full_name, email, role").eq("id", user_id).limit(1).execute()
+            if u_res.data and len(u_res.data) > 0:
+                user = u_res.data[0]
+        except Exception as e:
+            logger.debug(f"Database user lookup error during deletion OTP request: {e}")
+
+    if not user:
+        # Fallback to local in-memory store or current_user claims
+        for u in _local_users.values():
+            if u.get("id") == user_id or u.get("email") == current_user.get("email"):
+                user = u
+                break
+    if not user:
+        user = {
+            "id": user_id,
+            "full_name": current_user.get("full_name") or current_user.get("name") or "CallMedex User",
+            "email": current_user.get("email"),
+            "role": current_user.get("role", "patient"),
+        }
+
+    email = user.get("email") or current_user.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Account does not have a registered email address.")
+
+    # 1. Clinical Safety Pre-flight Check
+    active_records = _check_active_clinical_records(user_id)
+    if active_records:
+        records_summary = ", ".join(active_records)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot delete account with active clinical services or ongoing appointments: {records_summary}. "
+                "Please complete or cancel these services first."
+            ),
+        )
+
+    # 2. Rate Limiting Check (Max 3 OTP requests in 15 minutes)
+    now = datetime.now(timezone.utc)
+    user_otp_data = _deletion_otps.get(user_id, {})
+    history = user_otp_data.get("history", [])
+    fifteen_min_ago = now - timedelta(minutes=15)
+    recent_requests = [t for t in history if t > fifteen_min_ago]
+    if len(recent_requests) >= 3:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many verification code requests. Please wait a few minutes before trying again.",
+        )
+
+    # 3. Generate Cryptographic 6-digit OTP
+    otp = f"{secrets.randbelow(900000) + 100000}"
+    expires_at = now + timedelta(minutes=10)
+
+    recent_requests.append(now)
+    _deletion_otps[user_id] = {
+        "otp": otp,
+        "expires_at": expires_at,
+        "attempts": 0,
+        "created_at": now,
+        "history": recent_requests,
+        "email": email,
+    }
+
+    # 4. Dispatch CallMedex Royal Blue Verification Email
+    EmailService.send_account_deletion_otp_email(
+        to_email=email,
+        user_name=user.get("full_name", ""),
+        otp=otp,
+    )
+
+    return {
+        "success": True,
+        "message": "A 6-digit security code has been sent to your registered email.",
+        "masked_email": _mask_email(email),
+        "expires_in_seconds": 600,
+    }
+
+
