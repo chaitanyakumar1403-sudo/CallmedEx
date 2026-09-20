@@ -202,6 +202,24 @@ export const api = {
     apiRequest<T>(endpoint, { ...options, method: 'DELETE' }),
 };
 
+// ─── Authentication & Account Management API ──────────────────────────────
+export const authAPI = {
+  requestAccountDeletionOTP: () =>
+    api.post<{
+      success: boolean;
+      message: string;
+      masked_email: string;
+      expires_in_seconds: number;
+    }>('/auth/delete-account/request-otp'),
+
+  verifyAccountDeletion: (otp: string, reason?: string) =>
+    api.post<{
+      success: boolean;
+      message: string;
+    }>('/auth/delete-account/verify', { otp, reason }),
+};
+
+
 // ─── Telemedicine-specific API ───────────────────────────────────────────
 export const telemedAPI = {
   listDoctors: (specialization?: string) => {
