@@ -836,4 +836,124 @@ If you didn't request this, please ignore this email.
             logger.info(f"[E-PRESCRIPTION EMAIL SIMULATED/LOGGED] To: {to_email} | Doctor: {doctor_name} | Diagnosis: {diagnosis}")
         return True
 
+    @staticmethod
+    def send_account_deletion_otp_email(to_email: str, user_name: str, otp: str) -> bool:
+        """
+        Sends a high-security CallMedex Royal Blue account deletion verification email
+        containing a 6-digit one-time code valid for 10 minutes.
+        """
+        display_name = user_name or "CallMedex User"
+        subject = f"CallMedex Security Verification: {otp} is your Account Deletion Code"
+        
+        text_content = (
+            f"Hello {display_name},\n\n"
+            f"You requested to permanently delete your CallMedex account. "
+            f"Your 6-digit deletion verification code is: {otp}\n\n"
+            f"This code will expire in 10 minutes.\n\n"
+            f"WARNING: Deleting your account will permanently remove all personal information, "
+            f"medical history, active consultations, diagnostic reports, and family member links.\n\n"
+            f"If you did NOT initiate this deletion, please log in immediately and change your password, "
+            f"or contact CallMedex Security Support at support@callmedex.in.\n\n"
+            f"— The CallMedex Security Team"
+        )
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>CallMedex Account Deletion Security Code</title>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0b1120; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background: linear-gradient(145deg, #0f172a 0%, #1e40af 50%, #0f172a 100%); border-radius: 16px; border: 1px solid rgba(59, 130, 246, 0.35); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px rgba(30, 64, 175, 0.25); overflow: hidden;">
+                            <!-- Header -->
+                            <tr>
+                                <td style="padding: 32px 36px 20px 36px; border-bottom: 1px solid rgba(59, 130, 246, 0.2); background: rgba(15, 23, 42, 0.6);">
+                                    <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td>
+                                                <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;">
+                                                    Call<span style="color: #60a5fa;">Medex</span>
+                                                </div>
+                                                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: #93c5fd; margin-top: 4px;">
+                                                    Identity &amp; Security Shield
+                                                </div>
+                                            </td>
+                                            <td align="right">
+                                                <span style="display: inline-block; padding: 6px 14px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 999px; font-size: 11px; font-weight: 700; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.5px;">
+                                                    Security Action
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                            
+                            <!-- Body Content -->
+                            <tr>
+                                <td style="padding: 36px 36px 24px 36px;">
+                                    <h1 style="margin: 0 0 16px 0; font-size: 20px; font-weight: 700; color: #ffffff; line-height: 1.3;">
+                                        Confirm Account Deletion Request
+                                    </h1>
+                                    <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+                                        Hello <strong style="color: #ffffff;">{display_name}</strong>,
+                                    </p>
+                                    <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #94a3b8;">
+                                        We received a request to permanently delete your CallMedex user profile, medical history, active permissions, and family member links. To authorize this action, enter the 6-digit verification code below:
+                                    </p>
+                                    
+                                    <!-- OTP Code Box in CallMedex Royal Blue -->
+                                    <div style="text-align: center; margin: 32px 0; padding: 24px; background: rgba(15, 23, 42, 0.8); border: 1px solid #3b82f6; border-radius: 12px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5), 0 0 20px rgba(59, 130, 246, 0.3);">
+                                        <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #93c5fd; margin-bottom: 8px;">
+                                            One-Time Security Code
+                                        </div>
+                                        <div style="font-family: 'Courier New', Courier, monospace; font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #60a5fa; text-shadow: 0 0 12px rgba(96, 165, 250, 0.6);">
+                                            {otp}
+                                        </div>
+                                        <div style="font-size: 12px; font-weight: 500; color: #94a3b8; margin-top: 8px;">
+                                            Valid for <strong>10 minutes</strong> · Do not share with anyone
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Warning Callout -->
+                                    <div style="margin-top: 24px; padding: 16px; background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; border-radius: 8px;">
+                                        <div style="font-size: 13px; font-weight: 700; color: #f87171; margin-bottom: 4px;">
+                                            ⚠️ Irreversible Healthcare Action
+                                        </div>
+                                        <div style="font-size: 12px; line-height: 1.5; color: #fca5a5;">
+                                            Once verified, your account, clinical files, and login credentials will be permanently erased. If you did not initiate this request, please log in immediately and update your password.
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- Footer -->
+                            <tr>
+                                <td style="padding: 24px 36px 32px 36px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(15, 23, 42, 0.4); text-align: center;">
+                                    <p style="margin: 0 0 8px 0; font-size: 11px; color: #64748b; line-height: 1.4;">
+                                        CallMedex Healthcare Technology Platform · Visakhapatnam, Andhra Pradesh
+                                    </p>
+                                    <p style="margin: 0; font-size: 11px; color: #64748b;">
+                                        Need security assistance? Contact <a href="mailto:support@callmedex.in" style="color: #60a5fa; text-decoration: none;">support@callmedex.in</a>
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+        
+        sent = EmailService._send_real_email(to_email, subject, html_content, text_content)
+        if not sent:
+            logger.info(f"[ACCOUNT DELETION OTP EMAIL SIMULATED/LOGGED] To: {to_email} | OTP: {otp}")
+        return True
+
+
 
