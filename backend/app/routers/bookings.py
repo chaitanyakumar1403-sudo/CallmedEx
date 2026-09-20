@@ -203,6 +203,111 @@ def _normalised_mode(mode: Optional[str]) -> str:
     return mode if mode in _CONSULTATION_MODES else "in_person"
 
 
+def _enrich_bookings_with_patient_info(bookings: list[dict]) -> list[dict]:
+    """Enriches booking rows with complete patient and family member details.
+
+    Populates:
+    - patient_name (from family_member if subject, else users.full_name)
+    - patient_mobile & patient_phone (from users.mobile / users.phone)
+    - patient_email (from users.email)
+    - patient_gender (from family_member or users.gender)
+    - patient_date_of_birth (from users.date_of_birth)
+    - family_member_name & relationship (if booking was booked for a family member)
+    - slot_time & slot_date
+    """
+    if not bookings or not supabase:
+        return bookings
+
+    patient_ids = [b["patient_id"] for b in bookings if b.get("patient_id")]
+    b_ids = [b["id"] for b in bookings if b.get("id")]
+
+    # 1. Batched user lookup
+    by_user_id = {}
+    if patient_ids:
+        try:
+            people = _rows(
+                supabase.table("users")
+                .select("id, full_name, gender, date_of_birth, mobile, email")
+                .in_("id", list(set(patient_ids)))
+                .execute()
+            )
+            by_user_id = {p["id"]: p for p in people}
+        except Exception as ue:
+            logger.warning(f"Could not batch load users for bookings: {ue}")
+
+    # 2. Batched family members / subjects lookup
+    booking_subj_map = {}
+    if b_ids:
+        try:
+            subj_res = (
+                supabase.table("booking_subjects")
+                .select("id, booking_id, family_member_id")
+                .in_("booking_id", b_ids)
+                .execute()
+            )
+            subjects = subj_res.data or []
+            fm_ids = list({s["family_member_id"] for s in subjects if s.get("family_member_id")})
+            for b in bookings:
+                if b.get("family_member_id") and b["family_member_id"] not in fm_ids:
+                    fm_ids.append(b["family_member_id"])
+            fm_map = {}
+            if fm_ids:
+                fm_res = (
+                    supabase.table("family_members")
+                    .select("id, full_name, relationship, is_self, gender")
+                    .in_("id", fm_ids)
+                    .execute()
+                )
+                fm_map = {f["id"]: f for f in (fm_res.data or [])}
+
+            for s in subjects:
+                fm = fm_map.get(s.get("family_member_id", ""))
+                if fm:
+                    booking_subj_map[s["booking_id"]] = fm
+            for b in bookings:
+                if b.get("family_member_id") and b["id"] not in booking_subj_map:
+                    fm = fm_map.get(b["family_member_id"])
+                    if fm:
+                        booking_subj_map[b["id"]] = fm
+        except Exception as se:
+            logger.warning(f"Could not batch load subjects for bookings: {se}")
+
+    for b in bookings:
+        person = by_user_id.get(b.get("patient_id")) or {}
+        subject = booking_subj_map.get(b.get("id")) or {}
+
+        if subject and not subject.get("is_self") and subject.get("full_name"):
+            b["patient_name"] = subject["full_name"]
+            b["family_member_name"] = subject["full_name"]
+            b["relationship"] = subject.get("relationship", "Family")
+            if subject.get("gender"):
+                b["patient_gender"] = subject["gender"]
+        else:
+            b["patient_name"] = person.get("full_name") or "Patient"
+            b["patient_gender"] = person.get("gender")
+
+        phone = person.get("mobile") or person.get("phone") or ""
+        b["patient_mobile"] = phone
+        b["patient_phone"] = phone
+        b["patient_email"] = person.get("email") or ""
+        b["patient_date_of_birth"] = person.get("date_of_birth")
+
+        slot_id = b.get("slot_id") or ""
+        parts = slot_id.split("|")
+        if len(parts) == 3:
+            b.setdefault("slot_time", parts[2])
+        elif b.get("slot_start"):
+            try:
+                b.setdefault("slot_time", b["slot_start"].split("T")[1][:5])
+            except Exception:
+                pass
+        if b.get("slot_start"):
+            b["slot_date"] = b["slot_start"][:10]
+
+    return bookings
+
+
+
 def _slot_needs_immediate_dispatch(slot_start_str: str) -> bool:
     """True when a picked slot is for today (same calendar date in IST) or
     is within the lead time window (up to 4 hours), so the phlebotomist on duty
@@ -1967,6 +2072,8 @@ async def get_org_bookings(
             .execute()
         )
         all_bookings = result.data or []
+        if all_bookings:
+            all_bookings = _enrich_bookings_with_patient_info(all_bookings)
     except Exception as e:
         logger.error(f"Supabase org bookings fetch failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch organization bookings")
@@ -2443,45 +2550,7 @@ async def get_provider_today_bookings(
         logger.error(f"Failed to load today's bookings for {current_user['sub']}: {e}")
         raise HTTPException(status_code=503, detail="Could not load today's bookings")
 
-    # Attach who each booking is actually for. Rows carry only patient_id, so
-    # every provider dashboard was left with no name to show — which is why
-    # some of them fell back to hardcoded patient lists. One batched lookup,
-    # not one per booking.
-    patient_ids = [b["patient_id"] for b in bookings if b.get("patient_id")]
-    if patient_ids:
-        try:
-            people = _rows(
-                supabase.table("users")
-                .select("id, full_name, gender, date_of_birth, mobile, email")
-                .in_("id", list(set(patient_ids)))
-                .execute()
-            )
-            by_id = {p["id"]: p for p in people}
-            for b in bookings:
-                person = by_id.get(b.get("patient_id")) or {}
-                b["patient_name"] = person.get("full_name") or "Patient"
-                b["patient_gender"] = person.get("gender")
-                b["patient_date_of_birth"] = person.get("date_of_birth")
-                b["patient_mobile"] = person.get("mobile") or ""
-                b["patient_email"] = person.get("email") or ""
-                slot_id = b.get("slot_id") or ""
-                parts = slot_id.split("|")
-                if len(parts) == 3:
-                    b.setdefault("slot_time", parts[2])
-                elif b.get("slot_start"):
-                    try:
-                        b.setdefault("slot_time", b["slot_start"].split("T")[1][:5])
-                    except Exception:
-                        pass
-                if b.get("slot_start"):
-                    b["slot_date"] = b["slot_start"][:10]
-        except Exception as e:
-            # A missing name must not cost the provider their whole schedule.
-            logger.warning(f"Could not attach patient names to today's bookings: {e}")
-            for b in bookings:
-                b.setdefault("patient_name", "Patient")
-                b.setdefault("patient_mobile", "")
-                b.setdefault("patient_email", "")
+    bookings = _enrich_bookings_with_patient_info(bookings)
 
     # For organizations, also resolve provider/doctor names if bookings are for linked doctors
     if role == "organization":
@@ -2557,6 +2626,8 @@ async def get_pending_review_bookings(current_user: dict = Depends(get_current_u
             .execute()
         )
         pending_bookings = result.data or []
+        if pending_bookings:
+            pending_bookings = _enrich_bookings_with_patient_info(pending_bookings)
     except Exception as e:
         logger.error(f"Failed to fetch pending reviews: {e}")
         raise HTTPException(status_code=503, detail="Database service unavailable")

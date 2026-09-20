@@ -2662,7 +2662,7 @@ function BookingPageContent() {
 
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <a href="/dashboard/patient" className="btn btn-primary" style={{ borderRadius: 10, backgroundColor: "#0284c7" }}>
-                Go to Patient Dashboard
+                Go to My Dashboard
               </a>
               <button
                 className="btn btn-secondary"

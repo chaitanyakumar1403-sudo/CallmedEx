@@ -226,7 +226,7 @@ export default function SmartNavbar() {
             )}
           </ul>
         </div>
-        <div className="navbar__actions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="navbar__actions" style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
           {user ? (
             <>
               {/* Notification Bell with Live Unread Badge */}
@@ -449,10 +449,10 @@ export default function SmartNavbar() {
                     textDecoration: "none",
                     cursor: "pointer",
                   }}
-                  title="Open Patient Dashboard"
+                  title="Open My Dashboard"
                 >
                   <LayoutDashboard size={15} style={{ color: "#ffffff" }} />
-                  <span>Patient Dashboard</span>
+                  <span>My Dashboard</span>
                 </Link>
               ) : (
                 <Link href={getDashboardLink()} className="cm-btn cm-btn--secondary cm-btn--sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -482,13 +482,13 @@ export default function SmartNavbar() {
           style={{
             background: "transparent",
             border: "none",
-            color: "#ffffff",
+            color: "#0f172a",
             cursor: "pointer",
             padding: "8px",
             minWidth: "44px",
             minHeight: "44px",
-            display: "grid",
-            placeItems: "center",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -647,7 +647,7 @@ export default function SmartNavbar() {
                     className="cm-btn cm-btn--primary cm-btn--lg"
                     style={{ width: "100%", justifyContent: "center" }}
                   >
-                    Open {roleLabel[user.role] || "User"} Dashboard
+                    {user.role === "patient" ? "Open My Dashboard" : `Open ${roleLabel[user.role] || "User"} Dashboard`}
                   </Link>
                   <button
                     onClick={handleLogout}

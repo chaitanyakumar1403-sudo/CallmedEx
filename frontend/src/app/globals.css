@@ -208,6 +208,17 @@ h1,h2,h3,h4,h5,h6 {
   color: var(--color-navy);
   letter-spacing: var(--tracking-tight);
 }
+/* Universal contrast protection for headings inside dark/gradient backgrounds across all dashboards */
+[style*="color: white"] :is(h1, h2, h3, h4, h5, h6),
+[style*="color: #fff"] :is(h1, h2, h3, h4, h5, h6),
+[style*="color: rgb(255, 255, 255)"] :is(h1, h2, h3, h4, h5, h6),
+[style*="linear-gradient"] :is(h1, h2, h3, h4, h5, h6),
+[style*="background: #0"] :is(h1, h2, h3, h4, h5, h6),
+[style*="background: #1"] :is(h1, h2, h3, h4, h5, h6),
+.bg-navy :is(h1, h2, h3, h4, h5, h6),
+.bg-dark :is(h1, h2, h3, h4, h5, h6) {
+  color: inherit;
+}
 h1 { font-size: 2.5rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.028em; }
 h2 { font-size: 2.0rem; font-weight: 700; line-height: 1.20; letter-spacing: -0.022em; }
 h3 { font-size: 1.625rem; font-weight: 650; line-height: 1.25; letter-spacing: -0.016em; }

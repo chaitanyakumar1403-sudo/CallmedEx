@@ -7506,8 +7506,20 @@ input[type="radio"] {
   font-weight: 600;
 }
 
+.navbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.navbar__hamburger {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .navbar__nav--unified { display: none; }
+  .navbar__hamburger { display: flex; align-items: center; justify-content: center; }
   .navbar__wide-container { padding: 0 16px; }
   .utility-bar__wide-container { padding: 0 16px; }
 }

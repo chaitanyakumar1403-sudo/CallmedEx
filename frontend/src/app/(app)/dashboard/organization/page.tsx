@@ -1321,7 +1321,7 @@ export default function OrganizationDashboard() {
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)", padding: "4px 12px", borderRadius: 20, fontSize: "0.78rem", fontWeight: 700, marginBottom: 8, backdropFilter: "blur(6px)" }}>
                   <Building2 size={13} color="#00e5ff" /> Multi-Branch Facility Operations
                 </div>
-                <h2 style={{ fontSize: "1.35rem", fontWeight: 800, margin: "0 0 6px 0", letterSpacing: "-0.5px" }}>
+                <h2 style={{ fontSize: "1.35rem", fontWeight: 800, margin: "0 0 6px 0", letterSpacing: "-0.5px", color: "#ffffff" }}>
                   Physical Clinic &amp; Diagnostic Branches
                 </h2>
                 <p style={{ fontSize: "0.85rem", opacity: 0.9, margin: 0, lineHeight: 1.5 }}>
@@ -1546,7 +1546,7 @@ export default function OrganizationDashboard() {
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <Building2 size={20} color="#00e5ff" />
-                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>
+                      <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#ffffff" }}>
                         {editingBranch ? "Edit Facility Branch" : "Add New Physical Branch"}
                       </h3>
                     </div>
@@ -3032,8 +3032,13 @@ export default function OrganizationDashboard() {
                           🧪 {b.selected_tests.join(", ")}
                         </div>
                       )}
-                      <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
-                        Patient ID: {b.patient_id?.substring(0, 8)}... · Booked: {new Date(b.created_at).toLocaleString()}
+                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 4 }}>
+                        👤 <strong style={{ color: "#0f172a" }}>{b.patient_name || (b.patient_id ? `Patient (${b.patient_id.substring(0, 8)})` : "Registered Patient")}</strong>
+                        {(b.patient_phone || b.patient_mobile) && (
+                          <span style={{ color: "#0f172a", fontWeight: 600 }}> • {b.patient_phone || b.patient_mobile}</span>
+                        )}
+                        {b.patient_email && <span> • {b.patient_email}</span>}
+                        {b.family_member_name && <span style={{ color: "#7c3aed", fontWeight: 600 }}> (Subject: {b.family_member_name})</span>} · Booked: {new Date(b.created_at).toLocaleString()}
                       </div>
                       {b.total_price > 0 && (
                         <div style={{ fontSize: "0.85rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
@@ -3049,7 +3054,7 @@ export default function OrganizationDashboard() {
                       <button
                         onClick={() => setAllotDialog({
                           bookingId: b.id,
-                          patientName: b.patient_id?.substring(0, 8) || "Patient",
+                          patientName: b.patient_name || (b.patient_id ? `Patient (${b.patient_id.substring(0, 8)})` : "Patient"),
                           date: b.preferred_date || b.slot_start?.split("T")[0] || "",
                           tests: b.selected_tests?.join(", ") || b.notes || "",
                         })}
@@ -3345,7 +3350,7 @@ export default function OrganizationDashboard() {
                           <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 6, fontSize: "0.82rem", color: "#475569", flexWrap: "wrap" }}>
                             <div>
                               👤 Patient: <strong style={{ color: "#0f172a" }}>{b.patient_name || (b.patient_id ? `Patient (${b.patient_id.substring(0, 8)})` : "Registered Patient")}</strong>
-                              {b.patient_phone ? ` • ${b.patient_phone}` : ""}
+                              {(b.patient_phone || b.patient_mobile) ? ` • ${b.patient_phone || b.patient_mobile}` : ""}
                             </div>
                             <div>
                               📅 Date: <strong>{dateDisplay}</strong>
