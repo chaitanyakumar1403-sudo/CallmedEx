@@ -10,6 +10,7 @@ import AIVoiceIntakeModal from "@/app/components/AIVoiceIntakeModal";
 import DashboardShell from "../components/DashboardShell";
 import { SampleTrackerModal } from "../components/SampleStatusRail";
 import DrugShieldModal from "@/app/components/DrugShieldModal";
+import DeleteAccountModal from "@/app/components/DeleteAccountModal";
 import FamilyMembersPanel from "../components/FamilyMembersPanel";
 import PatientAppointmentAlertWidget from "../components/PatientAppointmentAlertWidget";
 import { bookingsAPI, dispatchAPI, patientSamplesAPI } from "@/lib/api";
@@ -58,11 +59,15 @@ import {
   ExternalLink,
   TestTube,
   FlaskConical,
+  ShieldAlert,
+  Trash2,
 } from "lucide-react";
 
 interface UserData {
   full_name: string;
   role: string;
+  email?: string;
+  id?: string;
 }
 
 export default function PatientDashboard() {
@@ -141,6 +146,7 @@ export default function PatientDashboard() {
   const [showBriefingModal, setShowBriefingModal] = useState(false);
   const [showSampleModal, setShowSampleModal] = useState(false);
   const [activeSampleCount, setActiveSampleCount] = useState<number>(0);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Quick Reorder State
   const [showReorderModal, setShowReorderModal] = useState(false);
@@ -842,7 +848,7 @@ export default function PatientDashboard() {
       {/* ── Two-Column Layout: Left Sticky Navigation + Main Dashboard Content ── */}
       <div className="cm-patient-layout">
         <aside className="cm-patient-sidebar">
-          <PatientNavSidebar />
+          <PatientNavSidebar onOpenDeleteAccount={() => setIsDeleteModalOpen(true)} />
         </aside>
 
         <main className="cm-patient-content">
@@ -2353,6 +2359,96 @@ export default function PatientDashboard() {
           )}
         </div>
 
+        {/* Account & Privacy Settings / Danger Zone */}
+        <section
+          id="account-settings"
+          className="card"
+          style={{
+            marginTop: 32,
+            padding: 24,
+            background: "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.25) 50%, rgba(15, 23, 42, 0.95) 100%)",
+            border: "1px solid rgba(59, 130, 246, 0.28)",
+            borderRadius: 16,
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#f87171",
+                  flexShrink: 0,
+                }}
+              >
+                <ShieldAlert size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "#ffffff" }}>
+                  Account Security &amp; Data Privacy
+                </h3>
+                <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
+                  Manage your data retention preferences or permanently close and erase your CallMedex patient account.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsDeleteModalOpen(true)}
+              style={{
+                padding: "10px 20px",
+                borderRadius: 10,
+                background: "rgba(220, 38, 38, 0.15)",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                color: "#fca5a5",
+                fontWeight: 700,
+                fontSize: "0.84rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#dc2626";
+                e.currentTarget.style.color = "#ffffff";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(220, 38, 38, 0.15)";
+                e.currentTarget.style.color = "#fca5a5";
+              }}
+            >
+              <Trash2 size={15} /> Delete Account
+            </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 16,
+              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+              fontSize: "0.78rem",
+              color: "#64748b",
+            }}
+          >
+            <span>ABDM Registered · ISO 27001 Data Destruction Standards Compliant</span>
+            <span style={{ color: "#94a3b8" }}>Registered Email: <strong style={{ color: "#cbd5e1" }}>{user?.email || "Linked CallMedex Account"}</strong></span>
+          </div>
+        </section>
+
         </main>
       </div>
     </DashboardShell>
@@ -2523,6 +2619,14 @@ export default function PatientDashboard() {
           </div>
         </div>
       )}
+
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        userRole="patient"
+        userEmail={user?.email}
+        userName={user?.full_name}
+      />
     </div>
   );
 }

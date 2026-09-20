@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Package, FlaskConical, Stethoscope, Pill, Box,
   Sparkles, Zap, ScanLine, Smile, Users, Calendar, ChevronRight,
-  Clock, Compass, ShieldCheck, Home, Globe
+  Clock, Compass, ShieldCheck, Home, Globe, ShieldAlert
 } from "@/components/ui/icons";
 
 interface NavItem {
@@ -54,6 +54,13 @@ const DASHBOARD_SECTIONS: NavItem[] = [
     type: "anchor",
     target: "#recent-bookings",
   },
+  {
+    id: "account-settings",
+    label: "Account & Privacy",
+    icon: ShieldCheck,
+    type: "anchor",
+    target: "#account-settings",
+  },
 ];
 
 const CARE_SERVICES = [
@@ -89,7 +96,11 @@ const CARE_SERVICES = [
   },
 ];
 
-export default function PatientNavSidebar() {
+interface PatientNavSidebarProps {
+  onOpenDeleteAccount?: () => void;
+}
+
+export default function PatientNavSidebar({ onOpenDeleteAccount }: PatientNavSidebarProps = {}) {
   const [activeSection, setActiveSection] = useState<string>("quick-actions");
 
   useEffect(() => {
@@ -204,6 +215,40 @@ export default function PatientNavSidebar() {
             );
           })}
         </nav>
+
+        {/* Account Deletion Quick Action */}
+        {onOpenDeleteAccount && (
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(239, 68, 68, 0.2)" }}>
+            <button
+              type="button"
+              onClick={onOpenDeleteAccount}
+              className="cm-provider-nav-item cm-provider-nav-item--danger"
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.25)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                color: "#f87171",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                textAlign: "left",
+                transition: "all 0.15s ease",
+              }}
+              title="Permanently delete your CallMedex account"
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <ShieldAlert size={15} style={{ color: "#ef4444" }} />
+                <span>Delete Account</span>
+              </div>
+              <ChevronRight size={13} style={{ color: "#f87171" }} />
+            </button>
+          </div>
+        )}
 
         {/* Console Status Footer */}
         <div className="cm-provider-nav-footer">
