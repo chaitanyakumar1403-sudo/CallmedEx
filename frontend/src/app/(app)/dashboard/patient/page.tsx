@@ -59,7 +59,7 @@ import {
   ExternalLink,
   TestTube,
   FlaskConical,
-  ShieldAlert,
+  ChevronRight,
   Trash2,
 } from "lucide-react";
 
@@ -2197,78 +2197,56 @@ export default function PatientDashboard() {
         <PatientAppointmentAlertWidget bookings={bookings} onRefresh={refreshBookings} lang={lang} />
 
         {/* Recent Bookings */}
-        <div id="recent-bookings">
-          <h3 style={{ marginBottom: 16, fontFamily: "var(--font-body)", fontSize: "1.1rem", color: "var(--cm-ink)" }}>{t.bookings.title}</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <section id="recent-bookings" className="cm-pbk" aria-labelledby="pbk-title">
+          <div className="cm-pbk__head">
+            <h3 className="cm-pbk__title" id="pbk-title">{t.bookings.title}</h3>
+            {bookings?.length > 0 && (
+              <a href="/dashboard/patient/bookings" className="cm-pbk__all">
+                {t.bookings.viewAllHistory} <ChevronRight size={15} />
+              </a>
+            )}
+          </div>
+        <div className="cm-pbk__list">
           {loading ? (
-            <div className="cm-booking-glass-card card" style={{ padding: "32px", textAlign: "center", color: "var(--cm-ink-3)", justifyContent: "center" }}>{t.bookings.loading}</div>
+            <div className="cm-pbk-card cm-pbk-card--muted">{t.bookings.loading}</div>
           ) : bookings?.length > 0 ? (
             bookings.map((booking: any) => {
               const isPastSlot = booking.slot_start && (new Date(booking.slot_start).getTime() < (Date.now() - 3600000));
               const isAutoExpired = booking.status === "cancelled" && (booking.notes?.includes("Auto-Refuted") || booking.notes?.includes("Automatically cancelled"));
               const isDoctorSvc = booking.service_type === "doctor_appointment" || booking.service_type === "video_consult" || booking.service_type === "consultation" || booking.provider_type === "doctor";
+              const statusTone = isAutoExpired ? "halted"
+                : booking.status === "cancelled" || booking.status === "slot_rejected" ? "urgent"
+                : booking.status === "pending_review" ? "active"
+                  : booking.status === "slot_allotted" ? "waiting"
+                    : "done";
+              const kindTone = booking.service_type === "lab_test" ? "lab" : booking.service_type === "video_consult" ? "video" : "visit";
+              const isClosed = isAutoExpired || booking.status === "cancelled" || booking.status === "completed" || booking.status === "slot_rejected";
 
               return (
-              <div key={booking.id} className="cm-booking-glass-card card">
-                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 10,
-                    background: booking.service_type === "lab_test" ? "var(--cm-active-surface)" : booking.service_type === "video_consult" ? "var(--cm-done-surface)" : "var(--cm-waiting-surface)",
-                    color: booking.service_type === "lab_test" ? "var(--cm-active)" : booking.service_type === "video_consult" ? "var(--cm-done)" : "var(--cm-waiting)",
-                    display: "flex", alignItems: "center", justifyContent: "center"
-                  }}>
-                    {booking.service_type === "lab_test" ? <Activity size={22} /> : booking.service_type === "video_consult" ? <Video size={22} /> : <Stethoscope size={22} />}
+              <article key={booking.id} className="cm-pbk-card">
+                <div className="cm-pbk-card__main">
+                  <div className={`cm-pbk-card__icon cm-pbk-card__icon--${kindTone}`}>
+                    {booking.service_type === "lab_test" ? <Activity size={20} /> : booking.service_type === "video_consult" ? <Video size={20} /> : <Stethoscope size={20} />}
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: "0.95rem", textTransform: 'capitalize', color: "var(--cm-ink)" }}>
+                  <div className="cm-pbk-card__text">
+                    <div className="cm-pbk-card__name">
                       {booking.service_type.replace('_', ' ')}
                     </div>
-                    <div style={{ fontSize: "0.82rem", color: "var(--color-gray-500)" }}>
+                    <div className="cm-pbk-card__meta">
                       {booking.notes || `Provider ID: ${booking.provider_id}`} · {new Date(booking.slot_start).toLocaleDateString()} at {new Date(booking.slot_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "4px 12px", borderRadius: 999, fontWeight: 700, fontSize: "0.75rem",
-                    backgroundColor: isAutoExpired ? "rgba(100, 116, 139, 0.12)"
-                      : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-surface)"
-                      : booking.status === "pending_review" ? "var(--cm-active-surface)"
-                        : booking.status === "slot_allotted" ? "var(--cm-waiting-surface)"
-                          : "var(--cm-done-surface)",
-                    color: isAutoExpired ? "#475569"
-                      : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent)"
-                      : booking.status === "pending_review" ? "var(--cm-active)"
-                        : booking.status === "slot_allotted" ? "var(--cm-waiting)"
-                          : "var(--cm-done)",
-                    border: `1px solid ${
-                      isAutoExpired ? "rgba(100, 116, 139, 0.25)"
-                        : booking.status === "cancelled" || booking.status === "slot_rejected" ? "var(--cm-urgent-line)"
-                        : booking.status === "pending_review" ? "var(--cm-active-line)"
-                          : booking.status === "slot_allotted" ? "var(--cm-waiting-line)"
-                            : "var(--cm-done-line)"
-                    }`,
-                  }}>
+                <div className="cm-pbk-card__side">
+                  <span className={`cm-pbk-status cm-pbk-status--${statusTone}`}>
                     {isAutoExpired ? <><XCircle size={13} /> Expired / Concluded</>
                       : booking.status === "pending_review" ? <><Clock size={13} /> Pending Review</>
                       : booking.status === "slot_allotted" ? <><Bell size={13} /> Slot Allotted</>
                         : booking.status === "slot_rejected" ? <><XCircle size={13} /> Slot Declined</>
-                          : <><CheckCircle2 size={13} /> {booking.status.replace('_', ' ')}</>}
+                          : booking.status === "cancelled" ? <><XCircle size={13} /> Cancelled</>
+                            : <><CheckCircle2 size={13} /> {booking.status.replace('_', ' ')}</>}
                   </span>
-                  {!isPastSlot && !isAutoExpired && booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
-                    <button
-                      type="button"
-                      onClick={() => handleCancelBooking(booking.id, booking.status)}
-                      style={{
-                        background: 'none', border: 'none', color: 'var(--cm-urgent)', fontWeight: 600,
-                        fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline', padding: 0
-                      }}
-                    >
-                      {t.bookings.cancel}
-                    </button>
-                  )}
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <div className="cm-pbk-card__actions">
                     {isDoctorSvc && booking.status === "confirmed" && !isPastSlot && (
                       <button
                         type="button"
@@ -2276,63 +2254,52 @@ export default function PatientDashboard() {
                           const docName = booking.notes?.match(/Doctor:\s*([^·\n]+)/i)?.[1]?.trim() || "Doctor";
                           router.push(`/consultation/${booking.provider_id || "doc"}?booking_id=${booking.id}&name=${encodeURIComponent(docName)}`);
                         }}
-                        style={{
-                          padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1.5px solid rgba(2, 132, 199, 0.4)",
-                          backgroundColor: "rgba(2, 132, 199, 0.1)", color: "#0284c7", fontWeight: 800,
-                          fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-                          transition: "all 0.15s ease", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.12)"
-                        }}
+                        className="cm-pbk-btn cm-pbk-btn--primary"
                       >
-                        <Video size={13} /> Join Consult
+                        <Video size={14} /> Join Consult
                       </button>
                     )}
-                    {(booking.service_type === "lab_test" || booking.service_type === "home_collection") && (
+                    {(booking.service_type === "lab_test" || booking.service_type === "home_collection") && !isClosed && (
                       <button
                         type="button"
                         onClick={() => {
                           setShowLiveTracker(true);
                           window.scrollTo({ top: 320, behavior: "smooth" });
                         }}
-                        style={{
-                          padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-done-line)",
-                          backgroundColor: "var(--cm-done-surface)", color: "var(--cm-done)", fontWeight: 700,
-                          fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-                          transition: "all 0.15s ease"
-                        }}
+                        className="cm-pbk-btn"
                       >
-                        <Bike size={13} /> {t.bookings.trackPhlebo}
+                        <Bike size={14} /> {t.bookings.trackPhlebo}
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => handleQuickReorder(booking)}
-                      style={{
-                        padding: "5px 12px", borderRadius: "var(--cm-radius)", border: "1px solid var(--cm-active-line)",
-                        backgroundColor: "var(--cm-active-surface)", color: "var(--cm-active)", fontWeight: 700,
-                        fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
-                        transition: "all 0.15s ease"
-                      }}
+                      className="cm-pbk-btn"
                     >
-                      <RefreshCw size={13} /> {t.bookings.quickReorder}
+                      <RefreshCw size={14} /> {t.bookings.quickReorder}
                     </button>
+                    {!isPastSlot && !isAutoExpired && booking.status !== "arrived" && booking.status !== "in_progress" && booking.status !== "completed" && booking.status !== "cancelled" && booking.status !== "slot_allotted" && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelBooking(booking.id, booking.status)}
+                        className="cm-pbk-btn cm-pbk-btn--quiet"
+                      >
+                        {t.bookings.cancel}
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
+              </article>
               );
             })
           ) : (
-            <div className="card" style={{ padding: "32px", textAlign: "center", color: "var(--color-gray-500)" }}>
+            <div className="cm-pbk-card cm-pbk-card--empty">
               <p>{t.bookings.noBookings}</p>
-              <a href="/booking" className="btn btn-primary" style={{ marginTop: 12, display: "inline-block" }}>{t.bookings.bookFirst}</a>
+              <a href="/booking" className="cm-pbk-btn cm-pbk-btn--primary">{t.bookings.bookFirst}</a>
             </div>
           )}
-          {bookings?.length > 0 && (
-            <a href="/dashboard/patient/bookings" className="btn btn-outline" style={{ marginTop: 8, display: 'block', textAlign: 'center' }}>
-              {t.bookings.viewAllHistory}
-            </a>
-          )}
         </div>
-      </div>
+      </section>
 
         {/* Health Records Placeholder */}
         <div className="card" style={{ marginTop: 32, padding: 32, textAlign: "center", border: abhaLinkedNumber ? "2px solid var(--cm-done-line)" : "2px dashed var(--cm-line)", backgroundColor: abhaLinkedNumber ? "var(--cm-done-surface)" : "var(--cm-surface)" }}>
@@ -2360,92 +2327,26 @@ export default function PatientDashboard() {
         </div>
 
         {/* Account & Privacy Settings / Danger Zone */}
-        <section
-          id="account-settings"
-          className="card"
-          style={{
-            marginTop: 32,
-            padding: 24,
-            background: "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.25) 50%, rgba(15, 23, 42, 0.95) 100%)",
-            border: "1px solid rgba(59, 130, 246, 0.28)",
-            borderRadius: 16,
-            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  background: "rgba(239, 68, 68, 0.15)",
-                  border: "1px solid rgba(239, 68, 68, 0.35)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#f87171",
-                  flexShrink: 0,
-                }}
-              >
-                <ShieldAlert size={22} />
+        <section id="account-settings" className="cm-pacct" aria-labelledby="pacct-title">
+          <div className="cm-pacct__row">
+            <div className="cm-pacct__lead">
+              <div className="cm-pacct__icon">
+                <ShieldCheck size={22} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: "#ffffff" }}>
-                  Account Security &amp; Data Privacy
-                </h3>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.82rem", color: "#94a3b8" }}>
+                <h3 className="cm-pacct__title" id="pacct-title">Account Security &amp; Data Privacy</h3>
+                <p className="cm-pacct__desc">
                   Manage your data retention preferences or permanently close and erase your CallMedex patient account.
                 </p>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsDeleteModalOpen(true)}
-              style={{
-                padding: "10px 20px",
-                borderRadius: 10,
-                background: "rgba(220, 38, 38, 0.15)",
-                border: "1px solid rgba(239, 68, 68, 0.4)",
-                color: "#fca5a5",
-                fontWeight: 700,
-                fontSize: "0.84rem",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                transition: "all 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#dc2626";
-                e.currentTarget.style.color = "#ffffff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "rgba(220, 38, 38, 0.15)";
-                e.currentTarget.style.color = "#fca5a5";
-              }}
-            >
+            <button type="button" onClick={() => setIsDeleteModalOpen(true)} className="cm-pacct__delete">
               <Trash2 size={15} /> Delete Account
             </button>
           </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              paddingTop: 16,
-              borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-              fontSize: "0.78rem",
-              color: "#64748b",
-            }}
-          >
+          <div className="cm-pacct__foot">
             <span>ABDM Registered · ISO 27001 Data Destruction Standards Compliant</span>
-            <span style={{ color: "#94a3b8" }}>Registered Email: <strong style={{ color: "#cbd5e1" }}>{user?.email || "Linked CallMedex Account"}</strong></span>
+            <span>Registered Email: <strong>{user?.email || "Linked CallMedex Account"}</strong></span>
           </div>
         </section>
 

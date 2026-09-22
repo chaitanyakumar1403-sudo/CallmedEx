@@ -27,7 +27,13 @@ import {
   AlertTriangle,
   Award,
   Sparkles,
+  Pencil,
+  Trash2,
+  Settings,
+  ChevronRight,
 } from "@/components/ui/icons";
+import { Modal } from "@/components/ui";
+import { mergeSavedScope, toScopePayload, splitFee } from "./nurseScope.mjs";
 
 import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
 import DashboardProfile from "../components/DashboardProfile";
@@ -132,6 +138,20 @@ const DEFAULT_EXCEL_PROCEDURES: NursingProcedure[] = [
   },
 ];
 
+interface ProcedureDraft {
+  code: string | null; // null = new custom procedure
+  name: string;
+  category: string;
+  fee: string;
+  duration: string;
+  supplies: string;
+  custom: boolean;
+}
+
+const CUSTOM_CATEGORIES = [
+  "Basic Nursing", "Wound Care", "Critical Bedside", "Specialized Care", "Respiratory", "Continuous Attendant",
+];
+
 interface NurseJob {
   id: string;
   booking_id?: string;
@@ -162,21 +182,18 @@ export default function NurseDashboard() {
   const [procedures, setProcedures] = useState<NursingProcedure[]>(DEFAULT_EXCEL_PROCEDURES);
   const [procSearch, setProcSearch] = useState("");
   const [procCategory, setProcCategory] = useState("All");
-  const [showAddProcModal, setShowAddProcModal] = useState(false);
-  const [newProcName, setNewProcName] = useState("");
-  const [newProcCategory, setNewProcCategory] = useState("Basic Nursing");
-  const [newProcFee, setNewProcFee] = useState("450");
-  const [newProcDuration, setNewProcDuration] = useState("30 min");
-  const [newProcSupplies, setNewProcSupplies] = useState("Standard clinical nursing supplies");
+  // Service catalogue manager: one modal, list view or a single edit form.
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [draft, setDraft] = useState<ProcedureDraft | null>(null);
   const [procSaveStatus, setProcSaveStatus] = useState<string | null>(null);
 
   // Schedule & Advance Slots State
   const [scheduleTimeframe, setScheduleTimeframe] = useState<"today" | "tomorrow" | "upcoming">("today");
   const [scheduledJobs, setScheduledJobs] = useState<NurseJob[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [todayCount, setTodayCount] = useState(2);
-  const [tomorrowCount, setTomorrowCount] = useState(1);
-  const [upcomingCount, setUpcomingCount] = useState(1);
+  const [todayCount, setTodayCount] = useState(0);
+  const [tomorrowCount, setTomorrowCount] = useState(0);
+  const [upcomingCount, setUpcomingCount] = useState(0);
 
   // Bedside Vitals Studio State
   const [activeBookingId, setActiveBookingId] = useState("bk-nurse-01");
@@ -242,42 +259,7 @@ export default function NurseDashboard() {
             const scopeData = await scopeRes.json();
             const savedList = scopeData.data?.scope_of_services;
             if (Array.isArray(savedList) && savedList.length > 0) {
-              const merged = DEFAULT_EXCEL_PROCEDURES.map((dp) => {
-                const found = savedList.find(
-                  (s: any) => s.code === dp.code || s.service === dp.name
-                );
-                if (found) {
-                  return {
-                    ...dp,
-                    enabled: found.enabled !== false,
-                    standard_fee: Number(found.standard_fee || dp.standard_fee),
-                    nurse_net: Number(found.nurse_net || dp.nurse_net),
-                    platform_fee: Number(found.platform_fee || dp.platform_fee),
-                  };
-                }
-                return dp;
-              });
-
-              // Also append custom procedures that aren't in default list
-              savedList.forEach((s: any) => {
-                const exists = merged.some((m) => m.code === s.code || m.name === s.service);
-                if (!exists) {
-                  const fee = Number(s.standard_fee || s.fee || 400);
-                  merged.push({
-                    code: s.code || `CUST-${Math.floor(Math.random() * 900) + 100}`,
-                    name: s.service || s.name || "Custom Procedure",
-                    category: s.category || "Specialized Care",
-                    standard_fee: fee,
-                    nurse_net: Number(s.nurse_net || Math.round(fee * 0.8)),
-                    platform_fee: Number(s.platform_fee || Math.round(fee * 0.2)),
-                    duration: s.duration || "30 min",
-                    supplies: s.supplies || "Standard clinical kit",
-                    enabled: s.enabled !== false,
-                    is_custom: true,
-                  });
-                }
-              });
-              setProcedures(merged);
+              setProcedures(mergeSavedScope(DEFAULT_EXCEL_PROCEDURES, savedList));
             }
           }
         } catch (err) {
@@ -325,21 +307,21 @@ export default function NurseDashboard() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((d) => setTodayCount((d.jobs || []).length || 2))
+      .then((d) => setTodayCount((d.jobs || []).length))
       .catch(() => {});
 
     fetch(`${apiBase}/api/nurse/jobs?timeframe=tomorrow`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((d) => setTomorrowCount((d.jobs || []).length || 1))
+      .then((d) => setTomorrowCount((d.jobs || []).length))
       .catch(() => {});
 
     fetch(`${apiBase}/api/nurse/jobs?timeframe=upcoming`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((d) => setUpcomingCount((d.jobs || []).length || 1))
+      .then((d) => setUpcomingCount((d.jobs || []).length))
       .catch(() => {});
   }, []);
 
@@ -349,20 +331,7 @@ export default function NurseDashboard() {
     if (!token) return;
     setProcSaveStatus("Syncing tariffs & scope with CallMedex...");
     try {
-      const payload = {
-        scope_of_services: updatedList.map((p) => ({
-          code: p.code,
-          service: p.name,
-          category: p.category,
-          standard_fee: p.standard_fee,
-          nurse_net: p.nurse_net,
-          platform_fee: p.platform_fee,
-          duration: p.duration,
-          supplies: p.supplies,
-          enabled: p.enabled,
-          is_custom: p.is_custom || false,
-        })),
-      };
+      const payload = { scope_of_services: toScopePayload(updatedList) };
 
       const res = await fetch(`${apiBase}/api/providers/me/scope`, {
         method: "PUT",
@@ -387,43 +356,70 @@ export default function NurseDashboard() {
   };
 
   const toggleProcedure = (code: string) => {
-    const updated = procedures.map((p) =>
+    commitProcedures(procedures.map((p) =>
       p.code === code ? { ...p, enabled: !p.enabled } : p
-    );
+    ));
+  };
+
+  const commitProcedures = (updated: NursingProcedure[]) => {
     setProcedures(updated);
     saveProceduresToBackend(updated);
   };
 
-  const handleAddCustomProcedure = (e: React.FormEvent) => {
+  const openAddDraft = () => {
+    setDraft({ code: null, name: "", category: "Basic Nursing", fee: "450", duration: "30 min",
+      supplies: "Standard clinical nursing supplies", custom: true });
+    setShowCatalog(true);
+  };
+
+  const openEditDraft = (p: NursingProcedure) => {
+    setDraft({ code: p.code, name: p.name, category: p.category, fee: String(p.standard_fee),
+      duration: p.duration, supplies: p.supplies, custom: !!p.is_custom });
+  };
+
+  const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProcName.trim()) return;
-
-    const fee = Math.max(100, parseFloat(newProcFee) || 450);
-    const net = Math.round(fee * 0.8);
-    const platform = Math.round(fee * 0.2);
-    const code = `NUR-CUST-${Math.floor(Math.random() * 900) + 100}`;
-
-    const newProc: NursingProcedure = {
-      code,
-      name: newProcName.trim(),
-      category: newProcCategory,
-      standard_fee: fee,
-      nurse_net: net,
-      platform_fee: platform,
-      duration: newProcDuration,
-      supplies: newProcSupplies,
-      enabled: true,
-      is_custom: true,
+    if (!draft || !draft.name.trim()) return;
+    const fee = Math.max(100, Math.round(parseFloat(draft.fee) || 0));
+    const fields = {
+      ...splitFee(fee),
+      duration: draft.duration.trim() || "30 min",
+      supplies: draft.supplies.trim() || "Standard clinical kit",
     };
 
-    const updated = [newProc, ...procedures];
-    setProcedures(updated);
-    saveProceduresToBackend(updated);
+    if (draft.code === null) {
+      const newProc: NursingProcedure = {
+        code: `NUR-CUST-${Date.now().toString(36).toUpperCase()}`,
+        name: draft.name.trim(),
+        category: draft.category,
+        ...fields,
+        enabled: true,
+        is_custom: true,
+      };
+      commitProcedures([newProc, ...procedures]);
+    } else {
+      commitProcedures(procedures.map((p) =>
+        p.code !== draft.code ? p : {
+          ...p,
+          ...fields,
+          // Catalogue names are canonical clinical names; only a nurse's own
+          // custom procedure can be renamed or re-categorised.
+          ...(p.is_custom ? { name: draft.name.trim(), category: draft.category } : {}),
+        }
+      ));
+    }
+    setDraft(null);
+  };
 
-    // Reset Form
-    setNewProcName("");
-    setNewProcFee("450");
-    setShowAddProcModal(false);
+  const deleteProcedure = (p: NursingProcedure) => {
+    if (!p.is_custom) return;
+    if (!confirm(`Remove "${p.name}" from your service catalogue?`)) return;
+    commitProcedures(procedures.filter((x) => x.code !== p.code));
+  };
+
+  const closeCatalog = () => {
+    setShowCatalog(false);
+    setDraft(null);
   };
 
   // Vitals Triage Calculation
@@ -532,10 +528,31 @@ export default function NurseDashboard() {
     return procedures.filter((p) => p.enabled).length;
   }, [procedures]);
 
+  const categorySummary = useMemo(() => {
+    const map = new Map<string, { name: string; active: number; total: number }>();
+    for (const p of procedures) {
+      const c = map.get(p.category) || { name: p.category, active: 0, total: 0 };
+      c.total += 1;
+      if (p.enabled) c.active += 1;
+      map.set(p.category, c);
+    }
+    return Array.from(map.values());
+  }, [procedures]);
+
+  const feeRange = useMemo(() => {
+    const fees = procedures.filter((p) => p.enabled).map((p) => p.standard_fee);
+    if (fees.length === 0) return "—";
+    const lo = Math.min(...fees), hi = Math.max(...fees);
+    return lo === hi ? `₹${lo}` : `₹${lo}–${hi}`;
+  }, [procedures]);
+
   const categories = useMemo(() => {
     const list = Array.from(new Set(procedures.map((p) => p.category)));
     return ["All", ...list, "Custom"];
   }, [procedures]);
+
+  const nurseLicence: string =
+    profile?.nursing_license_number || profile?.license_number || profile?.registration_number || "";
 
   const TABS = [
     { id: "dispatch", label: "Doorstep Dispatch", icon: MapPin },
@@ -584,11 +601,14 @@ export default function NurseDashboard() {
       <div className="cm-nurse-console-header">
         <div className="cm-nurse-header-left">
           <div className="cm-nurse-badge-row">
-            <span className="cm-nurse-badge-verified">
-              <ShieldCheck size={14} /> B.Sc / GNM Registered Nurse
-            </span>
+            {profile?.qualification && (
+              <span className="cm-nurse-badge-verified">
+                <ShieldCheck size={14} /> {profile.qualification}
+              </span>
+            )}
             <span className="cm-nurse-badge-council">
-              <Award size={13} /> AP Nursing Council #APN-89421
+              <Award size={13} />
+              {nurseLicence ? `Nursing Reg. ${nurseLicence}` : "Registration number not on file"}
             </span>
           </div>
           <h1 className="cm-nurse-title">Clinical Doorstep Nursing Care Station</h1>
@@ -693,218 +713,252 @@ export default function NurseDashboard() {
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "procedures" && (
         <div className="cm-nurse-container">
-          <div className="cm-nurse-proc-bar">
-            <div className="cm-nurse-proc-search-wrap">
-              <span className="cm-nurse-proc-search-icon">
-                <Search size={16} />
-              </span>
-              <input
-                type="text"
-                placeholder="Search procedures, categories, required supplies..."
-                value={procSearch}
-                onChange={(e) => setProcSearch(e.target.value)}
-                className="cm-nurse-proc-search-input"
-              />
-            </div>
+          <section className="cm-nsvc" aria-labelledby="nsvc-title">
+            <header className="cm-nsvc__head">
+              <div className="cm-nsvc__intro">
+                <p className="cm-nsvc__eyebrow">Procedures &amp; tariffs</p>
+                <h2 className="cm-nsvc__title" id="nsvc-title">Your home-care service catalogue</h2>
+                <p className="cm-nsvc__lede">
+                  Patients can book only the services you mark active. You keep 80% of every fee you set.
+                </p>
+              </div>
+              <button type="button" onClick={openAddDraft} className="cm-nsvc-btn cm-nsvc-btn--ghost">
+                <Plus size={16} /> Add custom procedure
+              </button>
+            </header>
 
-            <div className="cm-nurse-proc-filter-row">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setProcCategory(cat)}
-                  className={
-                    procCategory === cat
-                      ? "cm-nurse-proc-pill cm-nurse-proc-pill--active"
-                      : "cm-nurse-proc-pill"
-                  }
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <dl className="cm-nsvc__stats">
+              <div className="cm-nsvc__stat">
+                <dt>Active</dt>
+                <dd>{activeEnabledCount}</dd>
+              </div>
+              <div className="cm-nsvc__stat">
+                <dt>Paused</dt>
+                <dd>{procedures.length - activeEnabledCount}</dd>
+              </div>
+              <div className="cm-nsvc__stat">
+                <dt>Your own</dt>
+                <dd>{procedures.filter((p) => p.is_custom).length}</dd>
+              </div>
+              <div className="cm-nsvc__stat">
+                <dt>Fee range</dt>
+                <dd>{feeRange}</dd>
+              </div>
+            </dl>
 
             <button
               type="button"
-              onClick={() => setShowAddProcModal(true)}
-              className="cm-nurse-btn-add-proc"
+              onClick={() => { setProcCategory("All"); setShowCatalog(true); }}
+              className="cm-nsvc__launcher"
             >
-              <Plus size={16} /> Add Custom Procedure
+              <span className="cm-nsvc__launcher-icon"><Settings size={20} /></span>
+              <span className="cm-nsvc__launcher-text">
+                <strong>Manage services &amp; prices</strong>
+                <span>Edit fees, pause, remove or add any of your {procedures.length} services</span>
+              </span>
+              <ChevronRight size={20} className="cm-nsvc__launcher-chev" />
             </button>
-          </div>
+
+            <div className="cm-nsvc__cats">
+              {categorySummary.map((c) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => { setProcCategory(c.name); setShowCatalog(true); }}
+                  className="cm-nsvc__cat"
+                >
+                  {c.name}
+                  <span className="cm-nsvc__cat-count">{c.active}/{c.total}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
           {procSaveStatus && (
-            <div className="cm-nurse-sync-box">
+            <div className="cm-nurse-sync-box" role="status">
               <CheckCircle2 size={16} /> {procSaveStatus}
             </div>
           )}
 
-          <div className="cm-nurse-procedure-grid">
-            {filteredProcedures.map((p) => (
-              <div
-                key={p.code}
-                className={
-                  p.enabled
-                    ? "cm-nurse-procedure-card cm-nurse-procedure-card--enabled"
-                    : "cm-nurse-procedure-card cm-nurse-procedure-card--disabled"
-                }
-              >
-                <div className="cm-nurse-procedure-info">
-                  <div className="cm-nurse-proc-tags">
-                    <span className="cm-nurse-badge-category">{p.category}</span>
-                    <span className="cm-nurse-badge-category">{p.code}</span>
-                    {p.is_custom && (
-                      <span className="cm-nurse-badge-custom">Custom Service</span>
-                    )}
+          <Modal
+            open={showCatalog}
+            onClose={closeCatalog}
+            wide
+            title={draft ? (draft.code === null ? "Add custom procedure" : "Edit service") : "Service catalogue"}
+            footer={
+              draft ? (
+                <>
+                  <button type="button" onClick={() => setDraft(null)} className="cm-nsvc-btn cm-nsvc-btn--ghost">
+                    Back to catalogue
+                  </button>
+                  <button type="submit" form="nsvc-form" className="cm-nsvc-btn cm-nsvc-btn--primary">
+                    <CheckCircle2 size={16} /> {draft.code === null ? "Add to my catalogue" : "Save changes"}
+                  </button>
+                </>
+              ) : undefined
+            }
+          >
+            {draft ? (
+              <form id="nsvc-form" onSubmit={handleSaveDraft} className="cm-nsvc-form">
+                <label className="cm-nsvc-form__field cm-nsvc-form__field--full">
+                  <span>Procedure name</span>
+                  <input
+                    type="text"
+                    required
+                    disabled={!draft.custom}
+                    placeholder="e.g. Suture Removal & Antiseptic Care"
+                    value={draft.name}
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    className="cm-nsvc-input"
+                  />
+                </label>
+                <label className="cm-nsvc-form__field">
+                  <span>Clinical category</span>
+                  <select
+                    disabled={!draft.custom}
+                    value={draft.category}
+                    onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                    className="cm-nsvc-input"
+                  >
+                    {(draft.custom && CUSTOM_CATEGORIES.includes(draft.category)
+                      ? CUSTOM_CATEGORIES
+                      : draft.custom ? [draft.category, ...CUSTOM_CATEGORIES] : [draft.category]
+                    ).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="cm-nsvc-form__field">
+                  <span>Fee to patient (₹)</span>
+                  <input
+                    type="number"
+                    min="100"
+                    step="10"
+                    required
+                    value={draft.fee}
+                    onChange={(e) => setDraft({ ...draft, fee: e.target.value })}
+                    className="cm-nsvc-input"
+                  />
+                </label>
+                <div className="cm-nsvc-split cm-nsvc-form__field--full">
+                  <div>
+                    <span>You receive (80%)</span>
+                    <strong>₹{splitFee(Math.max(0, parseFloat(draft.fee) || 0)).nurse_net}</strong>
                   </div>
-
-                  <h3 className="cm-nurse-procedure-name">{p.name}</h3>
-
-                  <div className="cm-nurse-procedure-meta">
-                    <span>Duration: {p.duration}</span>
-                    <span>Supplies: {p.supplies}</span>
+                  <div>
+                    <span>CallMedex fee (20%)</span>
+                    <strong>₹{splitFee(Math.max(0, parseFloat(draft.fee) || 0)).platform_fee}</strong>
                   </div>
                 </div>
-
-                <div className="cm-nurse-procedure-right">
-                  <div className="cm-nurse-procedure-commercials">
-                    <div className="cm-nurse-procedure-price">₹{p.standard_fee}</div>
-                    <div className="cm-nurse-procedure-split">
-                      <Sparkles size={13} /> Nurse 80%: ₹{p.nurse_net}
-                    </div>
-                    <div className="cm-nurse-procedure-fee">
-                      Platform 20%: ₹{p.platform_fee}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => toggleProcedure(p.code)}
-                    className={
-                      p.enabled
-                        ? "cm-nurse-btn-toggle cm-nurse-btn-active"
-                        : "cm-nurse-btn-toggle cm-nurse-btn-inactive"
-                    }
+                <label className="cm-nsvc-form__field">
+                  <span>Typical duration</span>
+                  <input
+                    type="text"
+                    value={draft.duration}
+                    onChange={(e) => setDraft({ ...draft, duration: e.target.value })}
+                    placeholder="e.g. 30 min"
+                    className="cm-nsvc-input"
+                  />
+                </label>
+                <label className="cm-nsvc-form__field">
+                  <span>Supplies you bring</span>
+                  <input
+                    type="text"
+                    value={draft.supplies}
+                    onChange={(e) => setDraft({ ...draft, supplies: e.target.value })}
+                    placeholder="e.g. Suture cutter, sterile dressing pack"
+                    className="cm-nsvc-input"
+                  />
+                </label>
+                {!draft.custom && (
+                  <p className="cm-nsvc-form__note cm-nsvc-form__field--full">
+                    This is a standard CallMedex procedure, so its name and category are fixed. You can change the fee, duration and supplies.
+                  </p>
+                )}
+              </form>
+            ) : (
+              <div className="cm-nsvc-manager">
+                <div className="cm-nsvc-toolbar">
+                  <label className="cm-nsvc-search">
+                    <Search size={16} />
+                    <input
+                      type="search"
+                      placeholder="Search by name, code or supplies"
+                      value={procSearch}
+                      onChange={(e) => setProcSearch(e.target.value)}
+                      aria-label="Search services"
+                    />
+                  </label>
+                  <select
+                    value={procCategory}
+                    onChange={(e) => setProcCategory(e.target.value)}
+                    className="cm-nsvc-input cm-nsvc-toolbar__select"
+                    aria-label="Filter by category"
                   >
-                    {p.enabled ? "Active for Home Care" : "+ Enable Procedure"}
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat === "Custom" ? "My custom procedures" : cat}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={openAddDraft} className="cm-nsvc-btn cm-nsvc-btn--primary">
+                    <Plus size={16} /> Add
                   </button>
                 </div>
+
+                {filteredProcedures.length === 0 ? (
+                  <p className="cm-nsvc-empty">No services match this search.</p>
+                ) : (
+                  <ul className="cm-nsvc-list">
+                    {filteredProcedures.map((p) => (
+                      <li key={p.code} className={p.enabled ? "cm-nsvc-row" : "cm-nsvc-row cm-nsvc-row--paused"}>
+                        <div className="cm-nsvc-row__main">
+                          <span className="cm-nsvc-row__name">{p.name}</span>
+                          <span className="cm-nsvc-row__meta">
+                            {p.category} · {p.duration}
+                            {p.is_custom && <span className="cm-nsvc-row__tag">Custom</span>}
+                          </span>
+                        </div>
+                        <div className="cm-nsvc-row__price">
+                          <strong>₹{p.standard_fee}</strong>
+                          <span>You get ₹{p.nurse_net}</span>
+                        </div>
+                        <div className="cm-nsvc-row__actions">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={p.enabled}
+                            aria-label={`${p.name} available for booking`}
+                            onClick={() => toggleProcedure(p.code)}
+                            className="cm-nsvc-switch"
+                          >
+                            <span className="cm-nsvc-switch__track"><span className="cm-nsvc-switch__thumb" /></span>
+                            <span className="cm-nsvc-switch__label">{p.enabled ? "Active" : "Paused"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditDraft(p)}
+                            className="cm-nsvc-icon-btn"
+                            aria-label={`Edit ${p.name}`}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          {p.is_custom && (
+                            <button
+                              type="button"
+                              onClick={() => deleteProcedure(p)}
+                              className="cm-nsvc-icon-btn cm-nsvc-icon-btn--danger"
+                              aria-label={`Remove ${p.name}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            ))}
-          </div>
-
-          {/* Add Custom Procedure Modal */}
-          {showAddProcModal && (
-            <div className="cm-nurse-modal-backdrop">
-              <div className="cm-nurse-modal-card">
-                <div className="cm-nurse-modal-header">
-                  <h3 className="cm-nurse-modal-title">
-                    <Plus size={18} /> Add Custom Nursing Procedure
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddProcModal(false)}
-                    className="cm-nurse-modal-close-btn"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <form onSubmit={handleAddCustomProcedure} className="cm-nurse-modal-form">
-                  <div className="cm-nurse-form-group">
-                    <label className="cm-nurse-form-label">Procedure Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Suture Removal & Antiseptic Care"
-                      value={newProcName}
-                      onChange={(e) => setNewProcName(e.target.value)}
-                      className="cm-nurse-form-input"
-                    />
-                  </div>
-
-                  <div className="cm-nurse-form-group">
-                    <label className="cm-nurse-form-label">Clinical Category</label>
-                    <select
-                      value={newProcCategory}
-                      onChange={(e) => setNewProcCategory(e.target.value)}
-                      className="cm-nurse-form-input"
-                    >
-                      <option value="Basic Nursing">Basic Nursing</option>
-                      <option value="Wound Care">Wound Care</option>
-                      <option value="Critical Bedside">Critical Bedside</option>
-                      <option value="Specialized Care">Specialized Care</option>
-                      <option value="Respiratory">Respiratory</option>
-                      <option value="Continuous Attendant">Continuous Attendant</option>
-                    </select>
-                  </div>
-
-                  <div className="cm-nurse-form-group">
-                    <label className="cm-nurse-form-label">Total Fee to Patient (₹)</label>
-                    <input
-                      type="number"
-                      min="100"
-                      step="50"
-                      required
-                      value={newProcFee}
-                      onChange={(e) => setNewProcFee(e.target.value)}
-                      className="cm-nurse-form-input"
-                    />
-                  </div>
-
-                  {/* Commercials Live Split Preview */}
-                  <div className="cm-nurse-commercials-preview">
-                    <div>
-                      <strong>Your Net Payout (80%):</strong> ₹
-                      {Math.round((parseFloat(newProcFee) || 0) * 0.8)}
-                    </div>
-                    <div>
-                      Platform Fee (20%): ₹
-                      {Math.round((parseFloat(newProcFee) || 0) * 0.2)}
-                    </div>
-                  </div>
-
-                  <div className="cm-nurse-form-group">
-                    <label className="cm-nurse-form-label">Typical Duration</label>
-                    <input
-                      type="text"
-                      value={newProcDuration}
-                      onChange={(e) => setNewProcDuration(e.target.value)}
-                      placeholder="e.g. 30 min"
-                      className="cm-nurse-form-input"
-                    />
-                  </div>
-
-                  <div className="cm-nurse-form-group">
-                    <label className="cm-nurse-form-label">Required Supplies</label>
-                    <input
-                      type="text"
-                      value={newProcSupplies}
-                      onChange={(e) => setNewProcSupplies(e.target.value)}
-                      placeholder="e.g. Suture cutter, sterile dressing pack"
-                      className="cm-nurse-form-input"
-                    />
-                  </div>
-
-                  <div className="cm-nurse-modal-actions">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddProcModal(false)}
-                      className="cm-nurse-btn-toggle cm-nurse-btn-inactive"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="cm-nurse-btn-add-proc"
-                    >
-                      <CheckCircle2 size={16} /> Save to My Catalog
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+            )}
+          </Modal>
         </div>
       )}
 

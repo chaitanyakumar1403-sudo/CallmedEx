@@ -29,13 +29,15 @@ const FOCUSABLE = [
  * straight out of the dialog into the page behind it, and Esc did nothing.
  */
 export const Modal = memo(function Modal({
-  open, onClose, title, children, footer,
+  open, onClose, title, children, footer, wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** 880px instead of 520px — for list/table managers, not confirmations. */
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
@@ -87,7 +89,7 @@ export const Modal = memo(function Modal({
 
   return (
     <div className="cm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="cm-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref}>
+      <div className={wide ? "cm-modal cm-modal--wide" : "cm-modal"} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref}>
         <div className="cm-modal__head">
           <h2 className="cm-modal__title" id={titleId}>{title}</h2>
           <button className="cm-modal__x" onClick={onClose} aria-label="Close dialog">

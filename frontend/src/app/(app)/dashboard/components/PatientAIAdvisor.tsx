@@ -626,10 +626,10 @@ export default function PatientAIAdvisor() {
     }
     const val = parseFloat((w / Math.pow(h / 100, 2)).toFixed(1));
     let cat = "Normal Weight";
-    let col = "#4ade80"; // Green
+    let col = "#86e0b5"; // Green
     if (val < 18.5) {
       cat = "Underweight";
-      col = "#38bdf8"; // Sky blue
+      col = "#a5b8ff"; // Sky blue
     } else if (val >= 25 && val < 30) {
       cat = "Overweight";
       col = "#facc15"; // Yellow
@@ -1039,11 +1039,11 @@ Website: https://callmedex.com
       <div
         id="health-advisor"
       style={{
-        background: "linear-gradient(135deg, rgba(2, 132, 199, 0.95) 0%, rgba(3, 105, 161, 0.92) 50%, rgba(14, 116, 144, 0.95) 100%)",
-        border: "1.5px solid rgba(125, 211, 252, 0.5)",
+        background: "linear-gradient(135deg, #0f1d33 0%, #15294d 48%, #1d3a7a 100%)",
+        border: "1.5px solid rgba(165, 184, 255, 0.5)",
         borderRadius: "20px",
         padding: "16px 20px",
-        boxShadow: "0 16px 40px -10px rgba(2, 132, 199, 0.3), 0 0 25px rgba(56, 189, 248, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+        boxShadow: "0 16px 40px -10px rgba(30, 63, 134, 0.3), 0 0 25px rgba(140, 164, 255, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
         backdropFilter: "blur(20px)",
         color: "#f8fafc",
         marginBottom: "20px",
@@ -1070,31 +1070,31 @@ Website: https://callmedex.com
               width: 36,
               height: 36,
               borderRadius: 10,
-              background: "linear-gradient(135deg, rgba(14, 165, 233, 0.35) 0%, rgba(37, 99, 235, 0.35) 100%)",
-              border: "1px solid rgba(56, 189, 248, 0.5)",
+              background: "linear-gradient(135deg, rgba(58, 99, 240, 0.35) 0%, rgba(36, 71, 200, 0.35) 100%)",
+              border: "1px solid rgba(140, 164, 255, 0.5)",
               display: "grid",
               placeItems: "center",
-              boxShadow: "0 0 15px rgba(14, 165, 233, 0.3)",
+              boxShadow: "0 0 15px rgba(58, 99, 240, 0.3)",
               flexShrink: 0,
             }}
           >
             <Clinical3DIcon name="care-pulse" size={22} glow />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0, fontSize: "1.12rem", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
+            <h3 style={{ margin: 0, fontSize: "1.12rem", fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
               CallMedex Health Advisor
             </h3>
             <span
               style={{
                 fontSize: "0.62rem",
-                fontWeight: 800,
+                fontWeight: 700,
                 letterSpacing: "0.08em",
                 padding: "2px 8px",
                 borderRadius: 999,
-                background: "linear-gradient(135deg, #0ea5e9, #2563eb)",
+                background: "#1e4fd8",
                 color: "#ffffff",
                 textTransform: "uppercase",
-                boxShadow: "0 2px 8px rgba(14, 165, 233, 0.35)",
+                boxShadow: "0 2px 8px rgba(58, 99, 240, 0.35)",
               }}
             >
               CARE ADVISORY
@@ -1115,20 +1115,20 @@ Website: https://callmedex.com
             gap: 6,
             padding: "5px 12px",
             borderRadius: 999,
-            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.4) 100%)",
-            border: "1.5px solid rgba(52, 211, 153, 0.6)",
-            color: "#d1fae5",
+            background: "linear-gradient(135deg, rgba(40, 160, 120, 0.35) 0%, rgba(30, 130, 100, 0.4) 100%)",
+            border: "1.5px solid rgba(127, 216, 176, 0.6)",
+            color: "#e3f6ec",
             fontSize: "0.74rem",
-            fontWeight: 800,
+            fontWeight: 700,
             cursor: "pointer",
             transition: "all 0.2s ease",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.25)",
+            boxShadow: "0 2px 8px rgba(40, 160, 120, 0.25)",
           }}
           title="Explore Periodic Routine Checkups for Asymptomatic / Normal Health (3M / 6M / 12M)"
         >
-          <Calendar size={12} style={{ color: "#34d399" }} />
+          <Calendar size={12} style={{ color: "#7fd8b0" }} />
           <span>Periodic Routine Checkups · 3M / 6M / 12M</span>
-          <ChevronRight size={12} style={{ color: "#6ee7b7" }} />
+          <ChevronRight size={12} style={{ color: "#a3e9c9" }} />
         </button>
       </div>
 
@@ -1159,8 +1159,8 @@ Website: https://callmedex.com
                   width: 38,
                   height: 38,
                   borderRadius: 10,
-                  background: "rgba(14, 165, 233, 0.22)",
-                  border: "1px solid rgba(56, 189, 248, 0.4)",
+                  background: "rgba(58, 99, 240, 0.22)",
+                  border: "1px solid rgba(140, 164, 255, 0.4)",
                   display: "grid",
                   placeItems: "center",
                   flexShrink: 0,
@@ -1169,7 +1169,7 @@ Website: https://callmedex.com
                 <Clinical3DIcon name="care-pulse" size={24} glow />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
                   Specialist Doctor Advisory
                 </h4>
                 <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
@@ -1186,13 +1186,13 @@ Website: https://callmedex.com
             {/* Status indicator */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
               {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#38bdf8", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#38bdf8", display: "inline-block", boxShadow: "0 0 8px #38bdf8" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#a5b8ff", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a5b8ff", display: "inline-block", boxShadow: "0 0 8px #a5b8ff" }} />
                   <span>Awaiting Symptoms · Tap to Match</span>
                 </div>
               ) : filteredDoctors.length > 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block" }} />
                   <span>{filteredDoctors.length} Registered Specialist{filteredDoctors.length === 1 ? "" : "s"} Matched</span>
                 </div>
               ) : (
@@ -1268,8 +1268,8 @@ Website: https://callmedex.com
                   width: 38,
                   height: 38,
                   borderRadius: 10,
-                  background: "rgba(34, 197, 94, 0.22)",
-                  border: "1px solid rgba(74, 222, 128, 0.4)",
+                  background: "rgba(60, 170, 125, 0.22)",
+                  border: "1px solid rgba(134, 224, 181, 0.4)",
                   display: "grid",
                   placeItems: "center",
                   flexShrink: 0,
@@ -1278,7 +1278,7 @@ Website: https://callmedex.com
                 <Clinical3DIcon name="microscope" size={24} glow />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
                   Diagnostics
                 </h4>
                 <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
@@ -1295,13 +1295,13 @@ Website: https://callmedex.com
             {/* Status indicator */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
               {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 8px #4ade80" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block", boxShadow: "0 0 8px #86e0b5" }} />
                   <span>Awaiting Symptoms · Tap to Match</span>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#4ade80", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block" }} />
                   <span>{filteredTests.length} Tests · {filteredPackages.length} Packages Matched</span>
                 </div>
               )}
@@ -1352,8 +1352,8 @@ Website: https://callmedex.com
                   width: 38,
                   height: 38,
                   borderRadius: 10,
-                  background: "rgba(168, 85, 247, 0.22)",
-                  border: "1px solid rgba(192, 132, 252, 0.4)",
+                  background: "rgba(124, 108, 240, 0.22)",
+                  border: "1px solid rgba(170, 160, 255, 0.4)",
                   display: "grid",
                   placeItems: "center",
                   flexShrink: 0,
@@ -1362,7 +1362,7 @@ Website: https://callmedex.com
                 <Clinical3DIcon name="pharmacy" size={24} glow />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
                   Preventive Care
                 </h4>
                 <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
@@ -1379,13 +1379,13 @@ Website: https://callmedex.com
             {/* Status indicator */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
               {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c084fc", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c084fc", display: "inline-block", boxShadow: "0 0 8px #c084fc" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c7b8ff", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c7b8ff", display: "inline-block", boxShadow: "0 0 8px #c7b8ff" }} />
                   <span>Awaiting Symptoms · Tap to Match</span>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c084fc", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a855f7", display: "inline-block" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c7b8ff", fontWeight: 700 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c7b8ff", display: "inline-block" }} />
                   <span>Tailored Diet, Workout &amp; Rx Matched</span>
                 </div>
               )}
@@ -1428,7 +1428,7 @@ Website: https://callmedex.com
           lineHeight: 1.35,
         }}
       >
-        <span style={{ color: "#38bdf8", flexShrink: 0, fontSize: "0.95rem" }}>ℹ️</span>
+        <span style={{ color: "#a5b8ff", flexShrink: 0, fontSize: "0.95rem" }}>ℹ️</span>
         <span>
           <strong style={{ color: "#cbd5e1" }}>Advisory Notice:</strong> All specialist doctor suggestions, diagnostic recommendations, and preventive wellness protocols are advisory features provided by CallMedex to assist your personal wellness journey. They do not constitute mandatory medical directives, prescriptions, or emergency clinical care.
         </span>
@@ -1469,8 +1469,8 @@ Website: https://callmedex.com
                     width: 40,
                     height: 40,
                     borderRadius: 12,
-                    background: "rgba(14, 165, 233, 0.25)",
-                    border: "1px solid rgba(56, 189, 248, 0.45)",
+                    background: "rgba(58, 99, 240, 0.25)",
+                    border: "1px solid rgba(140, 164, 255, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -1478,7 +1478,7 @@ Website: https://callmedex.com
                   <Clinical3DIcon name="care-pulse" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "#fff" }}>
                     Clinical Symptom Triage &amp; Specialist Navigator
                   </h3>
                   <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
@@ -1511,7 +1511,7 @@ Website: https://callmedex.com
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Step 1: Tap Common Symptoms */}
               <div>
-                <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.82rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
                   1. Select Common Symptoms or Health Concerns:
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1529,10 +1529,10 @@ Website: https://callmedex.com
                           fontSize: "0.8rem",
                           fontWeight: 700,
                           cursor: "pointer",
-                          border: isSelected ? "1.5px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.15)",
-                          background: isSelected ? "rgba(14, 165, 233, 0.35)" : "rgba(255, 255, 255, 0.06)",
+                          border: isSelected ? "1.5px solid #a5b8ff" : "1px solid rgba(255, 255, 255, 0.15)",
+                          background: isSelected ? "rgba(58, 99, 240, 0.35)" : "rgba(255, 255, 255, 0.06)",
                           color: isSelected ? "#ffffff" : "#cbd5e1",
-                          boxShadow: isSelected ? "0 0 12px rgba(14, 165, 233, 0.4)" : "none",
+                          boxShadow: isSelected ? "0 0 12px rgba(58, 99, 240, 0.4)" : "none",
                           transition: "all 0.15s ease",
                         }}
                       >
@@ -1546,7 +1546,7 @@ Website: https://callmedex.com
 
               {/* Step 2: Custom Symptom Input */}
               <div>
-                <div style={{ fontSize: "0.82rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.82rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
                   2. Or Type Your Specific Symptoms / Health Issues:
                 </div>
                 <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 8 }}>
@@ -1558,7 +1558,7 @@ Website: https://callmedex.com
                     style={{
                       flex: 1,
                       background: "rgba(15, 23, 42, 0.7)",
-                      border: "1px solid rgba(56, 189, 248, 0.3)",
+                      border: "1px solid rgba(140, 164, 255, 0.3)",
                       borderRadius: 8,
                       padding: "10px 14px",
                       fontSize: "0.82rem",
@@ -1626,8 +1626,8 @@ Website: https://callmedex.com
                           gap: 6,
                           padding: "4px 10px",
                           borderRadius: 6,
-                          background: "rgba(14, 165, 233, 0.25)",
-                          border: "1px solid rgba(56, 189, 248, 0.4)",
+                          background: "rgba(58, 99, 240, 0.25)",
+                          border: "1px solid rgba(140, 164, 255, 0.4)",
                           color: "#ffffff",
                           fontSize: "0.78rem",
                           fontWeight: 700,
@@ -1640,7 +1640,7 @@ Website: https://callmedex.com
                           style={{
                             background: "none",
                             border: "none",
-                            color: "#bae6fd",
+                            color: "#dbe3ff",
                             cursor: "pointer",
                             padding: 0,
                             display: "grid",
@@ -1663,10 +1663,10 @@ Website: https://callmedex.com
               <div
                 style={{
                   background: conditionsInput.length > 0
-                    ? "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)"
+                    ? "linear-gradient(135deg, rgba(58, 99, 240, 0.15) 0%, rgba(40, 160, 120, 0.15) 100%)"
                     : "rgba(15, 23, 42, 0.4)",
                   border: conditionsInput.length > 0
-                    ? "1.5px solid rgba(56, 189, 248, 0.4)"
+                    ? "1.5px solid rgba(140, 164, 255, 0.4)"
                     : "1px dashed rgba(255, 255, 255, 0.15)",
                   borderRadius: 14,
                   padding: "16px 20px",
@@ -1684,13 +1684,13 @@ Website: https://callmedex.com
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block", boxShadow: "0 0 10px #4ade80" }} />
-                        <span style={{ fontSize: "0.88rem", fontWeight: 800, color: "#ffffff" }}>
+                        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#86e0b5", display: "inline-block", boxShadow: "0 0 10px #86e0b5" }} />
+                        <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#ffffff" }}>
                           Clinical Protocols Matched:
                         </span>
                       </div>
-                      <div style={{ display: "flex", gap: 10, fontSize: "0.76rem", color: "#bae6fd", fontWeight: 700 }}>
-                        <span style={{ color: filteredDoctors.length > 0 ? "#bae6fd" : "#f59e0b" }}>
+                      <div style={{ display: "flex", gap: 10, fontSize: "0.76rem", color: "#dbe3ff", fontWeight: 700 }}>
+                        <span style={{ color: filteredDoctors.length > 0 ? "#dbe3ff" : "#f59e0b" }}>
                           • {filteredDoctors.length > 0 ? `${filteredDoctors.length} Clinician${filteredDoctors.length === 1 ? "" : "s"}` : "0 Registered Clinicians"}
                         </span>
                         <span>• {filteredTests.length} Lab Test{filteredTests.length === 1 ? "" : "s"}</span>
@@ -1732,7 +1732,9 @@ Website: https://callmedex.com
                           alignItems: "center",
                           justifyContent: "center",
                           gap: 6,
-                          background: "linear-gradient(135deg, #10b981, #059669)",
+                          background: "rgba(255, 255, 255, 0.07)",
+                          border: "1px solid rgba(165, 184, 255, 0.35)",
+                          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
                         }}
                       >
                         <FlaskConical size={15} /> View Lab Workups ({filteredTests.length}) →
@@ -1752,7 +1754,9 @@ Website: https://callmedex.com
                           alignItems: "center",
                           justifyContent: "center",
                           gap: 6,
-                          background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+                          background: "rgba(255, 255, 255, 0.07)",
+                          border: "1px solid rgba(165, 184, 255, 0.35)",
+                          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
                         }}
                       >
                         <Pill size={15} /> View Care Blueprint →
@@ -1795,8 +1799,8 @@ Website: https://callmedex.com
                     width: 38,
                     height: 38,
                     borderRadius: 10,
-                    background: "rgba(14, 165, 233, 0.25)",
-                    border: "1px solid rgba(56, 189, 248, 0.45)",
+                    background: "rgba(58, 99, 240, 0.25)",
+                    border: "1px solid rgba(140, 164, 255, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -1804,7 +1808,7 @@ Website: https://callmedex.com
                   <Clinical3DIcon name="care-pulse" size={24} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#fff" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#fff" }}>
                     Specialist Doctor Advisory Console
                   </h3>
                   <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 2 }}>
@@ -1824,9 +1828,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(14, 165, 233, 0.2)",
-                    border: "1px solid rgba(56, 189, 248, 0.4)",
-                    color: "#38bdf8",
+                    background: "rgba(58, 99, 240, 0.2)",
+                    border: "1px solid rgba(140, 164, 255, 0.4)",
+                    color: "#a5b8ff",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1846,9 +1850,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(14, 165, 233, 0.2)",
-                    border: "1px solid rgba(56, 189, 248, 0.4)",
-                    color: "#38bdf8",
+                    background: "rgba(58, 99, 240, 0.2)",
+                    border: "1px solid rgba(140, 164, 255, 0.4)",
+                    color: "#a5b8ff",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1884,8 +1888,8 @@ Website: https://callmedex.com
               {/* Active Health Concern / Symptoms Strip */}
               <div
                 style={{
-                  background: "rgba(14, 165, 233, 0.12)",
-                  border: "1px solid rgba(56, 189, 248, 0.3)",
+                  background: "rgba(58, 99, 240, 0.12)",
+                  border: "1px solid rgba(140, 164, 255, 0.3)",
                   borderRadius: 12,
                   padding: "12px 16px",
                   marginBottom: 16,
@@ -1897,7 +1901,7 @@ Website: https://callmedex.com
                 }}
               >
                 <div>
-                  <div style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 800, textTransform: "uppercase" }}>
+                  <div style={{ fontSize: "0.72rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase" }}>
                     Active Health Concerns &amp; Symptoms
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
@@ -1908,8 +1912,8 @@ Website: https://callmedex.com
                           style={{
                             padding: "2px 8px",
                             borderRadius: 6,
-                            background: "rgba(14, 165, 233, 0.25)",
-                            border: "1px solid rgba(56, 189, 248, 0.4)",
+                            background: "rgba(58, 99, 240, 0.25)",
+                            border: "1px solid rgba(140, 164, 255, 0.4)",
                             color: "#ffffff",
                             fontSize: "0.74rem",
                             fontWeight: 700,
@@ -1939,8 +1943,8 @@ Website: https://callmedex.com
                           fontSize: "0.68rem",
                           fontWeight: 700,
                           cursor: "pointer",
-                          background: active ? "#0284c7" : "rgba(255, 255, 255, 0.08)",
-                          border: active ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.15)",
+                          background: active ? "#2f55e0" : "rgba(255, 255, 255, 0.08)",
+                          border: active ? "1px solid #a5b8ff" : "1px solid rgba(255, 255, 255, 0.15)",
                           color: active ? "#fff" : "#94a3b8",
                         }}
                       >
@@ -1998,7 +2002,7 @@ Website: https://callmedex.com
                             border: "1px solid rgba(245, 158, 11, 0.35)",
                             color: "#fbbf24",
                             fontSize: "0.72rem",
-                            fontWeight: 800,
+                            fontWeight: 700,
                             letterSpacing: "0.04em",
                             textTransform: "uppercase",
                             marginBottom: 8,
@@ -2006,7 +2010,7 @@ Website: https://callmedex.com
                         >
                           <ShieldCheck size={13} /> 100% Genuine Clinical Directory Policy
                         </div>
-                        <h4 style={{ margin: "0 0 8px 0", color: "#ffffff", fontSize: "1.1rem", fontWeight: 800 }}>
+                        <h4 style={{ margin: "0 0 8px 0", color: "#ffffff", fontSize: "1.1rem", fontWeight: 700 }}>
                           No Registered Specialist in CallMedex for this Concern
                         </h4>
                         <p style={{ margin: "0 auto", color: "#cbd5e1", fontSize: "0.82rem", maxWidth: 520, lineHeight: 1.55 }}>
@@ -2029,7 +2033,7 @@ Website: https://callmedex.com
                               display: "inline-flex",
                               alignItems: "center",
                               gap: 6,
-                              background: "linear-gradient(135deg, #10b981, #059669)",
+                              background: "#1e4fd8",
                             }}
                           >
                             <FlaskConical size={14} /> View Targeted Diagnostic Tests ({filteredTests.length}) →
@@ -2067,7 +2071,7 @@ Website: https://callmedex.com
                       }}
                     >
                       <div style={{ fontSize: "2rem", marginBottom: 10 }}>🩺</div>
-                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 800 }}>
+                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 700 }}>
                         Awaiting Clinical Symptoms Intake
                       </h4>
                       <p style={{ margin: "0 auto 16px auto", color: "#94a3b8", fontSize: "0.82rem", maxWidth: 440 }}>
@@ -2105,18 +2109,18 @@ Website: https://callmedex.com
                             width: 44,
                             height: 44,
                             borderRadius: 12,
-                            background: "rgba(14, 165, 233, 0.2)",
-                            border: "1px solid rgba(56, 189, 248, 0.35)",
+                            background: "rgba(58, 99, 240, 0.2)",
+                            border: "1px solid rgba(140, 164, 255, 0.35)",
                             display: "grid",
                             placeItems: "center",
                             flexShrink: 0,
                           }}
                         >
-                          <Stethoscope size={22} color="#38bdf8" />
+                          <Stethoscope size={22} color="#a5b8ff" />
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: "0.98rem", fontWeight: 800, color: "#ffffff" }}>
+                            <span style={{ fontSize: "0.98rem", fontWeight: 700, color: "#ffffff" }}>
                               {doc.doctor_name}
                             </span>
                             <span
@@ -2124,15 +2128,15 @@ Website: https://callmedex.com
                                 fontSize: "0.68rem",
                                 padding: "2px 7px",
                                 borderRadius: 6,
-                                background: "rgba(16, 185, 129, 0.18)",
-                                color: "#34d399",
+                                background: "rgba(40, 160, 120, 0.18)",
+                                color: "#7fd8b0",
                                 fontWeight: 700,
                               }}
                             >
                               ★ {doc.rating || 4.98} · Verified Specialist
                             </span>
                           </div>
-                          <div style={{ fontSize: "0.8rem", color: "#38bdf8", fontWeight: 600, marginTop: 2 }}>
+                          <div style={{ fontSize: "0.8rem", color: "#a5b8ff", fontWeight: 600, marginTop: 2 }}>
                             {doc.specialty} · {doc.qualification}
                           </div>
                           <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
@@ -2145,7 +2149,7 @@ Website: https://callmedex.com
                       </div>
 
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#4ade80" }}>
+                        <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#86e0b5" }}>
                           ₹{doc.fee || 500}
                         </div>
                         <Link
@@ -2194,8 +2198,8 @@ Website: https://callmedex.com
                     width: 42,
                     height: 42,
                     borderRadius: 12,
-                    background: "rgba(34, 197, 94, 0.25)",
-                    border: "1px solid rgba(74, 222, 128, 0.45)",
+                    background: "rgba(60, 170, 125, 0.25)",
+                    border: "1px solid rgba(134, 224, 181, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -2203,7 +2207,7 @@ Website: https://callmedex.com
                   <Clinical3DIcon name="microscope" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "#fff" }}>
                     Targeted Diagnostics &amp; Health Packages Console
                   </h3>
                   <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
@@ -2222,9 +2226,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(34, 197, 94, 0.2)",
-                    border: "1px solid rgba(74, 222, 128, 0.4)",
-                    color: "#4ade80",
+                    background: "rgba(60, 170, 125, 0.2)",
+                    border: "1px solid rgba(134, 224, 181, 0.4)",
+                    color: "#86e0b5",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -2264,9 +2268,9 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 180,
                   padding: "12px 16px",
-                  background: modal2Tab === "tests" ? "rgba(34, 197, 94, 0.15)" : "transparent",
-                  borderBottom: modal2Tab === "tests" ? "2px solid #4ade80" : "none",
-                  color: modal2Tab === "tests" ? "#4ade80" : "#94a3b8",
+                  background: modal2Tab === "tests" ? "rgba(60, 170, 125, 0.15)" : "transparent",
+                  borderBottom: modal2Tab === "tests" ? "2px solid #86e0b5" : "none",
+                  color: modal2Tab === "tests" ? "#86e0b5" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2282,9 +2286,9 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 180,
                   padding: "12px 16px",
-                  background: modal2Tab === "packages" ? "rgba(34, 197, 94, 0.15)" : "transparent",
-                  borderBottom: modal2Tab === "packages" ? "2px solid #4ade80" : "none",
-                  color: modal2Tab === "packages" ? "#4ade80" : "#94a3b8",
+                  background: modal2Tab === "packages" ? "rgba(60, 170, 125, 0.15)" : "transparent",
+                  borderBottom: modal2Tab === "packages" ? "2px solid #86e0b5" : "none",
+                  color: modal2Tab === "packages" ? "#86e0b5" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2300,9 +2304,9 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 200,
                   padding: "12px 16px",
-                  background: modal2Tab === "periodic" ? "rgba(16, 185, 129, 0.2)" : "transparent",
-                  borderBottom: modal2Tab === "periodic" ? "2px solid #34d399" : "none",
-                  color: modal2Tab === "periodic" ? "#34d399" : "#94a3b8",
+                  background: modal2Tab === "periodic" ? "rgba(40, 160, 120, 0.2)" : "transparent",
+                  borderBottom: modal2Tab === "periodic" ? "2px solid #7fd8b0" : "none",
+                  color: modal2Tab === "periodic" ? "#7fd8b0" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2333,7 +2337,7 @@ Website: https://callmedex.com
                       }}
                     >
                       <div style={{ fontSize: "2rem", marginBottom: 10 }}>🔬</div>
-                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 800 }}>
+                      <h4 style={{ margin: "0 0 6px 0", color: "#ffffff", fontSize: "1.05rem", fontWeight: 700 }}>
                         No Symptoms Selected
                       </h4>
                       <p style={{ margin: "0 auto 16px auto", color: "#94a3b8", fontSize: "0.82rem", maxWidth: 440 }}>
@@ -2343,7 +2347,7 @@ Website: https://callmedex.com
                         type="button"
                         onClick={() => setActiveWidget(0)}
                         className="cm-advisor-btn-primary"
-                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6, background: "linear-gradient(135deg, #10b981, #059669)" }}
+                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6, background: "#1e4fd8" }}
                       >
                         <Plus size={14} /> Enter Symptoms Now →
                       </button>
@@ -2366,7 +2370,7 @@ Website: https://callmedex.com
                       >
                         <div style={{ maxWidth: "60%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffffff" }}>
+                            <span style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ffffff" }}>
                               {t.test_name}
                             </span>
                             <span
@@ -2374,8 +2378,8 @@ Website: https://callmedex.com
                                 fontSize: "0.68rem",
                                 padding: "2px 8px",
                                 borderRadius: 6,
-                                background: "rgba(56, 189, 248, 0.2)",
-                                color: "#38bdf8",
+                                background: "rgba(140, 164, 255, 0.2)",
+                                color: "#a5b8ff",
                                 fontWeight: 700,
                               }}
                             >
@@ -2385,7 +2389,7 @@ Website: https://callmedex.com
                           <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
                             {t.reason}
                           </div>
-                          <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
+                          <div style={{ fontSize: "0.72rem", color: "#86e0b5", marginTop: 3 }}>
                             Certified Partner Labs · Free Home Sample Collection Available
                           </div>
                         </div>
@@ -2397,7 +2401,7 @@ Website: https://callmedex.com
                                 ₹{t.original_price}
                               </span>
                             )}
-                            <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#86e0b5" }}>
                               ₹{t.estimated_price || 399}
                             </span>
                           </div>
@@ -2423,7 +2427,7 @@ Website: https://callmedex.com
                       key={pkg.id}
                       style={{
                         background: "rgba(15, 23, 42, 0.65)",
-                        border: "1px solid rgba(251, 146, 60, 0.25)",
+                        border: "1px solid rgba(245, 185, 113, 0.25)",
                         borderRadius: 14,
                         padding: "16px 18px",
                         display: "flex",
@@ -2434,7 +2438,7 @@ Website: https://callmedex.com
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: "1.02rem", fontWeight: 800, color: "#ffffff" }}>
+                            <span style={{ fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
                               {pkg.name}
                             </span>
                             <span
@@ -2442,10 +2446,10 @@ Website: https://callmedex.com
                                 fontSize: "0.68rem",
                                 padding: "3px 8px",
                                 borderRadius: 6,
-                                background: "rgba(234, 88, 12, 0.25)",
-                                color: "#fb923c",
-                                fontWeight: 800,
-                                border: "1px solid rgba(251, 146, 60, 0.4)",
+                                background: "rgba(214, 140, 60, 0.25)",
+                                color: "#f5b971",
+                                fontWeight: 700,
+                                border: "1px solid rgba(245, 185, 113, 0.4)",
                               }}
                             >
                               {pkg.badge}
@@ -2461,11 +2465,11 @@ Website: https://callmedex.com
                             <span style={{ fontSize: "0.8rem", color: "#64748b", textDecoration: "line-through" }}>
                               ₹{pkg.originalPrice}
                             </span>
-                            <span style={{ fontSize: "1.2rem", fontWeight: 900, color: "#4ade80" }}>
+                            <span style={{ fontSize: "1.2rem", fontWeight: 700, color: "#86e0b5" }}>
                               ₹{pkg.offerPrice}
                             </span>
                           </div>
-                          <span style={{ fontSize: "0.7rem", color: "#fb923c", fontWeight: 700 }}>
+                          <span style={{ fontSize: "0.7rem", color: "#f5b971", fontWeight: 700 }}>
                             Save ₹{pkg.originalPrice - pkg.offerPrice}
                           </span>
                         </div>
@@ -2512,26 +2516,26 @@ Website: https://callmedex.com
                   {/* Interval Selector Banner */}
                   <div
                     style={{
-                      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(14, 116, 144, 0.2) 100%)",
-                      border: "1px solid rgba(52, 211, 153, 0.35)",
+                      background: "linear-gradient(135deg, rgba(40, 160, 120, 0.15) 0%, rgba(15, 29, 51, 0.2) 100%)",
+                      border: "1px solid rgba(127, 216, 176, 0.35)",
                       borderRadius: 14,
                       padding: "16px 20px",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                      <Calendar size={18} style={{ color: "#34d399" }} />
-                      <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                      <Calendar size={18} style={{ color: "#7fd8b0" }} />
+                      <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#ffffff" }}>
                         Preventive Routine Checkups for Asymptomatic &amp; Normal Individuals
                       </span>
                       <span
                         style={{
                           fontSize: "0.68rem",
-                          fontWeight: 800,
+                          fontWeight: 700,
                           padding: "2px 8px",
                           borderRadius: 999,
-                          background: "rgba(52, 211, 153, 0.2)",
-                          color: "#34d399",
-                          border: "1px solid rgba(52, 211, 153, 0.4)",
+                          background: "rgba(127, 216, 176, 0.2)",
+                          color: "#7fd8b0",
+                          border: "1px solid rgba(127, 216, 176, 0.4)",
                         }}
                       >
                         ICMR PROTOCOLS
@@ -2558,12 +2562,12 @@ Website: https://callmedex.com
                             cursor: "pointer",
                             textAlign: "left",
                             transition: "all 0.2s ease",
-                            background: routineInterval === itv.id ? "linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.35))" : "rgba(15, 23, 42, 0.6)",
-                            border: routineInterval === itv.id ? "1.5px solid #34d399" : "1px solid rgba(255, 255, 255, 0.12)",
+                            background: routineInterval === itv.id ? "linear-gradient(135deg, rgba(40, 160, 120, 0.35), rgba(30, 130, 100, 0.35))" : "rgba(15, 23, 42, 0.6)",
+                            border: routineInterval === itv.id ? "1.5px solid #7fd8b0" : "1px solid rgba(255, 255, 255, 0.12)",
                             color: "#fff",
                           }}
                         >
-                          <div style={{ fontSize: "0.86rem", fontWeight: 800, color: routineInterval === itv.id ? "#34d399" : "#f1f5f9" }}>
+                          <div style={{ fontSize: "0.86rem", fontWeight: 700, color: routineInterval === itv.id ? "#7fd8b0" : "#f1f5f9" }}>
                             {itv.label}
                           </div>
                           <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 2 }}>
@@ -2577,7 +2581,7 @@ Website: https://callmedex.com
                   {/* Summary for active interval */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", paddingBottom: 8, flexWrap: "wrap", gap: 8 }}>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, color: "#34d399" }}>
+                      <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#7fd8b0" }}>
                         {ROUTINE_CHECKUPS_DATA[routineInterval].title}
                       </h4>
                       <p style={{ margin: "2px 0 0 0", fontSize: "0.76rem", color: "#94a3b8" }}>
@@ -2592,8 +2596,8 @@ Website: https://callmedex.com
                   {/* SECTION A: INDIVIDUAL ROUTINE TESTS */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <FlaskConical size={16} style={{ color: "#38bdf8" }} />
-                      <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff" }}>
+                      <FlaskConical size={16} style={{ color: "#a5b8ff" }} />
+                      <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#ffffff" }}>
                         Essential Routine Tests for this Interval ({ROUTINE_CHECKUPS_DATA[routineInterval].tests.length})
                       </span>
                     </div>
@@ -2616,7 +2620,7 @@ Website: https://callmedex.com
                         >
                           <div style={{ maxWidth: "60%" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                              <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#ffffff" }}>
                                 {test.name}
                               </span>
                               <span
@@ -2624,8 +2628,8 @@ Website: https://callmedex.com
                                   fontSize: "0.66rem",
                                   padding: "2px 7px",
                                   borderRadius: 6,
-                                  background: "rgba(56, 189, 248, 0.18)",
-                                  color: "#38bdf8",
+                                  background: "rgba(140, 164, 255, 0.18)",
+                                  color: "#a5b8ff",
                                   fontWeight: 700,
                                 }}
                               >
@@ -2649,7 +2653,7 @@ Website: https://callmedex.com
                             <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 4 }}>
                               {test.reason}
                             </div>
-                            <div style={{ fontSize: "0.72rem", color: "#4ade80", marginTop: 3 }}>
+                            <div style={{ fontSize: "0.72rem", color: "#86e0b5", marginTop: 3 }}>
                               Sample: {test.sampleType} · Reports delivered within 12–24 hrs
                             </div>
                           </div>
@@ -2659,10 +2663,10 @@ Website: https://callmedex.com
                               <span style={{ fontSize: "0.78rem", color: "#64748b", textDecoration: "line-through" }}>
                                 ₹{test.originalPrice}
                               </span>
-                              <span style={{ fontSize: "1.05rem", fontWeight: 900, color: "#4ade80" }}>
+                              <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "#86e0b5" }}>
                                 ₹{test.price}
                               </span>
-                              <span style={{ fontSize: "0.7rem", color: "#fb923c", fontWeight: 700 }}>
+                              <span style={{ fontSize: "0.7rem", color: "#f5b971", fontWeight: 700 }}>
                                 {test.discount}
                               </span>
                             </div>
@@ -2704,8 +2708,8 @@ Website: https://callmedex.com
                   {/* SECTION B: CURATED PERIODIC PACKAGES */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, marginTop: 6 }}>
-                      <Award size={16} style={{ color: "#fb923c" }} />
-                      <span style={{ fontSize: "0.86rem", fontWeight: 800, color: "#ffffff" }}>
+                      <Award size={16} style={{ color: "#f5b971" }} />
+                      <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#ffffff" }}>
                         Curated Routine Packages for this Interval
                       </span>
                     </div>
@@ -2716,7 +2720,7 @@ Website: https://callmedex.com
                           key={pkg.id}
                           style={{
                             background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.7) 100%)",
-                            border: "1.5px solid rgba(52, 211, 153, 0.4)",
+                            border: "1.5px solid rgba(127, 216, 176, 0.4)",
                             borderRadius: 14,
                             padding: "16px 20px",
                             display: "flex",
@@ -2727,7 +2731,7 @@ Website: https://callmedex.com
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
                             <div>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: "1.02rem", fontWeight: 900, color: "#ffffff" }}>
+                                <span style={{ fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
                                   {pkg.name}
                                 </span>
                                 <span
@@ -2735,10 +2739,10 @@ Website: https://callmedex.com
                                     fontSize: "0.68rem",
                                     padding: "3px 8px",
                                     borderRadius: 6,
-                                    background: "rgba(52, 211, 153, 0.2)",
-                                    color: "#34d399",
-                                    fontWeight: 800,
-                                    border: "1px solid rgba(52, 211, 153, 0.4)",
+                                    background: "rgba(127, 216, 176, 0.2)",
+                                    color: "#7fd8b0",
+                                    fontWeight: 700,
+                                    border: "1px solid rgba(127, 216, 176, 0.4)",
                                   }}
                                 >
                                   {pkg.badge}
@@ -2748,9 +2752,9 @@ Website: https://callmedex.com
                                     fontSize: "0.68rem",
                                     padding: "3px 8px",
                                     borderRadius: 6,
-                                    background: "rgba(56, 189, 248, 0.2)",
-                                    color: "#38bdf8",
-                                    fontWeight: 800,
+                                    background: "rgba(140, 164, 255, 0.2)",
+                                    color: "#a5b8ff",
+                                    fontWeight: 700,
                                   }}
                                 >
                                   {pkg.parametersCount}
@@ -2766,11 +2770,11 @@ Website: https://callmedex.com
                                 <span style={{ fontSize: "0.82rem", color: "#64748b", textDecoration: "line-through" }}>
                                   ₹{pkg.originalPrice}
                                 </span>
-                                <span style={{ fontSize: "1.25rem", fontWeight: 900, color: "#4ade80" }}>
+                                <span style={{ fontSize: "1.25rem", fontWeight: 700, color: "#86e0b5" }}>
                                   ₹{pkg.offerPrice}
                                 </span>
                               </div>
-                              <span style={{ fontSize: "0.72rem", color: "#fb923c", fontWeight: 800 }}>
+                              <span style={{ fontSize: "0.72rem", color: "#f5b971", fontWeight: 700 }}>
                                 Save ₹{pkg.originalPrice - pkg.offerPrice}
                               </span>
                             </div>
@@ -2868,8 +2872,8 @@ Website: https://callmedex.com
                     width: 42,
                     height: 42,
                     borderRadius: 12,
-                    background: "rgba(168, 85, 247, 0.25)",
-                    border: "1px solid rgba(192, 132, 252, 0.45)",
+                    background: "rgba(124, 108, 240, 0.25)",
+                    border: "1px solid rgba(170, 160, 255, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -2877,7 +2881,7 @@ Website: https://callmedex.com
                   <Clinical3DIcon name="pharmacy" size={26} glow />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 700, color: "#fff" }}>
                     Preventive Care &amp; Pharmacy Advisory Console
                   </h3>
                   <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: 2 }}>
@@ -2896,9 +2900,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(168, 85, 247, 0.2)",
-                    border: "1px solid rgba(192, 132, 252, 0.4)",
-                    color: "#c084fc",
+                    background: "rgba(124, 108, 240, 0.2)",
+                    border: "1px solid rgba(170, 160, 255, 0.4)",
+                    color: "#c7b8ff",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -2936,9 +2940,9 @@ Website: https://callmedex.com
                 style={{
                   flex: 1,
                   padding: "12px 16px",
-                  background: modal3Tab === "preventive" ? "rgba(168, 85, 247, 0.15)" : "transparent",
-                  borderBottom: modal3Tab === "preventive" ? "2px solid #c084fc" : "none",
-                  color: modal3Tab === "preventive" ? "#c084fc" : "#94a3b8",
+                  background: modal3Tab === "preventive" ? "rgba(124, 108, 240, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "preventive" ? "2px solid #c7b8ff" : "none",
+                  color: modal3Tab === "preventive" ? "#c7b8ff" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2953,9 +2957,9 @@ Website: https://callmedex.com
                 style={{
                   flex: 1,
                   padding: "12px 16px",
-                  background: modal3Tab === "pharmacy" ? "rgba(168, 85, 247, 0.15)" : "transparent",
-                  borderBottom: modal3Tab === "pharmacy" ? "2px solid #c084fc" : "none",
-                  color: modal3Tab === "pharmacy" ? "#c084fc" : "#94a3b8",
+                  background: modal3Tab === "pharmacy" ? "rgba(124, 108, 240, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "pharmacy" ? "2px solid #c7b8ff" : "none",
+                  color: modal3Tab === "pharmacy" ? "#c7b8ff" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2974,7 +2978,7 @@ Website: https://callmedex.com
                   <div
                     style={{
                       background: "rgba(15, 23, 42, 0.6)",
-                      border: "1px solid rgba(192, 132, 252, 0.25)",
+                      border: "1px solid rgba(170, 160, 255, 0.25)",
                       borderRadius: 14,
                       padding: "14px 18px",
                       display: "flex",
@@ -2985,10 +2989,10 @@ Website: https://callmedex.com
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "0.72rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase" }}>
+                      <div style={{ fontSize: "0.72rem", color: "#c7b8ff", fontWeight: 700, textTransform: "uppercase" }}>
                         Daily Hydration &amp; Energy Goals
                       </div>
-                      <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+                      <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#ffffff", marginTop: 2 }}>
                         {dietPlan?.hydration_target || "2.8 – 3.2 Liters daily"}
                       </div>
                       <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 2 }}>
@@ -3016,7 +3020,7 @@ Website: https://callmedex.com
                             gap: 12,
                           }}
                         >
-                          <span style={{ fontSize: "0.72rem", color: "#38bdf8", fontWeight: 700, minWidth: 65 }}>
+                          <span style={{ fontSize: "0.72rem", color: "#a5b8ff", fontWeight: 700, minWidth: 65 }}>
                             {m.time}
                           </span>
                           <div>
@@ -3041,7 +3045,7 @@ Website: https://callmedex.com
                       padding: "14px 16px",
                     }}
                   >
-                    <div style={{ fontSize: "0.78rem", color: "#c084fc", fontWeight: 800, textTransform: "uppercase", marginBottom: 6 }}>
+                    <div style={{ fontSize: "0.78rem", color: "#c7b8ff", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
                       Physical Activity &amp; Joint Mobility Protocol
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#e2e8f0", lineHeight: 1.5 }}>
@@ -3075,7 +3079,7 @@ Website: https://callmedex.com
                     >
                       <div style={{ maxWidth: "70%" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff" }}>
+                          <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#ffffff" }}>
                             {item.name}
                           </span>
                           <span
@@ -3083,8 +3087,8 @@ Website: https://callmedex.com
                               fontSize: "0.68rem",
                               padding: "2px 7px",
                               borderRadius: 6,
-                              background: "rgba(168, 85, 247, 0.2)",
-                              color: "#c084fc",
+                              background: "rgba(124, 108, 240, 0.2)",
+                              color: "#c7b8ff",
                               fontWeight: 700,
                             }}
                           >
@@ -3094,7 +3098,7 @@ Website: https://callmedex.com
                         <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 4 }}>
                           {item.reason}
                         </div>
-                        <div style={{ fontSize: "0.72rem", color: "#38bdf8", marginTop: 2 }}>
+                        <div style={{ fontSize: "0.72rem", color: "#a5b8ff", marginTop: 2 }}>
                           Dosage / Instructions: {item.dosage}
                         </div>
                       </div>
@@ -3105,12 +3109,12 @@ Website: https://callmedex.com
                             <span style={{ fontSize: "0.75rem", color: "#64748b", textDecoration: "line-through" }}>
                               ₹{item.originalPrice}
                             </span>
-                            <span style={{ fontSize: "1rem", fontWeight: 800, color: "#4ade80" }}>
+                            <span style={{ fontSize: "1rem", fontWeight: 700, color: "#86e0b5" }}>
                               ₹{item.price}
                             </span>
                           </div>
                         ) : (
-                          <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#38bdf8" }}>
+                          <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#a5b8ff" }}>
                             Verified Pharmacy Partner
                           </div>
                         )}

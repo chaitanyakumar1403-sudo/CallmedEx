@@ -29,6 +29,16 @@ import {
   XCircle,
   AlertTriangle,
   Sparkles,
+  Info,
+  Layers,
+  Plus,
+  X,
+  Play,
+  Pause,
+  Trash2,
+  UserPlus,
+  Link2,
+  MapPin,
 } from 'lucide-react';
 import Clinical3DIcon, { Clinical3DIconName } from '@/components/ui/Clinical3DIcon';
 
@@ -1257,57 +1267,50 @@ export default function AdminDashboard() {
         {/* PROCESSING CENTRES TAB */}
         {/* ════════════════════════════════════════════════════════════ */}
         {activeTab === 'processing-centres' && (
-          <div>
+          <div className="cm-pc">
             {/* ── Explainer ───────────────────────────────────────────── */}
-            <div style={{
-              backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10,
-              padding: '14px 18px', marginBottom: 20, fontSize: '0.85rem', color: '#0369a1', lineHeight: 1.6,
-            }}>
-              <strong>🏭 How it works:</strong> Centres are created by CallMedex (no self-signup).
-              Create → Activate → Add staff → Add areas. Active centres receive bookings
-              automatically by pincode / city / district / radius.
+            <div className="cm-pc-note">
+              <Info size={16} />
+              <p>
+                <strong>How it works.</strong> Centres are created by CallMedex (no self-signup).
+                Create, activate, add staff, then add areas. Active centres receive bookings
+                automatically by pincode, city, district or radius.
+              </p>
             </div>
 
             {/* ── Header + Actions ──────────────────────────────── */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <h3 style={{ margin: 0, color: '#1a2b4a' }}>
-                Processing Centres
-                <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.85rem', marginLeft: 8 }}>
-                  ({centres.length})
-                </span>
-              </h3>
-              <div style={{ display: 'flex', gap: 10 }}>
+            <div className="cm-pc-head">
+              <div>
+                <p className="cm-pc-eyebrow">Lab network</p>
+                <h3 className="cm-pc-title">
+                  Processing Centres <span className="cm-pc-title__count">{centres.length}</span>
+                </h3>
+              </div>
+              <div className="cm-pc-head__actions">
                 <button
                   onClick={handleDeduplicateCentres}
-                  style={{
-                    backgroundColor: '#475569', color: 'white', border: 'none',
-                    padding: '10px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
-                  }}
+                  className="cm-pc-btn cm-pc-btn--ghost"
                   title="Remove duplicate processing centres if any exist"
                 >
-                  🧹 Remove Duplicates
+                  <Layers size={15} /> Remove Duplicates
                 </button>
                 <button
                   onClick={() => { setShowPcForm(!showPcForm); setPcFormMsg(''); }}
-                  style={{
-                    backgroundColor: '#1a2b4a', color: 'white', border: 'none',
-                    padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem',
-                  }}
-                >{showPcForm ? 'Close' : '+ New Centre'}</button>
+                  className="cm-pc-btn cm-pc-btn--primary"
+                >
+                  {showPcForm ? <><X size={15} /> Close</> : <><Plus size={15} /> New Centre</>}
+                </button>
               </div>
             </div>
 
             {/* ── New Centre Form with State/City Dropdowns ─────────────────────────── */}
             {showPcForm && (
-              <form onSubmit={handleCreateCentre} style={{
-                display: 'grid', gap: 12, backgroundColor: '#f8fafc',
-                padding: 20, borderRadius: 8, marginBottom: 24, border: '1px solid #cbd5e1',
-              }}>
-                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>➕ Create Processing Centre</div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>State *</label>
+              <form onSubmit={handleCreateCentre} className="cm-pc-form">
+                <div className="cm-pc-form__title"><Plus size={16} /> Create Processing Centre</div>
+
+                <div className="cm-pc-form__grid cm-pc-form__grid--2">
+                  <label className="cm-pc-field">
+                    <span>State *</span>
                     <select
                       required
                       value={pcForm.state}
@@ -1316,322 +1319,281 @@ export default function AdminDashboard() {
                         const cities = LOCATION_MAP[st] || [];
                         setPcForm({ ...pcForm, state: st, city: cities[0] || '' });
                       }}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}
+                      className="cm-pc-input"
                     >
                       <option value="">-- Select State --</option>
                       {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  </div>
+                  </label>
 
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>City / District *</label>
+                  <label className="cm-pc-field">
+                    <span>City / District *</span>
                     <select
                       required
                       value={pcForm.city}
                       onChange={e => setPcForm({ ...pcForm, city: e.target.value })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}
+                      className="cm-pc-input"
                     >
                       <option value="">-- Select City / District --</option>
                       {(LOCATION_MAP[pcForm.state] || []).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                  </div>
+                  </label>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Centre Code *</label>
+                <div className="cm-pc-form__grid cm-pc-form__grid--3">
+                  <label className="cm-pc-field">
+                    <span>Centre Code *</span>
                     <input required placeholder="Code (e.g. VSPK-02)" value={pcForm.code}
                       onChange={e => setPcForm({ ...pcForm, code: e.target.value })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  </div>
+                      className="cm-pc-input" />
+                  </label>
 
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Centre Name *</label>
+                  <label className="cm-pc-field">
+                    <span>Centre Name *</span>
                     <input required placeholder="Name (e.g. Visakhapatnam Centre 02)" value={pcForm.name}
                       onChange={e => setPcForm({ ...pcForm, name: e.target.value })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  </div>
+                      className="cm-pc-input" />
+                  </label>
 
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Pincode</label>
+                  <label className="cm-pc-field">
+                    <span>Pincode</span>
                     <input placeholder="Pincode" value={pcForm.pincode}
                       onChange={e => setPcForm({ ...pcForm, pincode: e.target.value })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  </div>
+                      className="cm-pc-input" />
+                  </label>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Full Address</label>
+                <div className="cm-pc-form__grid cm-pc-form__grid--21">
+                  <label className="cm-pc-field">
+                    <span>Full Address</span>
                     <input placeholder="Full Address" value={pcForm.address}
                       onChange={e => setPcForm({ ...pcForm, address: e.target.value })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  </div>
+                      className="cm-pc-input" />
+                  </label>
 
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Daily Capacity</label>
+                  <label className="cm-pc-field">
+                    <span>Daily Capacity</span>
                     <input type="number" placeholder="Capacity (e.g. 500)" value={pcForm.daily_capacity || ''}
                       onChange={e => setPcForm({ ...pcForm, daily_capacity: parseInt(e.target.value) || 0 })}
-                      style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem' }} />
-                  </div>
+                      className="cm-pc-input" />
+                  </label>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>Lab Software (Connector) *</label>
+                <label className="cm-pc-field">
+                  <span>Lab Software (Connector) *</span>
                   <select required value={pcForm.lab_connector_type}
                     onChange={e => setPcForm({ ...pcForm, lab_connector_type: e.target.value })}
-                    style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.85rem', backgroundColor: 'white' }}>
+                    className="cm-pc-input">
                     <option value="mocdoc">MocDoc</option>
                     <option value="crelio">CrelioHealth</option>
                     <option value="cloudlims">CloudLIMS</option>
                     <option value="manual">Manual / No connector</option>
                   </select>
-                </div>
+                </label>
 
-                <button type="submit" style={{
-                  backgroundColor: '#059669', color: 'white', border: 'none',
-                  padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, marginTop: 4,
-                }}>Create Processing Centre</button>
-                {pcFormMsg && <p style={{ color: pcFormMsg.startsWith('✅') ? '#059669' : '#dc2626', fontWeight: 600, margin: 0 }}>{pcFormMsg}</p>}
+                <div className="cm-pc-form__foot">
+                  {pcFormMsg && (
+                    <p className={pcFormMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{pcFormMsg}</p>
+                  )}
+                  <button type="submit" className="cm-pc-btn cm-pc-btn--primary">
+                    <CheckCircle2 size={15} /> Create Processing Centre
+                  </button>
+                </div>
               </form>
             )}
 
-            {/* ── Centres Table ───────────────────────────────────────── */}
+            {/* ── Centres ───────────────────────────────────────── */}
             {pcLoading ? (
-              <p style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>Loading centres...</p>
+              <p className="cm-pc-empty">Loading centres...</p>
             ) : centres.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>
-                No processing centres yet. Create one to get started.
-              </p>
+              <p className="cm-pc-empty">No processing centres yet. Create one to get started.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="cm-pc-list">
                 {centres.map((c: any) => {
-                  const statusColor = c.status === 'active' ? '#059669' : c.status === 'paused' ? '#d97706' : '#6b7280';
-                  const statusBg = c.status === 'active' ? '#d1fae5' : c.status === 'paused' ? '#fef3c7' : '#f3f4f6';
                   const staffList = c.staff || [];
                   const areaList = c.areas || [];
                   const phleboList = c.phlebotomists || [];
+                  const statusTone = c.status === 'active' ? 'active' : c.status === 'paused' ? 'paused' : 'idle';
                   return (
-                    <div key={c.id} style={{
-                      backgroundColor: 'white', borderRadius: 12, padding: 20,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb',
-                    }}>
+                    <article key={c.id} className="cm-pc-card">
                       {/* ── Centre header row ─────────────────────────── */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                            <strong style={{ fontSize: '1rem', color: '#1a2b4a' }}>{c.code}</strong>
-                            <span style={{
-                              padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem', fontWeight: 600,
-                              backgroundColor: statusBg, color: statusColor, textTransform: 'uppercase',
-                            }}>{c.status}</span>
+                      <header className="cm-pc-card__head">
+                        <div className="cm-pc-card__id">
+                          <div className="cm-pc-card__badge"><Factory size={20} /></div>
+                          <div>
+                            <div className="cm-pc-card__code-row">
+                              <strong className="cm-pc-card__code">{c.code}</strong>
+                              <span className={`cm-pc-status cm-pc-status--${statusTone}`}>
+                                <span className="cm-pc-status__dot" /> {c.status}
+                              </span>
+                            </div>
+                            <div className="cm-pc-card__name">
+                              {c.name} &middot; {c.city}{c.state ? `, ${c.state}` : ''}
+                            </div>
                           </div>
-                          <div style={{ fontSize: '0.85rem', color: '#4b5563' }}>
-                            {c.name} &middot; {c.city}{c.state ? `, ${c.state}` : ''}
-                          </div>
-                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#6b7280' }}>Lab Software:</label>
+                        </div>
+                        <div className="cm-pc-card__actions">
+                          <label className="cm-pc-connector">
+                            <span>Lab software</span>
                             <select value={c.lab_connector_type || 'mocdoc'}
                               onChange={e => handleUpdateCentreConnector(c.id, e.target.value)}
-                              style={{
-                                fontSize: '0.75rem', padding: '3px 8px', borderRadius: 6,
-                                border: '1px solid #d1d5db', backgroundColor: 'white',
-                              }}>
+                              className="cm-pc-input cm-pc-input--sm">
                               <option value="mocdoc">MocDoc</option>
                               <option value="crelio">CrelioHealth</option>
                               <option value="cloudlims">CloudLIMS</option>
                               <option value="manual">Manual / No connector</option>
                             </select>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                          </label>
                           {c.status === 'onboarding' && (
                             <button onClick={() => handleUpdateCentreStatus(c.id, 'active')}
-                              style={{
-                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
-                                border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
-                                color: '#065f46', fontWeight: 600,
-                              }}>Activate</button>
+                              className="cm-pc-btn cm-pc-btn--primary cm-pc-btn--sm"><Play size={14} /> Activate</button>
                           )}
                           {c.status === 'active' && (
                             <button onClick={() => handleUpdateCentreStatus(c.id, 'paused')}
-                              style={{
-                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
-                                border: '1px solid #d97706', borderRadius: 6, backgroundColor: '#fef3c7',
-                                color: '#92400e', fontWeight: 600,
-                              }}>Pause</button>
+                              className="cm-pc-btn cm-pc-btn--ghost cm-pc-btn--sm"><Pause size={14} /> Pause</button>
                           )}
                           {c.status === 'paused' && (
                             <button onClick={() => handleUpdateCentreStatus(c.id, 'active')}
-                              style={{
-                                fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
-                                border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
-                                color: '#065f46', fontWeight: 600,
-                              }}>Reactivate</button>
+                              className="cm-pc-btn cm-pc-btn--primary cm-pc-btn--sm"><Play size={14} /> Reactivate</button>
                           )}
                           <button onClick={() => handleDeleteCentre(c.id, c.code)}
-                            style={{
-                              fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer',
-                              border: '1px solid #dc2626', borderRadius: 6, backgroundColor: '#fee2e2',
-                              color: '#991b1b', fontWeight: 600,
-                            }}>🗑️ Delete</button>
+                            className="cm-pc-btn cm-pc-btn--danger cm-pc-btn--sm"
+                            aria-label={`Delete centre ${c.code}`}><Trash2 size={14} /> Delete</button>
                         </div>
-                      </div>
+                      </header>
 
-                      {/* ── Staff section ─────────────────────────────── */}
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                          Staff ({staffList.length})
-                        </div>
-                        {staffList.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                            {staffList.map((s: any) => (
-                              <span key={s.id || s.user_id} style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
-                                backgroundColor: '#eef2ff', color: '#4f46e5',
-                              }}>
-                                {s.user_id?.slice(0, 8)}...
-                                <button onClick={() => handleRemoveStaff(c.id, s.user_id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.7rem', padding: 0, marginLeft: 2 }}
-                                  title="Remove staff">✕</button>
-                              </span>
-                            ))}
+                      <div className="cm-pc-card__sections">
+                        {/* ── Staff section ─────────────────────────────── */}
+                        <section className="cm-pc-sec">
+                          <div className="cm-pc-sec__head">
+                            <Users size={15} /> Staff <span className="cm-pc-sec__count">{staffList.length}</span>
                           </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input
-                            placeholder="Staff email"
-                            value={selectedCentre === c.id ? staffEmail : ''}
-                            onChange={e => { setSelectedCentre(c.id); setStaffEmail(e.target.value); setStaffMsg(''); }}
-                            onFocus={() => setSelectedCentre(c.id)}
-                            style={{
-                              flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
-                              fontSize: '0.8rem', maxWidth: 240,
-                            }}
-                          />
-                          <select
-                            value={selectedCentre === c.id ? staffRole : 'technician'}
-                            onChange={e => { setSelectedCentre(c.id); setStaffRole(e.target.value); }}
-                            style={{
-                              padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
-                              fontSize: '0.8rem', backgroundColor: 'white',
-                            }}
-                          >
-                            <option value="technician">Technician</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                          <button onClick={() => { setSelectedCentre(c.id); handleAddStaff(c.id); }}
-                            style={{
-                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
-                              border: '1px solid #6366f1', borderRadius: 6, backgroundColor: '#eef2ff',
-                              color: '#4f46e5', fontWeight: 600,
-                            }}>Add Staff</button>
-                        </div>
-                        {selectedCentre === c.id && staffMsg && (
-                          <p style={{ fontSize: '0.78rem', color: staffMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{staffMsg}</p>
-                        )}
-                      </div>
+                          {staffList.length > 0 ? (
+                            <div className="cm-pc-chips">
+                              {staffList.map((s: any) => (
+                                <span key={s.id || s.user_id} className="cm-pc-chip">
+                                  {s.users?.full_name || s.full_name || s.email || `${s.user_id?.slice(0, 8)}…`}
+                                  {s.role && <span className="cm-pc-chip__sub">{s.role}</span>}
+                                  <button onClick={() => handleRemoveStaff(c.id, s.user_id)}
+                                    className="cm-pc-chip__x"
+                                    aria-label="Remove staff" title="Remove staff"><X size={12} /></button>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="cm-pc-sec__empty">No staff yet.</p>
+                          )}
+                          <div className="cm-pc-add">
+                            <input
+                              placeholder="Staff email"
+                              value={selectedCentre === c.id ? staffEmail : ''}
+                              onChange={e => { setSelectedCentre(c.id); setStaffEmail(e.target.value); setStaffMsg(''); }}
+                              onFocus={() => setSelectedCentre(c.id)}
+                              className="cm-pc-input cm-pc-add__grow"
+                            />
+                            <select
+                              value={selectedCentre === c.id ? staffRole : 'technician'}
+                              onChange={e => { setSelectedCentre(c.id); setStaffRole(e.target.value); }}
+                              className="cm-pc-input"
+                            >
+                              <option value="technician">Technician</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button onClick={() => { setSelectedCentre(c.id); handleAddStaff(c.id); }}
+                              className="cm-pc-btn cm-pc-btn--soft"><UserPlus size={14} /> Add Staff</button>
+                          </div>
+                          {selectedCentre === c.id && staffMsg && (
+                            <p className={staffMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{staffMsg}</p>
+                          )}
+                        </section>
 
-                      {/* ── Phlebotomists section ─────────────────────── */}
-                      {/* Home-collection dispatch only offers this centre's
-                          bookings to phlebos bound here — an unbound phlebo
-                          never gets a request or email for it. */}
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                          Phlebotomists ({phleboList.length})
-                        </div>
-                        {phleboList.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                            {phleboList.map((p: any) => (
-                              <span key={p.user_id} style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
-                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
-                                backgroundColor: p.on_duty ? '#fff7ed' : '#f3f4f6',
-                                color: p.on_duty ? '#ea580c' : '#6b7280',
-                              }}>
-                                {p.users?.full_name || p.user_id?.slice(0, 8)}
-                                {p.verification_status !== 'verified' && ' (unverified)'}
-                                <button onClick={() => handleRemovePhlebo(c.id, p.user_id)}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.7rem', padding: 0, marginLeft: 2 }}
-                                  title="Unbind phlebotomist">✕</button>
-                              </span>
-                            ))}
+                        {/* ── Phlebotomists section ─────────────────────── */}
+                        {/* Home-collection dispatch only offers this centre's
+                            bookings to phlebos bound here — an unbound phlebo
+                            never gets a request or email for it. */}
+                        <section className="cm-pc-sec">
+                          <div className="cm-pc-sec__head">
+                            <Syringe size={15} /> Phlebotomists <span className="cm-pc-sec__count">{phleboList.length}</span>
                           </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input
-                            placeholder="Phlebotomist email"
-                            value={selectedCentre === c.id ? phleboEmail : ''}
-                            onChange={e => { setSelectedCentre(c.id); setPhleboEmail(e.target.value); setPhleboMsg(''); }}
-                            onFocus={() => setSelectedCentre(c.id)}
-                            style={{
-                              flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db',
-                              fontSize: '0.8rem', maxWidth: 240,
-                            }}
-                          />
-                          <button onClick={() => { setSelectedCentre(c.id); handleAddPhlebo(c.id); }}
-                            style={{
-                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
-                              border: '1px solid #ea580c', borderRadius: 6, backgroundColor: '#fff7ed',
-                              color: '#c2410c', fontWeight: 600,
-                            }}>Bind Phlebotomist</button>
-                        </div>
-                        {selectedCentre === c.id && phleboMsg && (
-                          <p style={{ fontSize: '0.78rem', color: phleboMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{phleboMsg}</p>
-                        )}
-                      </div>
+                          {phleboList.length > 0 ? (
+                            <div className="cm-pc-chips">
+                              {phleboList.map((p: any) => (
+                                <span key={p.user_id} className={p.on_duty ? 'cm-pc-chip cm-pc-chip--live' : 'cm-pc-chip'}>
+                                  {p.on_duty && <span className="cm-pc-chip__dot" aria-label="On duty" />}
+                                  {p.users?.full_name || p.user_id?.slice(0, 8)}
+                                  {p.verification_status !== 'verified' && <span className="cm-pc-chip__warn">Unverified</span>}
+                                  <button onClick={() => handleRemovePhlebo(c.id, p.user_id)}
+                                    className="cm-pc-chip__x"
+                                    aria-label="Unbind phlebotomist" title="Unbind phlebotomist"><X size={12} /></button>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="cm-pc-sec__empty">No phlebotomists bound.</p>
+                          )}
+                          <div className="cm-pc-add">
+                            <input
+                              placeholder="Phlebotomist email"
+                              value={selectedCentre === c.id ? phleboEmail : ''}
+                              onChange={e => { setSelectedCentre(c.id); setPhleboEmail(e.target.value); setPhleboMsg(''); }}
+                              onFocus={() => setSelectedCentre(c.id)}
+                              className="cm-pc-input cm-pc-add__grow"
+                            />
+                            <button onClick={() => { setSelectedCentre(c.id); handleAddPhlebo(c.id); }}
+                              className="cm-pc-btn cm-pc-btn--soft"><Link2 size={14} /> Bind Phlebotomist</button>
+                          </div>
+                          {selectedCentre === c.id && phleboMsg && (
+                            <p className={phleboMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{phleboMsg}</p>
+                          )}
+                        </section>
 
-                      {/* ── Areas section ─────────────────────────────── */}
-                      <div>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                          Service Areas ({areaList.length})
-                        </div>
-                        {areaList.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                            {areaList.map((a: any) => (
-                              <span key={a.id} style={{
-                                padding: '3px 10px', borderRadius: 20, fontSize: '0.7rem',
-                                backgroundColor: '#f0fdf4', color: '#166534',
-                              }}>
-                                {a.city || a.pincode || `${a.radius_km}km`} {a.priority !== 100 ? `(p${a.priority})` : ''}
-                              </span>
-                            ))}
+                        {/* ── Areas section ─────────────────────────────── */}
+                        <section className="cm-pc-sec cm-pc-sec--wide">
+                          <div className="cm-pc-sec__head">
+                            <MapPin size={15} /> Service Areas <span className="cm-pc-sec__count">{areaList.length}</span>
                           </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <select
-                            value={selectedCentre === c.id ? areaForm.city : ''}
-                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, city: e.target.value }); setAreaMsg(''); }}
-                            onFocus={() => setSelectedCentre(c.id)}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', backgroundColor: 'white', minWidth: 140 }}
-                          >
-                            <option value="">-- City / District --</option>
-                            {INDIAN_STATES.flatMap(st => LOCATION_MAP[st] || []).sort().map(city => (
-                              <option key={city} value={city}>{city}</option>
-                            ))}
-                          </select>
-                          <input placeholder="Pincode" value={selectedCentre === c.id ? areaForm.pincode : ''}
-                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, pincode: e.target.value }); }}
-                            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 90 }} />
-                          <input placeholder="Radius (km)" value={selectedCentre === c.id ? areaForm.radius_km : ''}
-                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, radius_km: e.target.value }); }}
-                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 90 }} />
-                          <input placeholder="Priority" value={selectedCentre === c.id ? areaForm.priority : 100}
-                            onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, priority: parseInt(e.target.value) || 100 }); }}
-                            type="number" style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.8rem', width: 70 }} />
-                          <button onClick={() => { setSelectedCentre(c.id); handleAddArea(c.id); }}
-                            style={{
-                              fontSize: '0.7rem', padding: '6px 12px', cursor: 'pointer',
-                              border: '1px solid #059669', borderRadius: 6, backgroundColor: '#d1fae5',
-                              color: '#065f46', fontWeight: 600,
-                            }}>Add Area</button>
-                        </div>
-                        {selectedCentre === c.id && areaMsg && (
-                          <p style={{ fontSize: '0.78rem', color: areaMsg.startsWith('✅') ? '#059669' : '#dc2626', margin: '4px 0 0' }}>{areaMsg}</p>
-                        )}
+                          {areaList.length > 0 ? (
+                            <div className="cm-pc-chips">
+                              {areaList.map((a: any) => (
+                                <span key={a.id} className="cm-pc-chip cm-pc-chip--area">
+                                  {a.city || a.pincode || `${a.radius_km}km`} {a.priority !== 100 ? `(p${a.priority})` : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="cm-pc-sec__empty">No service areas yet.</p>
+                          )}
+                          <div className="cm-pc-add">
+                            <select
+                              value={selectedCentre === c.id ? areaForm.city : ''}
+                              onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, city: e.target.value }); setAreaMsg(''); }}
+                              onFocus={() => setSelectedCentre(c.id)}
+                              className="cm-pc-input cm-pc-add__grow"
+                              aria-label="City or district"
+                            >
+                              <option value="">-- City / District --</option>
+                              {INDIAN_STATES.flatMap(st => LOCATION_MAP[st] || []).sort().map(city => (
+                                <option key={city} value={city}>{city}</option>
+                              ))}
+                            </select>
+                            <input placeholder="Pincode" value={selectedCentre === c.id ? areaForm.pincode : ''}
+                              onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, pincode: e.target.value }); }}
+                              className="cm-pc-input cm-pc-input--num" aria-label="Pincode" />
+                            <input placeholder="Radius (km)" value={selectedCentre === c.id ? areaForm.radius_km : ''}
+                              onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, radius_km: e.target.value }); }}
+                              type="number" className="cm-pc-input cm-pc-input--num" aria-label="Radius in km" />
+                            <input placeholder="Priority" value={selectedCentre === c.id ? areaForm.priority : 100}
+                              onChange={e => { setSelectedCentre(c.id); setAreaForm({ ...areaForm, priority: parseInt(e.target.value) || 100 }); }}
+                              type="number" className="cm-pc-input cm-pc-input--num" aria-label="Priority" />
+                            <button onClick={() => { setSelectedCentre(c.id); handleAddArea(c.id); }}
+                              className="cm-pc-btn cm-pc-btn--soft"><Plus size={14} /> Add Area</button>
+                          </div>
+                          {selectedCentre === c.id && areaMsg && (
+                            <p className={areaMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{areaMsg}</p>
+                          )}
+                        </section>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>

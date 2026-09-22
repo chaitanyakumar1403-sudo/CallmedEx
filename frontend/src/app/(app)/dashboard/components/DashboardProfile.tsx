@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Icon, Panel, Pill } from "@/components/ui";
+import { Icon, Panel, Pill, Modal } from "@/components/ui";
 import {
   Building2, Clock, FileText, FlaskConical, GraduationCap, Mail,
   MapPin, Package, Phone, Stethoscope, Syringe, User, Pencil, Check,
@@ -35,6 +35,136 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const [photoSuccess, setPhotoSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Live camera studio. `capture="user"` on a file input is ignored by every
+  // desktop browser, which is why "Take Live Photo" used to open the same
+  // file picker as "Choose Profile Photo". getUserMedia opens the real camera
+  // everywhere; the capture input stays only as the no-camera-API fallback.
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const stopCameraStream = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraReady(false);
+  };
+
+  // The <video> only exists once the modal has rendered, so the stream is
+  // attached from an effect rather than from the click handler. `cancelled`
+  // stops a slow permission prompt from attaching a stream to a closed modal.
+  useEffect(() => {
+    if (!cameraOpen || capturedBlob) return;
+    let cancelled = false;
+    setCameraError(null);
+    setCameraReady(false);
+    (async () => {
+      const attempts: MediaStreamConstraints[] = [
+        { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false },
+        { video: { facingMode: "user" }, audio: false },
+        { video: true, audio: false },
+      ];
+      let lastErr: unknown = null;
+      for (const c of attempts) {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia(c);
+          if (cancelled) { s.getTracks().forEach((t) => t.stop()); return; }
+          streamRef.current = s;
+          const v = videoRef.current;
+          if (v) {
+            v.srcObject = s;
+            v.onloadedmetadata = () => { if (!cancelled) setCameraReady(true); };
+            v.play().catch(() => {});
+          }
+          return;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (cancelled) return;
+      const name = lastErr instanceof DOMException ? lastErr.name : "";
+      setCameraError(
+        name === "NotAllowedError" || name === "PermissionDeniedError"
+          ? "Camera permission was blocked. Allow camera access from your browser's address bar, then press Retry."
+          : name === "NotFoundError" || name === "DevicesNotFoundError"
+          ? "No camera was found on this device. Use Choose Profile Photo instead."
+          : name === "NotReadableError"
+          ? "Your camera is in use by another app. Close that app, then press Retry."
+          : "The camera could not be started. Press Retry or use Choose Profile Photo."
+      );
+    })();
+    return () => { cancelled = true; stopCameraStream(); };
+  }, [cameraOpen, capturedBlob, cameraAttempt]);
+
+  useEffect(() => () => {
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+  }, [capturedUrl]);
+
+  const openCamera = () => {
+    setPhotoError(null);
+    setPhotoSuccess(null);
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      // No camera API (insecure origin, old WebView): the OS capture sheet is
+      // the only remaining route to the camera.
+      cameraInputRef.current?.click();
+      return;
+    }
+    setCapturedBlob(null);
+    setCapturedUrl(null);
+    setCameraOpen(true);
+  };
+
+  const closeCamera = () => {
+    stopCameraStream();
+    setCameraOpen(false);
+    setCameraError(null);
+    setCapturedBlob(null);
+    setCapturedUrl(null);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      setCameraError("This browser could not capture the frame. Use Choose Profile Photo instead.");
+      return;
+    }
+    // The preview is mirrored; the saved photo is mirrored the same way so the
+    // practitioner publishes exactly the image they approved.
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError("The photo could not be captured. Please try again.");
+        return;
+      }
+      stopCameraStream();
+      setCapturedBlob(blob);
+      setCapturedUrl(URL.createObjectURL(blob));
+    }, "image/jpeg", 0.9);
+  };
+
+  const retakePhoto = () => {
+    setCapturedBlob(null);
+    setCapturedUrl(null);
+  };
+
+  const confirmCapturedPhoto = async () => {
+    if (!capturedBlob) return;
+    const file = new File([capturedBlob], `live_photo_${Date.now()}.jpg`, { type: "image/jpeg" });
+    closeCamera();
+    await handlePhotoUpload(file);
+  };
 
   useEffect(() => {
     if (["doctor", "dentist", "physiotherapist", "dietitian", "nurse"].includes(role)) {
@@ -355,7 +485,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
 
               <button
                 type="button"
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={openCamera}
                 disabled={photoUploading}
                 className="cm-profile-studio__btn-secondary"
               >
@@ -375,6 +505,82 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                 </button>
               )}
             </div>
+
+            <Modal
+              open={cameraOpen}
+              onClose={closeCamera}
+              title={capturedUrl ? "Review your live photo" : "Take a live photo"}
+              footer={
+                capturedUrl ? (
+                  <>
+                    <button type="button" onClick={retakePhoto} className="cm-profile-studio__btn-secondary">
+                      <RefreshCw size={15} />
+                      <span>Retake</span>
+                    </button>
+                    <button type="button" onClick={confirmCapturedPhoto} className="cm-profile-studio__btn-primary">
+                      <Check size={15} />
+                      <span>Use this photo</span>
+                    </button>
+                  </>
+                ) : cameraError ? (
+                  <>
+                    <button type="button" onClick={closeCamera} className="cm-profile-studio__btn-secondary">
+                      <span>Cancel</span>
+                    </button>
+                    <button type="button" onClick={() => setCameraAttempt((n) => n + 1)} className="cm-profile-studio__btn-primary">
+                      <RefreshCw size={15} />
+                      <span>Retry</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" onClick={closeCamera} className="cm-profile-studio__btn-secondary">
+                      <span>Cancel</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={capturePhoto}
+                      disabled={!cameraReady}
+                      className="cm-profile-studio__btn-primary"
+                    >
+                      <Camera size={15} />
+                      <span>{cameraReady ? "Capture photo" : "Starting camera..."}</span>
+                    </button>
+                  </>
+                )
+              }
+            >
+              <div className="cm-camera-studio">
+                {capturedUrl ? (
+                  <img src={capturedUrl} alt="Captured live photo preview" className="cm-camera-studio__media" />
+                ) : cameraError ? (
+                  <div className="cm-camera-studio__error" role="alert">
+                    <AlertCircle size={20} />
+                    <span>{cameraError}</span>
+                  </div>
+                ) : (
+                  <>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="cm-camera-studio__media cm-camera-studio__media--mirror"
+                    />
+                    <div className="cm-camera-studio__guide" aria-hidden="true" />
+                    {!cameraReady && (
+                      <div className="cm-camera-studio__loading">
+                        <RefreshCw size={18} className="animate-spin" />
+                        <span>Waiting for camera permission...</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <p className="cm-camera-studio__hint">
+                Face the camera in good light, centre your face in the oval, and remove sunglasses.
+              </p>
+            </Modal>
 
             {/* Success & Error alerts */}
             {photoSuccess && (
