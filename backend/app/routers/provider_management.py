@@ -16,6 +16,7 @@ from app.middleware.auth import get_current_user, get_optional_current_user
 from app.database import supabase
 from app.models.schemas import APIResponse
 from app.services import provider_modes
+from app.services.doctor_branches import resolve_branch, doctor_branch_shifts
 from app.services.storage import StorageService
 from app.utils.db_helpers import _rows
 from app.services.scope_catalogs import (
@@ -73,6 +74,10 @@ class ShiftScheduleCreate(BaseModel):
     location_name: Optional[str] = ""
     location_address: Optional[str] = ""
     replace_existing: bool = True
+    # Walk-in shifts at a linked organisation: which organisation and which of
+    # its branches ("main" = main facility). Omitted = the doctor's own clinic.
+    organization_id: Optional[str] = None
+    branch_id: Optional[str] = None
 
 
 class AvailabilityUpdate(BaseModel):
@@ -176,6 +181,14 @@ class ProviderProfileUpdate(BaseModel):
     languages_spoken: Optional[List[str]] = None
     urgent_home_visit_fee: Optional[float] = None
     normal_home_visit_fee: Optional[float] = None
+    # Pharmacy operational details (pharmacies table). Licence, drug licence
+    # and GST numbers are verification-bound and deliberately not editable.
+    pharmacy_name: Optional[str] = None
+    pharmacist_in_charge: Optional[str] = None
+    operating_hours: Optional[str] = None
+    home_delivery: Optional[bool] = None
+    available_24x7: Optional[bool] = None
+    service_radius_km: Optional[float] = Field(None, gt=0, le=50)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -201,6 +214,79 @@ async def get_my_availability(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error fetching availability: {e}")
         raise HTTPException(500, "Failed to fetch availability")
+
+
+@router.get("/my-linked-branches")
+async def get_my_linked_branches(current_user: dict = Depends(get_current_user)):
+    """Every real branch of every organisation this doctor is linked to.
+
+    The doctor's shift builder used to seed two invented branches from
+    localStorage and make the doctor retype their clinic's name by hand, so
+    shifts never carried the organisation or branch they were at.
+    """
+    if not supabase:
+        return {"success": True, "branches": []}
+    try:
+        links = _rows(
+            supabase.table("organization_doctors")
+            .select("organization_id, is_active")
+            .eq("doctor_user_id", current_user["sub"])
+            .execute()
+        )
+        org_ids = [l["organization_id"] for l in links if l.get("organization_id") and l.get("is_active") is not False]
+        if not org_ids:
+            return {"success": True, "branches": []}
+        orgs = _rows(
+            supabase.table("organizations")
+            .select("id, user_id, organization_name, verification_status")
+            .in_("id", org_ids)
+            .execute()
+        )
+        owner_ids = [o["user_id"] for o in orgs if o.get("user_id")]
+        addresses = {
+            u["id"]: u for u in _rows(
+                supabase.table("users").select("id, address, city").in_("id", owner_ids).execute()
+            )
+        } if owner_ids else {}
+        by_owner: dict = {}
+        if owner_ids:
+            for b in _rows(
+                supabase.table("provider_branches")
+                .select("id, provider_user_id, name, address, city")
+                .in_("provider_user_id", owner_ids)
+                .eq("is_active", True)
+                .order("created_at")
+                .execute()
+            ):
+                by_owner.setdefault(b["provider_user_id"], []).append(b)
+
+        out = []
+        for o in orgs:
+            name = o.get("organization_name") or "Clinic"
+            owner = addresses.get(o.get("user_id"), {})
+            out.append({
+                "organization_id": o["id"],
+                "organization_name": name,
+                "branch_id": "main",
+                "name": f"{name} (Main Facility)",
+                "address": ", ".join(p for p in [owner.get("address"), owner.get("city")] if p),
+                "is_main_branch": True,
+            })
+            for b in by_owner.get(o.get("user_id"), []):
+                if b.get("name") == f"{name} (Main Facility)":
+                    continue
+                out.append({
+                    "organization_id": o["id"],
+                    "organization_name": name,
+                    "branch_id": str(b["id"]),
+                    "name": b.get("name") or "",
+                    "address": ", ".join(p for p in [b.get("address"), b.get("city")] if p),
+                    "is_main_branch": False,
+                })
+        return {"success": True, "branches": out}
+    except Exception as e:
+        logger.error(f"Error loading linked branches: {e}")
+        raise HTTPException(500, "Could not load your clinic branches")
 
 
 @router.post("/availability")
@@ -379,15 +465,80 @@ async def create_shift_availability(
         if body.morning_end > body.evening_start:
             raise HTTPException(400, "Morning shift cannot overlap with evening shift")
 
-    # If replace_existing is requested, wipe existing availability for those days & mode
-    if body.replace_existing:
-        try:
-            for day in selected_days:
-                supabase.table("doctor_availability").delete().eq(
-                    "doctor_id", current_user["sub"]
-                ).eq("day_of_week", day).eq("consultation_mode", body.consultation_mode).execute()
-        except Exception as e:
-            logger.error(f"Error resetting existing shifts: {e}")
+    doctor_id = current_user["sub"]
+    walkin = body.consultation_mode == "in_person"
+    org_id = body.organization_id if walkin and body.organization_id else None
+    branch_key = None          # "main" or a provider_branches id, for org shifts
+    org_name = ""
+    resolver_branches: list = []
+    location_name = (body.location_name or "").strip()
+    location_address = (body.location_address or "").strip()
+
+    if org_id:
+        link = _rows(
+            supabase.table("organization_doctors").select("is_active")
+            .eq("organization_id", org_id).eq("doctor_user_id", doctor_id).execute()
+        )
+        if not link or link[0].get("is_active") is False:
+            raise HTTPException(403, "You are not linked to that organisation")
+        org = _rows(supabase.table("organizations").select("id, user_id, organization_name").eq("id", org_id).limit(1).execute())
+        if not org:
+            raise HTTPException(404, "Organisation not found")
+        org_name = org[0].get("organization_name") or "Clinic"
+        branch_rows = _rows(
+            supabase.table("provider_branches").select("id, name, address, city")
+            .eq("provider_user_id", org[0].get("user_id")).eq("is_active", True).execute()
+        )
+        resolver_branches = [{"id": "main", "name": f"{org_name} (Main Facility)"}] + [
+            {"id": str(b["id"]), "name": b.get("name")} for b in branch_rows
+        ]
+        branch_key = body.branch_id if body.branch_id and body.branch_id not in ("undefined", "null", "") else "main"
+        if branch_key == "main":
+            owner = _rows(supabase.table("users").select("address, city").eq("id", org[0].get("user_id")).limit(1).execute())
+            location_name = f"{org_name} (Main Facility)"
+            location_address = ", ".join(p for p in [(owner[0] if owner else {}).get("address"), (owner[0] if owner else {}).get("city")] if p)
+        else:
+            match = next((b for b in branch_rows if str(b["id"]) == branch_key), None)
+            if not match:
+                raise HTTPException(400, f"That branch is not an active branch of {org_name}")
+            location_name = match.get("name") or ""
+            location_address = ", ".join(p for p in [match.get("address"), match.get("city")] if p)
+    elif walkin and not location_name:
+        raise HTTPException(400, "Choose the clinic or branch these walk-in hours are at")
+
+    def _same_place(row: dict) -> bool:
+        """Is an existing row at the location this publish is for?"""
+        if not walkin:
+            return True
+        if org_id:
+            return resolve_branch(row, org_id, org_name, resolver_branches) == branch_key
+        return not row.get("organization_id") and " ".join((row.get("location_name") or "").lower().split()) == " ".join(location_name.lower().split())
+
+    existing = _rows(
+        supabase.table("doctor_availability")
+        .select("id, day_of_week, start_time, end_time, consultation_mode, organization_id, template_group_id, location_name, is_active")
+        .eq("doctor_id", doctor_id)
+        .execute()
+    )
+    # Replacing is scoped to the same mode, day AND place. It used to clear the
+    # whole day for the mode, so publishing a branch's afternoon hours silently
+    # wiped the doctor's morning hours at every other branch.
+    replaced = [
+        r["id"] for r in existing
+        if body.replace_existing and r.get("consultation_mode") == body.consultation_mode
+        and r.get("day_of_week") in selected_days and _same_place(r)
+    ]
+    if walkin:
+        others = [r for r in existing if r["id"] not in replaced and r.get("is_active", True)
+                  and r.get("consultation_mode") == "in_person" and r.get("day_of_week") in selected_days]
+        for s in shifts_to_create:
+            for r in others:
+                if str(r.get("start_time"))[:5] < s["end"] and s["start"] < str(r.get("end_time"))[:5]:
+                    raise HTTPException(
+                        409,
+                        f"{DAY_NAMES[r['day_of_week']]} {s['start']}–{s['end']} overlaps your hours at "
+                        f"{r.get('location_name') or 'another clinic'} ({str(r['start_time'])[:5]}–{str(r['end_time'])[:5]}).",
+                    )
 
     # Build shift records
     records = []
@@ -405,10 +556,14 @@ async def create_shift_availability(
                 "slot_duration_minutes": body.slot_duration_minutes,
                 "consultation_mode": body.consultation_mode,
                 "max_patients_per_slot": 1,
-                "location_name": body.location_name or "",
-                "location_address": body.location_address or "",
+                "location_name": location_name if walkin else (body.location_name or ""),
+                "location_address": location_address if walkin else (body.location_address or ""),
+                "organization_id": org_id,
                 "is_active": True,
-                "template_group_id": group_id,
+                # At an organisation's branch the branch UUID goes here — the
+                # convention every reader (doctor_branches.resolve_branch) and
+                # the organisation's own schedule modal share.
+                "template_group_id": branch_key if org_id and branch_key != "main" else group_id,
                 "created_at": now_iso,
                 "updated_at": now_iso,
             })
@@ -416,11 +571,23 @@ async def create_shift_availability(
     if not records:
         raise HTTPException(400, "No shift records to publish")
 
+    # Insert first, then retire the replaced rows, so a failure never leaves
+    # the doctor with no hours.
     try:
         supabase.table("doctor_availability").insert(records).execute()
     except Exception as e:
         logger.error(f"Error inserting shifts: {e}")
         raise HTTPException(500, "Failed to publish shift availability")
+    if replaced:
+        try:
+            supabase.table("doctor_availability").delete().in_("id", replaced).execute()
+        except Exception as e:
+            logger.error(f"Error retiring replaced shifts: {e}")
+            try:
+                supabase.table("doctor_availability").delete().in_("id", [r["id"] for r in records]).execute()
+            except Exception:
+                pass
+            raise HTTPException(500, "Could not replace your existing hours. Nothing was changed.")
 
     # Calculate estimated slots per day and week
     total_daily_mins = 0
@@ -913,6 +1080,22 @@ async def update_provider_profile(
         role_table = "doctors" if role == "doctor" else None
 
     role_updates = {}
+    if role == "pharmacy":
+        # A pharmacy row has none of the practitioner columns below; sending
+        # them made every pharmacy profile save fail at the database.
+        for col in ("pharmacy_name", "pharmacist_in_charge", "operating_hours",
+                    "home_delivery", "available_24x7", "service_radius_km"):
+            val = getattr(body, col)
+            if val is not None:
+                role_updates[col] = val.strip() if isinstance(val, str) else val
+        if role_updates and supabase:
+            try:
+                supabase.table("pharmacies").update(role_updates).eq("user_id", user_id).execute()
+            except Exception as e:
+                logger.error(f"Failed to update pharmacy profile: {e}")
+                raise HTTPException(500, "Could not save your pharmacy details")
+        return {"success": True, "message": "Pharmacy profile saved.", "data": {**user_updates, **role_updates}}
+
     if body.specialization is not None:
         role_updates["specialization"] = body.specialization
     if body.qualification is not None:
@@ -1175,6 +1358,11 @@ async def get_available_slots(
         None,
         description="Optional branch UUID to filter shifts/slots specific to that physical branch",
     ),
+    org_id: Optional[str] = Query(
+        None,
+        description="Organisation (organizations.id or its users.id) the walk-in visit is at; "
+                    "with branch_id (default 'main') only that branch's shifts produce slots",
+    ),
     current_user: Optional[dict] = Depends(get_optional_current_user),
 ):
     """
@@ -1188,6 +1376,13 @@ async def get_available_slots(
     """
     if not supabase:
         raise HTTPException(500, "Database not configured")
+
+    # Called directly (other routers, tests) the optional params arrive as their
+    # Query(None) defaults, which are truthy objects — filtering on them emptied
+    # every result.
+    mode = mode if isinstance(mode, str) else None
+    branch_id = branch_id if isinstance(branch_id, str) else None
+    org_id = org_id if isinstance(org_id, str) else None
 
     try:
         target = datetime.strptime(target_date, "%Y-%m-%d").date()
@@ -1253,7 +1448,30 @@ async def get_available_slots(
         avail_result = avail_query.execute()
 
         # Branch-specific shift filtering
-        if branch_id and branch_id not in ("all", "undefined", "null", ""):
+        if org_id and org_id not in ("undefined", "null"):
+            # A walk-in at an organisation: only shifts at that exact branch.
+            # Without this the main facility (branch_id omitted) received every
+            # in-person shift the doctor had anywhere — other branches, their
+            # own clinic — so patients booked hours the doctor spends elsewhere.
+            want = branch_id if branch_id and branch_id not in ("all", "undefined", "null", "") else "main"
+            org_row = _rows(
+                supabase.table("organizations").select("id, user_id, organization_name")
+                .or_(f"id.eq.{org_id},user_id.eq.{org_id}").limit(1).execute()
+            )
+            if not org_row:
+                return {"success": True, "slots": [], "message": "Facility not found"}
+            o = org_row[0]
+            o_branches = [{"id": "main", "name": f"{o.get('organization_name') or ''} (Main Facility)"}] + [
+                {"id": str(b["id"]), "name": b.get("name")}
+                for b in _rows(supabase.table("provider_branches").select("id, name")
+                               .eq("provider_user_id", o.get("user_id")).eq("is_active", True).execute())
+            ]
+            avail_result.data = [
+                a for a in (avail_result.data or [])
+                if a.get("consultation_mode") in ("in_person", "both")
+                and resolve_branch(a, o["id"], o.get("organization_name"), o_branches) == want
+            ]
+        elif branch_id and branch_id not in ("all", "undefined", "null", ""):
             raw_avail = avail_result.data or []
             if branch_id == "main":
                 filtered_avail = [
@@ -1275,22 +1493,28 @@ async def get_available_slots(
     if not avail_result.data:
         return {"success": True, "slots": [], "message": "No availability on this day"}
 
-    # Get existing bookings for this date
+    # Get existing bookings for this date. create_booking writes slot_id
+    # ("provider|YYYY-MM-DD|HH:MM") and slot_start — never booking_date or
+    # slot_time, which is what this used to read, so every slot came back free.
     booked_slots = set()
     try:
         bookings_result = (
             supabase.table("bookings")
-            .select("slot_time")
-            .eq("provider_id", provider_id)
-            .eq("booking_date", target_date)
-            .neq("status", "cancelled")
+            .select("slot_id, slot_start")
+            .in_("provider_id", doc_ids)
+            .not_.in_("status", ["cancelled", "slot_rejected"])
+            .gte("slot_start", f"{target_date}T00:00:00+05:30")
+            .lte("slot_start", f"{target_date}T23:59:59+05:30")
             .execute()
         )
         for b in (bookings_result.data or []):
-            if b.get("slot_time"):
-                booked_slots.add(b["slot_time"])
-    except Exception:
-        pass
+            parts = (b.get("slot_id") or "").split("|")
+            if len(parts) == 3 and parts[1] == target_date and ":" in parts[2]:
+                booked_slots.add(parts[2][:5])
+            elif b.get("slot_start") and "T" in b["slot_start"]:
+                booked_slots.add(b["slot_start"].split("T")[1][:5])
+    except Exception as e:
+        logger.warning(f"Could not read booked slots for {provider_id} on {target_date}: {e}")
 
     # Generate slots
     all_slots = []
@@ -1515,13 +1739,26 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
             except Exception as e:
                 logger.warning(f"Could not load doctor profiles for org: {e}")
 
+        # This organisation's branches, to tell which of a doctor's shifts are
+        # here (and at which branch) and which are at their own clinic.
+        resolver_branches = [{"id": "main", "name": f"{org_name} (Main Facility)"}]
+        try:
+            resolver_branches += [
+                {"id": str(b["id"]), "name": b.get("name")}
+                for b in (supabase.table("provider_branches").select("id, name")
+                          .eq("provider_user_id", current_user["sub"]).eq("is_active", True)
+                          .execute().data or [])
+            ]
+        except Exception as e:
+            logger.warning(f"Could not load org branches for doctor list: {e}")
+
         # Enrich with live doctor_availability blocks updated by the doctor
         doc_avails = {}
         if doc_user_ids:
             try:
                 av_res = (
                     supabase.table("doctor_availability")
-                    .select("id, doctor_id, day_of_week, start_time, end_time, consultation_mode, location_name, location_address, slot_duration_minutes, is_active")
+                    .select("id, doctor_id, day_of_week, start_time, end_time, consultation_mode, location_name, location_address, slot_duration_minutes, is_active, organization_id, template_group_id")
                     .in_("doctor_id", doc_user_ids)
                     .eq("is_active", True)
                     .order("day_of_week")
@@ -1529,6 +1766,10 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
                     .execute()
                 )
                 for av in (av_res.data or []):
+                    branch_id = (
+                        resolve_branch(av, org_id, org_name, resolver_branches)
+                        if av.get("consultation_mode") == "in_person" else None
+                    )
                     doc_avails.setdefault(av["doctor_id"], []).append({
                         "id": av.get("id"),
                         "day_of_week": av.get("day_of_week"),
@@ -1538,6 +1779,9 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
                         "slot_duration_minutes": av.get("slot_duration_minutes", 15),
                         "location_name": av.get("location_name", ""),
                         "location_address": av.get("location_address", ""),
+                        # Set only for walk-in shifts at THIS organisation.
+                        "branch_id": branch_id,
+                        "at_this_org": branch_id is not None,
                     })
             except Exception as e:
                 logger.warning(f"Could not load doctor availability for org: {e}")
@@ -1547,11 +1791,10 @@ async def org_list_doctors(current_user: dict = Depends(get_current_user)):
             uid = d.get("doctor_user_id")
             prof = doc_profiles.get(uid, {})
             all_av = doc_avails.get(uid, [])
-            # Filter walk-in blocks matching this org or in_person
-            walkin_blocks = [
-                a for a in all_av
-                if a.get("consultation_mode") in ("in_person", "both") or (org_name and org_name.lower() in (a.get("location_name") or "").lower())
-            ]
+            # Walk-in blocks at this organisation only. Listing every in-person
+            # block the doctor had anywhere let the org's schedule modal load
+            # the doctor's private-clinic hours and re-save them as this org's.
+            walkin_blocks = [a for a in all_av if a.get("at_this_org")]
             enriched.append({
                 **d,
                 "qualification": prof.get("qualification", ""),
@@ -2449,179 +2692,12 @@ async def search_doctors(
         return {"success": True, "doctors": []}
 
 
-SHOWCASE_NRI_DOCTORS = [
-    {
-        "id": "nri-doc-usa-sharma",
-        "doctor_id": "nri-doc-usa-sharma",
-        "name": "Dr. Rajesh V. Sharma",
-        "specialization": "Cardiology",
-        "qualification": "MD, FACC, FSCAI (USA)",
-        "experience_years": 18,
-        "country": "USA",
-        "timezone": "America/New_York (EST)",
-        "license_body": "USMLE Board Certified (ABIM USA)",
-        "hospital_clinic_name": "Cleveland Clinic & Mount Sinai Affiliated",
-        "bio": "Senior Attending Cardiologist in New York with over 18 years of clinical practice. Trained at AIIMS New Delhi and Cleveland Clinic, specializing in complex coronary interventions, heart failure, and preventative cardiology.",
-        "fee_justification": "Comprehensive 30-min global second opinion on complex cardiovascular indications, diagnostic angiography reviews, and coronary risk stratification.",
-        "consultation_fee": 2500,
-        "online_fee": 2500,
-        "profile_photo_url": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Hindi"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-uk-desai",
-        "doctor_id": "nri-doc-uk-desai",
-        "name": "Dr. Anita Desai",
-        "specialization": "Endocrinology",
-        "qualification": "MBBS, MD, MRCP (UK), FRCP (London)",
-        "experience_years": 15,
-        "country": "UK",
-        "timezone": "Europe/London (GMT / BST)",
-        "license_body": "GMC Specialist Register #7492103 (UK)",
-        "hospital_clinic_name": "Imperial College Healthcare NHS Trust, London",
-        "bio": "Consultant Endocrinologist at Imperial College London. Renowned researcher and clinician specializing in difficult-to-control diabetes, metabolic syndrome, thyroid nodules, and polycystic ovarian syndrome.",
-        "fee_justification": "Detailed endocrine metabolic review, bespoke insulin & medication titration, and 24-hr follow-up guidance.",
-        "consultation_fee": 2200,
-        "online_fee": 2200,
-        "profile_photo_url": "https://images.unsplash.com/photo-1594824813589-322194600109?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Hindi", "Gujarati"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-uae-rao",
-        "doctor_id": "nri-doc-uae-rao",
-        "name": "Dr. Vikramaditya Rao",
-        "specialization": "Neurology",
-        "qualification": "MBBS, DM (Neurology), FAAN",
-        "experience_years": 16,
-        "country": "UAE",
-        "timezone": "Asia/Dubai (GST UTC+4)",
-        "license_body": "Dubai Health Authority (DHA Consultant #48912)",
-        "hospital_clinic_name": "Mediclinic City Hospital, Dubai Healthcare City",
-        "bio": "Consultant Neurologist with dual practice in Dubai and India. Specializes in advanced stroke prevention, epilepsy management, migraine therapeutics, and neurodegenerative disorders.",
-        "fee_justification": "Thorough neuro-clinical review, MRI/CT image second opinion, and personalized management protocol.",
-        "consultation_fee": 2000,
-        "online_fee": 2000,
-        "profile_photo_url": "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Telugu", "Hindi"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-au-sundaram",
-        "doctor_id": "nri-doc-au-sundaram",
-        "name": "Dr. Priya Sundaram",
-        "specialization": "Pediatrics",
-        "qualification": "MBBS, MD, FRACP (Pediatrics Australia)",
-        "experience_years": 14,
-        "country": "Australia",
-        "timezone": "Australia/Sydney (AEST)",
-        "license_body": "Australian Medical Council (AMC) / AHPRA",
-        "hospital_clinic_name": "The Royal Children's Hospital, Melbourne",
-        "bio": "Senior Consultant Pediatrician in Melbourne. Dedicated to providing compassionate care in pediatric developmental milestones, allergic disorders, and chronic pediatric respiratory care.",
-        "fee_justification": "Comprehensive pediatric evaluation, growth chart analysis, and evidence-based treatment guidance.",
-        "consultation_fee": 2100,
-        "online_fee": 2100,
-        "profile_photo_url": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Tamil", "Hindi"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-ca-mukherjee",
-        "doctor_id": "nri-doc-ca-mukherjee",
-        "name": "Dr. Rohan Mukherjee",
-        "specialization": "Oncology",
-        "qualification": "MBBS, MD, FRCPC (Medical Oncology Canada)",
-        "experience_years": 17,
-        "country": "Canada",
-        "timezone": "America/Toronto (EST)",
-        "license_body": "Royal College of Physicians and Surgeons of Canada",
-        "hospital_clinic_name": "Princess Margaret Cancer Centre, Toronto",
-        "bio": "Medical Oncologist at Princess Margaret Cancer Centre in Toronto. Global authority in precision oncology, next-generation sequencing interpretation, and immunotherapy regimens.",
-        "fee_justification": "Comprehensive oncological second opinion, pathology/genomic report interpretation, and international treatment regimen benchmarking.",
-        "consultation_fee": 3000,
-        "online_fee": 3000,
-        "profile_photo_url": "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Bengali", "Hindi"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-sg-tan",
-        "doctor_id": "nri-doc-sg-tan",
-        "name": "Dr. Sunita K. Menon",
-        "specialization": "Internal Medicine",
-        "qualification": "MBBS, MRCP (UK), FAMS (Singapore)",
-        "experience_years": 13,
-        "country": "Singapore",
-        "timezone": "Asia/Singapore (SGT UTC+8)",
-        "license_body": "Singapore Medical Council (SMC Specialist Register)",
-        "hospital_clinic_name": "Mount Elizabeth Hospital, Singapore",
-        "bio": "Senior Consultant Physician in Internal Medicine at Mount Elizabeth Orchard. Specializes in multi-morbidity management, geriatric wellness, and complex diagnostics.",
-        "fee_justification": "Comprehensive holistic evaluation, multi-drug interaction audit, and lifestyle intervention mapping.",
-        "consultation_fee": 2400,
-        "online_fee": 2400,
-        "profile_photo_url": "https://images.unsplash.com/photo-1527613426441-4da17471b66d?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "Malayalam", "Hindi"],
-        "available": True,
-    },
-    {
-        "id": "nri-doc-de-patel",
-        "doctor_id": "nri-doc-de-patel",
-        "name": "Dr. Arvind K. Patel",
-        "specialization": "Orthopedics",
-        "qualification": "MBBS, MS (Ortho), Facharzt (Germany)",
-        "experience_years": 15,
-        "country": "Germany",
-        "timezone": "Europe/Berlin (CET)",
-        "license_body": "German Medical Board (Approbation / Ärztekammer Berlin)",
-        "hospital_clinic_name": "Charité – Universitätsmedizin Berlin",
-        "bio": "Consultant Orthopedic Surgeon and Joint Preservation Specialist at Charité Berlin. Expertise in minimally invasive joint surgery, sports ligament injuries, and advanced spinal care.",
-        "fee_justification": "Joint biomechanics review, surgical necessity second opinion, and physical rehab guidance.",
-        "consultation_fee": 2600,
-        "online_fee": 2600,
-        "profile_photo_url": "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=400&q=80",
-        "languages": ["English", "German", "Gujarati", "Hindi"],
-        "available": True,
-    },
-]
-
-
 @router.get("/doctor/{doctor_id}/presentation")
 async def get_doctor_presentation(doctor_id: str):
     """Public endpoint to fetch doctor professional presentation, profile photo, and fee justification."""
     if not supabase:
         raise HTTPException(500, "Database not configured")
     try:
-        # Match showcase NRI doctor
-        if doctor_id.startswith("nri-doc-"):
-            match = next((d for d in SHOWCASE_NRI_DOCTORS if d["id"] == doctor_id), None)
-            if match:
-                return {
-                    "success": True,
-                    "doctor": {
-                        "id": match["id"],
-                        "name": match["name"],
-                        "specialization": match["specialization"],
-                        "qualification": match["qualification"],
-                        "experience_years": match["experience_years"],
-                        "hospital_clinic_name": match["hospital_clinic_name"],
-                        "bio": match["bio"],
-                        "fee_justification": match["fee_justification"],
-                        "profile_photo_url": match["profile_photo_url"],
-                        "fees": {"online": match["online_fee"]},
-                        "consultation_fee": match["consultation_fee"],
-                        "online_fee": match["online_fee"],
-                        "in_person_fee": match["consultation_fee"],
-                        "home_visit_fee": None,
-                        "verification_status": "verified",
-                        "city": match["country"],
-                        "district": "Overseas",
-                        "state": match["timezone"],
-                        "license_number": match["license_body"],
-                        "availability": [],
-                    }
-                }
-
         # Match either by user_id or doctor id
         doc_res = (
             supabase.table("doctors")
@@ -2775,6 +2851,27 @@ async def get_nri_doctors(
             except Exception as e:
                 logger.warning(f"Could not load NRI presentations: {e}")
 
+        # The real online tariff and whether any online hours are published.
+        # Every doctor used to be marked available with an 800 fallback fee, so
+        # a patient could "book" someone who had never opened a teleconsult slot.
+        online_fee_map: dict = {}
+        online_ids: set = set()
+        if doc_user_ids:
+            try:
+                for f in (supabase.table("consultation_fees").select("doctor_id, fee_type, amount")
+                          .in_("doctor_id", doc_user_ids).eq("is_active", True).execute().data or []):
+                    if f.get("fee_type") in ("online", "teleconsultation") and f.get("amount"):
+                        online_fee_map[f["doctor_id"]] = f["amount"]
+            except Exception as e:
+                logger.warning(f"Could not load NRI online fees: {e}")
+            try:
+                for a in (supabase.table("doctor_availability").select("doctor_id, consultation_mode")
+                          .in_("doctor_id", doc_user_ids).eq("is_active", True).execute().data or []):
+                    if a.get("consultation_mode") in ("online", "both"):
+                        online_ids.add(a["doctor_id"])
+            except Exception as e:
+                logger.warning(f"Could not load NRI online availability: {e}")
+
         nri_doctors = []
         for doc in raw_doctors:
             user = doc.get("users", {})
@@ -2796,7 +2893,7 @@ async def get_nri_doctors(
             if specialization and not matches_specialty(doc.get("specialization", ""), specialization):
                 continue
 
-            fee = doc.get("consultation_fee") or 800
+            fee = online_fee_map.get(uid) or doc.get("consultation_fee") or None
             photo_url = photo_map.get(uid) or pres.get("profile_photo_url") or ""
 
             nri_doctors.append({
@@ -2806,28 +2903,18 @@ async def get_nri_doctors(
                 "qualification": doc.get("qualification", ""),
                 "experience_years": doc.get("years_of_experience", 0),
                 "country": doc_country,
-                "timezone": pres.get("nri_timezone") or "UTC",
-                "license_body": pres.get("nri_license_body") or "International Medical Board",
+                "timezone": pres.get("nri_timezone") or "",
+                "license_body": pres.get("nri_license_body") or doc.get("medical_license_number") or "",
                 "hospital_clinic_name": doc.get("hospital_clinic_name") or "",
                 "bio": pres.get("bio") or doc.get("bio") or "",
                 "fee_justification": pres.get("fee_justification") or doc.get("fee_justification") or "",
                 "consultation_fee": fee,
                 "online_fee": fee,
                 "profile_photo_url": photo_url,
-                "languages": doc.get("languages_spoken", ["English"]),
-                "available": True,
+                "languages": doc.get("languages_spoken") or ["English"],
+                # Bookable only with published online hours and a tariff.
+                "available": uid in online_ids and bool(fee),
             })
-
-        # Incorporate verified showcase overseas specialists
-        existing_ids = {d["id"] for d in nri_doctors}
-        for s in SHOWCASE_NRI_DOCTORS:
-            if s["id"] not in existing_ids:
-                s_country = s["country"]
-                if country and country.lower() != "all" and country.lower() not in s_country.lower():
-                    continue
-                if specialization and not matches_specialty(s["specialization"], specialization):
-                    continue
-                nri_doctors.append(s)
 
         return {"success": True, "doctors": nri_doctors, "count": len(nri_doctors)}
     except Exception as e:
@@ -2998,7 +3085,7 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                     try:
                         av_rows = (
                             supabase.table("doctor_availability")
-                            .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode, template_group_id, location_name, location_address")
+                            .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode, organization_id, template_group_id, location_name, location_address")
                             .in_("doctor_id", doc_uids)
                             .eq("consultation_mode", "in_person")
                             .eq("is_active", True)
@@ -3016,21 +3103,8 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                     p_info = prof_map.get(d_uid, {})
                     d_avails = avail_map.get(d_uid, [])
 
-                    doc_branch_ids = []
-                    branch_shifts = []
-                    for av in d_avails:
-                        b_id = av.get("template_group_id") or "main"
-                        if b_id not in doc_branch_ids:
-                            doc_branch_ids.append(b_id)
-                        branch_shifts.append({
-                            "branch_id": b_id,
-                            "branch_name": av.get("location_name") or "Main Facility",
-                            "day_of_week": av.get("day_of_week"),
-                            "start_time": str(av.get("start_time", ""))[:5],
-                            "end_time": str(av.get("end_time", ""))[:5],
-                            "slot_duration_minutes": av.get("slot_duration_minutes", 10),
-                        })
-
+                    # assigned_branches / branch_shifts are resolved per
+                    # organisation below, once its branch list is known.
                     docs_by_org.setdefault(o_id, []).append({
                         "id": d_uid,
                         "doctor_id": d_uid,
@@ -3042,8 +3116,8 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
                         "consultation_fee": od.get("consultation_fee", 500),
                         "verification_status": p_info.get("verification_status", "verified"),
                         "availability": d_avails,
-                        "assigned_branches": doc_branch_ids,
-                        "branch_shifts": branch_shifts,
+                        "assigned_branches": [],
+                        "branch_shifts": [],
                         "slot_duration_minutes": d_avails[0].get("slot_duration_minutes", 10) if d_avails else 10,
                     })
         except Exception as e:
@@ -3105,6 +3179,15 @@ async def search_organizations(org_type: Optional[str] = None, city: Optional[st
             "is_main_branch": True,
         }
         all_b = [main_b] + [cb for cb in custom_b if cb.get("name") != main_b["name"]]
+
+        # Which branch each linked doctor actually works at, and when. A doctor
+        # with no walk-in shift here gets no branch — the patient is told no
+        # doctor is available rather than offered a slot nobody will staff.
+        org_display = o_info.get("organization_name") or p.get("display_name") or p.get("name") or ""
+        for ld in linked_docs:
+            ld["assigned_branches"], ld["branch_shifts"] = doctor_branch_shifts(
+                ld.get("availability") or [], o_info.get("id"), org_display, all_b,
+            )
 
         orgs.append({
             "id": uid,
@@ -3170,29 +3253,141 @@ async def update_org_doctor_schedule(
 
     org_user_id = current_user["sub"]
 
-    # 1. Resolve internal organization id from organizations table
+    # 1. Resolve the organisation. The column is organization_name — selecting
+    # a non-existent `name` made PostgREST reject the query, and the unhandled
+    # error reached the organisation as "An internal error occurred".
     org_rows = _rows(
         supabase.table("organizations")
-        .select("id, name, verification_status")
+        .select("id, organization_name")
         .eq("user_id", org_user_id)
         .execute()
     )
     if not org_rows:
         raise HTTPException(status_code=404, detail="Organization record not found for user")
     org_id = org_rows[0]["id"]
+    org_name = org_rows[0].get("organization_name") or "Main Facility"
 
     # 2. Verify doctor is linked to this organization
     link_rows = _rows(
         supabase.table("organization_doctors")
-        .select("id, consultation_fee")
+        .select("id, is_active")
         .eq("organization_id", org_id)
         .eq("doctor_user_id", doctor_user_id)
         .execute()
     )
-    if not link_rows:
+    # is_active defaults to true; false means the org removed this doctor.
+    if not link_rows or link_rows[0].get("is_active") is False:
         raise HTTPException(status_code=404, detail="Doctor is not linked to this organization")
 
-    # 3. Update consultation_fee in organization_doctors if provided
+    # 3. Only this organisation's real branches can carry a shift.
+    branch_rows = _rows(
+        supabase.table("provider_branches")
+        .select("id, name, address")
+        .eq("provider_user_id", org_user_id)
+        .eq("is_active", True)
+        .execute()
+    )
+    branch_map = {str(b["id"]): b for b in branch_rows}
+    main_name = f"{org_name} (Main Facility)"
+    main_address = ""
+    try:
+        u = _rows(supabase.table("users").select("address").eq("id", org_user_id).limit(1).execute())
+        main_address = (u[0].get("address") if u else "") or ""
+    except Exception as e:
+        logger.warning(f"Could not load main facility address: {e}")
+    resolver_branches = [{"id": "main", "name": main_name}] + [{"id": str(b["id"]), "name": b.get("name")} for b in branch_rows]
+
+    new_records = []
+    for idx, shift in enumerate(payload.shifts, start=1):
+        try:
+            st = datetime.strptime(shift.start_time[:5], "%H:%M").time()
+            et = datetime.strptime(shift.end_time[:5], "%H:%M").time()
+        except ValueError:
+            raise HTTPException(400, f"Shift #{idx}: use HH:MM for start and end time")
+        if st >= et:
+            raise HTTPException(400, f"Shift #{idx}: start time must be before end time")
+
+        days = shift.days_of_week if shift.days_of_week else ([shift.day_of_week] if shift.day_of_week is not None else [])
+        days = sorted({int(d) for d in days if 0 <= int(d) <= 6})
+        if not days:
+            raise HTTPException(400, f"Shift #{idx}: select at least one day")
+
+        bid = shift.branch_id if shift.branch_id and shift.branch_id not in ("main", "undefined", "null", "") else None
+        if bid and bid not in branch_map:
+            raise HTTPException(400, f"Shift #{idx}: that branch is not an active branch of {org_name}")
+        loc_name = branch_map[bid].get("name") if bid else main_name
+        loc_addr = (branch_map[bid].get("address") or "") if bid else main_address
+
+        for day in days:
+            new_records.append({
+                "id": str(uuid.uuid4()),
+                "doctor_id": doctor_user_id,
+                "day_of_week": day,
+                "start_time": shift.start_time[:5],
+                "end_time": shift.end_time[:5],
+                "slot_duration_minutes": shift.slot_duration_minutes or payload.slot_duration_minutes or 10,
+                "max_patients_per_slot": 1,
+                "consultation_mode": "in_person",
+                "organization_id": org_id,
+                # Branch UUID for a branch, None for the main facility — the
+                # convention doctor_branches.resolve_branch reads back.
+                "template_group_id": bid,
+                "location_name": loc_name,
+                "location_address": loc_addr,
+                "is_active": True,
+            })
+
+    def _clash(a: dict, b: dict) -> bool:
+        return (a["day_of_week"] == b["day_of_week"]
+                and str(a["start_time"])[:5] < str(b["end_time"])[:5]
+                and str(b["start_time"])[:5] < str(a["end_time"])[:5])
+
+    for i, a in enumerate(new_records):
+        for b in new_records[i + 1:]:
+            if _clash(a, b):
+                raise HTTPException(400, f"Two shifts overlap on {DAY_NAMES[a['day_of_week']]} ({a['start_time']}–{a['end_time']} and {b['start_time']}–{b['end_time']})")
+
+    # 4. The doctor's existing walk-in rows: the ones at this organisation are
+    # replaced; the ones elsewhere must not clash — a doctor cannot be in two
+    # clinics at once, and a clash means patients are double-booked.
+    existing = _rows(
+        supabase.table("doctor_availability")
+        .select("id, day_of_week, start_time, end_time, consultation_mode, organization_id, template_group_id, location_name, is_active")
+        .eq("doctor_id", doctor_user_id)
+        .execute()
+    )
+    walkin = [r for r in existing if r.get("consultation_mode") == "in_person"]
+    ours = [r["id"] for r in walkin if resolve_branch(r, org_id, org_name, resolver_branches) is not None]
+    elsewhere = [r for r in walkin if r["id"] not in ours and r.get("is_active", True)]
+    for rec in new_records:
+        for other in elsewhere:
+            if _clash(rec, other):
+                raise HTTPException(
+                    409,
+                    f"The doctor is already scheduled at {other.get('location_name') or 'another clinic'} on "
+                    f"{DAY_NAMES[rec['day_of_week']]} {str(other['start_time'])[:5]}–{str(other['end_time'])[:5]}.",
+                )
+
+    # 5. Insert first, then retire the old rows, so a failure can never leave
+    # the doctor with no schedule at all.
+    if new_records:
+        try:
+            supabase.table("doctor_availability").insert(new_records).execute()
+        except Exception as ie:
+            logger.error(f"Error inserting new facility doctor_availability: {ie}")
+            raise HTTPException(status_code=500, detail="Failed to save doctor availability")
+    if ours:
+        try:
+            supabase.table("doctor_availability").delete().in_("id", ours).execute()
+        except Exception as de:
+            logger.error(f"Failed retiring prior facility availability: {de}")
+            if new_records:
+                try:
+                    supabase.table("doctor_availability").delete().in_("id", [r["id"] for r in new_records]).execute()
+                except Exception:
+                    pass
+            raise HTTPException(status_code=500, detail="Failed to replace the previous schedule. Nothing was changed.")
+
     if payload.consultation_fee is not None:
         try:
             supabase.table("organization_doctors").update({
@@ -3200,64 +3395,6 @@ async def update_org_doctor_schedule(
             }).eq("organization_id", org_id).eq("doctor_user_id", doctor_user_id).execute()
         except Exception as e:
             logger.warning(f"Failed to update consultation fee in organization_doctors: {e}")
-
-    # 4. Replace facility-specific in_person doctor_availability records
-    try:
-        supabase.table("doctor_availability").delete().eq("doctor_id", doctor_user_id).or_(f"organization_id.eq.{org_id},location_name.ilike.%{org_rows[0].get('name', 'Clinic')}%").eq("consultation_mode", "in_person").execute()
-    except Exception as de:
-        logger.warning(f"Failed deleting prior facility doctor_availability: {de}")
-
-    # Insert new shifts
-    new_records = []
-    import uuid
-    for shift in payload.shifts:
-        days = []
-        if shift.days_of_week:
-            days = shift.days_of_week
-        elif shift.day_of_week is not None:
-            days = [shift.day_of_week]
-        else:
-            days = [1, 2, 3, 4, 5, 6]
-
-        slot_dur = shift.slot_duration_minutes or payload.slot_duration_minutes or 10
-
-        # Resolve branch info if shift specifies a branch_id
-        shift_branch_id = shift.branch_id if shift.branch_id and shift.branch_id not in ("main", "undefined", "null") else None
-        shift_location_name = shift.branch_name or org_rows[0].get("name") or "Main Facility"
-        shift_location_address = ""
-
-        if shift_branch_id:
-            try:
-                b_match = supabase.table("provider_branches").select("name, address").eq("id", shift_branch_id).limit(1).execute()
-                if b_match.data:
-                    shift_location_name = b_match.data[0].get("name") or shift_location_name
-                    shift_location_address = b_match.data[0].get("address") or ""
-            except Exception as be:
-                logger.warning(f"Could not load branch address: {be}")
-
-        for day in days:
-            new_records.append({
-                "id": str(uuid.uuid4()),
-                "doctor_id": doctor_user_id,
-                "day_of_week": day,
-                "start_time": shift.start_time,
-                "end_time": shift.end_time,
-                "slot_duration_minutes": slot_dur,
-                "max_patients_per_slot": 1,
-                "consultation_mode": "in_person",
-                "organization_id": org_id,
-                "template_group_id": shift_branch_id,
-                "location_name": shift_location_name,
-                "location_address": shift_location_address,
-                "is_active": True,
-            })
-
-    if new_records:
-        try:
-            supabase.table("doctor_availability").insert(new_records).execute()
-        except Exception as ie:
-            logger.error(f"Error inserting new facility doctor_availability: {ie}")
-            raise HTTPException(status_code=500, detail="Failed to save doctor availability")
 
     return APIResponse(
         success=True,

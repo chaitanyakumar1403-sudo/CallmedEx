@@ -213,7 +213,8 @@ function NRIConsultationContent() {
       return;
     }
     const docId = doc.doctor_id || doc.id;
-    const fee = doc.online_fee || doc.consultation_fee || 1200;
+    const fee = doc.online_fee || doc.consultation_fee || 0;
+    if (!fee || !doc.available) return; // no published tariff / online hours
     router.push(
       `/consultation/${docId}?name=${encodeURIComponent(doc.name)}&spec=${encodeURIComponent(
         doc.specialization
@@ -654,7 +655,7 @@ function NRIConsultationContent() {
             }}
           >
             {filteredDoctors.map((doc) => {
-              const fee = doc.online_fee || doc.consultation_fee || 1200;
+              const fee = doc.online_fee || doc.consultation_fee || 0;
               return (
                 <div
                   key={doc.id}
@@ -719,6 +720,7 @@ function NRIConsultationContent() {
                             <MapPin size={11} /> {doc.country}
                           </span>
 
+                          {doc.timezone && (
                           <span
                             style={{
                               display: 'inline-flex',
@@ -735,6 +737,7 @@ function NRIConsultationContent() {
                           >
                             <Clock size={11} /> {doc.timezone}
                           </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -759,10 +762,12 @@ function NRIConsultationContent() {
                           </span>
                         </div>
                       )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Award size={13} style={{ color: '#10b981' }} />
-                        <span>License: {doc.license_body || 'Verified International Board'}</span>
-                      </div>
+                      {doc.license_body && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Award size={13} style={{ color: '#10b981' }} />
+                          <span>License: {doc.license_body}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -783,7 +788,7 @@ function NRIConsultationContent() {
                           Video Consultation
                         </div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
-                          ₹{fee.toLocaleString('en-IN')}
+                          {fee ? `₹${fee.toLocaleString('en-IN')}` : 'Fee not published'}
                         </div>
                       </div>
 
@@ -896,8 +901,8 @@ function NRIConsultationContent() {
               qualification: doc.qualification,
               experience_years: doc.experience_years,
               country: doc.city,
-              timezone: 'UTC',
-              license_body: doc.license_number || 'Medical Board',
+              timezone: '',
+              license_body: doc.license_number || '',
               consultation_fee: doc.consultation_fee,
               online_fee: doc.online_fee || doc.consultation_fee,
               available: doc.available,

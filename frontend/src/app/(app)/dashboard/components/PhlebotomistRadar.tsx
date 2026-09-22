@@ -34,9 +34,27 @@ interface Props {
   candidates?: Candidate[];
   /** "live" GPS fix vs "base" registered address. */
   locationSource?: string;
+  /** Pre-assigned for a booked slot and not travelling yet: shows who is
+   *  coming and when, never a live distance or ETA. */
+  scheduled?: { date?: string | null; time?: string | null };
 }
 
 const SEARCHING = new Set(['searching', 'provider_notified']);
+
+function formatVisit(date?: string | null, time?: string | null): string {
+  const parts: string[] = [];
+  if (date) {
+    const d = new Date(`${date.slice(0, 10)}T00:00:00`);
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }));
+    }
+  }
+  if (time && /^\d{2}:\d{2}/.test(time)) {
+    const [h, m] = time.split(':').map(Number);
+    parts.push(`${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`);
+  }
+  return parts.join(' · ');
+}
 
 export const PhlebotomistRadar: React.FC<Props> = ({
   status = 'searching',
@@ -47,8 +65,10 @@ export const PhlebotomistRadar: React.FC<Props> = ({
   speedKmh,
   candidates = [],
   locationSource,
+  scheduled,
 }) => {
   const searching = SEARCHING.has(status);
+  const visitLabel = scheduled ? formatVisit(scheduled.date, scheduled.time) : '';
 
   return (
     <div
@@ -67,16 +87,23 @@ export const PhlebotomistRadar: React.FC<Props> = ({
             {searching
               ? <Search style={{ width: 16, height: 16, color: '#15803d' }} />
               : <Compass style={{ width: 16, height: 16, color: '#15803d' }} />}
-            {searching ? 'Finding a collector near you' : 'Live collection tracking'}
+            {searching ? 'Finding a collector near you' : scheduled ? 'Collector assigned' : 'Live collection tracking'}
           </h3>
           <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#15803d' }}>
             {searching
               ? 'Your request has gone out to verified collectors in your area.'
+              : scheduled
+              ? 'Live tracking starts when your collector sets out for your slot.'
               : 'Real-time location from your collector’s device.'}
           </p>
         </div>
 
-        {!searching && typeof etaMinutes === 'number' && (
+        {scheduled && visitLabel && (
+          <div style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: 16, fontWeight: 700, fontSize: '0.75rem' }}>
+            {visitLabel}
+          </div>
+        )}
+        {!searching && !scheduled && typeof etaMinutes === 'number' && (
           <div style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: 16, fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}>
             Arriving in ~{etaMinutes} Mins
           </div>
@@ -125,14 +152,18 @@ export const PhlebotomistRadar: React.FC<Props> = ({
                 {phleboName || 'Your collector'}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                {typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)} km away` : 'Location updating…'}
-                {typeof speedKmh === 'number' && speedKmh > 0 ? ` · ${Math.round(speedKmh)} km/h` : ''}
+                {scheduled
+                  ? `Home sample collection${visitLabel ? ` · ${visitLabel}` : ''}`
+                  : <>
+                      {typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)} km away` : 'Location updating…'}
+                      {typeof speedKmh === 'number' && speedKmh > 0 ? ` · ${Math.round(speedKmh)} km/h` : ''}
+                    </>}
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0284c7', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <ShieldCheck style={{ width: 13, height: 13 }} /> Verified by CallMedex
                 </span>
-                {locationSource === 'base' && (
+                {!scheduled && locationSource === 'base' && (
                   <span style={{ fontSize: '0.72rem', color: '#b45309' }}>
                     Live GPS unavailable — showing last known area
                   </span>

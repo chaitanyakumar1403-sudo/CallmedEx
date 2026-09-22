@@ -1,229 +1,477 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import DashboardShell from '../components/DashboardShell';
-import ProviderDispatchTracker from '../components/ProviderDispatchTracker';
-import DashboardProfile from '../components/DashboardProfile';
-import DrugShieldModal from '../../../components/DrugShieldModal';
+/**
+ * Pharmacy terminal — orders, inventory, delivery dispatch, profile.
+ *
+ * Everything shown is the pharmacy's own data from the API. The previous page
+ * printed invoices with a hardcoded GSTIN, a fixed Rs 120 per line and a fixed
+ * Rs 268.80 total, and its inventory form posted to columns that did not exist
+ * (so nothing was ever saved). Presentation is class-based (foundation.css
+ * `.cm-pharm*`) and gated by scripts/lint-ui.mjs.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import DashboardShell from "../components/DashboardShell";
+import ProviderDispatchTracker from "../components/ProviderDispatchTracker";
+import DashboardProfile from "../components/DashboardProfile";
+import { Banner, Button, EmptyState, Field, Icon, Modal, Pill, Select, TextInput } from "@/components/ui";
+import type { Tone } from "@/components/ui";
 import {
-  BarChart3,
-  Package,
-  Pill,
-  Truck,
-  User,
-  ClipboardList,
-  CheckCircle2,
-  Clock,
-  Plus,
-  FileUp,
-  Printer
-} from 'lucide-react';
+  AlertTriangle, BarChart3, Boxes, CheckCircle2, ClipboardList, Download, FileSpreadsheet, FileText,
+  Package, Pencil, Phone, Pill as PillIcon, Plus, Printer, Search, Trash2, Truck, Upload, User,
+} from "@/components/ui/icons";
+import { customConfirm } from "@/lib/customConfirm";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const getToken = () => localStorage.getItem("token") || "";
+const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") || "" : "");
+const authHeaders = (json = false): HeadersInit => ({
+  ...(json ? { "Content-Type": "application/json" } : {}),
+  Authorization: `Bearer ${getToken()}`,
+});
+
+const LOW_STOCK = 10;
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
+interface OrderItem { name: string; quantity: number }
+interface Order {
+  id: string;
+  status: string;
+  created_at?: string;
+  medicines_list?: OrderItem[];
+  prescription_url?: string | null;
+  delivery_address?: string;
+  total_cost?: number;
+  patient_name?: string;
+  patient_phone?: string;
+}
+interface InventoryItem {
+  id: string;
+  sku?: string;
+  name: string;
+  generic_name?: string;
+  category?: string;
+  price: number;
+  stock_quantity: number;
+  batch_number?: string;
+  is_prescription_required: boolean;
+}
+
+const STATUS: Record<string, { label: string; tone: Tone }> = {
+  pending: { label: "Awaiting confirmation", tone: "waiting" },
+  confirmed: { label: "New order", tone: "active" },
+  preparing: { label: "Packing", tone: "waiting" },
+  out_for_delivery: { label: "Out for delivery", tone: "active" },
+  delivered: { label: "Delivered", tone: "done" },
+  cancelled: { label: "Cancelled", tone: "halted" },
+};
+
+// The one next step each order can take — mirrors the backend's _ORDER_FLOW.
+const NEXT: Record<string, { to: string; label: string }> = {
+  pending: { to: "confirmed", label: "Accept order" },
+  confirmed: { to: "preparing", label: "Start packing" },
+  preparing: { to: "out_for_delivery", label: "Hand to courier" },
+  out_for_delivery: { to: "delivered", label: "Mark delivered" },
+};
+const CANCELLABLE = new Set(["pending", "confirmed", "preparing"]);
+const OPEN = new Set(["pending", "confirmed", "preparing", "out_for_delivery"]);
+
+const FILTERS = [
+  { id: "open", label: "Open" },
+  { id: "confirmed", label: "New" },
+  { id: "preparing", label: "Packing" },
+  { id: "out_for_delivery", label: "Out for delivery" },
+  { id: "delivered", label: "Delivered" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "all", label: "All" },
+];
+
+const TABS = [
+  { id: "overview", label: "Overview", icon: BarChart3 },
+  { id: "orders", label: "Orders", icon: Package },
+  { id: "inventory", label: "Inventory", icon: PillIcon },
+  { id: "delivery", label: "Delivery Dispatch", icon: Truck },
+  { id: "profile", label: "Profile", icon: User },
+];
+
+const shortId = (id: string) => id.slice(0, 8).toUpperCase();
+const inr = (n: number) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const when = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+};
+const esc = (v: unknown) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+// ── Spreadsheet import ────────────────────────────────────────────────────
+const TEMPLATE_ROWS = [
+  { "Medicine Name": "Paracetamol 500mg Tablet", "Generic Name": "Paracetamol", "Category": "Tablet", "MRP": 24, "Stock Qty": 250, "Batch No": "PCM2409A", "SKU": "PCM-500", "Prescription Required": "No" },
+  { "Medicine Name": "Amoxicillin 500mg Capsule", "Generic Name": "Amoxicillin", "Category": "Capsule", "MRP": 110, "Stock Qty": 80, "Batch No": "AMX2408C", "SKU": "AMX-500", "Prescription Required": "Yes" },
+  { "Medicine Name": "Cetirizine 10mg Tablet", "Generic Name": "Cetirizine", "Category": "Tablet", "MRP": 30, "Stock Qty": 150, "Batch No": "CTZ2407B", "SKU": "CTZ-10", "Prescription Required": "No" },
+  { "Medicine Name": "Metformin 500mg Tablet", "Generic Name": "Metformin", "Category": "Tablet", "MRP": 45, "Stock Qty": 200, "Batch No": "MTF2409D", "SKU": "MTF-500", "Prescription Required": "Yes" },
+  { "Medicine Name": "ORS Powder Sachet", "Generic Name": "Oral Rehydration Salts", "Category": "Powder", "MRP": 22, "Stock Qty": 120, "Batch No": "ORS2406E", "SKU": "ORS-21", "Prescription Required": "No" },
+];
+
+const normKey = (k: string) => k.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+function pick(row: Record<string, unknown>, cands: string[]): unknown {
+  for (const c of cands) {
+    for (const [k, v] of Object.entries(row)) {
+      if ((k === c || k.startsWith(`${c} `)) && v !== "" && v != null) return v;
+    }
+  }
+  return undefined;
+}
+const num = (v: unknown) => (typeof v === "number" ? v : parseFloat(String(v ?? "").replace(/[^0-9.]/g, "")));
+const yes = (v: unknown) => ["yes", "y", "true", "1", "rx", "h", "h1", "schedule h"].includes(String(v ?? "").trim().toLowerCase());
+
+interface ParsedRow {
+  name: string; generic_name: string; category: string; price: number; stock_quantity: number;
+  batch_number: string; sku: string; is_prescription_required: boolean;
+}
+
+function parseSheet(rows: Record<string, unknown>[]): { ok: ParsedRow[]; skipped: number } {
+  const ok: ParsedRow[] = [];
+  let skipped = 0;
+  for (const raw of rows) {
+    const row: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw)) row[normKey(k)] = v;
+    const name = String(pick(row, ["medicine name", "medicine", "product name", "product", "item name", "item", "drug", "brand", "name"]) ?? "").trim();
+    const price = num(pick(row, ["mrp", "unit price", "selling price", "price", "rate"]));
+    const stock = num(pick(row, ["stock qty", "stock quantity", "stock", "quantity", "qty", "units"]));
+    if (!name || !(price > 0) || !(stock >= 0) || Number.isNaN(stock)) { skipped += 1; continue; }
+    ok.push({
+      name: name.slice(0, 200),
+      generic_name: String(pick(row, ["generic name", "generic", "salt", "composition", "description"]) ?? "").trim(),
+      category: String(pick(row, ["category", "form", "type"]) ?? "medicine").trim() || "medicine",
+      price: Math.round(price * 100) / 100,
+      stock_quantity: Math.floor(stock),
+      batch_number: String(pick(row, ["batch no", "batch number", "batch"]) ?? "").trim(),
+      sku: String(pick(row, ["sku", "item code", "product code", "code"]) ?? "").trim(),
+      is_prescription_required: yes(pick(row, ["prescription required", "rx required", "rx", "schedule"])),
+    });
+  }
+  return { ok, skipped };
+}
+
+const EMPTY_FORM = { name: "", generic_name: "", category: "Tablet", price: "", stock_quantity: "", batch_number: "", is_prescription_required: false };
 
 export default function PharmacyDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [orders, setOrders] = useState<any[]>([]);
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [profile, setProfile] = useState<any>(null);
-  const [showDrugShield, setShowDrugShield] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<{ tone: Tone; text: string } | null>(null);
+  const [busyOrder, setBusyOrder] = useState<string | null>(null);
 
-  // New Inventory State
-  const [newItem, setNewItem] = useState({ name: '', description: '', price: 0, stock_quantity: 0, category: 'medicine', is_prescription_required: false });
+  const [orderFilter, setOrderFilter] = useState("open");
+  const [orderQuery, setOrderQuery] = useState("");
+  const [invQuery, setInvQuery] = useState("");
 
-  // Batch CSV Import state
-  const [showCsvModal, setShowCsvModal] = useState(false);
-  const [csvText, setCsvText] = useState("");
-  const [importingCsv, setImportingCsv] = useState(false);
+  const [editing, setEditing] = useState<InventoryItem | "new" | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
 
-  // Print Invoice Thermal Modal state
-  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ file: string; rows: ParsedRow[]; skipped: number } | null>(null);
+  const [importing, setImporting] = useState(false);
 
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/api/pharmacy/orders/incoming`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
+      const res = await fetch(`${apiBase}/api/pharmacy/orders/incoming`, { headers: authHeaders() });
       const data = await res.json();
-      if (data.success) setOrders(data.orders);
-    } catch (err) {
-      console.error(err);
+      if (res.ok && data.success) setOrders(data.orders || []);
+    } catch {
+      /* next poll retries */
     }
-  };
-
-  const fetchInventory = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/pharmacy/inventory`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
-      if (data.success) setInventory(data.inventory);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchProfile = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` }
-      });
-      const data = await res.json();
-      if (data.success && data.data.role === "pharmacy") {
-        setProfile(data.data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      await Promise.all([fetchProfile(), fetchOrders(), fetchInventory()]);
-      setLoading(false);
-    };
-    loadData();
-    const interval = setInterval(fetchOrders, 10000);
-    return () => clearInterval(interval);
   }, []);
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const fetchInventory = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/api/pharmacy/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (res.ok) fetchOrders();
-    } catch (err) {
-      alert("Network error updating status.");
+      const res = await fetch(`${apiBase}/api/pharmacy/inventory`, { headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok && data.success) setInventory(data.inventory || []);
+    } catch {
+      setMsg({ tone: "urgent", text: "Could not load your inventory. Check your connection." });
     }
-  };
+  }, []);
 
-  const handleAddInventory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${apiBase}/api/pharmacy/inventory`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-        body: JSON.stringify(newItem)
-      });
-      if (res.ok) {
-        fetchInventory();
-        setNewItem({ name: '', description: '', price: 0, stock_quantity: 0, category: 'medicine', is_prescription_required: false });
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/api/auth/me`, { headers: authHeaders() });
+        const data = await res.json();
+        if (data.success && data.data?.role === "pharmacy") setProfile(data.data);
+      } catch {
+        /* profile tab shows its own empty state */
       }
-    } catch (err) {
-      alert("Failed to add inventory item.");
-    }
-  };
+      await Promise.all([fetchOrders(), fetchInventory()]);
+      setLoading(false);
+    })();
+    const t = setInterval(() => {
+      if (document.visibilityState !== "hidden") fetchOrders();
+    }, 15000);
+    return () => clearInterval(t);
+  }, [fetchOrders, fetchInventory]);
 
-  const handleDeleteInventory = async (itemId: string) => {
-    if (!confirm("Remove this item?")) return;
+  // ── Orders ──────────────────────────────────────────────────────────────
+  const moveOrder = async (o: Order, to: string) => {
+    if (to === "cancelled" && !(await customConfirm(`Cancel order #${shortId(o.id)}? The patient will be told it was not fulfilled.`))) return;
+    setBusyOrder(o.id);
     try {
-      const res = await fetch(`${apiBase}/api/pharmacy/inventory/${itemId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+      const res = await fetch(`${apiBase}/api/pharmacy/orders/${o.id}/status`, {
+        method: "PATCH", headers: authHeaders(true), body: JSON.stringify({ status: to }),
       });
-      if (res.ok) fetchInventory();
-    } catch (err) {
-      alert("Failed to delete item.");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ tone: "urgent", text: data.detail || "Could not update the order." });
+      } else {
+        setMsg({ tone: "done", text: `Order #${shortId(o.id)} — ${STATUS[to]?.label || to}.` });
+      }
+      await fetchOrders();
+    } catch {
+      setMsg({ tone: "urgent", text: "Network error while updating the order." });
+    } finally {
+      setBusyOrder(null);
     }
   };
 
-  const handleBulkImportCsv = async () => {
-    if (!csvText.trim()) {
-      alert("Please paste CSV data or select a file first.");
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: orders.length, open: 0 };
+    orders.forEach((o) => {
+      c[o.status] = (c[o.status] || 0) + 1;
+      if (OPEN.has(o.status)) c.open += 1;
+    });
+    return c;
+  }, [orders]);
+
+  const visibleOrders = useMemo(() => {
+    const q = orderQuery.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (orderFilter === "open" ? !OPEN.has(o.status) : orderFilter !== "all" && o.status !== orderFilter) return false;
+      if (!q) return true;
+      return (
+        o.id.toLowerCase().includes(q)
+        || (o.patient_name || "").toLowerCase().includes(q)
+        || (o.patient_phone || "").includes(q)
+        || (o.medicines_list || []).some((m) => m.name.toLowerCase().includes(q))
+      );
+    });
+  }, [orders, orderFilter, orderQuery]);
+
+  const printInvoice = (o: Order) => {
+    const w = window.open("", "_blank", "width=420,height=640");
+    if (!w) {
+      setMsg({ tone: "waiting", text: "Allow pop-ups for this site to print the invoice." });
       return;
     }
-    setImportingCsv(true);
+    const p = profile || {};
+    const items = (o.medicines_list || [])
+      .map((m) => `<tr><td>${esc(m.name)}</td><td class="r">${esc(m.quantity)}</td></tr>`)
+      .join("");
+    const total = Number(o.total_cost || 0) > 0 ? inr(Number(o.total_cost)) : "To be confirmed at billing";
+    w.document.write(`<!doctype html><html><head><title>Invoice ${esc(shortId(o.id))}</title>
+<style>
+  body { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: black; margin: 16px; }
+  h1 { font-size: 15px; margin: 0 0 2px; } .m { color: dimgray; margin: 0; }
+  hr { border: 0; border-top: 1px dashed gray; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; } td, th { padding: 3px 0; text-align: left; }
+  .r { text-align: right; } .t { font-weight: bold; font-size: 13px; }
+</style></head><body>
+<h1>${esc(p.pharmacy_name || p.full_name || "Pharmacy")}</h1>
+${p.address ? `<p class="m">${esc(p.address)}${p.city ? `, ${esc(p.city)}` : ""}</p>` : ""}
+${p.drug_license_number ? `<p class="m">Drug Licence: ${esc(p.drug_license_number)}</p>` : ""}
+${p.gst_number ? `<p class="m">GSTIN: ${esc(p.gst_number)}</p>` : ""}
+<hr/>
+<p class="m">Order: ${esc(shortId(o.id))}</p>
+<p class="m">Date: ${esc(when(o.created_at))}</p>
+${o.patient_name ? `<p class="m">Patient: ${esc(o.patient_name)}</p>` : ""}
+${o.delivery_address ? `<p class="m">Deliver to: ${esc(o.delivery_address)}</p>` : ""}
+<hr/>
+<table><thead><tr><th>Item</th><th class="r">Qty</th></tr></thead><tbody>${items || `<tr><td colspan="2">No items listed</td></tr>`}</tbody></table>
+<hr/>
+<table><tr><td class="t">Total</td><td class="r t">${esc(total)}</td></tr></table>
+</body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
 
+  // ── Inventory ───────────────────────────────────────────────────────────
+  const lowStock = useMemo(
+    () => inventory.filter((i) => i.stock_quantity <= LOW_STOCK).sort((a, b) => a.stock_quantity - b.stock_quantity),
+    [inventory]
+  );
+  const visibleInventory = useMemo(() => {
+    const q = invQuery.trim().toLowerCase();
+    if (!q) return inventory;
+    return inventory.filter((i) =>
+      [i.name, i.generic_name, i.sku, i.category, i.batch_number].some((v) => (v || "").toLowerCase().includes(q))
+    );
+  }, [inventory, invQuery]);
+
+  const openEditor = (item: InventoryItem | "new") => {
+    setEditing(item);
+    setForm(item === "new" ? EMPTY_FORM : {
+      name: item.name,
+      generic_name: item.generic_name || "",
+      category: item.category || "medicine",
+      price: String(item.price ?? ""),
+      stock_quantity: String(item.stock_quantity ?? ""),
+      batch_number: item.batch_number || "",
+      is_prescription_required: item.is_prescription_required,
+    });
+  };
+
+  const saveItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = Number(form.price);
+    const stock = Number(form.stock_quantity);
+    if (!form.name.trim() || !(price > 0) || !(stock >= 0) || !Number.isInteger(stock)) {
+      setMsg({ tone: "urgent", text: "Enter a medicine name, a price above zero and a whole-number stock quantity." });
+      return;
+    }
+    setSaving(true);
+    const body = {
+      name: form.name.trim(),
+      generic_name: form.generic_name.trim(),
+      category: form.category.trim() || "medicine",
+      price,
+      stock_quantity: stock,
+      batch_number: form.batch_number.trim(),
+      is_prescription_required: form.is_prescription_required,
+    };
     try {
-      const lines = csvText.trim().split("\n");
-      const items: any[] = [];
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line || line.toLowerCase().startsWith("name,") || line.toLowerCase().startsWith("name")) continue;
-        const parts = line.split(",").map(p => p.trim());
-        if (parts.length >= 3) {
-          items.push({
-            name: parts[0],
-            description: parts[1] || "Generic Prescription Medicine",
-            price: parseFloat(parts[2]) || 50.0,
-            stock_quantity: parseInt(parts[3]) || 100,
-            category: parts[4] || "medicine",
-            is_prescription_required: parts[5] ? parts[5].toLowerCase() === "true" || parts[5] === "1" : false
-          });
-        }
-      }
-
-      if (items.length === 0) {
-        alert("No valid SKU rows parsed. Format:\nMedicine Name, Description, Price, Stock, Category, PrescriptionRequired(true/false)");
-        setImportingCsv(false);
+      const isNew = editing === "new";
+      const res = await fetch(
+        isNew ? `${apiBase}/api/pharmacy/inventory` : `${apiBase}/api/pharmacy/inventory/${(editing as InventoryItem).id}`,
+        { method: isNew ? "POST" : "PATCH", headers: authHeaders(true), body: JSON.stringify(body) }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ tone: "urgent", text: data.detail || "Could not save this medicine." });
         return;
       }
-
-      const res = await fetch(`${apiBase}/api/pharmacy/inventory/bulk-import`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ items })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        alert(`✅ Successfully imported ${data.count} medicine SKUs into inventory!`);
-        setShowCsvModal(false);
-        setCsvText("");
-        fetchInventory();
-      } else {
-        alert(data.detail || "Failed to batch import CSV");
-      }
-    } catch (e) {
-      alert("Error parsing CSV or connecting to backend server.");
+      setMsg({ tone: "done", text: `${body.name} ${isNew ? "added to" : "updated in"} inventory.` });
+      setEditing(null);
+      fetchInventory();
+    } catch {
+      setMsg({ tone: "urgent", text: "Network error — the medicine was not saved." });
     } finally {
-      setImportingCsv(false);
+      setSaving(false);
     }
   };
 
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'confirmed': return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-active-surface)', color: 'var(--cm-active)', border: '1px solid var(--cm-active-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
-          <Clock size={12} /> New Order
-        </span>
-      );
-      case 'preparing': return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-waiting-surface)', color: 'var(--cm-waiting)', border: '1px solid var(--cm-waiting-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
-          <Package size={12} /> Packing
-        </span>
-      );
-      case 'out_for_delivery': return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-navy-soft)', color: '#fff', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
-          <Truck size={12} /> Dispatched
-        </span>
-      );
-      case 'delivered': return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--cm-done-surface)', color: 'var(--cm-done)', border: '1px solid var(--cm-done-line)', padding: '4px 12px', borderRadius: 999, fontSize: '0.75rem', fontWeight: 700 }}>
-          <CheckCircle2 size={12} /> Delivered
-        </span>
-      );
-      default: return <span>{status}</span>;
+  const removeItem = async (item: InventoryItem) => {
+    if (!(await customConfirm(`Remove ${item.name} from your inventory?`))) return;
+    try {
+      const res = await fetch(`${apiBase}/api/pharmacy/inventory/${item.id}`, { method: "DELETE", headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      setMsg(res.ok ? { tone: "done", text: `${item.name} removed.` } : { tone: "urgent", text: data.detail || "Could not remove it." });
+      fetchInventory();
+    } catch {
+      setMsg({ tone: "urgent", text: "Network error — nothing was removed." });
     }
   };
 
-  const TABS = [
-    { id: "overview", label: "Overview", icon: BarChart3 },
-    { id: "orders", label: "Orders", icon: Package },
-    { id: "inventory", label: "Inventory", icon: Pill },
-    { id: "delivery", label: "Delivery Dispatch", icon: Truck },
-    { id: "profile", label: "Profile", icon: User },
+  const downloadTemplate = (format: "xlsx" | "csv") => {
+    const ws = XLSX.utils.json_to_sheet(TEMPLATE_ROWS);
+    if (format === "xlsx") {
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Medicines");
+      XLSX.writeFile(wb, "CallMedex_Pharmacy_Inventory_Template.xlsx");
+    } else {
+      const blob = new Blob([XLSX.utils.sheet_to_csv(ws)], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "CallMedex_Pharmacy_Inventory_Template.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setMsg({ tone: "urgent", text: "That file is larger than 5 MB. Split it into smaller sheets." });
+      return;
+    }
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const { ok, skipped } = parseSheet(rows);
+      if (ok.length === 0) {
+        setMsg({ tone: "urgent", text: "No usable rows found. Each row needs a medicine name, a price and a stock quantity — download the sample to see the columns." });
+        return;
+      }
+      if (ok.length > 5000) {
+        setMsg({ tone: "urgent", text: `This sheet has ${ok.length} medicines; import at most 5,000 at a time.` });
+        return;
+      }
+      setImportPreview({ file: file.name, rows: ok, skipped });
+    } catch {
+      setMsg({ tone: "urgent", text: "That file could not be read. Upload a .xlsx, .xls or .csv spreadsheet." });
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`${apiBase}/api/pharmacy/inventory/bulk-import`, {
+        method: "POST", headers: authHeaders(true), body: JSON.stringify({ items: importPreview.rows }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setMsg({ tone: "urgent", text: data.detail || "The import failed. Nothing was added." });
+        return;
+      }
+      setMsg({ tone: "done", text: data.message || `Imported ${data.count} medicines.` });
+      setImportPreview(null);
+      fetchInventory();
+    } catch {
+      setMsg({ tone: "urgent", text: "Network error during import. Nothing was added." });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // ── Render helpers ──────────────────────────────────────────────────────
+  const orderActions = (o: Order) => (
+    <div className="cm-pharm-actions">
+      {NEXT[o.status] && (
+        <Button size="sm" onClick={() => moveOrder(o, NEXT[o.status].to)} loading={busyOrder === o.id}>
+          {NEXT[o.status].label}
+        </Button>
+      )}
+      {CANCELLABLE.has(o.status) && (
+        <Button size="sm" variant="ghost" onClick={() => moveOrder(o, "cancelled")} disabled={busyOrder === o.id}>
+          Cancel
+        </Button>
+      )}
+      <Button size="sm" variant="secondary" onClick={() => printInvoice(o)} aria-label={`Print invoice for order ${shortId(o.id)}`}>
+        <Icon as={Printer} size={14} /> Invoice
+      </Button>
+    </div>
+  );
+
+  const stockCell = (i: InventoryItem) => (
+    <span className={i.stock_quantity === 0 ? "cm-pharm-stock--out" : i.stock_quantity <= LOW_STOCK ? "cm-pharm-stock--low" : ""}>
+      {i.stock_quantity.toLocaleString("en-IN")}
+    </span>
+  );
+
+  const kpis = [
+    { label: "New orders", value: counts.confirmed || 0, sub: "Waiting to be packed", icon: ClipboardList, go: () => { setOrderFilter("confirmed"); setActiveTab("orders"); } },
+    { label: "Packing", value: counts.preparing || 0, sub: "Being prepared", icon: Package, go: () => { setOrderFilter("preparing"); setActiveTab("orders"); } },
+    { label: "Out for delivery", value: counts.out_for_delivery || 0, sub: "With the courier", icon: Truck, go: () => { setOrderFilter("out_for_delivery"); setActiveTab("orders"); } },
+    { label: "Low stock", value: lowStock.length, sub: `${inventory.length} medicines in catalogue`, icon: AlertTriangle, warn: lowStock.length > 0, go: () => setActiveTab("inventory") },
   ];
 
   return (
@@ -235,343 +483,427 @@ export default function PharmacyDashboard() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
     >
-
+      <div className="cm-pharm">
+        {msg && <Banner tone={msg.tone} onDismiss={() => setMsg(null)}>{msg.text}</Banner>}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '100px', color: 'var(--cm-ink-3)' }}>Loading Pharmacy Data...</div>
+          <div className="cm-pharm-panel">
+            <div className="cm-pharm-panel__body">Loading your pharmacy…</div>
+          </div>
         ) : (
           <>
-            {/* OVERVIEW TAB */}
-            {activeTab === 'overview' && (
-              <div className="cm-kpi-grid">
-                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
-                  <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
-                  <div>
-                    <div className="cm-kpi-card__label">Active Orders</div>
-                    <div className="cm-kpi-card__value">{orders.filter(o => o.status !== 'delivered').length}</div>
-                    <div className="cm-kpi-card__subtitle">In fulfillment pipeline</div>
-                  </div>
-                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-active-surface)", color: "var(--cm-active)" }}>
-                    <Package size={22} />
-                  </div>
-                </div>
-
-                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
-                  <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
-                  <div>
-                    <div className="cm-kpi-card__label">To Pack</div>
-                    <div className="cm-kpi-card__value">{orders.filter(o => o.status === 'confirmed').length}</div>
-                    <div className="cm-kpi-card__subtitle">Awaiting dispensary check</div>
-                  </div>
-                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-waiting-surface)", color: "var(--cm-waiting)" }}>
-                    <ClipboardList size={22} />
-                  </div>
-                </div>
-
-                <div className="cm-kpi-card" onClick={() => setActiveTab('inventory')} style={{ cursor: 'pointer' }}>
-                  <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
-                  <div>
-                    <div className="cm-kpi-card__label">Inventory Items</div>
-                    <div className="cm-kpi-card__value">{inventory.length}</div>
-                    <div className="cm-kpi-card__subtitle">Catalog SKUs</div>
-                  </div>
-                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-done-surface)", color: "var(--cm-done)" }}>
-                    <Pill size={22} />
-                  </div>
-                </div>
-
-                <div className="cm-kpi-card" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
-                  <div className="cm-kpi-card__accent" />
-                  <div>
-                    <div className="cm-kpi-card__label">Out for Delivery</div>
-                    <div className="cm-kpi-card__value">{orders.filter(o => o.status === 'out_for_delivery').length}</div>
-                    <div className="cm-kpi-card__subtitle">With courier partner</div>
-                  </div>
-                  <div className="cm-kpi-card__icon" style={{ background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
-                    <Truck size={22} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ORDERS TAB */}
-            {activeTab === 'orders' && (
-              <div style={{ background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead style={{ background: '#0f172a' }}>
-                    <tr>
-                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Order ID</th>
-                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Medicines</th>
-                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Prescription</th>
-                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Status</th>
-                      <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length === 0 && (
-                      <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No active orders</td></tr>
-                    )}
-                    {orders.map((o) => (
-                      <tr key={o.id} style={{ borderBottom: '1px solid #0f172a' }}>
-                        <td style={{ padding: '20px' }}>
-                          <div style={{ fontWeight: '600', color: '#e2e8f0' }}>#{o.id.substring(0, 8).toUpperCase()}</div>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{new Date(o.created_at).toLocaleTimeString()}</div>
-                        </td>
-                        <td style={{ padding: '20px', color: '#475569' }}>
-                          <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                            {o.medicines_list?.map((m: any, idx: number) => (
-                              <li key={idx}>{m.name} <span style={{ color: '#64748b' }}>x{m.quantity}</span></li>
-                            ))}
-                          </ul>
-                        </td>
-                        <td style={{ padding: '20px' }}>
-                          {o.prescription_url ? (
-                            <a href={o.prescription_url} target="_blank" style={{ color: '#60a5fa', textDecoration: 'none' }}>View Document</a>
-                          ) : <span style={{ color: '#64748b' }}>Not Required</span>}
-                        </td>
-                        <td style={{ padding: '20px' }}>{getStatusBadge(o.status)}</td>
-                        <td style={{ padding: '20px' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            {o.status === 'confirmed' && (
-                              <button onClick={() => updateOrderStatus(o.id, 'preparing')} style={{ background: '#f59e0b', color: '#fff', padding: '8px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Approve & Pack</button>
-                            )}
-                            {o.status === 'preparing' && (
-                              <button onClick={() => updateOrderStatus(o.id, 'out_for_delivery')} style={{ background: '#8b5cf6', color: '#fff', padding: '8px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Dispatch Order</button>
-                            )}
-                            {o.status === 'out_for_delivery' && (
-                              <button onClick={() => updateOrderStatus(o.id, 'delivered')} style={{ background: '#10b981', color: '#fff', padding: '8px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>Mark Delivered</button>
-                            )}
-                            <button
-                              onClick={() => { setSelectedInvoiceOrder(o); setShowInvoiceModal(true); }}
-                              style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(56, 189, 248, 0.3)', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                            >
-                              🖨️ Print Invoice
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* INVENTORY TAB */}
-            {activeTab === 'inventory' && (
-              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-                <div style={{ flex: '1', background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', padding: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h2 style={{ fontSize: '20px', margin: 0, color: '#0f172a' }}>Add Medicine</h2>
-                    <button
-                      onClick={() => setShowCsvModal(true)}
-                      style={{
-                        padding: '8px 14px',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: '700',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      📥 Batch Import CSV
+            {activeTab === "overview" && (
+              <>
+                <div className="cm-pharm-kpis">
+                  {kpis.map((k) => (
+                    <button key={k.label} type="button" className="cm-pharm-kpi" onClick={k.go}>
+                      <div>
+                        <div className="cm-pharm-kpi__label">{k.label}</div>
+                        <div className={`cm-pharm-kpi__value${k.warn ? " cm-pharm-kpi__value--warn" : ""}`}>{k.value}</div>
+                        <div className="cm-pharm-kpi__sub">{k.sub}</div>
+                      </div>
+                      <span className="cm-pharm-kpi__icon"><Icon as={k.icon} size={20} /></span>
                     </button>
+                  ))}
+                </div>
+
+                <div className="cm-pharm-grid">
+                  <section className="cm-pharm-panel" aria-labelledby="ph-queue">
+                    <header className="cm-pharm-panel__head">
+                      <div>
+                        <p className="cm-pharm-panel__eyebrow">Fulfilment queue</p>
+                        <h2 id="ph-queue" className="cm-pharm-panel__title">Orders needing action</h2>
+                      </div>
+                      <Button size="sm" variant="secondary" onClick={() => { setOrderFilter("open"); setActiveTab("orders"); }}>
+                        All orders
+                      </Button>
+                    </header>
+                    {orders.filter((o) => NEXT[o.status]).length === 0 ? (
+                      <div className="cm-pharm-panel__body">
+                        <EmptyState icon={CheckCircle2} title="Nothing waiting" body="New orders from patients near you appear here the moment they are placed." />
+                      </div>
+                    ) : (
+                      <ul className="cm-pharm-list">
+                        {orders.filter((o) => NEXT[o.status]).slice(0, 6).map((o) => (
+                          <li key={o.id} className="cm-pharm-list__row">
+                            <div>
+                              <div className="cm-pharm-cell__title">
+                                #{shortId(o.id)} · {(o.medicines_list || []).length} item{(o.medicines_list || []).length === 1 ? "" : "s"}
+                              </div>
+                              <div className="cm-pharm-cell__sub">{[o.patient_name, when(o.created_at)].filter(Boolean).join(" · ")}</div>
+                            </div>
+                            <div className="cm-pharm-actions">
+                              <Pill tone={STATUS[o.status]?.tone || "halted"}>{STATUS[o.status]?.label || o.status}</Pill>
+                              <Button size="sm" onClick={() => moveOrder(o, NEXT[o.status].to)} loading={busyOrder === o.id}>
+                                {NEXT[o.status].label}
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+
+                  <section className="cm-pharm-panel" aria-labelledby="ph-low">
+                    <header className="cm-pharm-panel__head">
+                      <div>
+                        <p className="cm-pharm-panel__eyebrow">Stock</p>
+                        <h2 id="ph-low" className="cm-pharm-panel__title">Low stock</h2>
+                        <p className="cm-pharm-panel__desc">{LOW_STOCK} units or fewer.</p>
+                      </div>
+                    </header>
+                    {lowStock.length === 0 ? (
+                      <div className="cm-pharm-panel__body">
+                        <EmptyState
+                          icon={Boxes}
+                          title={inventory.length === 0 ? "No medicines yet" : "Stock looks healthy"}
+                          body={inventory.length === 0 ? "Add medicines or import your stock sheet from the Inventory tab." : undefined}
+                          action={inventory.length === 0 ? <Button size="sm" onClick={() => setActiveTab("inventory")}>Open inventory</Button> : undefined}
+                        />
+                      </div>
+                    ) : (
+                      <ul className="cm-pharm-list">
+                        {lowStock.slice(0, 8).map((i) => (
+                          <li key={i.id} className="cm-pharm-list__row">
+                            <div>
+                              <div className="cm-pharm-cell__title">{i.name}</div>
+                              <div className="cm-pharm-cell__sub">{i.generic_name || i.category}</div>
+                            </div>
+                            <div className="cm-pharm-actions">
+                              {stockCell(i)}
+                              <Button size="sm" variant="secondary" onClick={() => { setActiveTab("inventory"); openEditor(i); }}>
+                                Restock
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </div>
+              </>
+            )}
+
+            {activeTab === "orders" && (
+              <section className="cm-pharm-panel" aria-labelledby="ph-orders">
+                <header className="cm-pharm-panel__head">
+                  <div>
+                    <p className="cm-pharm-panel__eyebrow">Orders</p>
+                    <h2 id="ph-orders" className="cm-pharm-panel__title">Patient orders</h2>
+                    <p className="cm-pharm-panel__desc">Orders routed to your pharmacy. Move each one along as you pack and dispatch it.</p>
                   </div>
-
-                  <form onSubmit={handleAddInventory} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <input type="text" placeholder="Medicine Name" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} required style={{ background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                    <input type="text" placeholder="Description/Dosage" value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} style={{ background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                      <input type="number" placeholder="Price (₹)" value={newItem.price || ''} onChange={e => setNewItem({ ...newItem, price: parseFloat(e.target.value) })} required style={{ flex: 1, background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                      <input type="number" placeholder="Stock Qty" value={newItem.stock_quantity || ''} onChange={e => setNewItem({ ...newItem, stock_quantity: parseInt(e.target.value) })} required style={{ flex: 1, background: '#0f172a', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', color: '#fff' }} />
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#475569' }}>
-                      <input type="checkbox" checked={newItem.is_prescription_required} onChange={e => setNewItem({ ...newItem, is_prescription_required: e.target.checked })} />
-                      Prescription Required
-                    </label>
-                    <button type="submit" style={{ background: 'linear-gradient(to right, #6366f1, #8b5cf6)', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>Add to Inventory</button>
-                  </form>
+                </header>
+                <div className="cm-pharm-toolbar">
+                  <div className="cm-pharm-filter" role="group" aria-label="Filter orders">
+                    {FILTERS.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className="cm-pharm-filter__btn"
+                        aria-pressed={orderFilter === f.id}
+                        onClick={() => setOrderFilter(f.id)}
+                      >
+                        {f.label} <span className="cm-pharm-filter__n">{counts[f.id] || 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <label className="cm-pharm-search">
+                    <span className="cm-pharm-search__icon"><Icon as={Search} size={16} /></span>
+                    <input
+                      className="cm-input"
+                      value={orderQuery}
+                      onChange={(e) => setOrderQuery(e.target.value)}
+                      placeholder="Search order, patient or medicine"
+                      aria-label="Search orders"
+                    />
+                  </label>
                 </div>
-
-                <div style={{ flex: '2', background: '#ffffff', borderRadius: '20px', border: '1px solid #0f172a', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead style={{ background: '#0f172a' }}>
-                      <tr>
-                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Name</th>
-                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Price</th>
-                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Stock</th>
-                        <th style={{ padding: '20px', color: '#64748b', fontWeight: '500' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {inventory.map(item => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid #0f172a' }}>
-                          <td style={{ padding: '20px' }}>
-                            <div style={{ color: '#e2e8f0', fontWeight: '600' }}>{item.name}</div>
-                            {item.is_prescription_required && <span style={{ fontSize: '10px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', marginTop: '4px', display: 'inline-block' }}>Rx Required</span>}
-                          </td>
-                          <td style={{ padding: '20px', color: '#38bdf8', fontWeight: 'bold' }}>₹{item.price}</td>
-                          <td style={{ padding: '20px', color: item.stock_quantity > 10 ? '#10b981' : '#f59e0b', fontWeight: 'bold' }}>{item.stock_quantity} units</td>
-                          <td style={{ padding: '20px' }}>
-                            <button onClick={() => handleDeleteInventory(item.id)} style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>Remove</button>
-                          </td>
+                {visibleOrders.length === 0 ? (
+                  <div className="cm-pharm-panel__body">
+                    <EmptyState
+                      icon={Package}
+                      title={orders.length === 0 ? "No orders yet" : "No orders match"}
+                      body={orders.length === 0 ? "Orders placed by patients in your delivery area will appear here." : "Try another filter or search."}
+                    />
+                  </div>
+                ) : (
+                  <div className="cm-pharm-table-wrap">
+                    <table className="cm-pharm-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Order</th>
+                          <th scope="col">Patient</th>
+                          <th scope="col">Medicines</th>
+                          <th scope="col">Prescription</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            {/* DELIVERY DISPATCH TAB */}
-            {activeTab === 'delivery' && (
-              <div style={{ margin: "-40px", borderRadius: "20px", overflow: "hidden" }}>
-                <ProviderDispatchTracker
-                  title="Pharmacy Delivery Dispatch"
-                  providerType="pharmacy_delivery"
-                />
-              </div>
+                      </thead>
+                      <tbody>
+                        {visibleOrders.map((o) => (
+                          <tr key={o.id}>
+                            <td>
+                              <div className="cm-pharm-cell__mono">#{shortId(o.id)}</div>
+                              <div className="cm-pharm-cell__sub">{when(o.created_at)}</div>
+                            </td>
+                            <td>
+                              <div className="cm-pharm-cell__title">{o.patient_name || "Patient"}</div>
+                              {o.patient_phone && (
+                                <div className="cm-pharm-cell__sub"><Icon as={Phone} size={14} /> {o.patient_phone}</div>
+                              )}
+                              {o.delivery_address && <div className="cm-pharm-cell__sub">{o.delivery_address}</div>}
+                            </td>
+                            <td>
+                              {(o.medicines_list || []).length > 0 ? (
+                                <ul className="cm-pharm-items">
+                                  {(o.medicines_list || []).map((m, idx) => (
+                                    <li key={`${m.name}-${idx}`}>
+                                      <span>{m.name}</span>
+                                      <span className="cm-pharm-items__qty">× {m.quantity}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <span className="cm-pharm-muted">From prescription</span>
+                              )}
+                            </td>
+                            <td>
+                              {o.prescription_url ? (
+                                <a className="cm-pharm-link" href={o.prescription_url} target="_blank" rel="noopener noreferrer">
+                                  <Icon as={FileText} size={14} /> View
+                                </a>
+                              ) : (
+                                <span className="cm-pharm-muted">Not attached</span>
+                              )}
+                            </td>
+                            <td><Pill tone={STATUS[o.status]?.tone || "halted"}>{STATUS[o.status]?.label || o.status}</Pill></td>
+                            <td>{orderActions(o)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             )}
 
-            {/* PROFILE TAB */}
-            {activeTab === 'profile' && (
-              <DashboardProfile profile={profile} role="pharmacy" />
+            {activeTab === "inventory" && (
+              <section className="cm-pharm-panel" aria-labelledby="ph-inv">
+                <header className="cm-pharm-panel__head">
+                  <div>
+                    <p className="cm-pharm-panel__eyebrow">Inventory</p>
+                    <h2 id="ph-inv" className="cm-pharm-panel__title">Medicine catalogue</h2>
+                    <p className="cm-pharm-panel__desc">
+                      {inventory.length} medicine{inventory.length === 1 ? "" : "s"} · {lowStock.length} low on stock
+                    </p>
+                  </div>
+                  <Button onClick={() => openEditor("new")}>
+                    <Icon as={Plus} size={16} /> Add medicine
+                  </Button>
+                </header>
+
+                <div className="cm-pharm-import">
+                  <div>
+                    <p className="cm-pharm-import__title"><Icon as={FileSpreadsheet} size={20} /> Import your stock sheet</p>
+                    <p className="cm-pharm-import__desc">
+                      Upload an Excel or CSV file with medicine name, MRP and stock quantity (generic name, category, batch, SKU and prescription flag are optional).
+                      Rows matching an existing SKU or medicine name update its price and stock instead of duplicating it.
+                    </p>
+                  </div>
+                  <div className="cm-pharm-actions">
+                    <label className="cm-btn cm-btn--primary cm-btn--sm cm-pharm-file">
+                      <Icon as={Upload} size={14} /> Import CSV / Excel <span className="cm-pharm-file__limit">≤5MB</span>
+                      <input type="file" accept=".csv,.xlsx,.xls" onChange={onImportFile} aria-label="Import CSV or Excel stock sheet" />
+                    </label>
+                    <Button size="sm" variant="secondary" onClick={() => downloadTemplate("xlsx")}>
+                      <Icon as={Download} size={14} /> Sample Excel (.xlsx)
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => downloadTemplate("csv")}>
+                      <Icon as={Download} size={14} /> Sample CSV
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="cm-pharm-toolbar">
+                  <label className="cm-pharm-search">
+                    <span className="cm-pharm-search__icon"><Icon as={Search} size={16} /></span>
+                    <input
+                      className="cm-input"
+                      value={invQuery}
+                      onChange={(e) => setInvQuery(e.target.value)}
+                      placeholder="Search name, generic, SKU, batch"
+                      aria-label="Search inventory"
+                    />
+                  </label>
+                </div>
+
+                {visibleInventory.length === 0 ? (
+                  <div className="cm-pharm-panel__body">
+                    <EmptyState
+                      icon={PillIcon}
+                      title={inventory.length === 0 ? "Your catalogue is empty" : "No medicines match"}
+                      body={inventory.length === 0 ? "Add medicines one by one, or import your stock sheet above." : "Try a different search."}
+                    />
+                  </div>
+                ) : (
+                  <div className="cm-pharm-table-wrap">
+                    <table className="cm-pharm-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Medicine</th>
+                          <th scope="col">Category</th>
+                          <th scope="col">Batch</th>
+                          <th scope="col" className="cm-pharm-table__num">MRP</th>
+                          <th scope="col" className="cm-pharm-table__num">Stock</th>
+                          <th scope="col">Rx</th>
+                          <th scope="col">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleInventory.map((i) => (
+                          <tr key={i.id}>
+                            <td>
+                              <div className="cm-pharm-cell__title">{i.name}</div>
+                              <div className="cm-pharm-cell__sub">
+                                {[i.generic_name, i.sku].filter(Boolean).join(" · ")}
+                              </div>
+                            </td>
+                            <td>{i.category || <span className="cm-pharm-muted">—</span>}</td>
+                            <td>{i.batch_number ? <span className="cm-pharm-cell__mono">{i.batch_number}</span> : <span className="cm-pharm-muted">—</span>}</td>
+                            <td className="cm-pharm-table__num">{inr(i.price)}</td>
+                            <td className="cm-pharm-table__num">{stockCell(i)}</td>
+                            <td>{i.is_prescription_required ? <Pill tone="waiting">Rx</Pill> : <span className="cm-pharm-muted">OTC</span>}</td>
+                            <td>
+                              <div className="cm-pharm-actions">
+                                <Button size="sm" variant="secondary" onClick={() => openEditor(i)} aria-label={`Edit ${i.name}`}>
+                                  <Icon as={Pencil} size={14} /> Edit
+                                </Button>
+                                <Button size="sm" variant="ghost" iconOnly onClick={() => removeItem(i)} aria-label={`Remove ${i.name}`}>
+                                  <Icon as={Trash2} size={16} />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             )}
+
+            {activeTab === "delivery" && (
+              <ProviderDispatchTracker title="Pharmacy Delivery Dispatch" providerType="pharmacy_delivery" />
+            )}
+
+            {activeTab === "profile" && <DashboardProfile profile={profile} role="pharmacy" onProfileUpdated={setProfile} />}
           </>
         )}
-        {/* ─── BATCH IMPORT CSV MODAL ─── */}
-        {showCsvModal && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)", zIndex: 1000,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "#1e293b", borderRadius: 20, padding: 30,
-              width: "100%", maxWidth: 600, border: "1px solid #e2e8f0",
-              color: "#0f172a", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
-            }}>
-              <h3 style={{ margin: "0 0 10px", fontSize: "1.3rem", color: "#60a5fa" }}>
-                📥 Batch Import Medicine SKUs (CSV)
-              </h3>
-              <p style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: 16 }}>
-                Paste CSV data below or enter comma-separated lines. Columns: <br />
-                <code style={{ background: "#0f172a", padding: "4px 8px", borderRadius: 4, color: "#38bdf8", fontSize: "0.8rem" }}>
-                  Name, Description, Price, Stock, Category, RxRequired(true/false)
-                </code>
-              </p>
+      </div>
 
-              <textarea
-                rows={8}
-                placeholder={`Paracetamol 500mg, Analgesic Tablet, 45.0, 250, tablet, false\nAmoxicillin 500mg, Antibiotic Capsule, 120.0, 80, capsule, true\nCetrizen 10mg, Antihistamine, 30.0, 150, tablet, false`}
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                style={{
-                  width: "100%", padding: "14px", borderRadius: 10,
-                  backgroundColor: "#0f172a", border: "1px solid #e2e8f0",
-                  color: "#e2e8f0", fontFamily: "monospace", fontSize: "0.85rem", marginBottom: 16
-                }}
-              />
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  onClick={() => setShowCsvModal(false)}
-                  style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.2)", background: "transparent", color: "#64748b", cursor: "pointer", fontWeight: 600 }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleBulkImportCsv}
-                  disabled={importingCsv}
-                  style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "white", fontWeight: 800, cursor: importingCsv ? "wait" : "pointer" }}
-                >
-                  {importingCsv ? "Importing..." : "🚀 Upload & Import SKUs"}
-                </button>
-              </div>
-            </div>
+      <Modal
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? "Add medicine" : "Edit medicine"}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button type="submit" form="ph-item-form" loading={saving}>
+              {editing === "new" ? "Add to inventory" : "Save changes"}
+            </Button>
+          </>
+        }
+      >
+        <form id="ph-item-form" className="cm-pharm-form" onSubmit={saveItem}>
+          <div className="cm-pharm-form__full">
+            <Field label="Medicine name" id="ph-name" required>
+              <TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Paracetamol 500mg Tablet" />
+            </Field>
           </div>
-        )}
+          <Field label="Generic name" id="ph-generic">
+            <TextInput value={form.generic_name} onChange={(e) => setForm({ ...form, generic_name: e.target.value })} placeholder="e.g. Paracetamol" />
+          </Field>
+          <Field label="Category" id="ph-cat">
+            <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+              {["Tablet", "Capsule", "Syrup", "Injection", "Ointment", "Drops", "Powder", "Device", "medicine"].map((c) => (
+                <option key={c} value={c}>{c === "medicine" ? "Other" : c}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="MRP (₹)" id="ph-price" required>
+            <TextInput type="number" min={0.01} step="0.01" inputMode="decimal" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+          </Field>
+          <Field label="Stock quantity" id="ph-stock" required>
+            <TextInput type="number" min={0} step={1} inputMode="numeric" value={form.stock_quantity} onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })} />
+          </Field>
+          <Field label="Batch number" id="ph-batch">
+            <TextInput value={form.batch_number} onChange={(e) => setForm({ ...form, batch_number: e.target.value })} />
+          </Field>
+          <label className="cm-pharm-check">
+            <input
+              type="checkbox"
+              checked={form.is_prescription_required}
+              onChange={(e) => setForm({ ...form, is_prescription_required: e.target.checked })}
+            />
+            Prescription required (Schedule H / H1)
+          </label>
+        </form>
+      </Modal>
 
-        {/* ─── THERMAL POS RECEIPT PRINT MODAL ─── */}
-        {showInvoiceModal && selectedInvoiceOrder && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)", zIndex: 1000,
-            display: "flex", justifyContent: "center", alignItems: "center", padding: 20
-          }}>
-            <div style={{
-              backgroundColor: "#ffffff", borderRadius: 16, padding: 30,
-              width: "100%", maxWidth: 420, color: "#1e293b", fontFamily: "monospace",
-              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)"
-            }}>
-              <div style={{ textAlign: "center", borderBottom: "2px dashed #64748b", paddingBottom: 16, marginBottom: 16 }}>
-                <h2 style={{ margin: "0 0 4px", fontSize: "1.2rem", fontWeight: 900 }}>💊 CALLMEDEX PHARMACY</h2>
-                <div style={{ fontSize: "0.75rem", color: "#475569" }}>Licensed Medical Counter & Dark Store</div>
-                <div style={{ fontSize: "0.75rem", color: "#475569" }}>GSTIN: 37AAACC1208D1Z2 · Reg No: AP/VZG/2026/982</div>
-                <div style={{ fontSize: "0.75rem", color: "#475569", marginTop: 4 }}>Date: {new Date(selectedInvoiceOrder.created_at || Date.now()).toLocaleString()}</div>
-              </div>
-
-              <div style={{ fontSize: "0.8rem", marginBottom: 16 }}>
-                <div><strong>Invoice No:</strong> TXN-PHARM-{selectedInvoiceOrder.id?.slice(0, 8).toUpperCase()}</div>
-                <div><strong>Patient Address:</strong> {selectedInvoiceOrder.delivery_address || "Home Delivery"}</div>
-                <div><strong>Status:</strong> {selectedInvoiceOrder.status?.toUpperCase()}</div>
-              </div>
-
-              <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse", marginBottom: 16 }}>
+      <Modal
+        open={importPreview !== null}
+        onClose={() => !importing && setImportPreview(null)}
+        title="Review import"
+        wide
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setImportPreview(null)} disabled={importing}>Cancel</Button>
+            <Button onClick={confirmImport} loading={importing}>
+              Import {importPreview?.rows.length || 0} medicine{importPreview?.rows.length === 1 ? "" : "s"}
+            </Button>
+          </>
+        }
+      >
+        {importPreview && (
+          <>
+            <div className="cm-pharm-summary">
+              <span>File: <strong>{importPreview.file}</strong></span>
+              <span>Ready: <strong>{importPreview.rows.length}</strong></span>
+              {importPreview.skipped > 0 && <span>Skipped (missing name, price or stock): <strong>{importPreview.skipped}</strong></span>}
+            </div>
+            <div className="cm-pharm-preview">
+              <table className="cm-pharm-table">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #475569", textAlign: "left" }}>
-                    <th style={{ padding: "4px 0" }}>Item</th>
-                    <th style={{ padding: "4px 0", textAlign: "center" }}>Qty</th>
-                    <th style={{ padding: "4px 0", textAlign: "right" }}>Price</th>
+                  <tr>
+                    <th scope="col">Medicine</th>
+                    <th scope="col">Category</th>
+                    <th scope="col" className="cm-pharm-table__num">MRP</th>
+                    <th scope="col" className="cm-pharm-table__num">Stock</th>
+                    <th scope="col">Rx</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(selectedInvoiceOrder.medicines_list || [{ name: "Prescription Medicine", quantity: 1 }]).map((m: any, idx: number) => (
-                    <tr key={idx} style={{ borderBottom: "1px dashed #f1f5f9" }}>
-                      <td style={{ padding: "6px 0" }}>{m.name}</td>
-                      <td style={{ padding: "6px 0", textAlign: "center" }}>x{m.quantity}</td>
-                      <td style={{ padding: "6px 0", textAlign: "right" }}>₹{(m.quantity || 1) * 120}</td>
+                  {importPreview.rows.slice(0, 50).map((r, idx) => (
+                    <tr key={`${r.name}-${idx}`}>
+                      <td>
+                        <div className="cm-pharm-cell__title">{r.name}</div>
+                        <div className="cm-pharm-cell__sub">{[r.generic_name, r.sku, r.batch_number].filter(Boolean).join(" · ")}</div>
+                      </td>
+                      <td>{r.category}</td>
+                      <td className="cm-pharm-table__num">{inr(r.price)}</td>
+                      <td className="cm-pharm-table__num">{r.stock_quantity}</td>
+                      <td>{r.is_prescription_required ? "Yes" : "No"}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              <div style={{ borderTop: "2px dashed #64748b", paddingTop: 12, marginBottom: 20, fontSize: "0.85rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span>Subtotal:</span>
-                  <span>₹240.00</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span>CGST (6%) + SGST (6%):</span>
-                  <span>₹28.80</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: "1rem", color: "#0f172a", marginTop: 8, borderTop: "1px solid #475569", paddingTop: 8 }}>
-                  <span>GRAND TOTAL:</span>
-                  <span>₹268.80</span>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => setShowInvoiceModal(false)}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #475569", background: "#f1f5f9", cursor: "pointer", fontWeight: 700 }}
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#0284c7", color: "white", fontWeight: 800, cursor: "pointer" }}
-                >
-                  🖨️ Print Receipt
-                </button>
-              </div>
             </div>
-          </div>
+            {importPreview.rows.length > 50 && (
+              <p className="cm-pharm-panel__desc">Showing the first 50 of {importPreview.rows.length} rows.</p>
+            )}
+          </>
         )}
+      </Modal>
     </DashboardShell>
   );
 }
-

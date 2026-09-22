@@ -70,6 +70,28 @@ interface UserData {
   id?: string;
 }
 
+const todayInIST = () => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().split("T")[0];
+  }
+};
+
+/** A booking the patient can still expect a visit for: open, and not on a
+ *  past date unless the visit is already under way. The "Upcoming" count and
+ *  live tracking both use this, so tracking can never show for a booking the
+ *  dashboard itself does not count. */
+const isLiveBooking = (b: any, today: string) => {
+  if (!["confirmed", "pending_review", "slot_allotted", "provider_accepted", "in_progress"].includes(b.status)) return false;
+  if (b.scheduled_date && b.scheduled_date < today && !["provider_accepted", "in_progress"].includes(b.status)) return false;
+  return true;
+};
+
+const TRACKABLE_DISPATCH = ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"];
+
 export default function PatientDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<UserData | null>(null);
@@ -379,9 +401,11 @@ export default function PatientDashboard() {
     // Statuses past "confirmed" are included for the same reason: once the
     // provider accepts, the booking moves to provider_accepted/in_progress,
     // and a reload at that point must still find the visit in flight.
+    const today = todayInIST();
     const candidates = bookings.filter(
       (b) =>
         ["confirmed", "provider_accepted", "in_progress"].includes(b.status) &&
+        isLiveBooking(b, today) &&
         (b.booking_kind === "home_collection" ||
           b.consultation_mode === "home_visit")
     );
@@ -430,6 +454,14 @@ export default function PatientDashboard() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/track/${activeDispatchId}`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
+        if (res.status === 403 || res.status === 404) {
+          // Not this account's dispatch (another login on this browser left
+          // its id in localStorage) or it no longer exists. Stop polling it.
+          localStorage.removeItem("activeDispatchId");
+          setActiveDispatchId(null);
+          setTrackingData(null);
+          return;
+        }
         const data = await res.json();
         setTrackingData(data);
 
@@ -540,6 +572,9 @@ export default function PatientDashboard() {
         if (res.ok && data.dispatch_id) {
           localStorage.setItem("activeDispatchId", data.dispatch_id);
           setActiveDispatchId(data.dispatch_id);
+          // Tracking renders only against a booking in the list, so pull the
+          // booking this request just created.
+          refreshBookings();
           toast(data.message || "Dispatch request created! Searching for nearby providers.");
         } else {
           if (data.detail === "Invalid or expired token") {
@@ -715,16 +750,23 @@ export default function PatientDashboard() {
   const todayIST = getTodayIST();
 
   // Forensically exclude stale bookings that passed their scheduled date without being serviced
-  const upcomingBookings = bookings.filter(b => {
-    if (!["confirmed", "pending_review", "slot_allotted", "provider_accepted", "in_progress"].includes(b.status)) {
-      return false;
-    }
-    if (b.scheduled_date && b.scheduled_date < todayIST && !["provider_accepted", "in_progress"].includes(b.status)) {
-      return false;
-    }
-    return true;
-  });
+  const upcomingBookings = bookings.filter(b => isLiveBooking(b, todayIST));
   const upcomingCount = upcomingBookings.length;
+
+  // Live tracking shows only for a dispatch that belongs to one of the
+  // patient's own open bookings. It used to render for any dispatch id found
+  // in localStorage whose row was still "active" — including dispatches left
+  // behind by cancelled or expired bookings — so a patient with nothing booked
+  // watched a collector approach.
+  const liveBookingIds = new Set(upcomingBookings.map((b) => b.id));
+  const trackingLive = Boolean(
+    activeDispatchId && trackingData
+    && TRACKABLE_DISPATCH.includes(trackingData.status)
+    && trackingData.booking_id && liveBookingIds.has(trackingData.booking_id)
+  );
+  // Pre-assigned to a collector for a scheduled slot, not yet travelling.
+  const trackingScheduled = trackingLive
+    && trackingData.assignment_mode === "advance" && trackingData.status === "provider_accepted";
   const completedBookings = bookings.filter(b => b.status === "completed");
   const completedCount = completedBookings.length;
   const prescriptionsCount = familyState.medications?.length || 0;
@@ -1773,9 +1815,7 @@ export default function PatientDashboard() {
           />
 
           {/* Phlebotomist Cold-Chain Radar */}
-          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && activeDispatchId && trackingData
-            && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"]
-              .includes(trackingData.status)
+          {FEATURE_FLAGS.ENABLE_PHLEBO_RADAR && trackingLive
             && (trackingData.provider_type || "phlebotomist") === "phlebotomist" && (
             <PhlebotomistRadar
               status={trackingData.status}
@@ -1786,6 +1826,10 @@ export default function PatientDashboard() {
               candidates={trackingData.searching_candidates || []}
               locationSource={trackingData.provider?.location_source}
               otpPin={patientOtp ?? undefined}
+              scheduled={trackingScheduled ? {
+                date: trackingData.scheduled_for,
+                time: trackingData.slot_time,
+              } : undefined}
             />
           )}
 
@@ -1820,7 +1864,9 @@ export default function PatientDashboard() {
         {/* Real dispatch always renders. The simulated run renders only in a
             demo build — otherwise a patient with no collection booked could
             open a tracker showing a phlebotomist who does not exist. */}
-        {((activeDispatchId && trackingData && ["searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"].includes(trackingData.status))
+        {/* A pre-assigned collector who has not set off yet has no route or
+            ETA to show — the radar card above carries the scheduled visit. */}
+        {((trackingLive && !trackingScheduled)
           || (FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER && showLiveTracker)) && (() => {
           const isReal = !!(activeDispatchId && trackingData);
           const currentStatus = isReal ? trackingData.status : simStage;

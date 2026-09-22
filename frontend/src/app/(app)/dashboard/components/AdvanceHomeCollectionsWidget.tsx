@@ -96,7 +96,7 @@ export default function AdvanceHomeCollectionsWidget({
   }, [fetchJobs]);
 
   const formatSlot = (time?: string) => {
-    if (!time) return "Morning Fasting Slot (05:30 AM – 11:00 AM)";
+    if (!time) return "Morning Fasting Slot (06:00 AM – 11:00 AM)";
     const parts = time.split(":");
     if (parts.length >= 2) {
       const h = parseInt(parts[0], 10);
@@ -339,7 +339,7 @@ export default function AdvanceHomeCollectionsWidget({
             No Scheduled Collections for {timeframe === "today" ? "Today" : timeframe === "tomorrow" ? "Tomorrow" : timeframe}
           </h4>
           <p style={{ margin: 0, fontSize: "0.82rem", color: "#64748b", maxWidth: 460, marginInline: "auto" }}>
-            When a patient books tomorrow’s morning fasting slot (05:30 – 11:00 AM) in your service area, it will lock the area slot and appear here immediately with advance dispatch details.
+            When a patient books tomorrow’s morning fasting slot (06:00 – 11:00 AM) in your service area, it will lock the area slot and appear here immediately with advance dispatch details.
           </p>
         </div>
       ) : (

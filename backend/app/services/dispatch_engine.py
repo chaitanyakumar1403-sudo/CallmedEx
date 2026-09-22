@@ -1944,9 +1944,64 @@ class UniversalDispatchEngine:
         if not dispatch:
             return {"dispatch_id": dispatch_id, "status": "not_found"}
 
+        # A dispatch is only trackable while its booking is live. A booking
+        # cancelled, completed or auto-expired while its dispatch row stayed
+        # open left patients watching a collector for a visit that no longer
+        # existed — so the booking's state wins here, and clients clear on it.
+        booking_row = None
+        if dispatch.get("booking_id") and supabase:
+            try:
+                br = (
+                    supabase.table("bookings").select("id, status, slot_id, slot_start")
+                    .eq("id", dispatch["booking_id"]).limit(1).execute()
+                )
+                booking_row = br.data[0] if br.data else None
+            except Exception as e:
+                logger.warning(f"Could not read booking for dispatch {dispatch_id}: {e}")
+
+        ist_today = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date().isoformat()
+        is_advance_wait = (
+            dispatch.get("assignment_mode") == "advance"
+            and dispatch.get("status") == "provider_accepted"
+        )
+        scheduled_day = str(dispatch.get("scheduled_for") or "")[:10]
+        closed = None
+        if booking_row and booking_row.get("status") in ("cancelled", "completed", "slot_rejected", "no_show"):
+            closed = "completed" if booking_row["status"] == "completed" else "cancelled"
+        elif is_advance_wait and scheduled_day and scheduled_day < ist_today:
+            closed = "cancelled"  # assigned for a day that passed without the visit starting
+        if closed and dispatch.get("status") in ("searching", "provider_notified", "provider_accepted", "en_route", "arrived", "in_progress"):
+            return {
+                "dispatch_id": dispatch_id,
+                "booking_id": dispatch.get("booking_id"),
+                "provider_type": dispatch.get("provider_type"),
+                "status": closed,
+                "closed_reason": "booking_closed",
+            }
+
+        slot_time = ""
+        if booking_row:
+            parts = (booking_row.get("slot_id") or "").split("|")
+            if len(parts) == 3 and ":" in parts[2]:
+                slot_time = parts[2][:5]
+            elif "T" in (booking_row.get("slot_start") or ""):
+                slot_time = booking_row["slot_start"].split("T")[1][:5]
+
         provider_location = None
 
-        if dispatch.get("assigned_provider_id") and supabase:
+        if is_advance_wait and dispatch.get("assigned_provider_id") and supabase:
+            # Pre-assigned for a scheduled slot and not yet on the way: the
+            # patient sees who is coming and when — never the collector's live
+            # position hours or days before the visit.
+            try:
+                u = (
+                    supabase.table("users").select("full_name")
+                    .eq("id", dispatch["assigned_provider_id"]).limit(1).execute()
+                )
+                provider_location = {"name": (u.data[0].get("full_name") if u.data else None)}
+            except Exception as e:
+                logger.warning(f"Could not load assigned collector for {dispatch_id}: {e}")
+        elif dispatch.get("assigned_provider_id") and supabase:
             loc_result = (
                 supabase.table("provider_locations")
                 .select("*, users!inner(full_name, mobile)")
@@ -2038,6 +2093,11 @@ class UniversalDispatchEngine:
             "provider_type": dispatch.get("provider_type"),
             "service_subtype": dispatch.get("service_subtype"),
             "status": dispatch["status"],
+            # "advance" + provider_accepted = assigned for a scheduled slot,
+            # not yet travelling. Clients show a scheduled card, not live GPS.
+            "assignment_mode": dispatch.get("assignment_mode"),
+            "scheduled_for": dispatch.get("scheduled_for"),
+            "slot_time": slot_time,
             "provider": provider_location,
             "searching_candidates": searching_candidates,
             "searching_count": len(searching_candidates),

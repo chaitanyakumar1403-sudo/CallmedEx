@@ -29,7 +29,6 @@ import {
   Activity,
   HeartPulse,
   Sun,
-  Award,
   Star,
   Info,
 } from "lucide-react";
@@ -51,34 +50,6 @@ interface DiagnosticCenter {
   min_price?: number;
 }
 
-const FALLBACK_CENTERS: DiagnosticCenter[] = [
-  {
-    id: "5e501ddb-c21d-4e87-97af-30f5f6f6348b",
-    user_id: "5e501ddb-c21d-4e87-97af-30f5f6f6348b",
-    name: "ACCUMAX DIAGNOSTICS & IMAGING",
-    city: "Visakhapatnam",
-    state: "Andhra Pradesh",
-    district: "Visakhapatnam",
-    address: "Dwaraka Nagar, 3rd Lane, Visakhapatnam",
-    rating: 4.9,
-    timing: "06:30 AM – 09:30 PM",
-    facilities: ["1.5T MRI", "Multi-Slice CT", "4D Ultrasound", "Digital X-Ray", "Color Doppler", "Fully Automated Lab"],
-    min_price: 150,
-  },
-  {
-    id: "visakha-city-scans",
-    user_id: "visakha-city-scans",
-    name: "VISAKHA ADVANCED SCAN & DIAGNOSTIC CENTRE",
-    city: "Visakhapatnam",
-    state: "Andhra Pradesh",
-    district: "Visakhapatnam",
-    address: "Maharanipeta, Near KGH, Visakhapatnam",
-    rating: 4.8,
-    timing: "07:00 AM – 09:00 PM",
-    facilities: ["32-Slice CT", "Digital X-Ray", "Fetal Ultrasound", "2D Echo / ECG", "Cardiac Markers"],
-    min_price: 180,
-  },
-];
 
 const SUB_CATEGORIES = [
   { id: "all", label: "All Tests" },
@@ -139,7 +110,7 @@ function DiagnosticsContent() {
 
   // Walk-in Center State
   const [loc, setLoc] = useState({ state: "Andhra Pradesh", district: "Visakhapatnam", detected: false });
-  const [centers, setCenters] = useState<DiagnosticCenter[]>(FALLBACK_CENTERS);
+  const [centers, setCenters] = useState<DiagnosticCenter[]>([]);
   const [loadingCenters, setLoadingCenters] = useState(false);
 
   // Modal State for Selected Walk-in Center
@@ -174,29 +145,19 @@ function DiagnosticsContent() {
             state: p.state || loc.state || "Andhra Pradesh",
             district: p.district || loc.district,
             address: p.address || `${p.city || loc.district}, ${p.state || loc.state}`,
-            rating: p.rating || 4.9,
-            timing: p.timing || "06:30 AM – 09:30 PM",
-            facilities: [
-              "1.5T MRI",
-              "Multi-Slice CT",
-              "4D Ultrasound",
-              "Digital X-Ray",
-              "Color Doppler",
-              "Fully Automated NABL Lab",
-            ],
-            min_price: p.min_price || 150,
+            // Only what the centre actually registered — no invented
+            // rating, hours or equipment list.
+            rating: typeof p.rating === "number" && p.rating > 0 ? p.rating : undefined,
+            timing: p.timing || p.operating_hours || "",
+            facilities: Array.isArray(p.facilities) ? p.facilities : [],
+            min_price: typeof p.min_price === "number" && p.min_price > 0 ? p.min_price : undefined,
           }));
           setCenters(mapped);
         } else {
-          // If in Visakhapatnam, use curated verified centers
-          if (loc.district.toLowerCase().includes("visakhapatnam") || loc.state.toLowerCase().includes("andhra")) {
-            setCenters(FALLBACK_CENTERS);
-          } else {
-            setCenters([]);
-          }
+          setCenters([]);
         }
       } catch (err) {
-        setCenters(FALLBACK_CENTERS);
+        setCenters([]);
       } finally {
         setLoadingCenters(false);
       }
@@ -382,7 +343,7 @@ function DiagnosticsContent() {
               textShadow: "0 1px 4px rgba(0,0,0,0.2)",
             }}
           >
-            Choose convenient doorstep sample collection handled by the CallMedex Central Processing Lab, or book walk-in appointments at premier accredited diagnostic &amp; imaging centers.
+            Choose convenient doorstep sample collection at home, or book walk-in appointments at accredited diagnostic &amp; imaging centres.
           </p>
 
           {/* Primary Bifurcation Tabs */}
@@ -426,7 +387,7 @@ function DiagnosticsContent() {
                   fontSize: "0.72rem",
                 }}
               >
-                5:30 – 11:00 AM
+                6:00 – 11:00 AM
               </span>
             </button>
 
@@ -485,31 +446,13 @@ function DiagnosticsContent() {
                 marginBottom: 36,
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span
-                      style={{
-                        background: "#0284c7",
-                        color: "#fff",
-                        padding: "3px 10px",
-                        borderRadius: 999,
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        letterSpacing: "0.03em",
-                      }}
-                    >
-                      CENTRAL PROCESSING LAB
-                    </span>
-                    <span style={{ color: "#0369a1", fontSize: "0.85rem", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <Award size={16} /> NABL Compliant Standards
-                    </span>
-                  </div>
                   <h2 style={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", margin: "0 0 6px" }}>
                     Doorstep Blood Sample Collection
                   </h2>
                   <p style={{ color: "#475569", fontSize: "0.95rem", margin: 0, maxWidth: 680, lineHeight: 1.5 }}>
-                    Certified CallMedex phlebotomists arrive at your home with temperature-controlled cold storage kits. Fasting samples strictly collected between <strong>5:30 AM and 11:00 AM</strong> for maximum diagnostic precision.
+                    Certified CallMedex phlebotomists arrive at your home with temperature-controlled cold storage kits. Fasting samples collected between <strong>6:00 AM and 11:00 AM</strong> for accurate results.
                   </p>
                 </div>
 
@@ -527,7 +470,7 @@ function DiagnosticsContent() {
                   <Clock size={28} style={{ color: "#0284c7" }} />
                   <div>
                     <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>Home Slot Window</div>
-                    <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0369a1" }}>05:30 AM – 11:00 AM</div>
+                    <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#0369a1" }}>06:00 AM – 11:00 AM</div>
                   </div>
                 </div>
               </div>
@@ -890,12 +833,15 @@ function DiagnosticsContent() {
                           <span>{center.address || `${center.city}, ${center.state}`}</span>
                         </div>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#64748b", marginBottom: 14 }}>
-                          <Clock size={14} style={{ color: "#0284c7" }} />
-                          <span>Hours: {center.timing}</span>
-                        </div>
+                        {center.timing && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", color: "#64748b", marginBottom: 14 }}>
+                            <Clock size={14} style={{ color: "#0284c7" }} />
+                            <span>Hours: {center.timing}</span>
+                          </div>
+                        )}
 
                         {/* Available Facilities Badges */}
+                        {(center.facilities || []).length > 0 && (
                         <div style={{ marginBottom: 18 }}>
                           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569", marginBottom: 6, textTransform: "uppercase" }}>
                             Key Imaging & Scan Equipment
@@ -919,6 +865,7 @@ function DiagnosticsContent() {
                             ))}
                           </div>
                         </div>
+                        )}
                       </div>
 
                       {/* Action Button: Opens the Glassmorphic Center Modal */}
@@ -1026,7 +973,7 @@ function DiagnosticsContent() {
                   >
                     ACCREDITED WALK-IN PARTNER
                   </span>
-                  <span style={{ fontSize: "0.8rem", color: "#bae6fd" }}>• {activeCenterModal.timing}</span>
+                  {activeCenterModal.timing && <span style={{ fontSize: "0.8rem", color: "#bae6fd" }}>• {activeCenterModal.timing}</span>}
                 </div>
                 <h3 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 800, color: "#ffffff" }}>
                   {activeCenterModal.name}

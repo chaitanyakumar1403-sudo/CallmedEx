@@ -19,7 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Icon } from "@/components/ui";
 import {
   AlertCircle, Building2, Calendar, CalendarOff, CheckCircle2, Clock,
-  LayoutGrid, MapPin, Moon, Plus, Rows3, Settings2, Sun, Sunrise, Trash2, X,
+  LayoutGrid, MapPin, Moon, Plus, Rows3, Sun, Sunrise, Trash2, X,
 } from "@/components/ui/icons";
 import type { LucideIcon } from "@/components/ui/icons";
 
@@ -74,6 +74,7 @@ interface Availability {
   consultation_mode: string;
   location_name?: string;
   location_address?: string;
+  organization_id?: string | null;
   is_active?: boolean;
 }
 
@@ -83,11 +84,19 @@ interface Fee {
   amount: number;
 }
 
-interface ClinicBranch {
-  id: string;
+/** A real branch of an organisation the provider is linked to
+ *  (GET /api/providers/my-linked-branches). */
+interface LinkedBranch {
+  organization_id: string;
+  organization_name: string;
+  branch_id: string; // "main" or a provider_branches id
   name: string;
   address: string;
+  is_main_branch: boolean;
 }
+
+const OWN = "own";
+const placeKeyOf = (b: LinkedBranch) => `${b.organization_id}|${b.branch_id}`;
 
 interface ConsolidatedShiftGroup {
   key: string;
@@ -158,25 +167,12 @@ export default function ProviderSchedulePanel({
   const [showForm, setShowForm] = useState(false);
   const [builderTab, setBuilderTab] = useState<"shift" | "custom">("shift");
 
-  // Multi-Branch Clinic Practice State
-  const [branches, setBranches] = useState<ClinicBranch[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("cm_doctor_branches");
-        if (saved) return JSON.parse(saved);
-      } catch {
-        // Fallback
-      }
-    }
-    return [
-      { id: "b1", name: "Main Consultation OPD", address: "MVP Colony, Sector 3, Visakhapatnam" },
-      { id: "b2", name: "City Care Branch", address: "Gajuwaka Junction, Visakhapatnam" },
-    ];
-  });
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("b1");
-  const [showBranchManager, setShowBranchManager] = useState(false);
-  const [newBranchName, setNewBranchName] = useState("");
-  const [newBranchAddress, setNewBranchAddress] = useState("");
+  // Where walk-in hours are held: a linked organisation's real branch, or the
+  // provider's own clinic. This used to be two invented branches ("Main
+  // Consultation OPD", "City Care Branch") kept in localStorage, so shifts
+  // never carried the organisation or branch patients book against.
+  const [linkedBranches, setLinkedBranches] = useState<LinkedBranch[]>([]);
+  const [placeKey, setPlaceKey] = useState<string>("");
 
   // Consolidated View vs Day-by-Day View
   const [scheduleViewMode, setScheduleViewMode] = useState<"consolidated" | "day_by_day">("consolidated");
@@ -193,8 +189,10 @@ export default function ProviderSchedulePanel({
     evening_shift_enabled: true,
     evening_start: "17:00",
     evening_end: "19:00",
-    location_name: "Main Consultation OPD",
-    location_address: "MVP Colony, Sector 3, Visakhapatnam",
+    location_name: "",
+    location_address: "",
+    organization_id: "",
+    branch_id: "",
     replace_existing: true,
   });
 
@@ -205,8 +203,9 @@ export default function ProviderSchedulePanel({
     end_time: "13:00",
     slot_duration_minutes: 10,
     consultation_mode: "in_person",
-    location_name: "Main Consultation OPD",
-    location_address: "MVP Colony, Sector 3, Visakhapatnam",
+    location_name: "",
+    location_address: "",
+    organization_id: "",
     apply_to_all_days: false,
     replace_existing: false,
   });
@@ -220,51 +219,24 @@ export default function ProviderSchedulePanel({
     Authorization: `Bearer ${getToken()}`,
   });
 
-  // Sync branches from availability records so any previously used branches are preserved
-  const syncBranchesFromAvailability = useCallback((availList: Availability[]) => {
-    setBranches((prev) => {
-      const existingNames = new Set(prev.map((b) => b.name.toLowerCase().trim()));
-      const discovered: ClinicBranch[] = [];
-      availList.forEach((a) => {
-        if (a.location_name && a.location_name.trim()) {
-          const norm = a.location_name.toLowerCase().trim();
-          if (!existingNames.has(norm)) {
-            existingNames.add(norm);
-            discovered.push({
-              id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-              name: a.location_name.trim(),
-              address: (a.location_address || "").trim(),
-            });
-          }
-        }
-      });
-      if (discovered.length > 0) {
-        const merged = [...prev, ...discovered];
-        try {
-          localStorage.setItem("cm_doctor_branches", JSON.stringify(merged));
-        } catch {
-          // ignore
-        }
-        return merged;
-      }
-      return prev;
-    });
-  }, []);
-
   const load = useCallback(async () => {
     if (!getToken()) return;
     try {
-      const [a, f, b] = await Promise.all([
+      const [a, f, b, lb] = await Promise.all([
         fetch(`${apiBase}/api/providers/my-availability`, { headers: authHeaders() }),
         fetch(`${apiBase}/api/providers/my-fees`, { headers: authHeaders() }),
         fetch(`${apiBase}/api/providers/my-blocked-dates`, { headers: authHeaders() }),
+        fetch(`${apiBase}/api/providers/my-linked-branches`, { headers: authHeaders() }),
       ]);
       if (a.ok) {
         const d = await a.json();
         if (d.success && Array.isArray(d.availability)) {
           setAvailability(d.availability);
-          syncBranchesFromAvailability(d.availability);
         }
+      }
+      if (lb.ok) {
+        const d = await lb.json();
+        if (d.success && Array.isArray(d.branches)) setLinkedBranches(d.branches);
       }
       if (f.ok) {
         const d = await f.json();
@@ -279,68 +251,38 @@ export default function ProviderSchedulePanel({
     } finally {
       setLoading(false);
     }
-  }, [syncBranchesFromAvailability]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Handle adding a new clinic branch
-  const handleAddNewBranch = () => {
-    if (!newBranchName.trim()) {
-      setMsg({ text: "Please enter a clinic / branch name.", ok: false });
-      return;
-    }
-    const newB: ClinicBranch = {
-      id: `b_${Date.now()}`,
-      name: newBranchName.trim(),
-      address: newBranchAddress.trim() || "Visakhapatnam, Andhra Pradesh",
-    };
-    const updated = [...branches, newB];
-    setBranches(updated);
-    try {
-      localStorage.setItem("cm_doctor_branches", JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-    setSelectedBranchId(newB.id);
-    setShiftForm((prev) => ({
-      ...prev,
-      location_name: newB.name,
-      location_address: newB.address,
-    }));
-    setForm((prev) => ({
-      ...prev,
-      location_name: newB.name,
-      location_address: newB.address,
-    }));
-    setNewBranchName("");
-    setNewBranchAddress("");
-    setMsg({ text: `Added clinic branch: ${newB.name}`, ok: true });
+  // Previously used own-clinic locations (real rows, not an organisation's).
+  const ownPlaces = Array.from(
+    new Map(
+      availability
+        .filter((a) => a.consultation_mode === "in_person" && !a.organization_id && a.location_name?.trim())
+        .map((a) => [a.location_name!.trim().toLowerCase(), { name: a.location_name!.trim(), address: (a.location_address || "").trim() }])
+    ).values()
+  );
+
+  const choosePlace = (key: string) => {
+    setPlaceKey(key);
+    const b = linkedBranches.find((x) => placeKeyOf(x) === key);
+    const loc = b
+      ? { location_name: b.name, location_address: b.address, organization_id: b.organization_id }
+      : { location_name: "", location_address: "", organization_id: "" };
+    setShiftForm((prev) => ({ ...prev, ...loc, branch_id: b ? b.branch_id : "" }));
+    setForm((prev) => ({ ...prev, ...loc }));
   };
 
-  const handleDeleteBranch = (bId: string) => {
-    if (branches.length <= 1) {
-      setMsg({ text: "You must keep at least one clinic branch.", ok: false });
-      return;
-    }
-    const updated = branches.filter((b) => b.id !== bId);
-    setBranches(updated);
-    try {
-      localStorage.setItem("cm_doctor_branches", JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-    if (selectedBranchId === bId && updated.length > 0) {
-      setSelectedBranchId(updated[0].id);
-      setShiftForm((prev) => ({
-        ...prev,
-        location_name: updated[0].name,
-        location_address: updated[0].address,
-      }));
-    }
-    setMsg({ text: "Clinic branch removed from saved list.", ok: true });
-  };
+  // Default to the first real branch once the list arrives.
+  useEffect(() => {
+    if (placeKey) return;
+    if (linkedBranches.length > 0) choosePlace(placeKeyOf(linkedBranches[0]));
+    else if (!loading) setPlaceKey(OWN);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedBranches, loading]);
 
   // Dynamic slot calculation preview for shift builder
   const calcShiftSlots = () => {
@@ -393,37 +335,21 @@ export default function ProviderSchedulePanel({
       return;
     }
     if (shiftForm.consultation_mode === "in_person" && !shiftForm.location_name.trim()) {
-      setMsg({ text: "Please enter your clinic or branch name.", ok: false });
+      setMsg({ text: "Choose a clinic branch, or enter your own clinic's name.", ok: false });
       return;
     }
 
     setSavingShift(true);
     try {
-      // Ensure branch is saved in branches list
-      if (shiftForm.consultation_mode === "in_person" && shiftForm.location_name.trim()) {
-        const exists = branches.some(
-          (b) => b.name.toLowerCase().trim() === shiftForm.location_name.toLowerCase().trim()
-        );
-        if (!exists) {
-          const newB: ClinicBranch = {
-            id: `b_${Date.now()}`,
-            name: shiftForm.location_name.trim(),
-            address: (shiftForm.location_address || "").trim(),
-          };
-          const updated = [...branches, newB];
-          setBranches(updated);
-          try {
-            localStorage.setItem("cm_doctor_branches", JSON.stringify(updated));
-          } catch {
-            // ignore
-          }
-        }
-      }
-
+      const atOrg = shiftForm.consultation_mode === "in_person" && placeKey !== OWN && shiftForm.organization_id;
       const res = await fetch(`${apiBase}/api/providers/availability/shifts`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify(shiftForm),
+        body: JSON.stringify({
+          ...shiftForm,
+          organization_id: atOrg ? shiftForm.organization_id : undefined,
+          branch_id: atOrg ? shiftForm.branch_id : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -458,7 +384,10 @@ export default function ProviderSchedulePanel({
       const res = await fetch(`${apiBase}/api/providers/availability`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          organization_id: form.consultation_mode === "in_person" && placeKey !== OWN && form.organization_id ? form.organization_id : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -669,6 +598,87 @@ export default function ProviderSchedulePanel({
     },
   ];
 
+  const renderPlacePicker = (target: "shift" | "custom") => {
+    const value = target === "shift" ? shiftForm : form;
+    const setLoc = (patch: { location_name?: string; location_address?: string }) =>
+      target === "shift"
+        ? setShiftForm((prev) => ({ ...prev, ...patch }))
+        : setForm((prev) => ({ ...prev, ...patch }));
+    return (
+      <fieldset className="cm-sched-fieldset">
+        <legend className="cm-sched-fieldset__legend">Clinic branch</legend>
+        <div className="cm-sched-chips" role="group" aria-label="Clinic branch">
+          {linkedBranches.map((b) => (
+            <button
+              key={placeKeyOf(b)}
+              type="button"
+              className="cm-sched-chip"
+              aria-pressed={placeKey === placeKeyOf(b)}
+              onClick={() => choosePlace(placeKeyOf(b))}
+              title={b.address || b.organization_name}
+            >
+              <Icon as={MapPin} size={14} /> {b.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="cm-sched-chip cm-sched-chip--dashed"
+            aria-pressed={placeKey === OWN}
+            onClick={() => choosePlace(OWN)}
+          >
+            <Icon as={Plus} size={14} /> My own clinic
+          </button>
+        </div>
+        {linkedBranches.length === 0 && (
+          <p className="cm-sched-card__desc">
+            Branches appear here automatically once a clinic or hospital on CallMedex links you to their organisation.
+          </p>
+        )}
+        {placeKey === OWN && (
+          <>
+            {ownPlaces.length > 0 && (
+              <div className="cm-sched-chips" role="group" aria-label="Your previous clinics">
+                {ownPlaces.map((op) => (
+                  <button
+                    key={op.name}
+                    type="button"
+                    className="cm-sched-chip cm-sched-chip--quiet"
+                    aria-pressed={value.location_name.trim().toLowerCase() === op.name.toLowerCase()}
+                    onClick={() => setLoc({ location_name: op.name, location_address: op.address })}
+                  >
+                    {op.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="cm-sched-grid-2 cm-sched-inset">
+              <label className="cm-sched-field">
+                <span className="cm-sched-field__label">Clinic name</span>
+                <input
+                  className="cm-input"
+                  value={value.location_name}
+                  onChange={(e) => setLoc({ location_name: e.target.value })}
+                  placeholder="Your clinic's name"
+                  required
+                />
+              </label>
+              <label className="cm-sched-field">
+                <span className="cm-sched-field__label">Clinic address</span>
+                <input
+                  className="cm-input"
+                  value={value.location_address}
+                  onChange={(e) => setLoc({ location_address: e.target.value })}
+                  placeholder="Street, area, city"
+                  required
+                />
+              </label>
+            </div>
+          </>
+        )}
+      </fieldset>
+    );
+  };
+
   return (
     <div className="cm-sched">
       {msg && (
@@ -693,8 +703,8 @@ export default function ProviderSchedulePanel({
             <div className="cm-sched-meta">
               <span><strong>{availability.length}</strong> shift block{availability.length === 1 ? "" : "s"}</span>
               <span><strong>{activeDayCount}</strong> day{activeDayCount === 1 ? "" : "s"} active</span>
-              {branches.length > 1 && (
-                <span><Icon as={Building2} size={14} /> <strong>{branches.length}</strong> clinic branches</span>
+              {linkedBranches.length > 0 && (
+                <span><Icon as={Building2} size={14} /> <strong>{linkedBranches.length}</strong> linked clinic branch{linkedBranches.length === 1 ? "" : "es"}</span>
               )}
             </div>
           </div>
@@ -839,127 +849,8 @@ export default function ProviderSchedulePanel({
                   </div>
                 </fieldset>
 
-                {/* ── Branch selector for walk-in centre ── */}
-                {shiftForm.consultation_mode === "in_person" && (
-                  <fieldset className="cm-sched-fieldset">
-                    <legend className="cm-sched-fieldset__legend">
-                      Clinic branch
-                      <button
-                        type="button"
-                        className="cm-sched-link"
-                        onClick={() => setShowBranchManager((s) => !s)}
-                        aria-expanded={showBranchManager}
-                      >
-                        <Icon as={Settings2} size={14} />
-                        {showBranchManager ? "Done" : "Manage branches"}
-                      </button>
-                    </legend>
-
-                    <div className="cm-sched-chips">
-                      {branches.map((b) => {
-                        const isSelected = selectedBranchId === b.id || (shiftForm.location_name === b.name && shiftForm.location_address === b.address);
-                        return (
-                          <button
-                            key={b.id}
-                            type="button"
-                            className="cm-sched-chip"
-                            aria-pressed={isSelected}
-                            onClick={() => {
-                              setSelectedBranchId(b.id);
-                              setShiftForm({ ...shiftForm, location_name: b.name, location_address: b.address });
-                            }}
-                          >
-                            <Icon as={MapPin} size={14} /> {b.name}
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        className="cm-sched-chip cm-sched-chip--dashed"
-                        aria-pressed={selectedBranchId === "new"}
-                        onClick={() => {
-                          setSelectedBranchId("new");
-                          setShiftForm({ ...shiftForm, location_name: "", location_address: "" });
-                        }}
-                      >
-                        <Icon as={Plus} size={14} /> New branch
-                      </button>
-                    </div>
-
-                    {(selectedBranchId === "new" || !shiftForm.location_name) && (
-                      <div className="cm-sched-grid-2 cm-sched-inset">
-                        <label className="cm-sched-field">
-                          <span className="cm-sched-field__label">Clinic / branch name</span>
-                          <input
-                            className="cm-input"
-                            value={shiftForm.location_name}
-                            onChange={(e) => setShiftForm({ ...shiftForm, location_name: e.target.value })}
-                            placeholder="e.g. Apex Polyclinic – MVP Colony"
-                            required
-                          />
-                        </label>
-                        <label className="cm-sched-field">
-                          <span className="cm-sched-field__label">Branch address</span>
-                          <input
-                            className="cm-input"
-                            value={shiftForm.location_address}
-                            onChange={(e) => setShiftForm({ ...shiftForm, location_address: e.target.value })}
-                            placeholder="Street, area, city"
-                            required
-                          />
-                        </label>
-                      </div>
-                    )}
-
-                    {showBranchManager && (
-                      <div className="cm-sched-inset">
-                        <ul className="cm-sched-branch-list">
-                          {branches.map((b) => {
-                            const count = availability.filter((a) => a.location_name?.trim() === b.name.trim()).length;
-                            return (
-                              <li key={b.id} className="cm-sched-branch-row">
-                                <span className="cm-sched-branch-row__text">
-                                  <strong>{b.name}</strong>
-                                  <span>{b.address}</span>
-                                </span>
-                                <span className="cm-sched-count">{count} block{count === 1 ? "" : "s"}</span>
-                                <button
-                                  type="button"
-                                  className="cm-sched-icon-btn"
-                                  onClick={() => handleDeleteBranch(b.id)}
-                                  disabled={branches.length <= 1}
-                                  aria-label={`Delete saved branch ${b.name}`}
-                                  title="Delete saved branch"
-                                >
-                                  <Icon as={Trash2} size={16} />
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                        <div className="cm-sched-branch-add">
-                          <input
-                            className="cm-input"
-                            placeholder="New branch name"
-                            aria-label="New branch name"
-                            value={newBranchName}
-                            onChange={(e) => setNewBranchName(e.target.value)}
-                          />
-                          <input
-                            className="cm-input"
-                            placeholder="Branch address"
-                            aria-label="Branch address"
-                            value={newBranchAddress}
-                            onChange={(e) => setNewBranchAddress(e.target.value)}
-                          />
-                          <Button type="button" variant="secondary" onClick={handleAddNewBranch}>
-                            <Icon as={Plus} size={16} /> Save branch
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </fieldset>
-                )}
+                {/* ── Where these walk-in hours are held ── */}
+                {shiftForm.consultation_mode === "in_person" && renderPlacePicker("shift")}
 
                 {/* Live slot calculation */}
                 <dl className="cm-sched-summary" aria-live="polite">
@@ -976,7 +867,7 @@ export default function ProviderSchedulePanel({
                       checked={shiftForm.replace_existing}
                       onChange={(e) => setShiftForm({ ...shiftForm, replace_existing: e.target.checked })}
                     />
-                    Replace existing hours on the selected days for this mode
+                    Replace my existing hours at this clinic on the selected days
                   </label>
                   <Button type="submit" variant="primary" loading={savingShift}>
                     {savingShift ? "Publishing…" : "Publish schedule"}
@@ -1033,28 +924,7 @@ export default function ProviderSchedulePanel({
                   </label>
                 </div>
 
-                {form.consultation_mode === "in_person" && (
-                  <div className="cm-sched-grid-2">
-                    <label className="cm-sched-field">
-                      <span className="cm-sched-field__label">Clinic / centre name</span>
-                      <input
-                        className="cm-input"
-                        value={form.location_name}
-                        onChange={(e) => setForm({ ...form, location_name: e.target.value })}
-                        placeholder="e.g. Visakha Multispeciality Clinics"
-                      />
-                    </label>
-                    <label className="cm-sched-field">
-                      <span className="cm-sched-field__label">Branch address</span>
-                      <input
-                        className="cm-input"
-                        value={form.location_address}
-                        onChange={(e) => setForm({ ...form, location_address: e.target.value })}
-                        placeholder="Street, area, city"
-                      />
-                    </label>
-                  </div>
-                )}
+                {form.consultation_mode === "in_person" && renderPlacePicker("custom")}
 
                 <div className="cm-sched-form__foot">
                   <div className="cm-sched-checks">

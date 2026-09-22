@@ -1870,8 +1870,10 @@ function ConsultationContent() {
                       const curDocId = ld.doctor_user_id || ld.doctor_id;
                       if (curDocId !== docId) return false;
                     }
-                    if (!ld.assigned_branches || ld.assigned_branches.length === 0) return isMain;
-                    return ld.assigned_branches.includes(bId);
+                    // Only doctors with published walk-in hours at THIS branch.
+                    // A doctor with no hours anywhere used to be listed at the
+                    // main facility and bookable against invented OP hours.
+                    return Array.isArray(ld.assigned_branches) && ld.assigned_branches.includes(bId);
                   });
 
                   return (
@@ -1979,9 +1981,16 @@ function ConsultationContent() {
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {branchDocs.map((bd) => {
                               const docShifts = (bd.branch_shifts || []).filter((s) => s.branch_id === bId);
-                              const shiftSummary = docShifts.length > 0
-                                ? docShifts.map((s) => `${s.start_time || '09:30'} - ${s.end_time || '12:30'}`).join(' · ')
-                                : 'Regular Walk-in OP Hours';
+                              // Real hours only, grouped by time: "Mon, Tue · 13:30 – 17:00".
+                              const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                              const byTime = new Map<string, number[]>();
+                              docShifts.forEach((s) => {
+                                const k = `${s.start_time} – ${s.end_time}`;
+                                byTime.set(k, [...(byTime.get(k) || []), Number(s.day_of_week)]);
+                              });
+                              const shiftSummary = Array.from(byTime.entries())
+                                .map(([t, days]) => `${Array.from(new Set(days)).sort((a, b) => (a || 7) - (b || 7)).map((d) => DAY[d]).join(', ')} · ${t}`)
+                                .join('  |  ');
 
                               return (
                                 <div
@@ -2027,8 +2036,8 @@ function ConsultationContent() {
                             })}
                           </div>
                         ) : (
-                          <div style={{ fontSize: '0.76rem', color: '#64748b', fontStyle: 'italic' }}>
-                            Consulting doctors rotate across branches. Walk-in appointments accepted during regular clinic hours.
+                          <div style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>
+                            No doctors are available for this branch.
                           </div>
                         )}
                       </div>
@@ -2037,7 +2046,9 @@ function ConsultationContent() {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
                         <button
                           type="button"
+                          disabled={branchDocs.length === 0}
                           onClick={() => {
+                            if (branchDocs.length === 0) return;
                             const docId = selectedBranchDoctor
                               ? (selectedBranchDoctor.doctor_user_id || selectedBranchDoctor.doctor_id)
                               : (branchDocs[0]?.doctor_user_id || branchDocs[0]?.doctor_id);
@@ -2059,11 +2070,11 @@ function ConsultationContent() {
                             fontSize: '0.84rem',
                             fontWeight: 700,
                             borderRadius: 10,
-                            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                            background: branchDocs.length === 0 ? '#e2e8f0' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                             border: 'none',
-                            color: '#ffffff',
-                            boxShadow: '0 4px 14px rgba(2, 132, 199, 0.3)',
-                            cursor: 'pointer',
+                            color: branchDocs.length === 0 ? '#64748b' : '#ffffff',
+                            boxShadow: branchDocs.length === 0 ? 'none' : '0 4px 14px rgba(2, 132, 199, 0.3)',
+                            cursor: branchDocs.length === 0 ? 'not-allowed' : 'pointer',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 6,

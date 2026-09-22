@@ -313,14 +313,17 @@ export default function OrganizationDashboard() {
   const handleOpenDoctorScheduleModal = (doc: any) => {
     setScheduleModalDoctor(doc);
     setScheduleFee(doc.consultation_fee || 500);
-    const avail = doc.availability || [];
+    // Only this organisation's walk-in shifts, each with the branch the
+    // backend resolved. Loading every shift the doctor had anywhere let the
+    // modal re-save the doctor's private-clinic hours as this org's.
+    const avail = doc.walkin_availability || [];
     if (avail.length > 0) {
       const firstDur = avail[0].slot_duration_minutes || 10;
       setScheduleSlotDuration(firstDur);
       const grouped: Record<string, { days: number[]; branch_id: string; branch_name: string }> = {};
       avail.forEach((a: any) => {
-        const bId = a.template_group_id || a.branch_id || "main";
-        const bName = a.location_name || a.branch_name || (bId === "main" ? "Main Facility" : "");
+        const bId = a.branch_id || "main";
+        const bName = a.location_name || (bId === "main" ? "Main Facility" : "");
         const key = `${a.start_time || "09:30"}_${a.end_time || "12:30"}_${bId}`;
         if (!grouped[key]) grouped[key] = { days: [], branch_id: bId, branch_name: bName };
         if (!grouped[key].days.includes(a.day_of_week)) grouped[key].days.push(a.day_of_week);
@@ -1722,11 +1725,13 @@ export default function OrganizationDashboard() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {orgDoctors.map(doc => {
                       const user = doc.users || {};
-                      const avail = doc.availability || [];
+                      // Walk-in shifts at this organisation only, per branch.
+                      const avail = doc.walkin_availability || [];
                       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                       const shiftsMap: Record<string, number[]> = {};
                       avail.forEach((a: any) => {
-                        const time = `${a.start_time?.slice(0, 5)} - ${a.end_time?.slice(0, 5)}`;
+                        const where = a.branch_id && a.branch_id !== "main" ? ` · ${a.location_name || "Branch"}` : "";
+                        const time = `${a.start_time?.slice(0, 5)} - ${a.end_time?.slice(0, 5)}${where}`;
                         if (!shiftsMap[time]) shiftsMap[time] = [];
                         if (!shiftsMap[time].includes(a.day_of_week)) shiftsMap[time].push(a.day_of_week);
                       });
@@ -2019,9 +2024,11 @@ export default function OrganizationDashboard() {
                               }}
                             >
                               <option value="main">Main Facility ({profile?.organization_name || profile?.full_name || "Primary"})</option>
-                              {branches.map((b) => (
+                              {/* /org/branches already lists the main facility
+                                  (id "main"); listing it again duplicated it. */}
+                              {branches.filter((b) => b.id !== "main").map((b) => (
                                 <option key={b.id} value={b.id}>
-                                  {b.name} — {b.address || b.city || "Branch Location"}
+                                  {b.name}{b.address || b.city ? ` — ${b.address || b.city}` : ""}
                                 </option>
                               ))}
                             </select>

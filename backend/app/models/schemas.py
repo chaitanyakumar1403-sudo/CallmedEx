@@ -642,17 +642,24 @@ class OrgStatsResponse(BaseModel):
 # ─── Pharmacy Dashboard ───────────────────────────────────────────────────
 
 class PharmacyInventoryCreate(BaseModel):
-    name: str
-    description: Optional[str] = ""
-    price: float = Field(..., gt=0)
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = ""          # legacy alias for generic_name
+    generic_name: Optional[str] = None
+    sku: Optional[str] = None                # generated from the name when blank
+    batch_number: Optional[str] = None
+    price: float = Field(..., gt=0)          # stored as unit_price
     stock_quantity: int = Field(..., ge=0)
     category: Optional[str] = "medicine"
-    is_prescription_required: bool = False
+    is_prescription_required: bool = False   # stored as requires_prescription
 
 class PharmacyInventoryUpdate(BaseModel):
-    price: Optional[float] = None
-    stock_quantity: Optional[int] = None
+    price: Optional[float] = Field(None, gt=0)
+    stock_quantity: Optional[int] = Field(None, ge=0)
     is_prescription_required: Optional[bool] = None
+    name: Optional[str] = None
+    generic_name: Optional[str] = None
+    category: Optional[str] = None
+    batch_number: Optional[str] = None
 
 # ─── API Responses ────────────────────────────────────────────────────────
 

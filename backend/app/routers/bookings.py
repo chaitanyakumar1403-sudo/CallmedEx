@@ -25,6 +25,9 @@ from app.utils.db_helpers import _rows
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
 
+# Scheduled home sample collection window (IST, inclusive).
+HOME_COLLECTION_WINDOW = ("06:00", "11:00")
+
 
 def _strip_centre_identity(booking: dict) -> dict:
     """A home-collection booking's provider IS the internal processing
@@ -808,6 +811,20 @@ async def create_booking(
         is_diagnostic_review and not slot_has_time and not is_home_collection
     )
 
+    # Scheduled doorstep collection runs 06:00–11:00 IST — the fasting window
+    # the booking wizard offers and the phlebotomist roster is planned around.
+    # Enforced here too, so no client can book a collector outside it.
+    # On-demand / reorder dispatches are "now", not a scheduled slot.
+    if (
+        is_home_collection and slot_has_time
+        and not booking.slot_id.startswith(("on_demand|", "reorder|"))
+        and not (HOME_COLLECTION_WINDOW[0] <= slot_parts[2][:5] <= HOME_COLLECTION_WINDOW[1])
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Home sample collection slots run from 6:00 AM to 11:00 AM. Please pick a time in that window.",
+        )
+
     if needs_org_review:
         booking_status = BookingStatus.PENDING_REVIEW.value
         booking_data = {
@@ -1151,72 +1168,50 @@ async def create_booking(
                                     scheduled_date = booking_data.get("collection_date") or (slot_parts[1] if len(slot_parts) >= 2 else now.split("T")[0])
                                     col_slot_time = slot_parts[2] if len(slot_parts) >= 3 and ":" in slot_parts[2] else (slot_start_str.split("T")[1][:5] if "T" in slot_start_str else "07:00")
 
-                                    candidates = []
-                                    if pc_id:
-                                        candidates = _rows(
-                                            supabase.table("phlebotomists")
-                                            .select("user_id, processing_center_id, base_lat, base_lng, current_lat, current_lng, phleb_type")
-                                            .eq("processing_center_id", pc_id)
-                                            .execute()
-                                        )
-                                    if not candidates and booking.city:
-                                        city_users = _rows(
-                                            supabase.table("users").select("id").eq("role", "phlebotomist").ilike("city", f"%{booking.city}%").execute()
-                                        )
-                                        for cu in city_users:
-                                            p_row = _rows(supabase.table("phlebotomists").select("*").eq("user_id", cu["id"]).limit(1).execute())
-                                            if p_row:
-                                                candidates.append(p_row[0])
-
-                                    # Check leave/unavailable status on scheduled_date
-                                    leave_users = set()
-                                    try:
-                                        roster_rows = _rows(
-                                            supabase.table("phlebotomist_roster")
-                                            .select("phlebotomist_user_id, status")
-                                            .eq("roster_date", scheduled_date)
-                                            .in_("status", ["unavailable", "leave"])
-                                            .execute()
-                                        )
-                                        leave_users = {r["phlebotomist_user_id"] for r in roster_rows if r.get("phlebotomist_user_id")}
-                                    except Exception:
-                                        pass
-
-                                    # Filter candidates not on leave
-                                    eligible_candidates = [c for c in candidates if c.get("user_id") not in leave_users]
-                                    if not eligible_candidates:
-                                        eligible_candidates = candidates
-
-                                    chosen_phlebo = None
-                                    # Preference: full-time phlebotomists (eligible regardless of online/offline status)
-                                    for c in eligible_candidates:
-                                        ptype = (c.get("phleb_type") or "full_time").lower()
-                                        if ptype in ("full_time", "full-time", "ft"):
-                                            chosen_phlebo = c
-                                            break
-                                    if not chosen_phlebo and eligible_candidates:
-                                        chosen_phlebo = eligible_candidates[0]
-
+                                    # Full-time first, nearest, least loaded, not on
+                                    # leave and not already booked at this slot time.
+                                    # The old inline pick took the first full-time row
+                                    # regardless of distance or clashes, fell back to
+                                    # collectors on leave, and with nobody wrote a
+                                    # collector-less row that stopped the same-day
+                                    # trigger from ever offering the job.
+                                    from app.services.roster import pick_advance_collector
+                                    chosen_phlebo = pick_advance_collector(
+                                        {
+                                            "collection_lat": float(patient_lat),
+                                            "collection_lng": float(patient_lng),
+                                            "processing_center_id": pc_id,
+                                            "slot_id": booking.slot_id,
+                                            "slot_start": slot_start_str,
+                                        },
+                                        scheduled_date,
+                                        city=booking.city or booking_data.get("collection_city"),
+                                    )
                                     assigned_phlebo_id = chosen_phlebo["user_id"] if chosen_phlebo else None
                                     adv_req_id = str(uuid.uuid4())
-                                    dispatch_payload = {
-                                        "id": adv_req_id,
-                                        "booking_id": booking_id,
-                                        "patient_id": current_user["sub"],
-                                        "provider_type": "phlebotomist",
-                                        "service_subtype": "home_collection",
-                                        "assigned_provider_id": assigned_phlebo_id,
-                                        "assignment_mode": "advance",
-                                        "scheduled_for": scheduled_date,
-                                        "status": "provider_accepted" if assigned_phlebo_id else "pending_provider_acceptance",
-                                        "priority": getattr(booking, "priority", None) or "normal",
-                                        "patient_address": patient_address or booking.collection_address or booking.city or "",
-                                        "patient_lat": float(patient_lat) if patient_lat else 0.0,
-                                        "patient_lng": float(patient_lng) if patient_lng else 0.0,
-                                        "notes": f"Advance collection ({col_slot_time}): {', '.join((booking.selected_tests or [])[:3])}",
-                                    }
-                                    supabase.table("dispatch_requests").insert(dispatch_payload).execute()
-                                    logger.info(f"Created advance dispatch {adv_req_id} for booking {booking_id} assigned to phlebo {assigned_phlebo_id}")
+                                    if assigned_phlebo_id:
+                                        supabase.table("dispatch_requests").insert({
+                                            "id": adv_req_id,
+                                            "booking_id": booking_id,
+                                            "patient_id": current_user["sub"],
+                                            "provider_type": "phlebotomist",
+                                            "service_subtype": "home_collection",
+                                            "assigned_provider_id": assigned_phlebo_id,
+                                            "assignment_mode": "advance",
+                                            "scheduled_for": scheduled_date,
+                                            "status": "provider_accepted",
+                                            "priority": getattr(booking, "priority", None) or "normal",
+                                            "patient_address": patient_address or booking.collection_address or booking.city or "",
+                                            "patient_lat": float(patient_lat),
+                                            "patient_lng": float(patient_lng),
+                                            "notes": f"Advance collection ({col_slot_time}): {', '.join((booking.selected_tests or [])[:3])}",
+                                        }).execute()
+                                        logger.info(f"Created advance dispatch {adv_req_id} for booking {booking_id} assigned to phlebo {assigned_phlebo_id}")
+                                    else:
+                                        logger.info(
+                                            f"No collector free for booking {booking_id} at {scheduled_date} {col_slot_time}; "
+                                            "left for the roster pass / same-day live offer."
+                                        )
 
                                     if assigned_phlebo_id:
                                         # Update booking row to point to assigned phlebotomist
@@ -1639,13 +1634,17 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
                 "updated_at": now_iso,
             }).eq("id", b_id).execute()
 
-            # If an associated dispatch request is still open/unaccepted, cancel it as well
+            # Close the dispatch too. provider_accepted is included: an advance
+            # (pre-assigned) job that never started is exactly what an expired
+            # confirmed booking leaves behind, and leaving it open kept a
+            # "Live collection tracking" card on the patient's dashboard —
+            # with the collector's live location — for a booking that was gone.
             try:
                 supabase.table("dispatch_requests").update({
                     "status": "cancelled",
                     "cancel_reason": "Expired: Scheduled date passed without provider fulfillment",
                     "updated_at": now_iso,
-                }).eq("booking_id", b_id).in_("status", ["searching", "provider_notified"]).execute()
+                }).eq("booking_id", b_id).in_("status", ["searching", "provider_notified", "provider_accepted"]).execute()
             except Exception as d_err:
                 logger.debug(f"Could not cancel dispatch for stale booking {b_id}: {d_err}")
 
@@ -2337,7 +2336,7 @@ async def get_org_services_for_booking(org_id: str):
                 try:
                     av_res = (
                         supabase.table("doctor_availability")
-                        .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, template_group_id, location_name, location_address")
+                        .select("doctor_id, day_of_week, start_time, end_time, slot_duration_minutes, consultation_mode, organization_id, template_group_id, location_name, location_address")
                         .in_("doctor_id", doc_uids)
                         .eq("consultation_mode", "in_person")
                         .eq("is_active", True)
@@ -2355,20 +2354,9 @@ async def get_org_services_for_booking(org_id: str):
                 doc_user_id = d.get("doctor_user_id") or user.get("id") or d.get("doctor_id")
                 d_avails = doc_avails_map.get(doc_user_id, [])
 
-                doc_branch_ids = []
-                branch_shifts = []
-                for av in d_avails:
-                    b_id = av.get("template_group_id") or "main"
-                    if b_id not in doc_branch_ids:
-                        doc_branch_ids.append(b_id)
-                    branch_shifts.append({
-                        "branch_id": b_id,
-                        "branch_name": av.get("location_name") or "Main Facility",
-                        "day_of_week": av.get("day_of_week"),
-                        "start_time": str(av.get("start_time", ""))[:5],
-                        "end_time": str(av.get("end_time", ""))[:5],
-                        "slot_duration_minutes": av.get("slot_duration_minutes", 10),
-                    })
+                # Branches are resolved below, once the branch list is loaded.
+                doc_branch_ids: list = []
+                branch_shifts: list = []
 
                 doctors.append({
                     "doctor_id": d.get("doctor_id") or doc.get("id") or doc_user_id,
@@ -2421,6 +2409,16 @@ async def get_org_services_for_booking(org_id: str):
             "is_main_branch": True,
         }
         all_branches = [main_branch] + [b for b in branches if b.get("name") != main_branch["name"]]
+
+        # Which branch each doctor actually works at. A doctor with no walk-in
+        # shift here gets no branch, so the booking page says "no doctors are
+        # available at this branch" instead of offering invented hours.
+        from app.services.doctor_branches import doctor_branch_shifts
+        for doc_entry in doctors:
+            doc_entry["assigned_branches"], doc_entry["branch_shifts"] = doctor_branch_shifts(
+                doc_entry.get("availability") or [], actual_org_id,
+                org_info.get("organization_name") or org_details.get("name"), all_branches,
+            )
 
         return APIResponse(
             success=True,

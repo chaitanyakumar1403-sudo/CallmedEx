@@ -8614,3 +8614,97 @@ input[type="radio"] {
 .cm-pc-add .cm-pc-input { width: auto; flex: 0 0 auto; }
 .cm-pc-add .cm-pc-add__grow { flex: 1 1 180px; min-width: 0; }
 .cm-pc-add .cm-pc-input--num { width: 110px; }
+
+/* ============================================================================
+   Pharmacy terminal (2026-09-22). Same premium language as the nurse / admin
+   pass: navy ink, one royal accent, hairline borders, layered low shadows.
+   One accent across the KPI row; status colour is reserved for the Pill.
+   ============================================================================ */
+.cm-pharm { display: flex; flex-direction: column; gap: var(--cm-5); }
+.cm-pharm :is(button, input, select, textarea) { font-family: var(--cm-font-ui); }
+
+.cm-pharm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--cm-4); }
+.cm-pharm-kpi {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cm-3);
+  padding: var(--cm-5); background: var(--cm-surface); border: 1px solid var(--cm-line);
+  border-radius: var(--cm-radius-lg); box-shadow: var(--cm-prem-shadow);
+  text-align: left; cursor: pointer; width: 100%;
+  transition: box-shadow var(--cm-slow) var(--cm-ease), transform var(--cm-slow) var(--cm-ease), border-color var(--cm-slow) var(--cm-ease);
+}
+.cm-pharm-kpi:hover { box-shadow: var(--cm-prem-shadow-hover); border-color: var(--cm-royal-line); transform: translateY(-1px); }
+.cm-pharm-kpi:focus-visible { outline: 2px solid var(--cm-royal); outline-offset: 2px; }
+.cm-pharm-kpi__label { font-size: var(--cm-text-2xs); font-weight: 700; letter-spacing: var(--cm-track-wider); text-transform: uppercase; color: var(--cm-ink-3); }
+.cm-pharm-kpi__value { font-family: var(--cm-font-display); font-size: var(--cm-text-2xl); font-weight: 700; letter-spacing: var(--cm-track-tight); color: var(--cm-navy); margin-top: var(--cm-1); font-variant-numeric: tabular-nums; }
+.cm-pharm-kpi__value--warn { color: var(--cm-waiting); }
+.cm-pharm-kpi__sub { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
+.cm-pharm-kpi__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--cm-radius); background: var(--cm-royal-soft); color: var(--cm-royal); flex-shrink: 0; }
+
+.cm-pharm-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--cm-5); align-items: start; }
+
+.cm-pharm-panel { background: var(--cm-surface); border: 1px solid var(--cm-line); border-radius: var(--cm-radius-lg); box-shadow: var(--cm-prem-shadow); overflow: hidden; }
+.cm-pharm-panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cm-3); flex-wrap: wrap; padding: var(--cm-5) var(--cm-5) var(--cm-4); border-bottom: 1px solid var(--cm-line); }
+.cm-pharm-panel__eyebrow { font-size: var(--cm-text-2xs); font-weight: 700; letter-spacing: var(--cm-track-wider); text-transform: uppercase; color: var(--cm-royal); margin: 0 0 2px; }
+.cm-pharm-panel__title { font-family: var(--cm-font-display); font-size: var(--cm-text-lg); font-weight: 700; letter-spacing: var(--cm-track-snug); color: var(--cm-ink); margin: 0; }
+.cm-pharm-panel__desc { font-size: var(--cm-text-sm); color: var(--cm-ink-3); margin: var(--cm-1) 0 0; max-width: 62ch; }
+.cm-pharm-panel__body { padding: var(--cm-4) var(--cm-5) var(--cm-5); }
+.cm-pharm-panel__body--flush { padding: 0; }
+
+.cm-pharm-toolbar { display: flex; align-items: center; gap: var(--cm-3); flex-wrap: wrap; padding: var(--cm-4) var(--cm-5); border-bottom: 1px solid var(--cm-line); background: var(--cm-surface-2); }
+.cm-pharm-search { position: relative; flex: 1 1 240px; min-width: 0; }
+.cm-pharm-search .cm-input { padding-left: 38px; width: 100%; }
+.cm-pharm-search__icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--cm-ink-faint); pointer-events: none; display: flex; }
+.cm-pharm-actions { display: flex; align-items: center; gap: var(--cm-2); flex-wrap: wrap; }
+
+.cm-pharm-filter { display: flex; gap: var(--cm-1); flex-wrap: wrap; padding: 4px; background: var(--cm-surface-3); border-radius: var(--cm-radius); }
+.cm-pharm-filter__btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 var(--cm-3); border: 0; border-radius: var(--cm-radius-sm); background: transparent; color: var(--cm-ink-2); font-size: var(--cm-text-sm); font-weight: 600; cursor: pointer; }
+.cm-pharm-filter__btn[aria-pressed="true"] { background: var(--cm-surface); color: var(--cm-navy); box-shadow: var(--cm-shadow-1); }
+.cm-pharm-filter__n { font-size: var(--cm-text-2xs); font-weight: 700; padding: 1px 7px; border-radius: var(--cm-radius-pill); background: var(--cm-line); color: var(--cm-ink-2); font-variant-numeric: tabular-nums; }
+.cm-pharm-filter__btn[aria-pressed="true"] .cm-pharm-filter__n { background: var(--cm-royal-soft); color: var(--cm-royal); }
+
+.cm-pharm-table-wrap { overflow-x: auto; }
+.cm-pharm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--cm-text-sm); }
+.cm-pharm-table th { background: var(--cm-surface-2); color: var(--cm-ink-3); font-size: var(--cm-text-2xs); font-weight: 700; letter-spacing: var(--cm-track-wider); text-transform: uppercase; text-align: left; padding: var(--cm-3) var(--cm-4); border-bottom: 1px solid var(--cm-line-strong); white-space: nowrap; }
+.cm-pharm-table td { padding: var(--cm-4); border-bottom: 1px solid var(--cm-line); color: var(--cm-ink); vertical-align: top; font-variant-numeric: tabular-nums; }
+.cm-pharm-table tbody tr:last-child td { border-bottom: 0; }
+.cm-pharm-table tbody tr:hover td { background: var(--cm-surface-2); }
+.cm-pharm-table__num, .cm-pharm-table th.cm-pharm-table__num { text-align: right; white-space: nowrap; }
+.cm-pharm-cell__title { font-weight: 600; color: var(--cm-ink); }
+.cm-pharm-cell__sub { font-size: var(--cm-text-xs); color: var(--cm-ink-3); margin-top: 2px; }
+.cm-pharm-cell__mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--cm-text-xs); color: var(--cm-ink-2); letter-spacing: 0.02em; }
+.cm-pharm-items { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.cm-pharm-items li { display: flex; justify-content: space-between; gap: var(--cm-3); }
+.cm-pharm-items__qty { color: var(--cm-ink-3); font-variant-numeric: tabular-nums; }
+.cm-pharm-link { color: var(--cm-royal); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.cm-pharm-link:hover { text-decoration: underline; }
+.cm-pharm-muted { color: var(--cm-ink-faint); }
+.cm-pharm-stock--low { color: var(--cm-waiting); font-weight: 700; }
+.cm-pharm-stock--out { color: var(--cm-urgent); font-weight: 700; }
+
+.cm-pharm-list { list-style: none; margin: 0; padding: 0; }
+.cm-pharm-list__row { display: flex; align-items: center; justify-content: space-between; gap: var(--cm-3); padding: var(--cm-3) var(--cm-5); border-bottom: 1px solid var(--cm-line); }
+.cm-pharm-list__row:last-child { border-bottom: 0; }
+
+.cm-pharm-import { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--cm-4); align-items: center; padding: var(--cm-4) var(--cm-5); background: var(--cm-royal-soft); border-bottom: 1px solid var(--cm-royal-line); }
+.cm-pharm-import__title { font-family: var(--cm-font-display); font-weight: 700; color: var(--cm-navy); margin: 0; font-size: var(--cm-text-base); display: flex; align-items: center; gap: var(--cm-2); }
+.cm-pharm-import__desc { font-size: var(--cm-text-xs); color: var(--cm-ink-2); margin: 2px 0 0; }
+.cm-pharm-file { position: relative; overflow: hidden; }
+.cm-pharm-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.cm-pharm-file__limit { font-size: var(--cm-text-2xs); font-weight: 700; color: var(--cm-ink-3); margin-left: 4px; }
+
+.cm-pharm-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cm-4); }
+.cm-pharm-form__full { grid-column: 1 / -1; }
+.cm-pharm-check { display: flex; align-items: center; gap: var(--cm-2); font-size: var(--cm-text-sm); color: var(--cm-ink-2); min-height: var(--cm-tap); }
+.cm-pharm-check input { width: 18px; height: 18px; accent-color: var(--cm-royal); }
+
+.cm-pharm-preview { max-height: 320px; overflow: auto; border: 1px solid var(--cm-line); border-radius: var(--cm-radius); margin-top: var(--cm-3); }
+.cm-pharm-summary { display: flex; gap: var(--cm-4); flex-wrap: wrap; font-size: var(--cm-text-sm); color: var(--cm-ink-2); }
+.cm-pharm-summary strong { color: var(--cm-ink); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 960px) {
+  .cm-pharm-grid { grid-template-columns: 1fr; }
+  .cm-pharm-import { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .cm-pharm-form { grid-template-columns: 1fr; }
+  .cm-pharm-panel__head, .cm-pharm-panel__body, .cm-pharm-toolbar, .cm-pharm-list__row, .cm-pharm-import { padding-left: var(--cm-4); padding-right: var(--cm-4); }
+}

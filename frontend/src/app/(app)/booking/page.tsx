@@ -89,9 +89,10 @@ function getSlotPricing(_slot: string): SlotPricing {
   return { tier: "standard", label: "Standard", badge: "", surcharge: 0 };
 }
 
-// Strictly 5:30 AM to 11:00 AM for all home sample collection services (30 min duration)
+// Home sample collection and health packages: 6:00 AM to 11:00 AM, 30-minute
+// slots. The backend enforces the same window (bookings.HOME_COLLECTION_WINDOW).
 const HOME_COLLECTION_SLOTS = [
-  "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"
+  "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"
 ];
 
 // Walk-in diagnostic center slots: 7:00 AM to 8:30 PM (every 30 mins)
@@ -174,7 +175,9 @@ function BookingPageContent() {
   // Real dynamic data state
   const [realOrgs, setRealOrgs] = useState<any[]>([]);
   const [realDoctors, setRealDoctors] = useState<any[]>([]);
+  // null = still loading; [] = the doctor has no published slots for that day.
   const [doctorRealSlots, setDoctorRealSlots] = useState<string[] | null>(null);
+  const [doctorSlotsError, setDoctorSlotsError] = useState(false);
   const [doctorSlotDuration, setDoctorSlotDuration] = useState<number>(10);
 
   // On-demand dispatch fields
@@ -586,28 +589,38 @@ function BookingPageContent() {
     }
     const mode = (bookingType === "home_doctor" || typeParam === "home_doctor") ? "home_visit" : "in_person";
     const bId = selectedBranch?.id || (typeof selectedBranch === "string" ? selectedBranch : "") || branchParam || "";
-    const branchQuery = (bId && bId !== "main" && bId !== "undefined") ? `&branch_id=${encodeURIComponent(bId)}` : "";
-    fetch(`/api/providers/slots?provider_id=${encodeURIComponent(docId)}&target_date=${encodeURIComponent(selectedDate)}&mode=${mode}${branchQuery}`)
+    const orgId = selectedOrg?.id || orgParam || "";
+    // At a facility, slots come from that exact branch only (main included).
+    const scope = mode === "in_person" && orgId
+      ? `&org_id=${encodeURIComponent(orgId)}${bId && bId !== "undefined" ? `&branch_id=${encodeURIComponent(bId)}` : ""}`
+      : (bId && bId !== "main" && bId !== "undefined") ? `&branch_id=${encodeURIComponent(bId)}` : "";
+    setDoctorRealSlots(null);
+    setDoctorSlotsError(false);
+    fetch(`/api/providers/slots?provider_id=${encodeURIComponent(docId)}&target_date=${encodeURIComponent(selectedDate)}&mode=${mode}${scope}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.success && Array.isArray(data.slots) && data.slots.length > 0) {
-          const slotTimes = data.slots.map((s: any) => s.time);
-          setDoctorRealSlots(slotTimes);
-          if (data.slots.length >= 2) {
-            const [h1, m1] = data.slots[0].time.split(":").map(Number);
-            const [h2, m2] = data.slots[1].time.split(":").map(Number);
-            const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
-            if (diff > 0 && diff <= 60) setDoctorSlotDuration(diff);
-          }
-        } else {
-          setDoctorRealSlots(null);
+        if (!data.success || !Array.isArray(data.slots)) {
+          setDoctorSlotsError(true);
+          setDoctorRealSlots([]);
+          return;
+        }
+        // Only slots the doctor actually published — an empty list means
+        // they do not practise here that day, never "use generic hours".
+        const open = data.slots.filter((s: any) => s.is_available !== false);
+        setDoctorRealSlots(open.map((s: any) => s.time));
+        if (data.slots.length >= 2) {
+          const [h1, m1] = data.slots[0].time.split(":").map(Number);
+          const [h2, m2] = data.slots[1].time.split(":").map(Number);
+          const diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+          if (diff > 0 && diff <= 60) setDoctorSlotDuration(diff);
         }
       })
       .catch((err) => {
         console.error("[SLOTS FETCH ERROR]", err);
-        setDoctorRealSlots(null);
+        setDoctorSlotsError(true);
+        setDoctorRealSlots([]);
       });
-  }, [doctorParam, typeParam, selectedDoctor, selectedDate, bookingType, selectedBranch, branchParam]);
+  }, [doctorParam, typeParam, selectedDoctor, selectedDate, bookingType, selectedBranch, branchParam, selectedOrg?.id, orgParam]);
 
   // Fetch family members when we reach the "Who is this for?" step
   useEffect(() => {
@@ -1380,43 +1393,45 @@ function BookingPageContent() {
               </div>
             )}
 
-            {/* General OPD Option */}
-            <div
-              style={{
-                padding: 16,
-                borderRadius: 12,
-                border: !selectedDoctor ? "2px solid #0284c7" : "2px solid #e2e8f0",
-                backgroundColor: !selectedDoctor ? "#f0f9ff" : "white",
-                cursor: "pointer",
-                marginBottom: 16,
-                transition: "all 0.2s",
-              }}
-              onClick={() => {
-                setSelectedDoctor(null);
-                setError("");
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: "0.98rem", color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Building2 size={16} /> General OPD Consultation
+            {(() => {
+              // Only doctors with published walk-in hours at the chosen branch.
+              // There used to be a doctor-less "General OPD" choice here that
+              // booked against facility hours nobody had promised to staff.
+              const branchKey = selectedBranch?.id || selectedBranch?.branch_id || "main";
+              const branchDoctors = (selectedOrg.doctors || []).filter(
+                (d: any) => Array.isArray(d.assigned_branches) && d.assigned_branches.includes(branchKey)
+              );
+              const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              const shiftsAtBranch = (d: any) =>
+                (d.branch_shifts || []).filter((s: any) => s.branch_id === branchKey);
+              const summarise = (shifts: any[]) => {
+                const byTime = new Map<string, number[]>();
+                shifts.forEach((s) => {
+                  const k = `${formatSlotLabel(s.start_time)} – ${formatSlotLabel(s.end_time)}`;
+                  byTime.set(k, [...(byTime.get(k) || []), s.day_of_week]);
+                });
+                return Array.from(byTime.entries()).map(([t, days]) =>
+                  `${Array.from(new Set(days)).sort((a, b) => ((a || 7) - (b || 7))).map((d) => dayNames[d] ?? "").join(", ")} · ${t}`
+                );
+              };
+              if (!selectedOrg.fetchedDetails) {
+                return (
+                  <div style={{ padding: 24, textAlign: "center", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <Loader2 size={18} className="animate-spin" /> Loading doctors at this branch…
                   </div>
-                  <div style={{ fontSize: "0.8rem", color: "#64748b" }}>Assigned to available specialist at reception during walk-in / OPD hours</div>
-                </div>
-                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0284c7" }}>
-                  {!selectedDoctor ? "✓ Selected" : "Select"}
-                </div>
-              </div>
-            </div>
-
+                );
+              }
+              return (
+                <>
             <h4 style={{ fontSize: "0.9rem", color: "#475569", marginBottom: 12, marginTop: 20, display: "flex", alignItems: "center", gap: 6 }}>
-              <Stethoscope size={16} /> Available Doctors at this Facility ({(selectedOrg.doctors || []).length})
+              <Stethoscope size={16} /> Doctors at this branch ({branchDoctors.length})
             </h4>
 
-            {(selectedOrg.doctors || []).length > 0 ? (
+            {branchDoctors.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                {selectedOrg.doctors.map((doc: any, i: number) => {
+                {branchDoctors.map((doc: any, i: number) => {
                   const isSelected = selectedDoctor?.id === (doc.doctor_id || doc.id);
+                  const shiftLines = summarise(shiftsAtBranch(doc));
                   return (
                     <div
                       key={i}
@@ -1446,9 +1461,11 @@ function BookingPageContent() {
                           <div style={{ fontSize: "0.82rem", color: "#64748b" }}>
                             {doc.specialization || "General Medicine"}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "#059669", marginTop: 2 }}>
-                            {doc.consultation_mode === "online" ? "Online Only" : doc.consultation_mode === "in_person" ? "In-Person Only" : "In-Person & Online"}
-                          </div>
+                          {shiftLines.map((line) => (
+                            <div key={line} style={{ fontSize: "0.75rem", color: "#059669", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                              <Clock size={11} /> {line}
+                            </div>
+                          ))}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1483,17 +1500,28 @@ function BookingPageContent() {
                 })}
               </div>
             ) : (
-              <div style={{ padding: 16, backgroundColor: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", color: "#64748b", fontSize: "0.85rem", marginBottom: 20 }}>
-                Note: No specific individual doctors are listed online yet for this facility. You can proceed with <strong>General OPD Consultation</strong>.
+              <div style={{ padding: 20, backgroundColor: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", color: "#475569", fontSize: "0.88rem", marginBottom: 20, textAlign: "center" }}>
+                <strong style={{ display: "block", color: "#0f172a", marginBottom: 4 }}>No doctors are available for this branch</strong>
+                {(selectedOrg.branches || []).length > 1
+                  ? "Choose another branch above to see its doctors."
+                  : "Please choose another facility."}
               </div>
             )}
 
             <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
               <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Facilities</button>
-              <button className="btn btn-primary" style={{ flex: 1, borderRadius: 10 }} onClick={() => setStep(4)}>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, borderRadius: 10 }}
+                disabled={!selectedDoctor || !branchDoctors.some((d: any) => (d.doctor_id || d.id) === selectedDoctor?.id)}
+                onClick={() => setStep(4)}
+              >
                 Select Date & Time Slot →
               </button>
             </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -2281,12 +2309,28 @@ function BookingPageContent() {
                   Boolean(packageParam)
                 );
 
-              // Doctor OP consultation uses doctorRealSlots (configured intervals, e.g. 10m) if loaded, or facility dynamic slots, or TIME_SLOTS.
-              // Home collection is strictly 5:30 AM to 11:00 AM. Lab walk-ins use org operating hours or WALKIN_CENTRE_SLOTS.
+              // Doctor consultations offer only the slots the doctor published
+              // (at this branch, for a walk-in). The old fallback to facility
+              // hours or a generic 8 AM–8 PM grid let patients book times no
+              // doctor was working. Home collection is 6:00–11:00 AM.
+              // Lab walk-ins use org operating hours or WALKIN_CENTRE_SLOTS.
+              if (isDoctorBooking && !selectedDoctor && !doctorParam) {
+                return (
+                  <div style={{ padding: 24, backgroundColor: "#f8fafc", borderRadius: 14, border: "1px solid #e2e8f0", textAlign: "center", marginBottom: 20 }}>
+                    <h4 style={{ color: "#0f172a", marginBottom: 4 }}>No doctors are available for this branch</h4>
+                    <p style={{ color: "#64748b", fontSize: "0.85rem", margin: 0 }}>Go back and choose another branch or facility.</p>
+                  </div>
+                );
+              }
+              if (isDoctorBooking && doctorRealSlots === null) {
+                return (
+                  <div style={{ padding: 24, textAlign: "center", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 20 }}>
+                    <Loader2 size={18} className="animate-spin" /> Loading the doctor&apos;s available slots…
+                  </div>
+                );
+              }
               const dynamicSlots = isDoctorBooking
-                ? (doctorRealSlots && doctorRealSlots.length > 0
-                    ? doctorRealSlots
-                    : (selectedOrg?.timings?.length > 0 ? getDynamicSlots(selectedDate) : TIME_SLOTS))
+                ? (doctorRealSlots || [])
                 : (isHomeCollection
                     ? HOME_COLLECTION_SLOTS
                     : (selectedOrg?.timings?.length > 0
@@ -2306,14 +2350,21 @@ function BookingPageContent() {
               if (dynamicSlots.length === 0) {
                 return (
                   <div style={{ padding: 24, backgroundColor: "#fffbeb", borderRadius: 14, border: "1px solid #fde68a", textAlign: "center", marginBottom: 20 }}>
-                    <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏰</div>
-                    <h4 style={{ color: "#92400e", marginBottom: 4 }}>No Time Slots Available</h4>
-                    <p style={{ color: "#a16207", fontSize: "0.85rem" }}>No available slots for this date. Please select a different date.</p>
+                    <h4 style={{ color: "#92400e", marginBottom: 4 }}>
+                      {isDoctorBooking && doctorSlotsError ? "Could not load slots" : "No time slots available"}
+                    </h4>
+                    <p style={{ color: "#a16207", fontSize: "0.85rem", margin: 0 }}>
+                      {isDoctorBooking && doctorSlotsError
+                        ? "Please check your connection and pick the date again."
+                        : isDoctorBooking
+                        ? `${selectedDoctor?.name ? `Dr. ${String(selectedDoctor.name).replace(/^Dr\.?\s*/i, "")}` : "The doctor"} has no open slots${selectedBranch?.name ? ` at ${selectedBranch.name}` : ""} on this date. Please select a different date.`
+                        : "No available slots for this date. Please select a different date."}
+                    </p>
                   </div>
                 );
               }
 
-              // Categorise slots: For home collection, all slots are morning fasting/collection slots (05:30 - 11:00).
+              // Categorise slots: For home collection, all slots are morning fasting/collection slots (06:00 - 11:00).
               const morningSlots = dynamicSlots.filter((t) => {
                 const hour = parseInt(t.split(":")[0], 10);
                 return hour < 12;
@@ -2399,7 +2450,7 @@ function BookingPageContent() {
                           isDoctorBooking
                             ? `Doctor OP Morning Slots (${doctorSlotDuration}m intervals)`
                             : isHomeCollection
-                            ? "Home Sample Collection Window (5:30 AM – 11:00 AM Only)"
+                            ? "Home Sample Collection Window (6:00 AM – 11:00 AM)"
                             : isWalkin
                             ? "Morning Walk-in Hours (7:00 AM – 11:30 AM)"
                             : "Morning Slots (8:00 AM – 11:30 AM)"

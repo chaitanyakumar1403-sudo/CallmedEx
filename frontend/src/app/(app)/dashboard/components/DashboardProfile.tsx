@@ -196,6 +196,19 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
     normal_home_visit_fee: profile?.normal_home_visit_fee || "",
   });
 
+  // Pharmacy operational details (pharmacies table). Licence, drug licence and
+  // GST numbers are verification-bound, so they are shown but not editable.
+  const pharmacyFormFrom = (src: any) => ({
+    pharmacy_name: src?.pharmacy_name || src?.full_name || "",
+    mobile: src?.mobile || src?.mobile_number || src?.phone || "",
+    pharmacist_in_charge: src?.pharmacist_in_charge || "",
+    operating_hours: src?.operating_hours || "",
+    home_delivery: Boolean(src?.home_delivery),
+    available_24x7: Boolean(src?.available_24x7),
+    service_radius_km: src?.service_radius_km ? String(src.service_radius_km) : "",
+  });
+  const [pharmForm, setPharmForm] = useState(() => pharmacyFormFrom(profile));
+
   // MOU Modal State
   const [showMOUModal, setShowMOUModal] = useState(false);
   const [mouLoading, setMOULoading] = useState(false);
@@ -239,6 +252,55 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
     e.preventDefault();
     setSaving(true);
     setSaveMsg(null);
+    if (role === "pharmacy") {
+      const radius = pharmForm.service_radius_km ? Number(pharmForm.service_radius_km) : undefined;
+      if (!pharmForm.pharmacy_name.trim()) {
+        setSaveMsg({ text: "Pharmacy name cannot be empty.", ok: false });
+        setSaving(false);
+        return;
+      }
+      if (radius !== undefined && !(radius > 0 && radius <= 50)) {
+        setSaveMsg({ text: "Delivery radius must be between 1 and 50 km.", ok: false });
+        setSaving(false);
+        return;
+      }
+      try {
+        const res = await fetch(`${apiBase}/api/providers/profile`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+          body: JSON.stringify({
+            full_name: pharmForm.pharmacy_name.trim(),
+            pharmacy_name: pharmForm.pharmacy_name.trim(),
+            mobile: pharmForm.mobile.trim(),
+            pharmacist_in_charge: pharmForm.pharmacist_in_charge.trim(),
+            operating_hours: pharmForm.operating_hours.trim(),
+            home_delivery: pharmForm.home_delivery,
+            available_24x7: pharmForm.available_24x7,
+            service_radius_km: radius,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const updated = {
+            ...currentProfile,
+            ...pharmForm,
+            full_name: pharmForm.pharmacy_name.trim(),
+            service_radius_km: radius ?? currentProfile?.service_radius_km,
+          };
+          setCurrentProfile(updated);
+          if (onProfileUpdated) onProfileUpdated(updated);
+          setSaveMsg({ text: "Pharmacy details saved.", ok: true });
+          setIsEditing(false);
+        } else {
+          setSaveMsg({ text: data.detail || "Could not save your pharmacy details.", ok: false });
+        }
+      } catch {
+        setSaveMsg({ text: "Network error saving your pharmacy details.", ok: false });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     try {
       const res = await fetch(`${apiBase}/api/providers/profile`, {
         method: "PUT",
@@ -605,7 +667,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
           <div className="cm-profile__actions">
             <h2 className="cm-profile__title">
               <Icon as={User} size={20} />
-              Registration &amp; Clinical Service Profile
+              {role === "pharmacy" ? "Pharmacy Registration & Licences" : "Registration & Clinical Service Profile"}
             </h2>
             {(() => {
               const status = String(p.verification_status || "").toLowerCase();
@@ -631,6 +693,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               type="button"
               onClick={() => {
                 setIsEditing(!isEditing);
+                setPharmForm(pharmacyFormFrom(p));
                 setFormData({
                   full_name: p.full_name || p.organization_name || "",
                   mobile: p.mobile || p.mobile_number || p.phone || "",
@@ -648,19 +711,71 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               className="cm-btn cm-btn--secondary cm-btn--sm"
             >
               <Icon as={isEditing ? X : Pencil} size={14} />
-              <span>{isEditing ? "Cancel Edit" : "Edit Profile & Credentials"}</span>
+              <span>{isEditing ? "Cancel Edit" : role === "pharmacy" ? "Edit Pharmacy Details" : "Edit Profile & Credentials"}</span>
             </button>
           </div>
         </div>
 
         {String(p.verification_status || "").toLowerCase() !== "verified" && (
           <p className="cm-profile__notice">
-            <Icon as={ShieldCheck} size={16} /> <strong>Production Verification Status:</strong> Your credentials are currently pending official NMC council audit. You can edit your specialization, degrees, and fee justifications below.
+            <Icon as={ShieldCheck} size={16} /> <strong>Verification pending:</strong>{" "}
+            {role === "pharmacy"
+              ? "Your drug licence and registration documents are being reviewed. You can keep your operating details up to date below."
+              : "Your credentials are pending council verification. You can edit your specialization, degrees, and fee justifications below."}
           </p>
         )}
 
         {/* Edit Form Mode */}
-        {isEditing ? (
+        {isEditing && role === "pharmacy" ? (
+          <form onSubmit={handleSaveProfile} className="cm-profile__edit-form">
+            <div className="cm-profile__form-grid">
+              <div className="cm-profile__form-group">
+                <label className="cm-profile__form-label" htmlFor="ph-p-name">Pharmacy Name</label>
+                <input id="ph-p-name" type="text" required className="cm-input" value={pharmForm.pharmacy_name}
+                  onChange={(e) => setPharmForm({ ...pharmForm, pharmacy_name: e.target.value })} />
+              </div>
+              <div className="cm-profile__form-group">
+                <label className="cm-profile__form-label" htmlFor="ph-p-mobile">Contact Mobile Number</label>
+                <input id="ph-p-mobile" type="tel" className="cm-input" value={pharmForm.mobile}
+                  onChange={(e) => setPharmForm({ ...pharmForm, mobile: e.target.value })} />
+              </div>
+              <div className="cm-profile__form-group">
+                <label className="cm-profile__form-label" htmlFor="ph-p-pic">Pharmacist in Charge</label>
+                <input id="ph-p-pic" type="text" className="cm-input" value={pharmForm.pharmacist_in_charge}
+                  onChange={(e) => setPharmForm({ ...pharmForm, pharmacist_in_charge: e.target.value })} />
+              </div>
+              <div className="cm-profile__form-group">
+                <label className="cm-profile__form-label" htmlFor="ph-p-hours">Operating Hours</label>
+                <input id="ph-p-hours" type="text" className="cm-input" placeholder="e.g. 8:00 AM – 10:00 PM" value={pharmForm.operating_hours}
+                  onChange={(e) => setPharmForm({ ...pharmForm, operating_hours: e.target.value })} />
+              </div>
+              <div className="cm-profile__form-group">
+                <label className="cm-profile__form-label" htmlFor="ph-p-radius">Delivery Radius (km)</label>
+                <input id="ph-p-radius" type="number" min={1} max={50} step={0.5} className="cm-input" value={pharmForm.service_radius_km}
+                  onChange={(e) => setPharmForm({ ...pharmForm, service_radius_km: e.target.value })} />
+              </div>
+              <div className="cm-profile__form-group">
+                <label className="cm-pharm-check">
+                  <input type="checkbox" checked={pharmForm.home_delivery}
+                    onChange={(e) => setPharmForm({ ...pharmForm, home_delivery: e.target.checked })} />
+                  Home delivery available
+                </label>
+                <label className="cm-pharm-check">
+                  <input type="checkbox" checked={pharmForm.available_24x7}
+                    onChange={(e) => setPharmForm({ ...pharmForm, available_24x7: e.target.checked })} />
+                  Open 24×7
+                </label>
+              </div>
+            </div>
+            <div className="cm-profile__form-actions">
+              <button type="button" onClick={() => setIsEditing(false)} className="cm-btn cm-btn--secondary cm-btn--sm">Cancel</button>
+              <button type="submit" disabled={saving} className="cm-btn cm-btn--primary cm-btn--sm">
+                <Icon as={Check} size={14} />
+                <span>{saving ? "Saving..." : "Save Pharmacy Details"}</span>
+              </button>
+            </div>
+          </form>
+        ) : isEditing ? (
           <form onSubmit={handleSaveProfile} className="cm-profile__edit-form">
             <div className="cm-profile__form-grid">
               <div className="cm-profile__form-group">
@@ -810,7 +925,9 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
         ) : (
           /* View Profile Mode */
           <dl className="cm-profile">
-            {field(User, "Full Name", p.full_name || p.organization_name || p.pharmacy_name)}
+            {role === "pharmacy"
+              ? field(Building2, "Pharmacy Name", p.pharmacy_name || p.full_name)
+              : field(User, "Full Name", p.full_name || p.organization_name || p.pharmacy_name)}
             {field(Mail, "Email Address", p.email)}
             {field(Phone, "Phone Number", p.mobile || p.mobile_number || p.phone)}
 
@@ -864,9 +981,14 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
             {/* Pharmacy specific details */}
             {role === "pharmacy" && (
               <>
-                {field(FileText, "Pharmacy Reg Number", p.registration_number)}
-                {field(Package, "Home Medicine Delivery", p.home_delivery ? "Enabled (30-Min Express)" : "Store Pick-Up Only")}
-                {field(MapPin, "Delivery Radius", `${p.service_radius_km || 5} km Radius`)}
+                {field(User, "Pharmacist in Charge", p.pharmacist_in_charge)}
+                {field(FileText, "Registration Number", p.registration_number)}
+                {field(ShieldCheck, "Drug Licence Number", p.drug_license_number)}
+                {field(FileText, "GST Number", p.gst_number)}
+                {field(Clock, "Operating Hours", p.available_24x7 ? "Open 24×7" : p.operating_hours)}
+                {field(Package, "Home Delivery", p.home_delivery ? "Available" : "Store pick-up only")}
+                {field(MapPin, "Delivery Radius", p.home_delivery && p.service_radius_km ? `${p.service_radius_km} km` : null)}
+                {field(MapPin, "Address", [p.address, p.city, p.pincode].filter(Boolean).join(", "))}
               </>
             )}
 
@@ -882,7 +1004,10 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
         )}
       </Panel>
 
-      {/* Professional Presentation & Fee Justification Widget */}
+      {/* Professional Presentation & Fee Justification — practitioners who
+          charge a consultation fee only. A pharmacy was shown invented doctor
+          copy ("Senior clinician…") under a fee it does not charge. */}
+      {isPractitioner && (
       <div className="cm-presentation-card">
         <div className="cm-presentation-card__head">
           <div>
@@ -917,7 +1042,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               <span>Clinical Background &amp; Focus</span>
             </div>
             <p className="cm-presentation-card__text">
-              {p.bio || "Senior clinician dedicated to evidence-based diagnostic evaluation, patient-centric treatment protocols, and continuous chronic health optimization."}
+              {p.bio || "Not added yet. Use Update Presentation to describe your background — patients see it when booking."}
             </p>
           </div>
 
@@ -928,11 +1053,12 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               <span>Consultation Fee Justification</span>
             </div>
             <p className="cm-presentation-card__text">
-              {p.fee_justification || "Consultation tariffs cover comprehensive clinical examination, personalized diagnostic review, official signed digital e-prescriptions, and a 24-hour follow-up inquiry window."}
+              {p.fee_justification || "Not added yet. Explain what your consultation fee covers — patients see it when booking."}
             </p>
           </div>
         </div>
       </div>
+      )}
 
       {/* Glassmorphic MOU Viewer Modal */}
       {showMOUModal && (

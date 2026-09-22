@@ -16,5 +16,6 @@ export {
   Bike, Sparkles, Smile, Ear, Brain, Heart, Wind, Droplet, Bone, HeartHandshake, Video, Activity,
   UserCheck, Shield, AlertCircle, Calendar, Check, Lock, Zap, Pill, Box, Compass, LayoutDashboard, ExternalLink, Home, Send, Globe, Thermometer,
   CalendarOff, LayoutGrid, Moon, Rows3, Settings2, Sun, Sunrise, ShieldAlert,
+  Printer, Upload, FileSpreadsheet,
 } from "lucide-react";
 export type { LucideIcon } from "lucide-react";

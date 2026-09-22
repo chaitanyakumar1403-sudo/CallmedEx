@@ -100,6 +100,20 @@ class _SlotDB:
     def neq(self, *a, **k):
         return self
 
+    def in_(self, col, vals):
+        return self
+
+    @property
+    def not_(self):
+        return self
+
+    def gte(self, col, val):
+        self._filters[f"gte:{col}"] = val
+        return self
+
+    def lte(self, col, val):
+        return self
+
     def execute(self):
         class R:
             pass
@@ -117,7 +131,9 @@ class _SlotDB:
                 rows = [a for a in rows if a["consultation_mode"] == mode]
             r.data = rows
         elif self._table == "bookings":
-            r.data = [{"slot_time": t} for t in self.booked]
+            # The shape create_booking actually writes: slot_start in IST.
+            day = str(self._filters.get("gte:slot_start", ""))[:10]
+            r.data = [{"slot_id": None, "slot_start": f"{day}T{t}:00+05:30"} for t in self.booked]
         else:
             r.data = []
         return r

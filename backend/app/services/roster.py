@@ -157,6 +157,112 @@ def _pick(candidates: List[dict], booking: dict, load: dict,
     return viable[0][3]
 
 
+# Dispatch states that no longer hold the collector's time on that day.
+_RELEASED = {"cancelled", "completed", "no_provider", "needs_manual_assignment", "expired"}
+
+
+def _slot_hhmm(booking: dict) -> str:
+    """The booking's collection time, HH:MM IST ('' if it has none)."""
+    parts = (booking.get("slot_id") or "").split("|")
+    if len(parts) == 3 and ":" in parts[2]:
+        return parts[2][:5]
+    start = booking.get("slot_start") or ""
+    return start.split("T")[1][:5] if "T" in start else ""
+
+
+def _roster_state(roster_date: str):
+    """(jobs per collector, slot times each collector already holds) on that date."""
+    jobs = [
+        j for j in _rows(
+            supabase.table("dispatch_requests")
+            .select("assigned_provider_id, booking_id, status")
+            .eq("scheduled_for", roster_date)
+            .execute()
+        )
+        if j.get("assigned_provider_id") and j.get("status") not in _RELEASED
+    ]
+    times = {}
+    booking_ids = [j["booking_id"] for j in jobs if j.get("booking_id")]
+    if booking_ids:
+        for b in _rows(
+            supabase.table("bookings").select("id, slot_id, slot_start")
+            .in_("id", booking_ids).execute()
+        ):
+            times[b["id"]] = _slot_hhmm(b)
+    load: dict = {}
+    busy: dict = {}
+    for j in jobs:
+        uid = j["assigned_provider_id"]
+        load[uid] = load.get(uid, 0) + 1
+        t = times.get(j.get("booking_id"))
+        if t:
+            busy.setdefault(uid, set()).add(t)
+    return load, busy
+
+
+def _city_phlebos(city: str, roster_date: str) -> List[dict]:
+    """Collectors in the patient's city, for bookings with no processing centre."""
+    uids = [
+        u["id"] for u in _rows(
+            supabase.table("users").select("id")
+            .eq("role", "phlebotomist").ilike("city", f"%{city}%").execute()
+        )
+    ]
+    if not uids:
+        return []
+    on_leave = {
+        r["phlebotomist_user_id"] for r in _rows(
+            supabase.table("phlebotomist_roster")
+            .select("phlebotomist_user_id, status")
+            .eq("roster_date", roster_date)
+            .in_("status", ["unavailable", "leave"])
+            .execute()
+        )
+    }
+    out = []
+    for p in _rows(
+        supabase.table("phlebotomists")
+        .select("user_id, processing_center_id, base_lat, base_lng, current_lat, current_lng, phleb_type")
+        .in_("user_id", uids).execute()
+    ):
+        if p.get("user_id") in on_leave:
+            continue
+        lat, lng = p.get("base_lat"), p.get("base_lng")
+        if lat is None or lng is None:
+            lat, lng = p.get("current_lat"), p.get("current_lng")
+        if lat is None or lng is None:
+            continue
+        out.append({**p, "base_lat": lat, "base_lng": lng})
+    return out
+
+
+def pick_advance_collector(booking: dict, roster_date: str,
+                           city: Optional[str] = None) -> Optional[dict]:
+    """The collector a scheduled home collection is pre-assigned to, or None.
+
+    Full-time collectors first (25 km), then part-time (15 km); nearest, then
+    least loaded that day. Nobody on leave, and nobody already holding a job
+    at the same slot time — assigning one collector two 07:00 doorsteps in
+    different areas guarantees one patient is missed.
+
+    None is a real answer: the booking then stays unassigned and the
+    same-day trigger (scheduled_dispatch) offers it live before the slot,
+    instead of a placeholder row blocking that fallback forever.
+    """
+    if booking.get("collection_lat") is None or booking.get("collection_lng") is None:
+        return None
+    pc_id = booking.get("processing_center_id")
+    candidates = _available_phlebos(pc_id, roster_date) if pc_id else []
+    if not candidates and city:
+        candidates = _city_phlebos(city, roster_date)
+    if not candidates:
+        return None
+    load, busy = _roster_state(roster_date)
+    slot = _slot_hhmm(booking)
+    exclude = {uid for uid, held in busy.items() if slot and slot in held}
+    return _pick(candidates, booking, load, exclude)
+
+
 def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
     """Assign every unassigned next-day booking of this centre.
 
@@ -168,11 +274,15 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
     if not candidates or not bookings:
         return []
 
-    load: dict = {}
+    # Seeded from jobs already assigned that day (at booking time or by an
+    # earlier pass), so this pass never double-books a collector's slot.
+    load, busy = _roster_state(roster_date)
     assigned: List[dict] = []
 
     for booking in bookings:
-        person = _pick(candidates, booking, load)
+        slot = _slot_hhmm(booking)
+        exclude = {uid for uid, held in busy.items() if slot and slot in held}
+        person = _pick(candidates, booking, load, exclude)
         if person is None:
             # Out of radius for everyone. Left unassigned on purpose: it falls
             # back to the realtime offer flow on the collection day.
@@ -199,9 +309,12 @@ def run_roster_pass(processing_center_id: str, roster_date: str) -> List[dict]:
             # missing either, so these are always populated here.
             "patient_lat": booking["collection_lat"],
             "patient_lng": booking["collection_lng"],
+            "service_subtype": "home_collection",
         }).execute()
 
         load[uid] = load.get(uid, 0) + 1
+        if slot:
+            busy.setdefault(uid, set()).add(slot)
         assigned.append({
             "dispatch_request_id": request_id,
             "booking_id": booking["id"],
@@ -391,7 +504,10 @@ def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional
 
     candidates = _available_phlebos(
         booking["processing_center_id"], request.get("scheduled_for"))
-    replacement = _pick(candidates, booking, {}, exclude=set(declined))
+    load, busy = _roster_state(request.get("scheduled_for"))
+    slot = _slot_hhmm(booking)
+    exclude = set(declined) | {uid for uid, held in busy.items() if slot and slot in held}
+    replacement = _pick(candidates, booking, load, exclude=exclude)
 
     if replacement is None:
         supabase.table("dispatch_requests").update({

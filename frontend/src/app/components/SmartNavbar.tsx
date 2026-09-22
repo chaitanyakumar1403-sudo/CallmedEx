@@ -186,9 +186,11 @@ export default function SmartNavbar() {
           </Link>
           <ul className="navbar__nav--unified">
             <li><Link href="/about">About</Link></li>
-            <li><Link href="/packages">Health Packages</Link></li>
+            {/* Patient-facing booking links; providers, organisations and
+                admins only get About. */}
             {(!user || user.role === "patient") && (
               <>
+                <li><Link href="/packages">Health Packages</Link></li>
                 <li><Link href="/diagnostics">Book a Test</Link></li>
                 <li><Link href="/consultation">Consultation</Link></li>
                 <li><Link href="/pharmacy">Pharmacy</Link></li>
@@ -528,25 +530,25 @@ export default function SmartNavbar() {
             >
               About CallMedex
             </Link>
-            <Link
-              href="/packages"
-              style={{
-                padding: "12px 14px",
-                borderRadius: "var(--cm-radius-sm)",
-                color: "var(--cm-ink)",
-                fontWeight: 700,
-                fontSize: "var(--cm-text-sm)",
-                textDecoration: "none",
-                background: "var(--cm-surface-2)",
-                minHeight: "44px",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              Health Packages
-            </Link>
             {(!user || user.role === "patient") && (
               <>
+                <Link
+                  href="/packages"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "var(--cm-radius-sm)",
+                    color: "var(--cm-ink)",
+                    fontWeight: 700,
+                    fontSize: "var(--cm-text-sm)",
+                    textDecoration: "none",
+                    background: "var(--cm-surface-2)",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  Health Packages
+                </Link>
                 <Link
                   href="/diagnostics"
                   style={{

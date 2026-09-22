@@ -172,8 +172,11 @@ async def test_doctor_multishift_branch_allocation_and_slot_filtering(fake_db):
     }]
     fake_db.db["bookings"] = []
 
-    # Target Date: 2026-09-21 is a Monday (day_of_week 1 in Python datetime.weekday() is Monday)
-    target_monday = "2026-09-21"
+    # Next Monday (schema day_of_week 1). A hardcoded date started failing the
+    # day it slipped into the past, because /slots refuses past dates.
+    from datetime import date, timedelta
+    today = date.today()
+    target_monday = (today + timedelta(days=(7 - today.weekday()) % 7 or 7)).isoformat()
 
     # 1. Filter by Branch 1 -> Only morning slots (09:30 to 11:30)
     b1_slots_res = await get_available_slots(

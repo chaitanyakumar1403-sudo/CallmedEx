@@ -107,11 +107,11 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
     icon: TestTube2,
     color: "#0284c7",
     accentGradient: "linear-gradient(135deg, rgba(2,132,199,0.18) 0%, rgba(14,165,233,0.06) 100%)",
-    priceTag: "Free home collection with packages · 5:30 AM – 11:00 AM",
+    priceTag: "Free home collection with packages · 6:00 AM – 11:00 AM",
     bookingUrl: "/diagnostics?tab=home",
     ctaText: "Explore Tests & Book Home Collection",
     features: [
-      { title: "Morning Fasting Slots", desc: "Strictly scheduled 5:30 AM – 11:00 AM slots for accurate fasting and lipid markers." },
+      { title: "Morning Fasting Slots", desc: "Scheduled 6:00 AM – 11:00 AM slots for accurate fasting and lipid markers." },
       { title: "Barcoded Vacutainers", desc: "Zero sample mix-up with laser-printed patient barcode tracking at the bedside." },
       { title: "Temperature Controlled", desc: "Cold-chain insulated ice-box transport directly to certified partner labs." },
       { title: "Digital Reports in 6-12 Hrs", desc: "Automated SMS, WhatsApp, and patient portal download as soon as verified." },
@@ -124,7 +124,7 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
       "Liver & Kidney Function (LFT/KFT)",
       "Vitamin D & B12 Levels",
     ],
-    slotsInfo: "Dedicated slots: 5:30 AM, 6:00 AM, 6:30 AM ... 11:00 AM every single day.",
+    slotsInfo: "Dedicated slots every 30 minutes from 6:00 AM to 11:00 AM, every day.",
   },
   pharmacy: {
     id: "pharmacy",
@@ -176,7 +176,7 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
       "Anaemia Package - ₹849",
       "Cardiac Comprehensive - ₹1399",
     ],
-    slotsInfo: "Morning fasting home collection 5:30 AM to 11:00 AM.",
+    slotsInfo: "Morning fasting home collection 6:00 AM to 11:00 AM.",
   },
 };
 
@@ -338,7 +338,7 @@ export default function HomeServicesPage() {
                 boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
               }}
             >
-              <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#38bdf8" }}>5:30 – 11:00 AM</div>
+              <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#38bdf8" }}>6:00 – 11:00 AM</div>
               <div style={{ fontSize: "0.82rem", color: "#e0f2fe", fontWeight: 500 }}>Morning Phlebotomy Window</div>
             </div>
             <div

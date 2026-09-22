@@ -156,3 +156,59 @@ async def test_get_booking_details_includes_patient_email(fake_db, monkeypatch):
     assert res.data["patient_mobile"] == "+919876543210"
     assert res.data["patient_age"] == 45
 
+
+
+def _link_doctor_to_org(fake_db):
+    fake_db.db["organization_doctors"] = [{"organization_id": "org-1", "doctor_user_id": DOCTOR_ID, "is_active": True}]
+    fake_db.db["organizations"] = [{"id": "org-1", "user_id": "org-user", "organization_name": "Visakha Clinics"}]
+    fake_db.db["provider_branches"] = [{"id": "b-mrp", "provider_user_id": "org-user", "name": "Visakha Clinics (Maharanipeta)",
+                                        "address": "17-1-28", "city": "Visakhapatnam", "is_active": True}]
+    fake_db.db["users"] = [{"id": "org-user", "address": "Main Road", "city": "Visakhapatnam"}]
+
+
+@pytest.mark.asyncio
+async def test_branch_shift_publish_keeps_other_branches_hours(fake_db):
+    _link_doctor_to_org(fake_db)
+    fake_db.db["doctor_availability"] = [{
+        "id": "main-mon", "doctor_id": DOCTOR_ID, "day_of_week": 1, "start_time": "09:00", "end_time": "12:00",
+        "consultation_mode": "in_person", "organization_id": "org-1", "location_name": "Visakha Clinics (Main Facility)", "is_active": True,
+    }]
+    payload = ShiftScheduleCreate(
+        consultation_mode="in_person", slot_duration_minutes=10, selected_days=[1],
+        morning_shift_enabled=False, evening_shift_enabled=True, evening_start="13:30", evening_end="17:00",
+        organization_id="org-1", branch_id="b-mrp", replace_existing=True,
+    )
+    res = await create_shift_availability(payload, DOCTOR_USER)
+    assert res["success"] is True
+    rows = fake_db.db["doctor_availability"]
+    assert any(r["id"] == "main-mon" for r in rows), "the main facility's morning hours must survive"
+    new = [r for r in rows if r["id"] != "main-mon"]
+    assert len(new) == 1
+    assert new[0]["template_group_id"] == "b-mrp"
+    assert new[0]["organization_id"] == "org-1"
+    assert new[0]["location_name"] == "Visakha Clinics (Maharanipeta)"
+
+
+@pytest.mark.asyncio
+async def test_branch_shift_publish_refuses_overlap_with_another_branch(fake_db):
+    _link_doctor_to_org(fake_db)
+    fake_db.db["doctor_availability"] = [{
+        "id": "main-mon", "doctor_id": DOCTOR_ID, "day_of_week": 1, "start_time": "09:00", "end_time": "12:00",
+        "consultation_mode": "in_person", "organization_id": "org-1", "location_name": "Visakha Clinics (Main Facility)", "is_active": True,
+    }]
+    payload = ShiftScheduleCreate(
+        consultation_mode="in_person", selected_days=[1], morning_start="10:00", morning_end="11:00",
+        evening_shift_enabled=False, organization_id="org-1", branch_id="b-mrp",
+    )
+    with pytest.raises(HTTPException) as exc:
+        await create_shift_availability(payload, DOCTOR_USER)
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_branch_shift_publish_rejects_unlinked_org(fake_db):
+    payload = ShiftScheduleCreate(consultation_mode="in_person", selected_days=[1], evening_shift_enabled=False,
+                                  organization_id="org-x", branch_id="main")
+    with pytest.raises(HTTPException) as exc:
+        await create_shift_availability(payload, DOCTOR_USER)
+    assert exc.value.status_code == 403
