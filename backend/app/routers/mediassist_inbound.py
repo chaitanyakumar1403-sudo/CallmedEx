@@ -24,6 +24,7 @@ see that file's comment — so this integration was not silently broken from
 day one.
 """
 import logging
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -46,6 +47,22 @@ from app.utils.phone import normalize_phone
 from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_biomarker_value(raw_val: str):
+    """Safely extract float and unit from string like '7.2%' or '145 mg/dL'."""
+    if not raw_val:
+        return None, ""
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)", raw_val)
+    if not match:
+        return None, ""
+    try:
+        num = float(match.group(1))
+    except ValueError:
+        return None, ""
+    unit = raw_val.replace(match.group(1), "").strip()
+    return num, unit
+
 
 router = APIRouter(
     prefix="/api/v1/integrations/mediassist",
@@ -104,8 +121,8 @@ class BookingAddress(BaseModel):
     line1: str
     city: str
     pincode: str
-    lat: float
-    lng: float
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class TimeWindow(BaseModel):
@@ -328,19 +345,55 @@ async def report_delivered_callback(
     new_version = max_version + 1 if existing_analyses else 1
     report_status = "corrected" if (is_corrected or max_version >= 1) else "final"
 
-    analysis_row = {
-        "id": str(uuid.uuid4()),
-        "patient_id": job["patient_id"],
-        "report_job_id": body.report_job_id,
-        "raw_report_url": raw_url,
-        "plain_language_summary": analysis.plain_language_summary,
-        "doctor_clinical_summary": analysis.doctor_clinical_summary,
-        "abnormal_flags": [f.model_dump(exclude_none=True) for f in analysis.abnormal_flags],
-        "report_version": new_version,
-        "report_status": report_status,
-        "created_at": now,
-    }
-    supabase.table("ai_report_analyses").insert(analysis_row).execute()
+    formatted_flags = [f.model_dump(exclude_none=True) for f in analysis.abnormal_flags]
+
+    if existing_analyses:
+        # Update existing analysis row to preserve database UNIQUE (report_job_id) constraint
+        analysis_id = existing_analyses[0]["id"]
+        update_data = {
+            "plain_language_summary": analysis.plain_language_summary,
+            "doctor_clinical_summary": analysis.doctor_clinical_summary,
+            "abnormal_flags": formatted_flags,
+            "report_version": new_version,
+            "report_status": report_status,
+            "updated_at": now,
+        }
+        supabase.table("ai_report_analyses").update(update_data).eq("id", analysis_id).execute()
+    else:
+        analysis_row = {
+            "id": str(uuid.uuid4()),
+            "patient_id": job["patient_id"],
+            "report_job_id": body.report_job_id,
+            "raw_report_url": raw_url,
+            "plain_language_summary": analysis.plain_language_summary,
+            "doctor_clinical_summary": analysis.doctor_clinical_summary,
+            "abnormal_flags": formatted_flags,
+            "report_version": new_version,
+            "report_status": report_status,
+            "created_at": now,
+        }
+        supabase.table("ai_report_analyses").insert(analysis_row).execute()
+
+    # Longitudinal biomarker sync into patient_biomarkers (non-blocking)
+    if job.get("patient_id") and analysis.abnormal_flags:
+        for flag in analysis.abnormal_flags:
+            if not flag.marker:
+                continue
+            val_num, unit = _parse_biomarker_value(flag.value or "")
+            if val_num is not None:
+                try:
+                    code = re.sub(r"[^A-Za-z0-9_]", "", flag.marker.strip().upper().replace(" ", "_"))[:32]
+                    supabase.table("patient_biomarkers").insert({
+                        "patient_id": job["patient_id"],
+                        "observation_code": code or "BIOMARKER",
+                        "observation_name": flag.marker.strip(),
+                        "value_number": val_num,
+                        "unit": unit or (flag.reference_range or "units"),
+                        "recorded_at": body.occurred_at.isoformat() if hasattr(body.occurred_at, "isoformat") else str(body.occurred_at),
+                        "source_report_job_id": body.report_job_id,
+                    }).execute()
+                except Exception as bio_err:
+                    logger.warning(f"Could not persist biomarker {flag.marker}: {bio_err}")
 
     AuditService.log(
         action=AuditActions.MEDIASSIST_REPORT_JOB_DELIVERED,
@@ -357,6 +410,7 @@ async def report_delivered_callback(
     )
 
     return _store_and_respond(x_idempotency_key, endpoint, 200, {"received": True})
+
 
 
 # ─── 3. Report failed ───────────────────────────────────────────────────────
@@ -624,39 +678,97 @@ async def create_whatsapp_booking(
     is_home_collection = body.service_type == "home_blood_collection"
     db_status = "confirmed" if is_home_collection else "pending_review"
 
+    col_lat = body.address.lat
+    col_lng = body.address.lng
+    if col_lat is None or col_lng is None or (col_lat == 0 and col_lng == 0):
+        try:
+            from app.services.geocoding import geocode_address
+            addr_str = f"{body.address.line1}, {body.address.city}, {body.address.pincode}".strip(", ")
+            glat, glng = geocode_address(address=addr_str, city=body.address.city)
+            if glat and glng:
+                col_lat = glat
+                col_lng = glng
+        except Exception as geo_err:
+            logger.warning(f"Geocoding address for WhatsApp booking failed: {geo_err}")
+
+    # Resolve processing centre for home collection
+    resolved_pc_id: Optional[str] = None
+    if is_home_collection:
+        try:
+            from app.services.processing_center import resolve_center
+            centre = resolve_center(
+                city=body.address.city,
+                pincode=body.address.pincode,
+                lat=col_lat,
+                lng=col_lng,
+            )
+            if centre and centre.get("id"):
+                resolved_pc_id = centre["id"]
+        except Exception as pc_err:
+            logger.warning(f"Could not resolve processing centre for WhatsApp booking: {pc_err}")
+
     booking_id = str(uuid.uuid4())
     now = _now_iso()
+    slot_start_iso = body.requested_time_window.earliest.isoformat()
+    slot_end_iso = body.requested_time_window.latest.isoformat()
+    col_date = slot_start_iso[:10] if len(slot_start_iso) >= 10 else now.split("T")[0]
+
     booking_data = {
         "id": booking_id,
         "patient_id": resolved_patient_id,
-        # `provider_id`/`provider_type` are NOT NULL on `bookings`. Resolving a
-        # *real* provider means the processing-center assignment / phlebotomist
-        # dispatch pipeline (assign_booking / UniversalDispatchEngine.create_dispatch
-        # in bookings.py::create_booking) — explicitly out of scope for this
-        # route per the task brief: this route creates the booking row only.
-        # Using the booking's own id as provider_id keeps the row valid and
-        # makes an unassigned booking trivially identifiable (provider_id == id)
-        # without fabricating a fake provider identity.
-        "provider_id": booking_id,
-        "provider_type": "unassigned",
+        "provider_id": resolved_pc_id or booking_id,
+        "provider_type": "processing_center" if resolved_pc_id else "unassigned",
         "service_type": service_type.value,
         "status": db_status,
         "notes": f"WhatsApp booking via MediAssist (conversation {body.source_conversation_id}).",
-        "slot_start": body.requested_time_window.earliest.isoformat(),
-        "slot_end": body.requested_time_window.latest.isoformat(),
+        "slot_start": slot_start_iso,
+        "slot_end": slot_end_iso,
+        "collection_date": col_date,
         "collection_city": body.address.city,
         "collection_pincode": body.address.pincode,
-        "collection_lat": body.address.lat,
-        "collection_lng": body.address.lng,
+        "collection_lat": col_lat,
+        "collection_lng": col_lng,
         "created_at": now,
         "updated_at": now,
     }
+    if resolved_pc_id:
+        booking_data["processing_center_id"] = resolved_pc_id
+
     if is_home_collection:
         booking_data["booking_kind"] = "home_collection"
 
     supabase.table("bookings").insert(booking_data).execute()
 
+    if is_home_collection:
+        # Assign booking to centre and derive tubes/samples if not yet assigned
+        try:
+            from app.services.processing_center import assign_booking
+            assign_booking(booking_id)
+        except Exception as assign_err:
+            logger.warning(f"assign_booking failed for WhatsApp booking {booking_id}: {assign_err}")
+
+        # Check if near-term dispatch should be spawned immediately (same-day / near-term slot)
+        try:
+            from app.routers.bookings import _slot_needs_immediate_dispatch
+            from app.services.dispatch_engine import UniversalDispatchEngine
+            if _slot_needs_immediate_dispatch(slot_start_iso) and col_lat and col_lng:
+                await UniversalDispatchEngine.create_dispatch(
+                    patient_id=resolved_patient_id,
+                    patient_lat=float(col_lat),
+                    patient_lng=float(col_lng),
+                    patient_address=f"{body.address.line1}, {body.address.city}, {body.address.pincode}",
+                    provider_type="phlebotomist",
+                    service_subtype="home_collection",
+                    booking_id=booking_id,
+                    notes=f"WhatsApp home collection (conversation {body.source_conversation_id})",
+                    priority="normal",
+                    processing_center_id=booking_data.get("processing_center_id"),
+                )
+        except Exception as disp_err:
+            logger.warning(f"Immediate dispatch attempt for WhatsApp booking failed: {disp_err}")
+
     AuditService.log(
+
         action=AuditActions.MEDIASSIST_WHATSAPP_BOOKING_CREATED,
         entity_type="booking",
         entity_id=booking_id,

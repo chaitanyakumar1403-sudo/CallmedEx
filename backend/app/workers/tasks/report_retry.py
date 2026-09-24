@@ -64,11 +64,21 @@ def retry_due_report_jobs(self):
         return {"scanned": 0, "retried": 0, "failed": 0}
 
     from app.services.report_submission import submit_report_job_to_mediassist
+    from app.config import settings
+    from app.services.storage import StorageService
 
     retried = 0
     failed = 0
     for job in jobs:
         try:
+            doc_path = job.get("source_document_path")
+            doc_url = ""
+            if doc_path:
+                try:
+                    doc_url = StorageService.signed_url(doc_path, expires=3600, bucket=settings.REPORTS_BUCKET)
+                except Exception as sign_err:
+                    logger.warning(f"Could not generate signed URL for retrying job {job['id']}: {sign_err}")
+
             # submit_report_job_to_mediassist re-arms next_retry_at (or flips
             # the job to dead_letter once max_retries is exhausted) on failure,
             # so a permanently broken job stops being picked up on its own.
@@ -76,6 +86,7 @@ def retry_due_report_jobs(self):
                 submit_report_job_to_mediassist(
                     report_job_id=job["id"],
                     patient_id=job.get("patient_id") or "",
+                    source_document_url=doc_url,
                     booking_id=job.get("booking_id"),
                     sample_id=job.get("sample_id"),
                     processing_center_id=job.get("processing_center_id"),
@@ -87,6 +98,7 @@ def retry_due_report_jobs(self):
                 )
             )
             retried += 1
+
         except Exception as e:
             failed += 1
             logger.warning(f"ReportJob {job['id']} retry attempt failed: {e}")

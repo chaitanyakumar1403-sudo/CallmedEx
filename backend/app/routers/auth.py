@@ -426,6 +426,40 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
     return base
 
 
+def _find_headless_patient_by_phone(phone: str) -> dict | None:
+    """Find an existing headless WhatsApp patient created for this phone."""
+    if not phone:
+        return None
+    from app.utils.phone import normalize_phone
+    clean = normalize_phone(phone) or phone
+    variants = list({phone, clean, f"+91{clean}", f"91{clean}"})
+    if supabase:
+        try:
+            for variant in variants:
+                res = (
+                    supabase.table("users")
+                    .select("*")
+                    .eq("role", "patient")
+                    .eq("mobile", variant)
+                    .limit(1)
+                    .execute()
+                )
+                if res.data and len(res.data) > 0:
+                    user_row = res.data[0]
+                    email = user_row.get("email") or ""
+                    if email.startswith("whatsapp+") and email.endswith("@patients.callmedex.internal"):
+                        return user_row
+        except Exception as e:
+            logger.debug(f"DB headless patient lookup failed: {e}")
+    else:
+        for u in _local_users.values():
+            if u.get("role") == "patient" and u.get("mobile") in variants:
+                email = u.get("email") or ""
+                if email.startswith("whatsapp+") and email.endswith("@patients.callmedex.internal"):
+                    return u
+    return None
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SIGNUP — Universal Registration Engine
 # ═══════════════════════════════════════════════════════════════════════════
@@ -433,6 +467,7 @@ def _build_profile_data(user: UserSignup, user_id: str) -> dict:
 @router.post("/register", response_model=APIResponse)
 @router.post("/signup", response_model=APIResponse)
 async def signup(user: UserSignup):
+
     """
     Universal registration endpoint.
     - Patients: Immediate account creation (no MOU required).
@@ -535,6 +570,72 @@ async def signup(user: UserSignup):
         )
 
     # ─── IMMEDIATE CREATION: Patient role ──────────────────────────────
+    headless_user = None
+    if user.role == UserRole.PATIENT and user.mobile:
+        headless_user = _find_headless_patient_by_phone(user.mobile)
+
+    if headless_user:
+        claimed_id = headless_user["id"]
+        now = datetime.now(timezone.utc).isoformat()
+        update_user_payload = {
+            "email": user.email,
+            "full_name": user.full_name,
+            "password_hash": hash_password(user.password),
+            "gender": user.gender.value if user.gender else None,
+            "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
+            "address": user.address_info.address if user.address_info else None,
+            "city": user.address_info.city if user.address_info else None,
+            "district": user.address_info.district if user.address_info else None,
+            "state": user.address_info.state if user.address_info else None,
+            "pincode": user.address_info.pincode if user.address_info else None,
+            "country": user.address_info.country if user.address_info else "India",
+            "registration_status": "active",
+            "is_active": True,
+            "updated_at": now,
+        }
+        clean_update = {k: v for k, v in update_user_payload.items() if v is not None}
+        if supabase:
+            supabase.table("users").update(clean_update).eq("id", claimed_id).execute()
+        else:
+            old_email = headless_user.get("email")
+            _local_users.pop(old_email, None)
+            headless_user.update(clean_update)
+            _local_users[user.email] = headless_user
+
+        # Update or create patient profile
+        profile_data = _build_profile_data(user, claimed_id)
+        if supabase:
+            try:
+                prof_res = supabase.table("patients").select("id").eq("user_id", claimed_id).limit(1).execute()
+                if prof_res.data and len(prof_res.data) > 0:
+                    prof_update = {k: v for k, v in profile_data.items() if k not in ("id", "user_id") and v is not None}
+                    if prof_update:
+                        supabase.table("patients").update(prof_update).eq("user_id", claimed_id).execute()
+                else:
+                    _create_role_profile("patients", profile_data)
+            except Exception as prof_err:
+                logger.warning(f"Could not update patient profile for claimed account {claimed_id}: {prof_err}")
+        else:
+            existing_prof = [p for p in _local_profiles.get("patients", []) if p.get("user_id") == claimed_id]
+            if existing_prof:
+                existing_prof[0].update(profile_data)
+            else:
+                _create_role_profile("patients", profile_data)
+
+        LegalService.log_audit(
+            actor_id=claimed_id,
+            action="user.claimed_headless_account",
+            entity_type="user",
+            entity_id=claimed_id,
+            details={"role": user.role.value, "claimed_from": headless_user.get("email")},
+        )
+
+        return APIResponse(
+            success=True,
+            message="Account created successfully. Your prior WhatsApp bookings and records have been linked to your account.",
+            data={"user_id": claimed_id, "role": user.role.value, "claimed_headless": True},
+        )
+
     user_data = _build_user_data(user, user_id, registration_status="active")
     _create_user(user_data)
 
@@ -566,6 +667,7 @@ async def signup(user: UserSignup):
         message=f"Account created successfully as {user.role.value}",
         data={"user_id": user_id, "role": user.role.value},
     )
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

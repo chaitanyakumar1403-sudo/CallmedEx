@@ -438,10 +438,21 @@ async def admin_retry_report_job(
     }).eq("id", report_job_id).execute()
 
     from app.services.report_submission import submit_report_job_to_mediassist
+    from app.config import settings
+    from app.services.storage import StorageService
+
+    doc_url = ""
+    if job.get("source_document_path"):
+        try:
+            doc_url = StorageService.signed_url(job["source_document_path"], expires=3600, bucket=settings.REPORTS_BUCKET)
+        except Exception as sign_err:
+            logger.warning(f"Could not generate signed URL for ReportJob {report_job_id}: {sign_err}")
+
     try:
         res = await submit_report_job_to_mediassist(
             report_job_id=job["id"],
             patient_id=job.get("patient_id") or "",
+            source_document_url=doc_url,
             booking_id=job.get("booking_id"),
             sample_id=job.get("sample_id"),
             processing_center_id=job.get("processing_center_id"),
@@ -481,11 +492,22 @@ async def admin_batch_retry_failed_report_jobs(
     errors = []
 
     from app.services.report_submission import submit_report_job_to_mediassist
+    from app.config import settings
+    from app.services.storage import StorageService
+
     for job in rows:
         try:
+            batch_doc_url = ""
+            if job.get("source_document_path"):
+                try:
+                    batch_doc_url = StorageService.signed_url(job["source_document_path"], expires=3600, bucket=settings.REPORTS_BUCKET)
+                except Exception as sign_err:
+                    logger.warning(f"Could not generate signed URL for batch job {job['id']}: {sign_err}")
+
             await submit_report_job_to_mediassist(
                 report_job_id=job["id"],
                 patient_id=job.get("patient_id") or "",
+                source_document_url=batch_doc_url,
                 booking_id=job.get("booking_id"),
                 sample_id=job.get("sample_id"),
                 processing_center_id=job.get("processing_center_id"),
@@ -496,6 +518,7 @@ async def admin_batch_retry_failed_report_jobs(
                 db=supabase,
             )
             retried_count += 1
+
         except Exception as e:
             errors.append({"report_job_id": job["id"], "error": str(e)})
 

@@ -121,6 +121,24 @@ async def submit_report_job_to_mediassist(
     if db is None:
         db = supabase
 
+    if not source_document_url and db:
+        try:
+            job_rows = _rows(
+                db.table("report_jobs")
+                .select("source_document_path")
+                .eq("id", report_job_id)
+                .limit(1)
+                .execute()
+            )
+            if job_rows and job_rows[0].get("source_document_path"):
+                from app.config import settings
+                from app.services.storage import StorageService
+                source_document_url = StorageService.signed_url(
+                    job_rows[0]["source_document_path"], expires=3600, bucket=settings.REPORTS_BUCKET
+                )
+        except Exception as sign_err:
+            logger.warning(f"Could not auto-generate signed URL for {report_job_id}: {sign_err}")
+
     contact = get_patient_contact(patient_id, db=db)
 
     try:

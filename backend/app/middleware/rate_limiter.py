@@ -33,6 +33,10 @@ DEFAULT_RATE_LIMIT = (120, 60)
 
 # Skip rate limiting for these paths
 SKIP_PATHS = {"/api/health", "/api/docs", "/api/redoc", "/openapi.json", "/"}
+SKIP_PATH_PREFIXES = {
+    "/api/v1/integrations/mediassist",
+    "/webhooks",
+}
 SKIP_IPS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 # ─── Redis client (lazy-loaded) ──────────────────────────────────────────
@@ -158,8 +162,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
 
-        # Skip rate limiting for health checks, docs, and local testing
-        if path in SKIP_PATHS or client_ip in SKIP_IPS:
+        # Skip rate limiting for health checks, docs, authenticated webhooks, and local testing
+        if (
+            path in SKIP_PATHS
+            or any(path.startswith(p) for p in SKIP_PATH_PREFIXES)
+            or client_ip in SKIP_IPS
+        ):
             return await call_next(request)
 
         max_requests, window_seconds = _get_rate_limit(method, path)
