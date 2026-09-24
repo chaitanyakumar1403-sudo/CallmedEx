@@ -1116,7 +1116,7 @@ export default function AnatomicalTwin3D({
                 textTransform: "uppercase",
               }}
             >
-              Digital Anatomical Twin · 3D
+              3D body model
             </span>
           </div>
           <div

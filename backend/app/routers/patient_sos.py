@@ -339,6 +339,93 @@ async def refill_medication(
     }
 
 
+class MedicationUpdate(BaseModel):
+    """Only the fields sent are changed. Sending remaining_pills restarts the
+    burn-down from now, exactly as a refill does."""
+    medicine_name: Optional[str] = None
+    dosage: Optional[str] = None
+    total_pills: Optional[int] = Field(default=None, ge=0)
+    remaining_pills: Optional[int] = Field(default=None, ge=0)
+    pills_per_day: Optional[int] = Field(default=None, ge=0)
+    reminder_frequency: Optional[str] = None
+    reminder_times: Optional[List[str]] = None
+
+
+def _own_medication(medication_id: str, account_id: str) -> dict:
+    rows = _rows(
+        supabase.table("patient_medications")
+        .select("*")
+        .eq("id", medication_id).eq("patient_id", account_id)
+        .limit(1).execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Medication not found.")
+    return rows[0]
+
+
+@router.patch("/medications/{medication_id}")
+async def update_patient_medication(
+    medication_id: str,
+    payload: MedicationUpdate,
+    user: dict = Depends(get_current_user)
+):
+    """Edit a cabinet entry. The cabinet had add and refill but no way to fix
+    a typo or change a dose, so a wrong entry stayed wrong for good."""
+    account_id = user.get("sub")
+    _own_medication(medication_id, account_id)
+
+    changes = payload.model_dump(exclude_none=True)
+    for key in ("medicine_name", "dosage"):
+        if key in changes:
+            changes[key] = changes[key].strip()
+            if not changes[key]:
+                raise HTTPException(400, "Medicine name and dosage cannot be empty.")
+    if not changes:
+        raise HTTPException(400, "Nothing to update.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    changes["updated_at"] = now
+    anchored = dict(changes)
+    if "remaining_pills" in changes:
+        anchored["last_counted_at"] = now
+
+    # Same column tolerance as add: last_counted_at and the reminder columns
+    # may not exist on an older deployment, and the core edit must still land.
+    core = {k: v for k, v in changes.items() if k not in ("reminder_frequency", "reminder_times")}
+    updated = None
+    for attempt in (anchored, changes, core):
+        try:
+            updated = _rows(
+                supabase.table("patient_medications").update(attempt)
+                .eq("id", medication_id).eq("patient_id", account_id).execute()
+            )
+            break
+        except Exception as exc:
+            logger.warning(f"Medication update attempt failed for {medication_id}: {exc}")
+    if updated is None:
+        raise HTTPException(503, "Could not save your changes. Please retry.")
+
+    row = updated[0] if updated else _own_medication(medication_id, account_id)
+    return {"status": "updated", "medication": _project_supply(row)}
+
+
+@router.delete("/medications/{medication_id}")
+async def delete_patient_medication(
+    medication_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Remove a medicine the patient has stopped taking."""
+    account_id = user.get("sub")
+    _own_medication(medication_id, account_id)
+    try:
+        supabase.table("patient_medications").delete() \
+            .eq("id", medication_id).eq("patient_id", account_id).execute()
+    except Exception as exc:
+        logger.error(f"Medication delete failed for {medication_id}: {exc}")
+        raise HTTPException(503, "Could not remove this medicine. Please retry.")
+    return {"status": "deleted", "medication_id": medication_id}
+
+
 @router.post("/medications")
 async def add_patient_medication(
     payload: MedicationIn,

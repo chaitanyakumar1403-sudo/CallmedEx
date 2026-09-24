@@ -37,7 +37,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Sparkles,
     specialization: "Dermatology",
     color: "var(--cm-magenta, #db2777)",
-    vitalSummary: "Epidermal Barrier: Intact · Allergen Sensitivity: Low",
+    vitalSummary: "See a doctor for a rash, itch or mole change lasting more than 2 weeks",
     tests: ["Skin Biopsy", "Allergy Comprehensive Panel", "Dermatology Teleconsult", "Fungal Culture"],
     testDetails: [
       { name: "Comprehensive Allergy Profile", turnaround: "24-48 Hours", price: 1499, marketPrice: 2800, parameters: "42 Inhalant & Food Allergens" },
@@ -51,7 +51,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Smile,
     specialization: "Dentistry",
     color: "var(--cm-teal, #0d9488)",
-    vitalSummary: "Gingival Index: Grade 0 · Decay Risk: Minimal",
+    vitalSummary: "Healthy gums do not bleed when brushing · dental check-up every 6 months",
     tests: ["Dental X-Ray (OPG)", "Scaling & Polishing", "Cavity & Gum Inspection"],
     testDetails: [
       { name: "Oral Hygiene & Cavity Screen", turnaround: "Instant Physical", price: 399, marketPrice: 800, parameters: "32-Tooth Digital Mapping" },
@@ -65,7 +65,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Eye,
     specialization: "Ophthalmology",
     color: "var(--cm-active, #0369a1)",
-    vitalSummary: "Visual Acuity: 20/20 · Intraocular Pressure: 14 mmHg (Normal)",
+    vitalSummary: "Normal vision 6/6 (20/20) · normal eye pressure 10–21 mmHg",
     tests: ["Refraction Vision Test", "Fundus Examination", "Tonometry (Eye Pressure)", "Dry Eye Screening"],
     testDetails: [
       { name: "Digital Glaucoma Pressure Screen", turnaround: "Instant", price: 450, marketPrice: 900, parameters: "Non-Contact Tonometry (IOP)" },
@@ -79,7 +79,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Ear,
     specialization: "ENT",
     color: "var(--cm-waiting, #b45309)",
-    vitalSummary: "Audiometry Threshold: 15 dB · Nasal Airway: Clear",
+    vitalSummary: "Normal hearing threshold 0–25 dB",
     tests: ["Audiometry Hearing Test", "Nasal Endoscopy", "Throat Swab Culture", "Sinus Evaluation"],
     testDetails: [
       { name: "Pure Tone Audiometry (PTA)", turnaround: "Instant Report", price: 600, marketPrice: 1200, parameters: "Air & Bone Conduction Testing" },
@@ -93,7 +93,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Brain,
     specialization: "Neurology",
     color: "#4338ca",
-    vitalSummary: "Cognitive Load: Balanced · Migraine Triggers: Low",
+    vitalSummary: "Headaches on 4 or more days a month are worth a doctor's review",
     tests: ["Brain MRI / CT Scan", "EEG (Electroencephalogram)", "Migraine Risk Panel"],
     testDetails: [
       { name: "Migraine & Neuro Biomarker Panel", turnaround: "Same Day", price: 899, marketPrice: 1800, parameters: "Electrolytes, Vitamin B12, Magnesium" },
@@ -107,7 +107,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Heart,
     specialization: "Cardiology",
     color: "var(--cm-urgent, #d92020)",
-    vitalSummary: "Resting HR: 72 bpm · Blood Pressure: 118/78 mmHg · Cardiac Risk: Low",
+    vitalSummary: "Resting pulse 60–100 bpm · blood pressure below 120/80 mmHg",
     tests: ["ECG (12-Lead)", "Echocardiogram (2D Echo)", "Lipid Profile", "Cardiac Troponin T"],
     testDetails: [
       { name: "Lipid Profile Comprehensive", turnaround: "6-8 Hours", price: 499, marketPrice: 1100, parameters: "8 Parameters (Cholesterol, HDL, LDL, VLDL, Trigs)" },
@@ -122,7 +122,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Wind,
     specialization: "Pulmonology",
     color: "var(--cm-active, #0369a1)",
-    vitalSummary: "SpO2: 98% Room Air · Peak Expiratory Flow: 460 L/min",
+    vitalSummary: "Oxygen saturation (SpO₂) 95–100% at rest",
     tests: ["Chest X-Ray (PA View)", "Spirometry (Pulmonary Function)", "SpO2 & ABG Test"],
     testDetails: [
       { name: "Pulmonary Function Spirometry", turnaround: "Same Day", price: 750, marketPrice: 1500, parameters: "FVC, FEV1, FEF25-75% Vital Capacity" },
@@ -136,7 +136,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Droplet,
     specialization: "Gastroenterology",
     color: "var(--cm-done, #15803d)",
-    vitalSummary: "Liver Enzymes: Balanced · Renal Clearance (eGFR): >90 mL/min",
+    vitalSummary: "Kidney function (eGFR) 90 mL/min or higher · liver enzymes within the lab's range",
     tests: ["Ultrasound Abdomen & Pelvis", "Liver Function Test (LFT)", "Kidney Function Test (KFT)"],
     testDetails: [
       { name: "Liver Function Test (LFT 12-Param)", turnaround: "6-8 Hours", price: 449, marketPrice: 950, parameters: "SGOT, SGPT, Bilirubin, Protein, Albumin" },
@@ -150,7 +150,7 @@ const ORGANS: Record<string, OrganInfo> = {
     Icon: Bone,
     specialization: "Orthopedics",
     color: "var(--cm-waiting, #b45309)",
-    vitalSummary: "Bone Mineral Density: Normal · Uric Acid: 4.8 mg/dL",
+    vitalSummary: "Vitamin D 30–100 ng/mL · uric acid roughly 3.5–7 mg/dL",
     tests: ["Bone Mineral Density (DEXA)", "Joint X-Ray", "Uric Acid Test", "RA Factor"],
     testDetails: [
       { name: "Bone Health Duo (Calcium + Vit D3)", turnaround: "Same Day", price: 799, marketPrice: 1800, parameters: "Total 25-OH Vitamin D & Serum Calcium" },
@@ -365,36 +365,20 @@ export default function InteractiveBodyMap() {
   };
 
   return (
-    <div id="interactive-twin" className="cm-panel" style={{
-      background: "linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 249, 255, 0.72) 100%)",
-      border: "1px solid rgba(255, 255, 255, 0.85)",
-      boxShadow: "0 16px 40px -8px rgba(2, 132, 199, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
-      backdropFilter: "blur(20px) saturate(180%)",
-      WebkitBackdropFilter: "blur(20px) saturate(180%)",
-    }}>
+    <div id="interactive-twin" className="cm-panel cm-psec">
       {/* Header Bar with clinical telemetry badge */}
       <div className="cm-row-between" style={{ marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: "var(--cm-3)" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)" }}>
-            <span style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 38, height: 38, borderRadius: "var(--cm-radius)",
-              background: "linear-gradient(135deg, rgba(2, 132, 199, 0.18) 0%, rgba(56, 189, 248, 0.28) 100%)",
-              color: "var(--cm-active)",
-              border: "1px solid rgba(56, 189, 248, 0.4)",
-              boxShadow: "0 4px 14px rgba(2, 132, 199, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8)"
-            }}>
-              <Box size={20} style={{ filter: "drop-shadow(0 0 6px rgba(2, 132, 199, 0.6))" }} />
+            <span className="cm-icon3d" aria-hidden>
+              <Box size={20} />
             </span>
             <h3 className="cm-panel__title" style={{ margin: 0, fontSize: "var(--cm-text-lg)", color: "var(--cm-ink)", fontWeight: 800 }}>
-              Interactive Anatomical Twin
+              Body Explorer
             </h3>
-            <span className="cm-pill cm-pill--done" style={{ fontWeight: 700, fontSize: "var(--cm-text-xs)" }}>
-              Clinical Telemetry
-            </span>
           </div>
           <p className="cm-panel__note" style={{ margin: "var(--cm-1) 0 0 0", color: "var(--cm-ink-3)", fontSize: "var(--cm-text-sm)" }}>
-            Select an anatomical region to review vital benchmarks, certified NABL diagnostic panels, and consult verified specialists.
+            Tap an area of the body to see healthy ranges, common tests and the right specialist.
           </p>
         </div>
 
@@ -427,7 +411,7 @@ export default function InteractiveBodyMap() {
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
-            3D Anatomical Twin
+            3D view
           </button>
           <button
             type="button"
@@ -449,7 +433,7 @@ export default function InteractiveBodyMap() {
               <polyline points="2 17 12 22 22 17" />
               <polyline points="2 12 12 17 22 12" />
             </svg>
-            2D Anatomy Map
+            2D view
           </button>
         </div>
       </div>
@@ -824,18 +808,21 @@ export default function InteractiveBodyMap() {
             <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-2)", marginBottom: 4 }}>
               <ClipboardList size={16} style={{ color: current.color }} />
               <strong style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                Clinical Benchmark Target
+                Healthy adult range
               </strong>
             </div>
             <p style={{ margin: 0, fontSize: "var(--cm-text-sm)", color: "var(--cm-ink-2)", fontWeight: 600 }}>
               {current.vitalSummary}
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+              General guide, not your own reading. Your doctor will interpret your results.
             </p>
           </div>
 
           {/* Recommended Diagnostic Test Cards */}
           <div style={{ marginBottom: "var(--cm-5)" }}>
             <strong style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink)", textTransform: "uppercase", letterSpacing: "0.03em", display: "block", marginBottom: 8 }}>
-              Certified NABL Diagnostic Panels
+              Suggested tests
             </strong>
             <div style={{ display: "grid", gap: 8 }}>
               {current.testDetails.map((t, i) => (

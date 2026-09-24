@@ -22,22 +22,12 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
 
   return (
     <div
-      className="cm-panel cm-biomarker-glass-card"
-      style={{
-        background: "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.88) 100%)",
-        backdropFilter: "blur(20px) saturate(180%)",
-        WebkitBackdropFilter: "blur(20px) saturate(180%)",
-        border: "1px solid rgba(224, 242, 254, 0.95)",
-        borderRadius: "20px",
-        padding: "24px",
-        boxShadow: "0 10px 30px -5px rgba(2, 132, 199, 0.08), 0 1px 0 0 rgba(255, 255, 255, 0.9) inset",
-        transition: "all 0.3s ease",
-      }}
+      className="cm-panel cm-biomarker-glass-card cm-psec"
     >
       <div className="cm-row-between" style={{ marginBottom: 'var(--cm-5)' }}>
         <div>
-          <h3 className="cm-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--cm-2)' }}>
-            <Activity className="cm-icon" size={18} style={{ color: 'var(--cm-done)' }} />
+          <h3 className="cm-panel__title cm-psec__title">
+            <span className="cm-icon3d" aria-hidden><Activity size={19} /></span>
             {t.preventiveBiomarkerMatrix}
           </h3>
           <p className="cm-panel__note" style={{ marginBottom: 0 }}>

@@ -1,465 +1,386 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useFamilyHubStore, familyHubStore } from '@/store/useFamilyHubStore';
-import { Pill, AlertTriangle, Plus, RotateCcw, X, Check, Clock, Bell, BellRing } from 'lucide-react';
-import Clinical3DIcon from '@/components/ui/Clinical3DIcon';
+import { toast } from 'sonner';
+import { useFamilyHubStore, familyHubStore, MedicationItem } from '@/store/useFamilyHubStore';
+import { customConfirm } from '@/lib/customConfirm';
+import { Pill, Plus, RotateCcw, X, Clock, Bell, BellRing, Pencil, Trash2 } from 'lucide-react';
 import { PATIENT_TRANSLATIONS, PatientLang } from '../patient/patientTranslations';
 
 interface MedicineCabinetGridProps {
   lang?: PatientLang;
 }
 
+const PRESET_TIMES: Record<string, string[]> = {
+  once_daily: ['09:00'],
+  twice_daily: ['09:00', '21:00'],
+  thrice_daily: ['08:00', '14:00', '20:00'],
+};
+
+const FREQ_OPTIONS: { key: string; label: string; hint: string }[] = [
+  { key: 'once_daily', label: 'Once a day', hint: '9 AM' },
+  { key: 'twice_daily', label: 'Twice a day', hint: '9 AM · 9 PM' },
+  { key: 'thrice_daily', label: '3 times a day', hint: '8 AM · 2 PM · 8 PM' },
+  { key: 'custom', label: 'Custom times', hint: 'Set your own' },
+];
+
+const apiBase = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
+});
+
+/** "21:00" -> "9 PM", "08:30" -> "8:30 AM". */
+const prettyTime = (hhmm: string) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h)) return hhmm;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return m ? `${h12}:${String(m).padStart(2, '0')} ${suffix}` : `${h12} ${suffix}`;
+};
+
+const timesFor = (med: MedicationItem) =>
+  med.reminderTimes?.length ? med.reminderTimes
+    : PRESET_TIMES[med.reminderFrequency || ''] || (med.pillsPerDay === 3 ? PRESET_TIMES.thrice_daily
+      : med.pillsPerDay === 2 ? PRESET_TIMES.twice_daily : PRESET_TIMES.once_daily);
+
+const fromServer = (m: any, fallback: Partial<MedicationItem> = {}): MedicationItem => ({
+  id: m.id,
+  medicineName: m.medicine_name ?? fallback.medicineName ?? '',
+  dosage: m.dosage ?? fallback.dosage ?? '',
+  totalPills: m.total_pills ?? fallback.totalPills ?? 0,
+  remainingPills: m.remaining_pills ?? fallback.remainingPills ?? 0,
+  pillsPerDay: m.pills_per_day ?? fallback.pillsPerDay ?? 1,
+  refillDate: m.refill_date,
+  daysLeft: m.days_left,
+  needsRefill: m.needs_refill,
+  outOfStock: m.out_of_stock,
+  reminderFrequency: m.reminder_frequency || fallback.reminderFrequency,
+  reminderTimes: m.reminder_times?.length ? m.reminder_times : fallback.reminderTimes,
+});
+
+type Draft = {
+  name: string;
+  dosage: string;
+  frequency: string;
+  times: string[];
+  perDose: number;
+  total: number;
+  remaining: number;
+};
+
+const EMPTY_DRAFT: Draft = {
+  name: '', dosage: '', frequency: 'twice_daily', times: PRESET_TIMES.twice_daily,
+  perDose: 1, total: 30, remaining: 30,
+};
+
 export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang = 'en' }) => {
   const { medications } = useFamilyHubStore();
   const t = PATIENT_TRANSLATIONS[lang] || PATIENT_TRANSLATIONS.en;
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [medicineName, setMedicineName] = useState<string>('');
-  const [dosage, setDosage] = useState<string>('');
-  const [totalPills, setTotalPills] = useState<number>(30);
-  const [remainingPills, setRemainingPills] = useState<number>(30);
-  const [pillsPerDay, setPillsPerDay] = useState<number>(1);
-  const [reminderFrequency, setReminderFrequency] = useState<string>('twice_daily');
-  const [reminderTimes, setReminderTimes] = useState<string[]>(['09:00', '21:00']);
-  const [enableNotifications, setEnableNotifications] = useState<boolean>(false);
-  const [notificationGranted, setNotificationGranted] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [msg, setMsg] = useState<string>('');
-  const [refilling, setRefilling] = useState<string>('');
 
-  // Handle Dose Reminder Frequency Switch
-  const handleFrequencyChange = (freq: string) => {
-    setReminderFrequency(freq);
-    if (freq === 'once_daily') {
-      setPillsPerDay(1);
-      setReminderTimes(['09:00']);
-    } else if (freq === 'twice_daily') {
-      setPillsPerDay(2);
-      setReminderTimes(['09:00', '21:00']);
-    } else if (freq === 'thrice_daily') {
-      setPillsPerDay(3);
-      setReminderTimes(['08:00', '14:00', '20:00']);
-    } else if (freq === 'custom') {
-      setReminderTimes(['09:00']);
-    }
+  // null = closed, '' = adding, id = editing that medicine
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [enableNotifications, setEnableNotifications] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [busyId, setBusyId] = useState('');
+
+  const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
+  // The daily burn rate is tablets per dose times doses a day. It used to be
+  // the dose count alone, so "2 tablets twice a day" ran down at 2 a day, not 4.
+  const pillsPerDay = Math.max(1, draft.perDose) * draft.times.length;
+
+  const openAdd = () => {
+    setDraft(EMPTY_DRAFT);
+    setMsg('');
+    setEditingId('');
   };
 
-  const handleCustomTimeChange = (index: number, newTime: string) => {
-    const updated = [...reminderTimes];
-    updated[index] = newTime;
-    setReminderTimes(updated);
+  const openEdit = (med: MedicationItem) => {
+    const times = timesFor(med);
+    const perDose = med.pillsPerDay > 0 && med.pillsPerDay % times.length === 0
+      ? med.pillsPerDay / times.length : 1;
+    setDraft({
+      name: med.medicineName,
+      dosage: med.dosage,
+      frequency: med.reminderFrequency && (med.reminderFrequency === 'custom' || PRESET_TIMES[med.reminderFrequency])
+        ? med.reminderFrequency
+        : times.length === 3 ? 'thrice_daily' : times.length === 2 ? 'twice_daily' : times.length === 1 ? 'once_daily' : 'custom',
+      times,
+      perDose,
+      total: med.totalPills,
+      remaining: med.remainingPills,
+    });
+    setMsg('');
+    setEditingId(med.id);
   };
 
-  const addCustomTime = () => {
-    if (reminderTimes.length < 5) {
-      setReminderTimes([...reminderTimes, '12:00']);
-      setPillsPerDay(reminderTimes.length + 1);
-    }
-  };
+  const close = () => setEditingId(null);
 
-  const removeCustomTime = (index: number) => {
-    if (reminderTimes.length > 1) {
-      const updated = reminderTimes.filter((_, i) => i !== index);
-      setReminderTimes(updated);
-      setPillsPerDay(updated.length);
-    }
-  };
+  const handleFrequencyChange = (freq: string) =>
+    set({ frequency: freq, times: PRESET_TIMES[freq] || (draft.frequency === 'custom' ? draft.times : ['09:00']) });
 
   const handleToggleNotifications = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setNotificationGranted(true);
-        setEnableNotifications(true);
-      } else {
-        setEnableNotifications(false);
-        setMsg('Please enable browser notification permissions to receive dose alarms.');
-      }
+      setEnableNotifications(permission === 'granted');
+      if (permission !== 'granted') setMsg('Allow notifications in your browser to get dose reminders.');
     } else {
-      setMsg('Web Notifications are not supported in this browser environment.');
+      setMsg('This browser does not support notifications.');
     }
   };
 
-  const handleRefill = async (med: (typeof medications)[number]) => {
-    setRefilling(med.id);
-    setMsg('');
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${apiBase}/api/v1/patient/medications/${med.id}/refill`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ remaining_pills: med.totalPills }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setMsg(err.detail || 'Could not record the refill.');
-        return;
-      }
-      familyHubStore.setMedications(
-        medications.map((m) =>
-          m.id === med.id
-            ? {
-                ...m,
-                remainingPills: med.totalPills,
-                daysLeft: m.pillsPerDay > 0
-                  ? Math.floor(med.totalPills / m.pillsPerDay)
-                  : null,
-                needsRefill: false,
-                outOfStock: false,
-              }
-            : m,
-        ),
-      );
-    } catch {
-      setMsg('Network error recording the refill.');
-    } finally {
-      setRefilling('');
-    }
-  };
-
-  const handleAddMedication = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!medicineName.trim() || !dosage.trim()) {
-      setMsg('Medicine name and dosage instructions are required.');
+    if (!draft.name.trim() || !draft.dosage.trim()) {
+      setMsg('Please enter the medicine name and how to take it.');
       return;
     }
-
+    if (draft.total < 1 || draft.remaining < 0 || draft.remaining > draft.total) {
+      setMsg('Tablets left must be between 0 and the pack size.');
+      return;
+    }
     setIsSubmitting(true);
     setMsg('');
-
+    const body = {
+      medicine_name: draft.name.trim(),
+      dosage: draft.dosage.trim(),
+      total_pills: Number(draft.total),
+      remaining_pills: Number(draft.remaining),
+      pills_per_day: pillsPerDay,
+      reminder_frequency: draft.frequency,
+      reminder_times: draft.times,
+    };
+    const isEdit = !!editingId;
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${apiBase}/api/v1/patient/medications`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          medicine_name: medicineName,
-          dosage,
-          total_pills: Number(totalPills),
-          remaining_pills: Number(remainingPills),
-          pills_per_day: Number(pillsPerDay),
-          reminder_frequency: reminderFrequency,
-          reminder_times: reminderTimes,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.status === 'created' && data.medication?.id) {
-        const newMed = {
-          id: data.medication.id,
-          medicineName: data.medication.medicine_name || medicineName,
-          dosage: data.medication.dosage || dosage,
-          totalPills: data.medication.total_pills ?? Number(totalPills),
-          remainingPills: data.medication.remaining_pills ?? Number(remainingPills),
-          pillsPerDay: data.medication.pills_per_day ?? Number(pillsPerDay),
-          daysLeft: data.medication.days_left,
-          needsRefill: data.medication.needs_refill,
-          outOfStock: data.medication.out_of_stock,
-          reminderFrequency: data.medication.reminder_frequency || reminderFrequency,
-          reminderTimes: data.medication.reminder_times || reminderTimes,
-        };
-        familyHubStore.setMedications([...medications, newMed]);
-        setShowAddModal(false);
-        setMedicineName('');
-        setDosage('');
-        setTotalPills(30);
-        setRemainingPills(30);
-        setPillsPerDay(1);
-        setReminderFrequency('twice_daily');
-        setReminderTimes(['09:00', '21:00']);
-      } else {
-        setMsg(`Error: ${data.detail || 'Failed to add medication'}`);
+      const res = await fetch(
+        `${apiBase()}/api/v1/patient/medications${isEdit ? `/${editingId}` : ''}`,
+        { method: isEdit ? 'PATCH' : 'POST', headers: authHeaders(), body: JSON.stringify(body) },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.medication?.id) {
+        setMsg(data.detail || 'Could not save this medicine. Please try again.');
+        return;
       }
+      const saved = fromServer(data.medication, {
+        medicineName: body.medicine_name, dosage: body.dosage, totalPills: body.total_pills,
+        remainingPills: body.remaining_pills, pillsPerDay: body.pills_per_day,
+        reminderFrequency: body.reminder_frequency, reminderTimes: body.reminder_times,
+      });
+      familyHubStore.setMedications(
+        isEdit ? medications.map((m) => (m.id === editingId ? saved : m)) : [...medications, saved],
+      );
+      toast.success(isEdit ? `${saved.medicineName} updated` : `${saved.medicineName} added`);
+      close();
     } catch {
-      setMsg('Network error connecting to CallMedex server.');
+      setMsg('Could not reach CallMedex. Check your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formatScheduleLabel = (med: any) => {
-    const times = med.reminderTimes || (med.pillsPerDay === 2 ? ['09:00', '21:00'] : ['09:00']);
-    const freqName = med.reminderFrequency === 'twice_daily' ? 'Twice daily'
-      : med.reminderFrequency === 'thrice_daily' ? '3x daily'
-      : med.reminderFrequency === 'custom' ? 'Custom'
-      : `${med.pillsPerDay} pill/day`;
-    return `${freqName} (${times.join(', ')})`;
+  const handleRefill = async (med: MedicationItem) => {
+    setBusyId(med.id);
+    try {
+      const res = await fetch(`${apiBase()}/api/v1/patient/medications/${med.id}/refill`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ remaining_pills: med.totalPills }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Could not record the refill.');
+        return;
+      }
+      familyHubStore.setMedications(
+        medications.map((m) => m.id === med.id ? {
+          ...m,
+          remainingPills: med.totalPills,
+          daysLeft: m.pillsPerDay > 0 ? Math.floor(med.totalPills / m.pillsPerDay) : null,
+          needsRefill: false,
+          outOfStock: false,
+        } : m),
+      );
+      toast.success(`${med.medicineName} marked as refilled`);
+    } catch {
+      toast.error('Could not reach CallMedex. Please try again.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const handleDelete = async (med: MedicationItem) => {
+    if (!await customConfirm(`Remove ${med.medicineName} from your medicines? Its reminders will stop.`)) return;
+    setBusyId(med.id);
+    try {
+      const res = await fetch(`${apiBase()}/api/v1/patient/medications/${med.id}`, {
+        method: 'DELETE', headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Could not remove this medicine.');
+        return;
+      }
+      familyHubStore.setMedications(medications.filter((m) => m.id !== med.id));
+      toast.success(`${med.medicineName} removed`);
+    } catch {
+      toast.error('Could not reach CallMedex. Please try again.');
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const scheduleLabel = (med: MedicationItem) => {
+    const times = timesFor(med);
+    const doses = times.length;
+    const freq = doses === 1 ? 'Once a day' : doses === 2 ? 'Twice a day' : `${doses} times a day`;
+    return `${freq} · ${times.map(prettyTime).join(', ')}`;
   };
 
   return (
-    <div
-      id="medicine-cabinet"
-      className="card cm-panel"
-      style={{
-        padding: '16px 20px',
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+    <div id="medicine-cabinet" className="card cm-panel cm-med cm-psec">
+      <div className="cm-med__head">
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--cm-ink)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Pill style={{ width: 17, height: 17, color: 'var(--cm-active)' }} />
-            {t.smartMedicineCabinet}
+          <h3 className="cm-med__title">
+            <span className="cm-icon3d" aria-hidden><Pill size={19} /></span> {t.smartMedicineCabinet}
           </h3>
-          <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: 'var(--cm-ink-3)' }}>
-            {t.medicineCabinetSubtitle}
-          </p>
+          <p className="cm-med__sub">{t.medicineCabinetSubtitle}</p>
         </div>
-
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 'var(--cm-radius)',
-            border: 'none',
-            background: 'var(--cm-active)',
-            color: '#ffffff',
-            fontWeight: 700,
-            fontSize: '0.8rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Plus style={{ width: 14, height: 14 }} /> {t.addMedication}
+        <button type="button" onClick={openAdd} className="cm-btn cm-btn--primary cm-btn--sm">
+          <Plus size={14} /> {t.addMedication}
         </button>
       </div>
 
-      {/* Add Medication Modal with Dose Reminders */}
-      {showAddModal && (
-        <div className="cm-modal-backdrop">
-          <div className="cm-modal-glass-dialog">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid var(--cm-line)', paddingBottom: 14 }}>
-              <h4 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--cm-ink)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Clinical3DIcon name="medicine-3d" size={28} glow />
-                Add Medication &amp; Dose Reminder
-              </h4>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--cm-ink-3)', padding: 4 }}
-                aria-label="Close"
-              >
-                <X style={{ width: 20, height: 20 }} />
+      {editingId !== null && (
+        <div className="cm-modal-backdrop" onClick={close}>
+          <div
+            className="cm-modal-glass-dialog cm-med-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="med-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cm-med-dialog__head">
+              <h4 id="med-dialog-title">{editingId ? 'Edit medicine' : 'Add a medicine'}</h4>
+              <button type="button" onClick={close} className="cm-modal__x" aria-label="Close">
+                <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleAddMedication} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--cm-ink)', display: 'block', marginBottom: 5 }}>
-                  Medicine Name *
-                </label>
+            <form onSubmit={handleSave} className="cm-med-form">
+              <label className="cm-med-field">
+                <span>Medicine name</span>
                 <input
                   type="text"
-                  placeholder="e.g. Paracetamol 500mg, Atorvastatin 20mg"
-                  value={medicineName}
-                  onChange={(e) => setMedicineName(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.85rem' }}
+                  placeholder="e.g. Paracetamol 500 mg"
+                  value={draft.name}
+                  onChange={(e) => set({ name: e.target.value })}
                   required
                 />
-              </div>
+              </label>
 
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--cm-ink)', display: 'block', marginBottom: 5 }}>
-                  Dosage Instructions *
-                </label>
+              <label className="cm-med-field">
+                <span>How to take it</span>
                 <input
                   type="text"
-                  placeholder="e.g. 1 tablet after meals"
-                  value={dosage}
-                  onChange={(e) => setDosage(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.85rem' }}
+                  placeholder="e.g. After food"
+                  value={draft.dosage}
+                  onChange={(e) => set({ dosage: e.target.value })}
                   required
                 />
-              </div>
+              </label>
 
-              {/* Dose Schedule Selector */}
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--cm-ink)', display: 'block', marginBottom: 6 }}>
-                  Dose Reminder Frequency
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => handleFrequencyChange('once_daily')}
-                    style={{
-                      padding: '8px 10px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                      border: reminderFrequency === 'once_daily' ? '2px solid var(--cm-active)' : '1px solid var(--cm-line)',
-                      background: reminderFrequency === 'once_daily' ? 'var(--cm-active-surface)' : 'var(--cm-surface-2)',
-                      color: reminderFrequency === 'once_daily' ? 'var(--cm-active)' : 'var(--cm-ink-2)',
-                    }}
-                  >
-                    Once a day (09:00 AM)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFrequencyChange('twice_daily')}
-                    style={{
-                      padding: '8px 10px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                      border: reminderFrequency === 'twice_daily' ? '2px solid var(--cm-active)' : '1px solid var(--cm-line)',
-                      background: reminderFrequency === 'twice_daily' ? 'var(--cm-active-surface)' : 'var(--cm-surface-2)',
-                      color: reminderFrequency === 'twice_daily' ? 'var(--cm-active)' : 'var(--cm-ink-2)',
-                    }}
-                  >
-                    Twice a day (09 AM, 09 PM)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFrequencyChange('thrice_daily')}
-                    style={{
-                      padding: '8px 10px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                      border: reminderFrequency === 'thrice_daily' ? '2px solid var(--cm-active)' : '1px solid var(--cm-line)',
-                      background: reminderFrequency === 'thrice_daily' ? 'var(--cm-active-surface)' : 'var(--cm-surface-2)',
-                      color: reminderFrequency === 'thrice_daily' ? 'var(--cm-active)' : 'var(--cm-ink-2)',
-                    }}
-                  >
-                    3x a day (08, 14, 20)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFrequencyChange('custom')}
-                    style={{
-                      padding: '8px 10px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
-                      border: reminderFrequency === 'custom' ? '2px solid var(--cm-active)' : '1px solid var(--cm-line)',
-                      background: reminderFrequency === 'custom' ? 'var(--cm-active-surface)' : 'var(--cm-surface-2)',
-                      color: reminderFrequency === 'custom' ? 'var(--cm-active)' : 'var(--cm-ink-2)',
-                    }}
-                  >
-                    Custom Dose Times
-                  </button>
+              <fieldset className="cm-med-field">
+                <legend>How often</legend>
+                <div className="cm-med-freq">
+                  {FREQ_OPTIONS.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      aria-pressed={draft.frequency === f.key}
+                      onClick={() => handleFrequencyChange(f.key)}
+                      className={`cm-med-freq__opt${draft.frequency === f.key ? ' is-on' : ''}`}
+                    >
+                      <strong>{f.label}</strong>
+                      <small>{f.hint}</small>
+                    </button>
+                  ))}
                 </div>
-              </div>
+              </fieldset>
 
-              {/* Custom Time Pickers */}
-              {reminderFrequency === 'custom' && (
-                <div style={{ background: 'var(--cm-surface-2)', padding: 12, borderRadius: 8, border: '1px solid var(--cm-line)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--cm-ink-2)' }}>Set Custom Times</span>
-                    {reminderTimes.length < 5 && (
-                      <button
-                        type="button"
-                        onClick={addCustomTime}
-                        style={{ background: 'none', border: 'none', color: 'var(--cm-active)', fontWeight: 700, fontSize: '0.74rem', cursor: 'pointer' }}
-                      >
-                        + Add Time
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {reminderTimes.map((time, idx) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <input
-                          type="time"
-                          value={time}
-                          onChange={(e) => handleCustomTimeChange(idx, e.target.value)}
-                          style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--cm-line)', fontSize: '0.78rem', background: 'var(--cm-surface)', color: 'var(--cm-ink)' }}
-                        />
-                        {reminderTimes.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeCustomTime(idx)}
-                            style={{ background: 'none', border: 'none', color: 'var(--cm-urgent)', cursor: 'pointer', padding: 2 }}
-                          >
-                            <X style={{ width: 12, height: 12 }} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+              {draft.frequency === 'custom' && (
+                <div className="cm-med-times">
+                  {draft.times.map((time, idx) => (
+                    <div key={idx} className="cm-med-times__row">
+                      <input
+                        type="time"
+                        value={time}
+                        aria-label={`Dose ${idx + 1} time`}
+                        onChange={(e) => set({ times: draft.times.map((x, i) => (i === idx ? e.target.value : x)) })}
+                      />
+                      {draft.times.length > 1 && (
+                        <button
+                          type="button"
+                          className="cm-btn cm-btn--ghost cm-btn--sm cm-btn--icon"
+                          aria-label={`Remove dose ${idx + 1}`}
+                          onClick={() => set({ times: draft.times.filter((_, i) => i !== idx) })}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {draft.times.length < 5 && (
+                    <button
+                      type="button"
+                      className="cm-btn cm-btn--ghost cm-btn--sm"
+                      onClick={() => set({ times: [...draft.times, '12:00'] })}
+                    >
+                      <Plus size={14} /> Add a time
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Web Notification Permission Prompt */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 14px', borderRadius: 8,
-                background: enableNotifications ? 'var(--cm-done-surface)' : 'var(--cm-surface-2)',
-                border: `1px solid ${enableNotifications ? 'var(--cm-done-line)' : 'var(--cm-line)'}`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {enableNotifications ? (
-                    <BellRing style={{ width: 16, height: 16, color: 'var(--cm-done)' }} />
-                  ) : (
-                    <Bell style={{ width: 16, height: 16, color: 'var(--cm-ink-3)' }} />
-                  )}
-                  <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--cm-ink)' }}>
-                      Tablet Alarm Notifications
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--cm-ink-3)' }}>
-                      Alert me at dose times automatically
-                    </div>
-                  </div>
+              <div className="cm-med-grid3">
+                <label className="cm-med-field">
+                  <span>Tablets per dose</span>
+                  <input type="number" min={1} value={draft.perDose}
+                    onChange={(e) => set({ perDose: Math.max(1, Number(e.target.value) || 1) })} />
+                </label>
+                <label className="cm-med-field">
+                  <span>Pack size</span>
+                  <input type="number" min={1} value={draft.total}
+                    onChange={(e) => set({ total: Number(e.target.value) })} />
+                </label>
+                <label className="cm-med-field">
+                  <span>Tablets left now</span>
+                  <input type="number" min={0} value={draft.remaining}
+                    onChange={(e) => set({ remaining: Number(e.target.value) })} />
+                </label>
+              </div>
+              <p className="cm-med-hint">
+                {pillsPerDay} tablet{pillsPerDay === 1 ? '' : 's'} a day
+                {draft.remaining > 0 && ` · lasts about ${Math.floor(draft.remaining / pillsPerDay)} day${Math.floor(draft.remaining / pillsPerDay) === 1 ? '' : 's'}`}
+              </p>
+
+              <div className={`cm-med-notify${enableNotifications ? ' is-on' : ''}`}>
+                {enableNotifications ? <BellRing size={16} /> : <Bell size={16} />}
+                <div>
+                  <strong>Dose reminders</strong>
+                  <small>Get a notification at each dose time</small>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleToggleNotifications}
-                  style={{
-                    padding: '5px 12px', borderRadius: 999, border: 'none',
-                    background: enableNotifications ? 'var(--cm-done)' : 'var(--cm-active)',
-                    color: '#ffffff', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer',
-                  }}
-                >
-                  {enableNotifications ? 'Enabled' : 'Enable Alarms'}
+                <button type="button" onClick={handleToggleNotifications} className="cm-btn cm-btn--secondary cm-btn--sm"
+                  disabled={enableNotifications}>
+                  {enableNotifications ? 'On' : 'Turn on'}
                 </button>
               </div>
 
-              {/* Pill Counts */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cm-ink-2)', display: 'block', marginBottom: 4 }}>Total Pack</label>
-                  <input
-                    type="number"
-                    value={totalPills}
-                    onChange={(e) => setTotalPills(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.85rem' }}
-                  />
-                </div>
+              {msg && <div className="cm-med-error" role="alert">{msg}</div>}
 
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cm-ink-2)', display: 'block', marginBottom: 4 }}>Remaining</label>
-                  <input
-                    type="number"
-                    value={remainingPills}
-                    onChange={(e) => setRemainingPills(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.85rem' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--cm-ink-2)', display: 'block', marginBottom: 4 }}>Pills/Day</label>
-                  <input
-                    type="number"
-                    value={pillsPerDay}
-                    onChange={(e) => setPillsPerDay(Number(e.target.value))}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.85rem' }}
-                  />
-                </div>
-              </div>
-
-              {msg && <div style={{ fontSize: '0.8rem', color: 'var(--cm-urgent)' }}>{msg}</div>}
-
-              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: '1px solid var(--cm-line)', background: 'var(--cm-surface-2)', color: 'var(--cm-ink)', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'var(--cm-active)', color: '#ffffff', fontSize: '0.82rem', fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Medication'}
+              <div className="cm-med-actions">
+                <button type="button" onClick={close} className="cm-btn cm-btn--secondary">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="cm-btn cm-btn--primary">
+                  {isSubmitting ? 'Saving…' : editingId ? 'Save changes' : 'Add medicine'}
                 </button>
               </div>
             </form>
@@ -467,115 +388,64 @@ export const MedicineCabinetGrid: React.FC<MedicineCabinetGridProps> = ({ lang =
         </div>
       )}
 
-      {/* Medication Cards */}
       {medications.length === 0 ? (
-        <div style={{ padding: '20px', background: 'var(--cm-surface-2)', borderRadius: 10, border: '1px dashed var(--cm-line)', textAlign: 'center', color: 'var(--cm-ink-3)' }}>
-          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--cm-ink)' }}>{t.noMedicationsTitle}</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--cm-ink-3)', marginTop: 4 }}>
-            {t.noMedicationsBody}
-          </div>
+        <div className="cm-med-empty">
+          <strong>{t.noMedicationsTitle}</strong>
+          <span>{t.noMedicationsBody}</span>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+        <div className="cm-med-list">
           {medications.map((med) => {
             const daysLeft = med.daysLeft ?? (
-              med.pillsPerDay > 0
-                ? Math.max(0, Math.floor(med.remainingPills / med.pillsPerDay))
-                : 0
+              med.pillsPerDay > 0 ? Math.max(0, Math.floor(med.remainingPills / med.pillsPerDay)) : 0
             );
-            const percentRemaining = med.totalPills > 0
-              ? Math.min(100, Math.round((med.remainingPills / med.totalPills) * 100))
-              : 0;
+            const percent = med.totalPills > 0
+              ? Math.min(100, Math.round((med.remainingPills / med.totalPills) * 100)) : 0;
             const isLow = med.needsRefill ?? daysLeft <= 5;
+            const tone = med.outOfStock ? 'out' : isLow ? 'low' : 'ok';
+            const busy = busyId === med.id;
 
             return (
-              <div
-                key={med.id}
-                style={{
-                  background: med.outOfStock ? 'var(--cm-urgent-surface)' : isLow ? 'var(--cm-warn-surface, #fef9c3)' : 'var(--cm-surface)',
-                  borderRadius: 'var(--cm-radius)',
-                  border: med.outOfStock
-                    ? '1.5px solid var(--cm-urgent-line)'
-                    : isLow ? '1.5px solid var(--cm-warn-line, #fde047)' : '1px solid var(--cm-line)',
-                  padding: 14,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: 'var(--cm-shadow-1)',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4, gap: 6 }}>
-                    <div style={{ fontFamily: 'var(--cm-font-display)', fontWeight: 700, letterSpacing: '-0.01em', fontSize: '0.88rem', color: 'var(--cm-ink)' }}>{med.medicineName}</div>
-                    {isLow && (
-                      <span style={{
-                        backgroundColor: med.outOfStock ? 'var(--cm-urgent-surface)' : '#fef3c7',
-                        color: med.outOfStock ? 'var(--cm-urgent)' : '#b45309',
-                        padding: '2px 8px', borderRadius: 8, fontSize: '0.66rem', fontWeight: 600,
-                        letterSpacing: '0.02em',
-                        display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
-                      }}>
-                        <AlertTriangle style={{ width: 11, height: 11 }} />
-                        {med.outOfStock ? 'Out of stock' : t.refillNeeded}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--cm-ink-3)', marginBottom: 6 }}>{med.dosage}</div>
-
-                  {/* Schedule Indicator */}
-                  <div style={{
-                    fontSize: '0.7rem', fontWeight: 600, color: 'var(--cm-active)',
-                    display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10,
-                  }}>
-                    <Clock style={{ width: 12, height: 12 }} />
-                    <span>{formatScheduleLabel(med)}</span>
-                  </div>
-                </div>
-
-                <div>
-                  {/* Horizontal Progress Bar */}
-                  <div style={{ background: 'var(--cm-surface-2)', height: 6, borderRadius: 999, overflow: 'hidden', marginBottom: 8 }}>
-                    <div
-                      style={{
-                        width: `${percentRemaining}%`,
-                        height: '100%',
-                        background: isLow ? 'var(--cm-urgent)' : 'var(--cm-active)',
-                        borderRadius: 999,
-                        transition: 'width 0.3s ease',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--cm-ink-2)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      <strong style={{ color: 'var(--cm-ink)', fontVariantNumeric: 'tabular-nums' }}>{med.remainingPills}</strong>/{med.totalPills} ({daysLeft} {t.daysSupplyRemaining})
-                    </span>
-
-                    <button
-                      onClick={() => handleRefill(med)}
-                      disabled={refilling === med.id}
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: refilling === med.id ? 'var(--cm-line-strong)' : 'var(--cm-active)',
-                        color: '#ffffff',
-                        fontSize: '0.72rem',
-                        fontWeight: 600,
-                        letterSpacing: '-0.005em',
-                        cursor: refilling === med.id ? 'wait' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      <RotateCcw style={{ width: 11, height: 11 }} />
-                      {refilling === med.id ? 'Saving…' : 'Mark refilled'}
+              <article key={med.id} className={`cm-med-card cm-med-card--${tone}`}>
+                <div className="cm-med-card__top">
+                  <div className="cm-med-card__name">{med.medicineName}</div>
+                  <div className="cm-med-card__tools">
+                    <button type="button" className="cm-btn cm-btn--ghost cm-btn--sm cm-btn--icon"
+                      aria-label={`Edit ${med.medicineName}`} title="Edit" onClick={() => openEdit(med)} disabled={busy}>
+                      <Pencil size={14} />
+                    </button>
+                    <button type="button" className="cm-btn cm-btn--ghost cm-btn--sm cm-btn--icon cm-med-card__del"
+                      aria-label={`Remove ${med.medicineName}`} title="Remove" onClick={() => handleDelete(med)} disabled={busy}>
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
-              </div>
+                {med.dosage && <div className="cm-med-card__dosage">{med.dosage}</div>}
+                <div className="cm-med-card__sched">
+                  <Clock size={12} aria-hidden /> {scheduleLabel(med)}
+                </div>
+
+                {isLow && (
+                  <span className={`cm-pill ${med.outOfStock ? 'cm-pill--urgent' : 'cm-pill--waiting'} cm-med-card__badge`}>
+                    {med.outOfStock ? 'Supply finished · refill now' : t.refillNeeded}
+                  </span>
+                )}
+
+                <div className="cm-med-card__bar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}
+                  aria-label={`${med.remainingPills} of ${med.totalPills} tablets left`}>
+                  <span style={{ width: `${percent}%` }} />
+                </div>
+
+                <div className="cm-med-card__foot">
+                  <span className="cm-med-card__supply">
+                    <strong>{med.remainingPills}</strong> of {med.totalPills} left · {daysLeft} day{daysLeft === 1 ? '' : 's'}
+                  </span>
+                  <button type="button" onClick={() => handleRefill(med)} disabled={busy}
+                    className="cm-btn cm-btn--secondary cm-btn--sm">
+                    <RotateCcw size={13} /> {busy ? 'Saving…' : 'Mark refilled'}
+                  </button>
+                </div>
+              </article>
             );
           })}
         </div>

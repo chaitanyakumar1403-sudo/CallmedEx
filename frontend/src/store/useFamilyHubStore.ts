@@ -34,6 +34,10 @@ export interface MedicationItem {
   /** Server's own refill verdict, so the badge and the maths cannot disagree. */
   needsRefill?: boolean;
   outOfStock?: boolean;
+  /** once_daily | twice_daily | thrice_daily | custom */
+  reminderFrequency?: string;
+  /** "HH:MM" dose times; its length is the number of doses a day. */
+  reminderTimes?: string[];
 }
 
 export interface FamilyHubState {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Package, FlaskConical, Stethoscope, Pill, Box,
   Sparkles, Zap, ScanLine, Smile, Users, Calendar, ChevronRight,
-  Clock, Compass, ShieldCheck, Home, Globe, ShieldAlert
+  Compass, ShieldCheck, Home, Globe
 } from "@/components/ui/icons";
 
 interface NavItem {
@@ -19,14 +19,6 @@ interface NavItem {
 
 const DASHBOARD_SECTIONS: NavItem[] = [
   {
-    id: "interactive-twin",
-    label: "Interactive 3D Twin",
-    icon: Box,
-    type: "anchor",
-    target: "#interactive-twin",
-    badge: "3D",
-  },
-  {
     id: "health-advisor",
     label: "Health Advisor",
     icon: Sparkles,
@@ -34,15 +26,22 @@ const DASHBOARD_SECTIONS: NavItem[] = [
     target: "#health-advisor",
   },
   {
+    id: "interactive-twin",
+    label: "Body Explorer",
+    icon: Box,
+    type: "anchor",
+    target: "#interactive-twin",
+  },
+  {
     id: "medicine-cabinet",
-    label: "Medicine Cabinet",
-    icon: Clock,
+    label: "My Medicines",
+    icon: Pill,
     type: "anchor",
     target: "#medicine-cabinet",
   },
   {
     id: "family-circle",
-    label: "Family Care Circle",
+    label: "Family",
     icon: Users,
     type: "anchor",
     target: "#family-circle",
@@ -96,11 +95,7 @@ const CARE_SERVICES = [
   },
 ];
 
-interface PatientNavSidebarProps {
-  onOpenDeleteAccount?: () => void;
-}
-
-export default function PatientNavSidebar({ onOpenDeleteAccount }: PatientNavSidebarProps = {}) {
+export default function PatientNavSidebar() {
   const [activeSection, setActiveSection] = useState<string>("quick-actions");
 
   useEffect(() => {
@@ -141,8 +136,6 @@ export default function PatientNavSidebar({ onOpenDeleteAccount }: PatientNavSid
     }
   };
 
-  const totalSections = DASHBOARD_SECTIONS.length;
-
   return (
     <aside className="cm-provider-sidebar" aria-label="My Portal Navigation">
       <div className="cm-provider-nav-widget cm-patient-sidebar-widget">
@@ -152,7 +145,6 @@ export default function PatientNavSidebar({ onOpenDeleteAccount }: PatientNavSid
             <span className="cm-provider-nav-dot" />
             <span>MY PORTAL</span>
           </div>
-          <span className="cm-provider-nav-count">{totalSections} sections</span>
         </div>
 
         {/* Group 1: Care Services Navigation */}
@@ -216,50 +208,6 @@ export default function PatientNavSidebar({ onOpenDeleteAccount }: PatientNavSid
           })}
         </nav>
 
-        {/* Account Deletion Quick Action */}
-        {onOpenDeleteAccount && (
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(239, 68, 68, 0.2)" }}>
-            <button
-              type="button"
-              onClick={onOpenDeleteAccount}
-              className="cm-provider-nav-item cm-provider-nav-item--danger"
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background: "rgba(239, 68, 68, 0.08)",
-                border: "1px solid rgba(239, 68, 68, 0.25)",
-                borderRadius: 8,
-                padding: "8px 10px",
-                color: "#f87171",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                textAlign: "left",
-                transition: "all 0.15s ease",
-              }}
-              title="Permanently delete your CallMedex account"
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <ShieldAlert size={15} style={{ color: "#ef4444" }} />
-                <span>Delete Account</span>
-              </div>
-              <ChevronRight size={13} style={{ color: "#f87171" }} />
-            </button>
-          </div>
-        )}
-
-        {/* Console Status Footer */}
-        <div className="cm-provider-nav-footer">
-          <div className="cm-provider-nav-footer-status">
-            <span className="cm-provider-status-dot" />
-            <span>Patient Care Portal Active</span>
-          </div>
-          <div className="cm-provider-nav-footer-legal">
-            <span>NABL &amp; ICMR Certified · ABDM M1/M2/M3</span>
-          </div>
-        </div>
       </div>
     </aside>
   );

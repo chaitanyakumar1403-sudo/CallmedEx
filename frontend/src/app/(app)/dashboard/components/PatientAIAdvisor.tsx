@@ -629,7 +629,7 @@ export default function PatientAIAdvisor() {
     let col = "#86e0b5"; // Green
     if (val < 18.5) {
       cat = "Underweight";
-      col = "#a5b8ff"; // Sky blue
+      col = "#7dd3fc"; // Sky blue
     } else if (val >= 25 && val < 30) {
       cat = "Overweight";
       col = "#facc15"; // Yellow
@@ -1036,404 +1036,124 @@ Website: https://callmedex.com
 
   return (
     <>
-      <div
-        id="health-advisor"
-      style={{
-        background: "linear-gradient(135deg, #0f1d33 0%, #15294d 48%, #1d3a7a 100%)",
-        border: "1.5px solid rgba(165, 184, 255, 0.5)",
-        borderRadius: "20px",
-        padding: "16px 20px",
-        boxShadow: "0 16px 40px -10px rgba(30, 63, 134, 0.3), 0 0 25px rgba(140, 164, 255, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
-        backdropFilter: "blur(20px)",
-        color: "#f8fafc",
-        marginBottom: "20px",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* ── Top Header Bar (Compact 1-Row Layout) ── */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
-          marginBottom: "14px",
-          paddingBottom: "10px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.15)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "linear-gradient(135deg, rgba(58, 99, 240, 0.35) 0%, rgba(36, 71, 200, 0.35) 100%)",
-              border: "1px solid rgba(140, 164, 255, 0.5)",
-              display: "grid",
-              placeItems: "center",
-              boxShadow: "0 0 15px rgba(58, 99, 240, 0.3)",
-              flexShrink: 0,
+      <section id="health-advisor" className="cm-adv cm-psec" aria-labelledby="adv-title">
+        <div className="cm-adv__head">
+          <div className="cm-adv__lead">
+            <span className="cm-adv__icon cm-icon3d" aria-hidden><Sparkles size={18} /></span>
+            <div>
+              <h3 className="cm-adv__title" id="adv-title">Health Advisor</h3>
+              <p className="cm-adv__sub">Tell us what&apos;s bothering you and we&apos;ll suggest the right doctor, tests and everyday care.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="cm-btn cm-btn--secondary cm-btn--sm"
+            onClick={() => {
+              setActiveWidget(2);
+              setModal2Tab("periodic");
             }}
           >
-            <Clinical3DIcon name="care-pulse" size={22} glow />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <h3 style={{ margin: 0, fontSize: "1.12rem", fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em" }}>
-              CallMedex Health Advisor
-            </h3>
-            <span
-              style={{
-                fontSize: "0.62rem",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                padding: "2px 8px",
-                borderRadius: 999,
-                background: "#1e4fd8",
-                color: "#ffffff",
-                textTransform: "uppercase",
-                boxShadow: "0 2px 8px rgba(58, 99, 240, 0.35)",
-              }}
+            <Calendar size={14} /> Routine check-ups <ChevronRight size={14} />
+          </button>
+        </div>
+
+        <div className="cm-ai-orchestra-grid">
+          {/* 1 · Doctor */}
+          <div className="cm-adv-card">
+            <div>
+              <div className="cm-adv-card__head">
+                <span className="cm-adv-card__icon cm-icon3d" aria-hidden><Stethoscope size={18} /></span>
+                <h4>Find the right doctor</h4>
+              </div>
+              <p className="cm-adv-card__body">Match your symptoms to a verified specialist.</p>
+              <div className={`cm-adv-card__status${conditionsInput.length > 0 && filteredDoctors.length === 0 ? " is-warn" : conditionsInput.length > 0 ? " is-ok" : ""}`}>
+                {conditionsInput.length === 0
+                  ? "Add your symptoms to get started"
+                  : filteredDoctors.length > 0
+                    ? `${filteredDoctors.length} specialist${filteredDoctors.length === 1 ? "" : "s"} available`
+                    : "No specialist listed for this yet"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveWidget(conditionsInput.length === 0 ? 0 : 1)}
+              className={`cm-btn ${conditionsInput.length > 0 && filteredDoctors.length === 0 ? "cm-btn--secondary" : "cm-btn--primary"} cm-adv-card__cta`}
             >
-              CARE ADVISORY
-            </span>
+              {conditionsInput.length === 0
+                ? "Add symptoms"
+                : filteredDoctors.length > 0
+                  ? `See ${filteredDoctors.length === 1 ? "doctor" : "doctors"}`
+                  : "Change symptoms"}
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {/* 2 · Tests */}
+          <div className="cm-adv-card">
+            <div>
+              <div className="cm-adv-card__head">
+                <span className="cm-adv-card__icon cm-icon3d" aria-hidden><FlaskConical size={18} /></span>
+                <h4>Tests &amp; packages</h4>
+              </div>
+              <p className="cm-adv-card__body">Lab tests and health packages suited to your symptoms.</p>
+              <div className={`cm-adv-card__status${conditionsInput.length > 0 ? " is-ok" : ""}`}>
+                {conditionsInput.length === 0
+                  ? "Add your symptoms to get started"
+                  : `${filteredTests.length} test${filteredTests.length === 1 ? "" : "s"} · ${filteredPackages.length} package${filteredPackages.length === 1 ? "" : "s"} suggested`}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (conditionsInput.length === 0) {
+                  setActiveWidget(0);
+                } else {
+                  setModal2Tab("tests");
+                  setActiveWidget(2);
+                }
+              }}
+              className="cm-btn cm-btn--primary cm-adv-card__cta"
+            >
+              {conditionsInput.length === 0 ? "Explore tests" : "See suggestions"}
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {/* 3 · Everyday care */}
+          <div className="cm-adv-card">
+            <div>
+              <div className="cm-adv-card__head">
+                <span className="cm-adv-card__icon cm-icon3d" aria-hidden><Pill size={18} /></span>
+                <h4>Diet, exercise &amp; medicines</h4>
+              </div>
+              <p className="cm-adv-card__body">Everyday guidance to support your treatment.</p>
+              <div className={`cm-adv-card__status${conditionsInput.length > 0 ? " is-ok" : ""}`}>
+                {conditionsInput.length === 0 ? "Add your symptoms to get started" : "Your care guide is ready"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (conditionsInput.length === 0) {
+                  setActiveWidget(0);
+                } else {
+                  setModal3Tab("preventive");
+                  setActiveWidget(3);
+                }
+              }}
+              className="cm-btn cm-btn--primary cm-adv-card__cta"
+            >
+              {conditionsInput.length === 0 ? "Get a care guide" : "See care guide"}
+              <ChevronRight size={15} />
+            </button>
           </div>
         </div>
 
-        {/* Right: Periodic Checkups CTA Pill */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveWidget(2);
-            setModal2Tab("periodic");
-          }}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "5px 12px",
-            borderRadius: 999,
-            background: "linear-gradient(135deg, rgba(40, 160, 120, 0.35) 0%, rgba(30, 130, 100, 0.4) 100%)",
-            border: "1.5px solid rgba(127, 216, 176, 0.6)",
-            color: "#e3f6ec",
-            fontSize: "0.74rem",
-            fontWeight: 700,
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-            boxShadow: "0 2px 8px rgba(40, 160, 120, 0.25)",
-          }}
-          title="Explore Periodic Routine Checkups for Asymptomatic / Normal Health (3M / 6M / 12M)"
-        >
-          <Calendar size={12} style={{ color: "#7fd8b0" }} />
-          <span>Periodic Routine Checkups · 3M / 6M / 12M</span>
-          <ChevronRight size={12} style={{ color: "#a3e9c9" }} />
-        </button>
-      </div>
-
-      {/* ── THE THREE COMPACT PRODUCTION CLINICAL SECTIONS (GRID) ── */}
-      <div className="cm-ai-orchestra-grid">
-        {/* ════════════════════════════════════════════════════════════════════
-            CARD 1: SPECIALIST DOCTOR ADVISORY (Compact Curiosity Card)
-           ════════════════════════════════════════════════════════════════════ */}
-        <div
-          className="cm-ai-column-card"
-          style={{
-            background: "rgba(15, 23, 42, 0.65)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.16)",
-            boxShadow: "0 8px 24px -4px rgba(0, 0, 0, 0.35)",
-            padding: "16px 18px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            minHeight: "180px",
-          }}
-        >
-          <div>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(58, 99, 240, 0.22)",
-                  border: "1px solid rgba(140, 164, 255, 0.4)",
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Clinical3DIcon name="care-pulse" size={24} glow />
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
-                  Specialist Doctor Advisory
-                </h4>
-                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
-                  Verified clinician matching
-                </div>
-              </div>
-            </div>
-
-            {/* Curiosity Teaser */}
-            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
-              Curious which medical specialist or surgeon treats your exact symptoms? Select your health concerns to instantly match verified clinicians.
-            </p>
-
-            {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
-              {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#a5b8ff", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a5b8ff", display: "inline-block", boxShadow: "0 0 8px #a5b8ff" }} />
-                  <span>Awaiting Symptoms · Tap to Match</span>
-                </div>
-              ) : filteredDoctors.length > 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block" }} />
-                  <span>{filteredDoctors.length} Registered Specialist{filteredDoctors.length === 1 ? "" : "s"} Matched</span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#fbbf24", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fbbf24", display: "inline-block" }} />
-                  <span>No Registered Specialists for this Concern</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (conditionsInput.length === 0) {
-                setActiveWidget(0);
-              } else {
-                setActiveWidget(1);
-              }
-            }}
-            className="cm-advisor-btn-primary"
-            style={{
-              width: "100%",
-              padding: "9px 14px",
-              fontSize: "0.82rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              background: conditionsInput.length > 0 && filteredDoctors.length === 0
-                ? "rgba(255, 255, 255, 0.08)"
-                : undefined,
-              color: conditionsInput.length > 0 && filteredDoctors.length === 0
-                ? "#cbd5e1"
-                : undefined,
-              border: conditionsInput.length > 0 && filteredDoctors.length === 0
-                ? "1px solid rgba(255, 255, 255, 0.18)"
-                : undefined,
-            }}
-          >
-            <Stethoscope size={15} />
-            {conditionsInput.length === 0
-              ? "Know Your Specialist →"
-              : filteredDoctors.length > 0
-                ? `View Matched Doctors (${filteredDoctors.length}) →`
-                : "No Specialists Registered (0) →"}
-          </button>
-        </div>
-
-        {/* ════════════════════════════════════════════════════════════════════
-            CARD 2: DIAGNOSTICS (Compact Curiosity Card)
-           ════════════════════════════════════════════════════════════════════ */}
-        <div
-          className="cm-ai-column-card"
-          style={{
-            background: "rgba(15, 23, 42, 0.65)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.16)",
-            boxShadow: "0 8px 24px -4px rgba(0, 0, 0, 0.35)",
-            padding: "16px 18px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            minHeight: "180px",
-          }}
-        >
-          <div>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(60, 170, 125, 0.22)",
-                  border: "1px solid rgba(134, 224, 181, 0.4)",
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Clinical3DIcon name="microscope" size={24} glow />
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
-                  Diagnostics
-                </h4>
-                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
-                  NABL lab workup &amp; packages
-                </div>
-              </div>
-            </div>
-
-            {/* Curiosity Teaser */}
-            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
-              Pinpoint precise laboratory workups and full-body health screening packages calibrated strictly to your symptoms with up to 33% discount.
-            </p>
-
-            {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
-              {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block", boxShadow: "0 0 8px #86e0b5" }} />
-                  <span>Awaiting Symptoms · Tap to Match</span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#86e0b5", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#86e0b5", display: "inline-block" }} />
-                  <span>{filteredTests.length} Tests · {filteredPackages.length} Packages Matched</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (conditionsInput.length === 0) {
-                setActiveWidget(0);
-              } else {
-                setModal2Tab("tests");
-                setActiveWidget(2);
-              }
-            }}
-            className="cm-advisor-btn-primary"
-            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-          >
-            <FlaskConical size={15} />
-            {conditionsInput.length === 0 ? "Explore Diagnostics & Packages →" : `View Lab Tests & Packages (${filteredTests.length}) →`}
-          </button>
-        </div>
-
-        {/* ════════════════════════════════════════════════════════════════════
-            CARD 3: PREVENTIVE CARE (Compact Curiosity Card)
-           ════════════════════════════════════════════════════════════════════ */}
-        <div
-          className="cm-ai-column-card"
-          style={{
-            background: "rgba(15, 23, 42, 0.65)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255, 255, 255, 0.16)",
-            boxShadow: "0 8px 24px -4px rgba(0, 0, 0, 0.35)",
-            padding: "16px 18px",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "space-between",
-            minHeight: "180px",
-          }}
-        >
-          <div>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(124, 108, 240, 0.22)",
-                  border: "1px solid rgba(170, 160, 255, 0.4)",
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <Clinical3DIcon name="pharmacy" size={24} glow />
-              </div>
-              <div>
-                <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#ffffff" }}>
-                  Preventive Care
-                </h4>
-                <div style={{ fontSize: "0.74rem", color: "#94a3b8", marginTop: 2 }}>
-                  Diet, workout &amp; pharmacy
-                </div>
-              </div>
-            </div>
-
-            {/* Curiosity Teaser */}
-            <p style={{ margin: "0 0 12px 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.45 }}>
-              Unlock your ICMR-aligned nutritional blueprint, metabolic workout safety guidelines, and DrugShield genuine pharmacy refill savings.
-            </p>
-
-            {/* Status indicator */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, fontSize: "0.74rem" }}>
-              {conditionsInput.length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c7b8ff", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c7b8ff", display: "inline-block", boxShadow: "0 0 8px #c7b8ff" }} />
-                  <span>Awaiting Symptoms · Tap to Match</span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#c7b8ff", fontWeight: 700 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#c7b8ff", display: "inline-block" }} />
-                  <span>Tailored Diet, Workout &amp; Rx Matched</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (conditionsInput.length === 0) {
-                setActiveWidget(0);
-              } else {
-                setModal3Tab("preventive");
-                setActiveWidget(3);
-              }
-            }}
-            className="cm-advisor-btn-primary"
-            style={{ width: "100%", padding: "9px 14px", fontSize: "0.82rem", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-          >
-            <Pill size={15} />
-            {conditionsInput.length === 0 ? "View Care Blueprint →" : "View Diet & Pharmacy Guide →"}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Advisory Disclaimer Notice at Bottom ── */}
-      <div
-        style={{
-          marginTop: "14px",
-          padding: "8px 14px",
-          borderRadius: 10,
-          background: "rgba(15, 23, 42, 0.4)",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: "0.74rem",
-          color: "#94a3b8",
-          lineHeight: 1.35,
-        }}
-      >
-        <span style={{ color: "#a5b8ff", flexShrink: 0, fontSize: "0.95rem" }}>ℹ️</span>
-        <span>
-          <strong style={{ color: "#cbd5e1" }}>Advisory Notice:</strong> All specialist doctor suggestions, diagnostic recommendations, and preventive wellness protocols are advisory features provided by CallMedex to assist your personal wellness journey. They do not constitute mandatory medical directives, prescriptions, or emergency clinical care.
-        </span>
-      </div>
-    </div>
+        <p className="cm-adv__note">
+          <AlertCircle size={14} aria-hidden />
+          <span>Suggestions are for guidance only and are not a diagnosis. In an emergency, call 108.</span>
+        </p>
+      </section>
 
     {/* ══════════════════════════════════════════════════════════════════════
         PORTALED FULL-VIEWPORT CLINICAL WIDGETS & MODALS (DECOUPLED FROM CARD)
@@ -1460,7 +1180,7 @@ Website: https://callmedex.com
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
+                background: "rgba(8, 28, 58, 0.5)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1469,8 +1189,8 @@ Website: https://callmedex.com
                     width: 40,
                     height: 40,
                     borderRadius: 12,
-                    background: "rgba(58, 99, 240, 0.25)",
-                    border: "1px solid rgba(140, 164, 255, 0.45)",
+                    background: "rgba(14, 165, 233, 0.25)",
+                    border: "1px solid rgba(56, 189, 248, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -1511,7 +1231,7 @@ Website: https://callmedex.com
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
               {/* Step 1: Tap Common Symptoms */}
               <div>
-                <div style={{ fontSize: "0.82rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.82rem", color: "#7dd3fc", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
                   1. Select Common Symptoms or Health Concerns:
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1529,10 +1249,10 @@ Website: https://callmedex.com
                           fontSize: "0.8rem",
                           fontWeight: 700,
                           cursor: "pointer",
-                          border: isSelected ? "1.5px solid #a5b8ff" : "1px solid rgba(255, 255, 255, 0.15)",
-                          background: isSelected ? "rgba(58, 99, 240, 0.35)" : "rgba(255, 255, 255, 0.06)",
+                          border: isSelected ? "1.5px solid #7dd3fc" : "1px solid rgba(255, 255, 255, 0.15)",
+                          background: isSelected ? "rgba(14, 165, 233, 0.35)" : "rgba(255, 255, 255, 0.06)",
                           color: isSelected ? "#ffffff" : "#cbd5e1",
-                          boxShadow: isSelected ? "0 0 12px rgba(58, 99, 240, 0.4)" : "none",
+                          boxShadow: isSelected ? "0 0 12px rgba(14, 165, 233, 0.4)" : "none",
                           transition: "all 0.15s ease",
                         }}
                       >
@@ -1546,7 +1266,7 @@ Website: https://callmedex.com
 
               {/* Step 2: Custom Symptom Input */}
               <div>
-                <div style={{ fontSize: "0.82rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                <div style={{ fontSize: "0.82rem", color: "#7dd3fc", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
                   2. Or Type Your Specific Symptoms / Health Issues:
                 </div>
                 <form onSubmit={handleAddCustomIssue} style={{ display: "flex", gap: 8 }}>
@@ -1557,8 +1277,8 @@ Website: https://callmedex.com
                     onChange={(e) => setCustomIssueText(e.target.value)}
                     style={{
                       flex: 1,
-                      background: "rgba(15, 23, 42, 0.7)",
-                      border: "1px solid rgba(140, 164, 255, 0.3)",
+                      background: "rgba(8, 28, 58, 0.7)",
+                      border: "1px solid rgba(56, 189, 248, 0.3)",
                       borderRadius: 8,
                       padding: "10px 14px",
                       fontSize: "0.82rem",
@@ -1584,7 +1304,7 @@ Website: https://callmedex.com
               {/* Step 3: Selected Symptoms List */}
               <div
                 style={{
-                  background: "rgba(15, 23, 42, 0.5)",
+                  background: "rgba(8, 28, 58, 0.5)",
                   border: "1px solid rgba(255, 255, 255, 0.12)",
                   borderRadius: 12,
                   padding: "14px 16px",
@@ -1626,8 +1346,8 @@ Website: https://callmedex.com
                           gap: 6,
                           padding: "4px 10px",
                           borderRadius: 6,
-                          background: "rgba(58, 99, 240, 0.25)",
-                          border: "1px solid rgba(140, 164, 255, 0.4)",
+                          background: "rgba(14, 165, 233, 0.25)",
+                          border: "1px solid rgba(56, 189, 248, 0.4)",
                           color: "#ffffff",
                           fontSize: "0.78rem",
                           fontWeight: 700,
@@ -1640,7 +1360,7 @@ Website: https://callmedex.com
                           style={{
                             background: "none",
                             border: "none",
-                            color: "#dbe3ff",
+                            color: "#e0f2fe",
                             cursor: "pointer",
                             padding: 0,
                             display: "grid",
@@ -1663,10 +1383,10 @@ Website: https://callmedex.com
               <div
                 style={{
                   background: conditionsInput.length > 0
-                    ? "linear-gradient(135deg, rgba(58, 99, 240, 0.15) 0%, rgba(40, 160, 120, 0.15) 100%)"
-                    : "rgba(15, 23, 42, 0.4)",
+                    ? "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0.15) 100%)"
+                    : "rgba(8, 28, 58, 0.4)",
                   border: conditionsInput.length > 0
-                    ? "1.5px solid rgba(140, 164, 255, 0.4)"
+                    ? "1.5px solid rgba(56, 189, 248, 0.4)"
                     : "1px dashed rgba(255, 255, 255, 0.15)",
                   borderRadius: 14,
                   padding: "16px 20px",
@@ -1689,8 +1409,8 @@ Website: https://callmedex.com
                           Clinical Protocols Matched:
                         </span>
                       </div>
-                      <div style={{ display: "flex", gap: 10, fontSize: "0.76rem", color: "#dbe3ff", fontWeight: 700 }}>
-                        <span style={{ color: filteredDoctors.length > 0 ? "#dbe3ff" : "#f59e0b" }}>
+                      <div style={{ display: "flex", gap: 10, fontSize: "0.76rem", color: "#e0f2fe", fontWeight: 700 }}>
+                        <span style={{ color: filteredDoctors.length > 0 ? "#e0f2fe" : "#f59e0b" }}>
                           • {filteredDoctors.length > 0 ? `${filteredDoctors.length} Clinician${filteredDoctors.length === 1 ? "" : "s"}` : "0 Registered Clinicians"}
                         </span>
                         <span>• {filteredTests.length} Lab Test{filteredTests.length === 1 ? "" : "s"}</span>
@@ -1733,7 +1453,7 @@ Website: https://callmedex.com
                           justifyContent: "center",
                           gap: 6,
                           background: "rgba(255, 255, 255, 0.07)",
-                          border: "1px solid rgba(165, 184, 255, 0.35)",
+                          border: "1px solid rgba(125, 211, 252, 0.35)",
                           boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
                         }}
                       >
@@ -1755,7 +1475,7 @@ Website: https://callmedex.com
                           justifyContent: "center",
                           gap: 6,
                           background: "rgba(255, 255, 255, 0.07)",
-                          border: "1px solid rgba(165, 184, 255, 0.35)",
+                          border: "1px solid rgba(125, 211, 252, 0.35)",
                           boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.08)",
                         }}
                       >
@@ -1790,7 +1510,7 @@ Website: https://callmedex.com
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
+                background: "rgba(8, 28, 58, 0.5)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1799,8 +1519,8 @@ Website: https://callmedex.com
                     width: 38,
                     height: 38,
                     borderRadius: 10,
-                    background: "rgba(58, 99, 240, 0.25)",
-                    border: "1px solid rgba(140, 164, 255, 0.45)",
+                    background: "rgba(14, 165, 233, 0.25)",
+                    border: "1px solid rgba(56, 189, 248, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -1828,9 +1548,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(58, 99, 240, 0.2)",
-                    border: "1px solid rgba(140, 164, 255, 0.4)",
-                    color: "#a5b8ff",
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    color: "#7dd3fc",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1850,9 +1570,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(58, 99, 240, 0.2)",
-                    border: "1px solid rgba(140, 164, 255, 0.4)",
-                    color: "#a5b8ff",
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(56, 189, 248, 0.4)",
+                    color: "#7dd3fc",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -1888,8 +1608,8 @@ Website: https://callmedex.com
               {/* Active Health Concern / Symptoms Strip */}
               <div
                 style={{
-                  background: "rgba(58, 99, 240, 0.12)",
-                  border: "1px solid rgba(140, 164, 255, 0.3)",
+                  background: "rgba(14, 165, 233, 0.12)",
+                  border: "1px solid rgba(56, 189, 248, 0.3)",
                   borderRadius: 12,
                   padding: "12px 16px",
                   marginBottom: 16,
@@ -1901,7 +1621,7 @@ Website: https://callmedex.com
                 }}
               >
                 <div>
-                  <div style={{ fontSize: "0.72rem", color: "#a5b8ff", fontWeight: 700, textTransform: "uppercase" }}>
+                  <div style={{ fontSize: "0.72rem", color: "#7dd3fc", fontWeight: 700, textTransform: "uppercase" }}>
                     Active Health Concerns &amp; Symptoms
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
@@ -1912,8 +1632,8 @@ Website: https://callmedex.com
                           style={{
                             padding: "2px 8px",
                             borderRadius: 6,
-                            background: "rgba(58, 99, 240, 0.25)",
-                            border: "1px solid rgba(140, 164, 255, 0.4)",
+                            background: "rgba(14, 165, 233, 0.25)",
+                            border: "1px solid rgba(56, 189, 248, 0.4)",
                             color: "#ffffff",
                             fontSize: "0.74rem",
                             fontWeight: 700,
@@ -1943,8 +1663,8 @@ Website: https://callmedex.com
                           fontSize: "0.68rem",
                           fontWeight: 700,
                           cursor: "pointer",
-                          background: active ? "#2f55e0" : "rgba(255, 255, 255, 0.08)",
-                          border: active ? "1px solid #a5b8ff" : "1px solid rgba(255, 255, 255, 0.15)",
+                          background: active ? "#0284c7" : "rgba(255, 255, 255, 0.08)",
+                          border: active ? "1px solid #7dd3fc" : "1px solid rgba(255, 255, 255, 0.15)",
                           color: active ? "#fff" : "#94a3b8",
                         }}
                       >
@@ -1966,7 +1686,7 @@ Website: https://callmedex.com
                     <div
                       style={{
                         padding: "30px 24px",
-                        background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.65) 100%)",
+                        background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(8, 28, 58, 0.65) 100%)",
                         borderRadius: 14,
                         border: "1px solid rgba(245, 158, 11, 0.35)",
                         display: "flex",
@@ -2033,7 +1753,7 @@ Website: https://callmedex.com
                               display: "inline-flex",
                               alignItems: "center",
                               gap: 6,
-                              background: "#1e4fd8",
+                              background: "#0284c7",
                             }}
                           >
                             <FlaskConical size={14} /> View Targeted Diagnostic Tests ({filteredTests.length}) →
@@ -2065,7 +1785,7 @@ Website: https://callmedex.com
                       style={{
                         textAlign: "center",
                         padding: "36px 20px",
-                        background: "rgba(15, 23, 42, 0.5)",
+                        background: "rgba(8, 28, 58, 0.5)",
                         borderRadius: 14,
                         border: "1px dashed rgba(255, 255, 255, 0.15)",
                       }}
@@ -2092,7 +1812,7 @@ Website: https://callmedex.com
                     <div
                       key={idx}
                       style={{
-                        background: "rgba(15, 23, 42, 0.6)",
+                        background: "rgba(8, 28, 58, 0.6)",
                         border: "1px solid rgba(255, 255, 255, 0.12)",
                         borderRadius: 14,
                         padding: "16px 18px",
@@ -2109,14 +1829,14 @@ Website: https://callmedex.com
                             width: 44,
                             height: 44,
                             borderRadius: 12,
-                            background: "rgba(58, 99, 240, 0.2)",
-                            border: "1px solid rgba(140, 164, 255, 0.35)",
+                            background: "rgba(14, 165, 233, 0.2)",
+                            border: "1px solid rgba(56, 189, 248, 0.35)",
                             display: "grid",
                             placeItems: "center",
                             flexShrink: 0,
                           }}
                         >
-                          <Stethoscope size={22} color="#a5b8ff" />
+                          <Stethoscope size={22} color="#7dd3fc" />
                         </div>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -2128,15 +1848,15 @@ Website: https://callmedex.com
                                 fontSize: "0.68rem",
                                 padding: "2px 7px",
                                 borderRadius: 6,
-                                background: "rgba(40, 160, 120, 0.18)",
-                                color: "#7fd8b0",
+                                background: "rgba(14, 165, 233, 0.18)",
+                                color: "#7dd3fc",
                                 fontWeight: 700,
                               }}
                             >
                               ★ {doc.rating || 4.98} · Verified Specialist
                             </span>
                           </div>
-                          <div style={{ fontSize: "0.8rem", color: "#a5b8ff", fontWeight: 600, marginTop: 2 }}>
+                          <div style={{ fontSize: "0.8rem", color: "#7dd3fc", fontWeight: 600, marginTop: 2 }}>
                             {doc.specialty} · {doc.qualification}
                           </div>
                           <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 4 }}>
@@ -2189,7 +1909,7 @@ Website: https://callmedex.com
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
+                background: "rgba(8, 28, 58, 0.5)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2198,8 +1918,8 @@ Website: https://callmedex.com
                     width: 42,
                     height: 42,
                     borderRadius: 12,
-                    background: "rgba(60, 170, 125, 0.25)",
-                    border: "1px solid rgba(134, 224, 181, 0.45)",
+                    background: "rgba(14, 165, 233, 0.25)",
+                    border: "1px solid rgba(125, 211, 252, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -2226,8 +1946,8 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(60, 170, 125, 0.2)",
-                    border: "1px solid rgba(134, 224, 181, 0.4)",
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(125, 211, 252, 0.4)",
                     color: "#86e0b5",
                     fontSize: "0.76rem",
                     fontWeight: 700,
@@ -2260,7 +1980,7 @@ Website: https://callmedex.com
             </div>
 
             {/* Sub-Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(8, 28, 58, 0.3)", flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={() => setModal2Tab("tests")}
@@ -2268,7 +1988,7 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 180,
                   padding: "12px 16px",
-                  background: modal2Tab === "tests" ? "rgba(60, 170, 125, 0.15)" : "transparent",
+                  background: modal2Tab === "tests" ? "rgba(14, 165, 233, 0.15)" : "transparent",
                   borderBottom: modal2Tab === "tests" ? "2px solid #86e0b5" : "none",
                   color: modal2Tab === "tests" ? "#86e0b5" : "#94a3b8",
                   fontWeight: 700,
@@ -2286,7 +2006,7 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 180,
                   padding: "12px 16px",
-                  background: modal2Tab === "packages" ? "rgba(60, 170, 125, 0.15)" : "transparent",
+                  background: modal2Tab === "packages" ? "rgba(14, 165, 233, 0.15)" : "transparent",
                   borderBottom: modal2Tab === "packages" ? "2px solid #86e0b5" : "none",
                   color: modal2Tab === "packages" ? "#86e0b5" : "#94a3b8",
                   fontWeight: 700,
@@ -2304,9 +2024,9 @@ Website: https://callmedex.com
                   flex: 1,
                   minWidth: 200,
                   padding: "12px 16px",
-                  background: modal2Tab === "periodic" ? "rgba(40, 160, 120, 0.2)" : "transparent",
-                  borderBottom: modal2Tab === "periodic" ? "2px solid #7fd8b0" : "none",
-                  color: modal2Tab === "periodic" ? "#7fd8b0" : "#94a3b8",
+                  background: modal2Tab === "periodic" ? "rgba(14, 165, 233, 0.2)" : "transparent",
+                  borderBottom: modal2Tab === "periodic" ? "2px solid #7dd3fc" : "none",
+                  color: modal2Tab === "periodic" ? "#7dd3fc" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2331,7 +2051,7 @@ Website: https://callmedex.com
                       style={{
                         textAlign: "center",
                         padding: "40px 20px",
-                        background: "rgba(15, 23, 42, 0.5)",
+                        background: "rgba(8, 28, 58, 0.5)",
                         borderRadius: 14,
                         border: "1px dashed rgba(255, 255, 255, 0.15)",
                       }}
@@ -2347,7 +2067,7 @@ Website: https://callmedex.com
                         type="button"
                         onClick={() => setActiveWidget(0)}
                         className="cm-advisor-btn-primary"
-                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6, background: "#1e4fd8" }}
+                        style={{ padding: "9px 20px", fontSize: "0.82rem", display: "inline-flex", alignItems: "center", gap: 6, background: "#0284c7" }}
                       >
                         <Plus size={14} /> Enter Symptoms Now →
                       </button>
@@ -2357,7 +2077,7 @@ Website: https://callmedex.com
                       <div
                         key={idx}
                         style={{
-                          background: "rgba(15, 23, 42, 0.6)",
+                          background: "rgba(8, 28, 58, 0.6)",
                           border: "1px solid rgba(255, 255, 255, 0.1)",
                           borderRadius: 12,
                           padding: "14px 18px",
@@ -2378,8 +2098,8 @@ Website: https://callmedex.com
                                 fontSize: "0.68rem",
                                 padding: "2px 8px",
                                 borderRadius: 6,
-                                background: "rgba(140, 164, 255, 0.2)",
-                                color: "#a5b8ff",
+                                background: "rgba(56, 189, 248, 0.2)",
+                                color: "#7dd3fc",
                                 fontWeight: 700,
                               }}
                             >
@@ -2426,7 +2146,7 @@ Website: https://callmedex.com
                     <div
                       key={pkg.id}
                       style={{
-                        background: "rgba(15, 23, 42, 0.65)",
+                        background: "rgba(8, 28, 58, 0.65)",
                         border: "1px solid rgba(245, 185, 113, 0.25)",
                         borderRadius: 14,
                         padding: "16px 18px",
@@ -2516,14 +2236,14 @@ Website: https://callmedex.com
                   {/* Interval Selector Banner */}
                   <div
                     style={{
-                      background: "linear-gradient(135deg, rgba(40, 160, 120, 0.15) 0%, rgba(15, 29, 51, 0.2) 100%)",
-                      border: "1px solid rgba(127, 216, 176, 0.35)",
+                      background: "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 29, 51, 0.2) 100%)",
+                      border: "1px solid rgba(125, 211, 252, 0.35)",
                       borderRadius: 14,
                       padding: "16px 20px",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-                      <Calendar size={18} style={{ color: "#7fd8b0" }} />
+                      <Calendar size={18} style={{ color: "#7dd3fc" }} />
                       <span style={{ fontSize: "0.92rem", fontWeight: 700, color: "#ffffff" }}>
                         Preventive Routine Checkups for Asymptomatic &amp; Normal Individuals
                       </span>
@@ -2533,9 +2253,9 @@ Website: https://callmedex.com
                           fontWeight: 700,
                           padding: "2px 8px",
                           borderRadius: 999,
-                          background: "rgba(127, 216, 176, 0.2)",
-                          color: "#7fd8b0",
-                          border: "1px solid rgba(127, 216, 176, 0.4)",
+                          background: "rgba(125, 211, 252, 0.2)",
+                          color: "#7dd3fc",
+                          border: "1px solid rgba(125, 211, 252, 0.4)",
                         }}
                       >
                         ICMR PROTOCOLS
@@ -2562,12 +2282,12 @@ Website: https://callmedex.com
                             cursor: "pointer",
                             textAlign: "left",
                             transition: "all 0.2s ease",
-                            background: routineInterval === itv.id ? "linear-gradient(135deg, rgba(40, 160, 120, 0.35), rgba(30, 130, 100, 0.35))" : "rgba(15, 23, 42, 0.6)",
-                            border: routineInterval === itv.id ? "1.5px solid #7fd8b0" : "1px solid rgba(255, 255, 255, 0.12)",
+                            background: routineInterval === itv.id ? "linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(2, 132, 199, 0.35))" : "rgba(8, 28, 58, 0.6)",
+                            border: routineInterval === itv.id ? "1.5px solid #7dd3fc" : "1px solid rgba(255, 255, 255, 0.12)",
                             color: "#fff",
                           }}
                         >
-                          <div style={{ fontSize: "0.86rem", fontWeight: 700, color: routineInterval === itv.id ? "#7fd8b0" : "#f1f5f9" }}>
+                          <div style={{ fontSize: "0.86rem", fontWeight: 700, color: routineInterval === itv.id ? "#7dd3fc" : "#f1f5f9" }}>
                             {itv.label}
                           </div>
                           <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: 2 }}>
@@ -2581,7 +2301,7 @@ Website: https://callmedex.com
                   {/* Summary for active interval */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", paddingBottom: 8, flexWrap: "wrap", gap: 8 }}>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#7fd8b0" }}>
+                      <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#7dd3fc" }}>
                         {ROUTINE_CHECKUPS_DATA[routineInterval].title}
                       </h4>
                       <p style={{ margin: "2px 0 0 0", fontSize: "0.76rem", color: "#94a3b8" }}>
@@ -2596,7 +2316,7 @@ Website: https://callmedex.com
                   {/* SECTION A: INDIVIDUAL ROUTINE TESTS */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <FlaskConical size={16} style={{ color: "#a5b8ff" }} />
+                      <FlaskConical size={16} style={{ color: "#7dd3fc" }} />
                       <span style={{ fontSize: "0.86rem", fontWeight: 700, color: "#ffffff" }}>
                         Essential Routine Tests for this Interval ({ROUTINE_CHECKUPS_DATA[routineInterval].tests.length})
                       </span>
@@ -2607,7 +2327,7 @@ Website: https://callmedex.com
                         <div
                           key={test.id}
                           style={{
-                            background: "rgba(15, 23, 42, 0.6)",
+                            background: "rgba(8, 28, 58, 0.6)",
                             border: "1px solid rgba(255, 255, 255, 0.1)",
                             borderRadius: 12,
                             padding: "14px 18px",
@@ -2628,8 +2348,8 @@ Website: https://callmedex.com
                                   fontSize: "0.66rem",
                                   padding: "2px 7px",
                                   borderRadius: 6,
-                                  background: "rgba(140, 164, 255, 0.18)",
-                                  color: "#a5b8ff",
+                                  background: "rgba(56, 189, 248, 0.18)",
+                                  color: "#7dd3fc",
                                   fontWeight: 700,
                                 }}
                               >
@@ -2719,8 +2439,8 @@ Website: https://callmedex.com
                         <div
                           key={pkg.id}
                           style={{
-                            background: "linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.7) 100%)",
-                            border: "1.5px solid rgba(127, 216, 176, 0.4)",
+                            background: "linear-gradient(135deg, rgba(8, 28, 58, 0.8) 0%, rgba(14, 40, 78, 0.7) 100%)",
+                            border: "1.5px solid rgba(125, 211, 252, 0.4)",
                             borderRadius: 14,
                             padding: "16px 20px",
                             display: "flex",
@@ -2739,10 +2459,10 @@ Website: https://callmedex.com
                                     fontSize: "0.68rem",
                                     padding: "3px 8px",
                                     borderRadius: 6,
-                                    background: "rgba(127, 216, 176, 0.2)",
-                                    color: "#7fd8b0",
+                                    background: "rgba(125, 211, 252, 0.2)",
+                                    color: "#7dd3fc",
                                     fontWeight: 700,
-                                    border: "1px solid rgba(127, 216, 176, 0.4)",
+                                    border: "1px solid rgba(125, 211, 252, 0.4)",
                                   }}
                                 >
                                   {pkg.badge}
@@ -2752,8 +2472,8 @@ Website: https://callmedex.com
                                     fontSize: "0.68rem",
                                     padding: "3px 8px",
                                     borderRadius: 6,
-                                    background: "rgba(140, 164, 255, 0.2)",
-                                    color: "#a5b8ff",
+                                    background: "rgba(56, 189, 248, 0.2)",
+                                    color: "#7dd3fc",
                                     fontWeight: 700,
                                   }}
                                 >
@@ -2863,7 +2583,7 @@ Website: https://callmedex.com
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                background: "rgba(15, 23, 42, 0.5)",
+                background: "rgba(8, 28, 58, 0.5)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2872,8 +2592,8 @@ Website: https://callmedex.com
                     width: 42,
                     height: 42,
                     borderRadius: 12,
-                    background: "rgba(124, 108, 240, 0.25)",
-                    border: "1px solid rgba(170, 160, 255, 0.45)",
+                    background: "rgba(14, 165, 233, 0.25)",
+                    border: "1px solid rgba(125, 211, 252, 0.45)",
                     display: "grid",
                     placeItems: "center",
                   }}
@@ -2900,9 +2620,9 @@ Website: https://callmedex.com
                     gap: 6,
                     padding: "5px 12px",
                     borderRadius: 8,
-                    background: "rgba(124, 108, 240, 0.2)",
-                    border: "1px solid rgba(170, 160, 255, 0.4)",
-                    color: "#c7b8ff",
+                    background: "rgba(14, 165, 233, 0.2)",
+                    border: "1px solid rgba(125, 211, 252, 0.4)",
+                    color: "#7dd3fc",
                     fontSize: "0.76rem",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -2933,16 +2653,16 @@ Website: https://callmedex.com
             </div>
 
             {/* Sub-Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(15, 23, 42, 0.3)" }}>
+            <div style={{ display: "flex", borderBottom: "1px solid rgba(255, 255, 255, 0.1)", background: "rgba(8, 28, 58, 0.3)" }}>
               <button
                 type="button"
                 onClick={() => setModal3Tab("preventive")}
                 style={{
                   flex: 1,
                   padding: "12px 16px",
-                  background: modal3Tab === "preventive" ? "rgba(124, 108, 240, 0.15)" : "transparent",
-                  borderBottom: modal3Tab === "preventive" ? "2px solid #c7b8ff" : "none",
-                  color: modal3Tab === "preventive" ? "#c7b8ff" : "#94a3b8",
+                  background: modal3Tab === "preventive" ? "rgba(14, 165, 233, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "preventive" ? "2px solid #7dd3fc" : "none",
+                  color: modal3Tab === "preventive" ? "#7dd3fc" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2957,9 +2677,9 @@ Website: https://callmedex.com
                 style={{
                   flex: 1,
                   padding: "12px 16px",
-                  background: modal3Tab === "pharmacy" ? "rgba(124, 108, 240, 0.15)" : "transparent",
-                  borderBottom: modal3Tab === "pharmacy" ? "2px solid #c7b8ff" : "none",
-                  color: modal3Tab === "pharmacy" ? "#c7b8ff" : "#94a3b8",
+                  background: modal3Tab === "pharmacy" ? "rgba(14, 165, 233, 0.15)" : "transparent",
+                  borderBottom: modal3Tab === "pharmacy" ? "2px solid #7dd3fc" : "none",
+                  color: modal3Tab === "pharmacy" ? "#7dd3fc" : "#94a3b8",
                   fontWeight: 700,
                   fontSize: "0.84rem",
                   cursor: "pointer",
@@ -2977,8 +2697,8 @@ Website: https://callmedex.com
                   {/* Caloric & Hydration Target Strip */}
                   <div
                     style={{
-                      background: "rgba(15, 23, 42, 0.6)",
-                      border: "1px solid rgba(170, 160, 255, 0.25)",
+                      background: "rgba(8, 28, 58, 0.6)",
+                      border: "1px solid rgba(125, 211, 252, 0.25)",
                       borderRadius: 14,
                       padding: "14px 18px",
                       display: "flex",
@@ -2989,7 +2709,7 @@ Website: https://callmedex.com
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: "0.72rem", color: "#c7b8ff", fontWeight: 700, textTransform: "uppercase" }}>
+                      <div style={{ fontSize: "0.72rem", color: "#7dd3fc", fontWeight: 700, textTransform: "uppercase" }}>
                         Daily Hydration &amp; Energy Goals
                       </div>
                       <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#ffffff", marginTop: 2 }}>
@@ -3011,7 +2731,7 @@ Website: https://callmedex.com
                         <div
                           key={idx}
                           style={{
-                            background: "rgba(15, 23, 42, 0.5)",
+                            background: "rgba(8, 28, 58, 0.5)",
                             border: "1px solid rgba(255, 255, 255, 0.08)",
                             borderRadius: 10,
                             padding: "10px 14px",
@@ -3020,7 +2740,7 @@ Website: https://callmedex.com
                             gap: 12,
                           }}
                         >
-                          <span style={{ fontSize: "0.72rem", color: "#a5b8ff", fontWeight: 700, minWidth: 65 }}>
+                          <span style={{ fontSize: "0.72rem", color: "#7dd3fc", fontWeight: 700, minWidth: 65 }}>
                             {m.time}
                           </span>
                           <div>
@@ -3039,13 +2759,13 @@ Website: https://callmedex.com
                   {/* Physical Mobility Guidance */}
                   <div
                     style={{
-                      background: "rgba(15, 23, 42, 0.5)",
+                      background: "rgba(8, 28, 58, 0.5)",
                       border: "1px solid rgba(255, 255, 255, 0.08)",
                       borderRadius: 12,
                       padding: "14px 16px",
                     }}
                   >
-                    <div style={{ fontSize: "0.78rem", color: "#c7b8ff", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
+                    <div style={{ fontSize: "0.78rem", color: "#7dd3fc", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>
                       Physical Activity &amp; Joint Mobility Protocol
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "#e2e8f0", lineHeight: 1.5 }}>
@@ -3067,7 +2787,7 @@ Website: https://callmedex.com
                     <div
                       key={item.id}
                       style={{
-                        background: "rgba(15, 23, 42, 0.6)",
+                        background: "rgba(8, 28, 58, 0.6)",
                         border: "1px solid rgba(255, 255, 255, 0.1)",
                         borderRadius: 12,
                         padding: "14px 18px",
@@ -3087,8 +2807,8 @@ Website: https://callmedex.com
                               fontSize: "0.68rem",
                               padding: "2px 7px",
                               borderRadius: 6,
-                              background: "rgba(124, 108, 240, 0.2)",
-                              color: "#c7b8ff",
+                              background: "rgba(14, 165, 233, 0.2)",
+                              color: "#7dd3fc",
                               fontWeight: 700,
                             }}
                           >
@@ -3098,7 +2818,7 @@ Website: https://callmedex.com
                         <div style={{ fontSize: "0.76rem", color: "#94a3b8", marginTop: 4 }}>
                           {item.reason}
                         </div>
-                        <div style={{ fontSize: "0.72rem", color: "#a5b8ff", marginTop: 2 }}>
+                        <div style={{ fontSize: "0.72rem", color: "#7dd3fc", marginTop: 2 }}>
                           Dosage / Instructions: {item.dosage}
                         </div>
                       </div>
@@ -3114,7 +2834,7 @@ Website: https://callmedex.com
                             </span>
                           </div>
                         ) : (
-                          <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#a5b8ff" }}>
+                          <div style={{ fontSize: "0.76rem", fontWeight: 700, color: "#7dd3fc" }}>
                             Verified Pharmacy Partner
                           </div>
                         )}

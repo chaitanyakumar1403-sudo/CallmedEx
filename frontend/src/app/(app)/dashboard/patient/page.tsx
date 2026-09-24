@@ -17,13 +17,11 @@ import { bookingsAPI, dispatchAPI, patientSamplesAPI } from "@/lib/api";
 import { FEATURE_FLAGS } from "@/config/featureFlags";
 import { BiomarkerMatrix } from "../components/BiomarkerMatrix";
 import { DoctorBriefingModal } from "../components/DoctorBriefingModal";
-import { FamilySwiperWheel } from "../components/FamilySwiperWheel";
 import { MedicineCabinetGrid } from "../components/MedicineCabinetGrid";
 import { PhlebotomistRadar } from "../components/PhlebotomistRadar";
 import { PATIENT_TRANSLATIONS, PatientLang } from "./patientTranslations";
-import Clinical3DIcon from "@/components/ui/Clinical3DIcon";
 import { useFamilyHubStore } from "@/store/useFamilyHubStore";
-import { useHealthMatrixStore } from "@/store/useHealthMatrixStore";
+import { parseBookingNotes, bookingKindLabel, formatINR, formatSlot } from "@/lib/bookingDisplay.mjs";
 import {
   Mic,
   Shield,
@@ -160,7 +158,6 @@ export default function PatientDashboard() {
   const [recordsTab, setRecordsTab] = useState<"self" | "family">("self");
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>("all");
   const familyState = useFamilyHubStore();
-  const healthState = useHealthMatrixStore();
 
   // Industry-First Feature Modals
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -334,6 +331,10 @@ export default function PatientDashboard() {
               daysLeft: m.days_left,
               needsRefill: m.needs_refill,
               outOfStock: m.out_of_stock,
+              // Dropping these made every card fall back to "N pill/day"
+              // even for a twice-daily schedule.
+              reminderFrequency: m.reminder_frequency,
+              reminderTimes: m.reminder_times,
             }));
             const { familyHubStore } = await import('@/store/useFamilyHubStore');
             familyHubStore.setMedications(mappedMeds);
@@ -770,12 +771,10 @@ export default function PatientDashboard() {
   const completedBookings = bookings.filter(b => b.status === "completed");
   const completedCount = completedBookings.length;
   const prescriptionsCount = familyState.medications?.length || 0;
-  const conductedRecords = bookings.filter(b =>
-    b.status === "completed" ||
-    Boolean(b.report_url) ||
-    ["lab_test", "diagnostic", "radiology", "health_package"].includes(b.booking_type || b.service_type)
-  );
-  const recordsCount = conductedRecords.length || completedCount || (healthState.biomarkers?.length || 0);
+  // A record is a visit or test that finished or has a report. Every lab
+  // booking used to count, so cancelled tests showed up as "4 reports".
+  const conductedRecords = bookings.filter(b => b.status === "completed" || Boolean(b.report_url));
+  const recordsCount = conductedRecords.length;
   const allottedBookings = bookings.filter(b => b.status === "slot_allotted");
 
   // Respond to an allotted slot
@@ -890,7 +889,7 @@ export default function PatientDashboard() {
       {/* ── Two-Column Layout: Left Sticky Navigation + Main Dashboard Content ── */}
       <div className="cm-patient-layout">
         <aside className="cm-patient-sidebar">
-          <PatientNavSidebar onOpenDeleteAccount={() => setIsDeleteModalOpen(true)} />
+          <PatientNavSidebar />
         </aside>
 
         <main className="cm-patient-content">
@@ -905,14 +904,14 @@ export default function PatientDashboard() {
               tabIndex={0}
               title="Click to view upcoming appointments"
             >
-              <div className="cm-kpi-card__accent cm-kpi-card__accent--active" />
+              <div className="cm-kpi-card__accent" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.upcoming}</div>
                 <div className="cm-kpi-card__value">{upcomingCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.upcomingSub}</div>
               </div>
-              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-                <Clinical3DIcon name="calendar" size={36} glow />
+              <div className="cm-kpi-card__icon cm-icon3d" aria-hidden>
+                <Calendar size={20} />
               </div>
             </div>
 
@@ -924,14 +923,14 @@ export default function PatientDashboard() {
               tabIndex={0}
               title="Click to view completed services & history"
             >
-              <div className="cm-kpi-card__accent cm-kpi-card__accent--done" />
+              <div className="cm-kpi-card__accent" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.completed}</div>
                 <div className="cm-kpi-card__value">{completedCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.completedSub}</div>
               </div>
-              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-                <Clinical3DIcon name="check" size={36} glow />
+              <div className="cm-kpi-card__icon cm-icon3d" aria-hidden>
+                <CheckCircle2 size={20} />
               </div>
             </div>
 
@@ -943,14 +942,14 @@ export default function PatientDashboard() {
               tabIndex={0}
               title="Click to view active prescriptions & refills"
             >
-              <div className="cm-kpi-card__accent cm-kpi-card__accent--waiting" />
+              <div className="cm-kpi-card__accent" />
               <div>
                 <div className="cm-kpi-card__label">{t.kpi.prescriptions}</div>
                 <div className="cm-kpi-card__value">{prescriptionsCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.prescriptionsSub}</div>
               </div>
-              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-                <Clinical3DIcon name="pill" size={36} glow />
+              <div className="cm-kpi-card__icon cm-icon3d" aria-hidden>
+                <Pill size={20} />
               </div>
             </div>
 
@@ -968,844 +967,303 @@ export default function PatientDashboard() {
                 <div className="cm-kpi-card__value">{recordsCount}</div>
                 <div className="cm-kpi-card__subtitle">{t.kpi.recordsSub}</div>
               </div>
-              <div className="cm-kpi-card__icon" style={{ background: "transparent", padding: 0 }}>
-                <Clinical3DIcon name="chart" size={36} glow />
+              <div className="cm-kpi-card__icon cm-icon3d" aria-hidden>
+                <FileText size={20} />
               </div>
             </div>
           </div>
 
-          {/* Interactive KPI Glassmorphic Modal */}
-          {activeKpiModal && (
-            <div
-              className="cm-overlay"
-              onClick={() => setActiveKpiModal(null)}
-              style={{ zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
-            >
-              <div
-                className="cm-modal cm-modal--kpi"
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                style={{
-                  background: "linear-gradient(135deg, #0b1329 0%, #172554 100%)",
-                  border: "1px solid rgba(56, 189, 248, 0.3)",
-                  boxShadow: "0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.15)",
-                  borderRadius: "20px",
-                  maxWidth: "840px",
-                  width: "94vw",
-                  maxHeight: "90vh",
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                  color: "#f8fafc",
-                }}
-              >
-                {/* Modal Header */}
+          {/* KPI detail sheet — same light surface as the rest of the dashboard */}
+          {activeKpiModal && (() => {
+            const KPI_HEAD = {
+              upcoming: { icon: <Calendar size={20} />, title: "Upcoming appointments", sub: upcomingCount === 0 ? "Nothing scheduled" : `${upcomingCount} scheduled` },
+              completed: { icon: <CheckCircle2 size={20} />, title: "Completed visits", sub: completedCount === 0 ? "None yet" : `${completedCount} completed` },
+              prescriptions: { icon: <Pill size={20} />, title: "Your medicines", sub: prescriptionsCount === 0 ? "None added" : `${prescriptionsCount} being tracked` },
+              records: { icon: <FileText size={20} />, title: "Health records", sub: recordsCount === 0 ? "No reports yet" : `${recordsCount} on file` },
+            } as const;
+            const head = KPI_HEAD[activeKpiModal];
+            const STATUS_TEXT: Record<string, [string, string]> = {
+              confirmed: ["Confirmed", "done"],
+              slot_allotted: ["New time proposed", "waiting"],
+              pending_review: ["Awaiting confirmation", "active"],
+              provider_accepted: ["Provider assigned", "active"],
+              in_progress: ["In progress", "active"],
+              completed: ["Completed", "done"],
+              cancelled: ["Cancelled", "halted"],
+            };
+            const statusPill = (s: string) => {
+              const [label, tone] = STATUS_TEXT[s] || [String(s || "").replace(/_/g, " "), "active"];
+              return <span className={`cm-pill cm-pill--${tone}`}>{label}</span>;
+            };
+            const whenOf = (b: any) =>
+              formatSlot(b.slot_start) || b.booking_date || b.scheduled_date || "";
+            const titleOf = (b: any) =>
+              b.service_title || b.test_names || b.package_name || parseBookingNotes(b.notes, b.service_type).title;
+            const closeTo = (id: string) => {
+              setActiveKpiModal(null);
+              setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            };
+
+            return (
+              <div className="cm-overlay" onClick={() => setActiveKpiModal(null)} style={{ zIndex: 99999 }}>
                 <div
-                  style={{
-                    padding: "20px 24px",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "rgba(15, 23, 42, 0.4)",
-                  }}
+                  className="cm-modal cm-modal--wide cm-kpim"
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="kpim-title"
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        background:
-                          activeKpiModal === "upcoming"
-                            ? "rgba(2, 132, 199, 0.2)"
-                            : activeKpiModal === "completed"
-                            ? "rgba(34, 197, 94, 0.2)"
-                            : activeKpiModal === "prescriptions"
-                            ? "rgba(245, 158, 11, 0.2)"
-                            : "rgba(139, 92, 246, 0.2)",
-                        border: `1px solid ${
-                          activeKpiModal === "upcoming"
-                            ? "rgba(56, 189, 248, 0.4)"
-                            : activeKpiModal === "completed"
-                            ? "rgba(74, 222, 128, 0.4)"
-                            : activeKpiModal === "prescriptions"
-                            ? "rgba(251, 191, 36, 0.4)"
-                            : "rgba(167, 139, 250, 0.4)"
-                        }`,
-                        display: "grid",
-                        placeItems: "center",
-                      }}
-                    >
-                      {activeKpiModal === "upcoming" && <Clinical3DIcon name="calendar" size={26} glow />}
-                      {activeKpiModal === "completed" && <Clinical3DIcon name="check" size={26} glow />}
-                      {activeKpiModal === "prescriptions" && <Clinical3DIcon name="pill" size={26} glow />}
-                      {activeKpiModal === "records" && <Clinical3DIcon name="chart" size={26} glow />}
+                  <div className="cm-modal__head">
+                    <span className="cm-kpim__icon cm-icon3d" aria-hidden>{head.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3 className="cm-modal__title" id="kpim-title">{head.title}</h3>
+                      <div className="cm-kpim__sub">{head.sub}</div>
                     </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#fff" }}>
-                        {activeKpiModal === "upcoming" && "Upcoming Consultations & Doorstep Healthcare"}
-                        {activeKpiModal === "completed" && "Completed Healthcare Services & History"}
-                        {activeKpiModal === "prescriptions" && "Active Prescriptions & Medicine Regimen"}
-                        {activeKpiModal === "records" && "Clinical Health Records & Diagnostic Biomarkers"}
-                      </h3>
-                      <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 2 }}>
-                        {activeKpiModal === "upcoming" && `${upcomingCount} active appointment${upcomingCount === 1 ? "" : "s"} scheduled`}
-                        {activeKpiModal === "completed" && `${completedCount} completed session${completedCount === 1 ? "" : "s"} verified`}
-                        {activeKpiModal === "prescriptions" && `${prescriptionsCount} tracked prescription item${prescriptionsCount === 1 ? "" : "s"}`}
-                        {activeKpiModal === "records" && `${recordsCount} diagnostic reading${recordsCount === 1 ? "" : "s"} on file`}
-                      </div>
-                    </div>
+                    <button type="button" className="cm-modal__x" onClick={() => setActiveKpiModal(null)} aria-label="Close">
+                      <X size={20} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveKpiModal(null)}
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.12)",
-                      color: "#cbd5e1",
-                      borderRadius: "50%",
-                      width: 32,
-                      height: 32,
-                      display: "grid",
-                      placeItems: "center",
-                      cursor: "pointer",
-                    }}
-                    aria-label="Close modal"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
 
-                {/* Modal Body */}
-                <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {/* Mode 1: Upcoming Appointments */}
-                  {activeKpiModal === "upcoming" && (
-                    <>
-                      {upcomingBookings.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                          {upcomingBookings.map((b) => (
-                            <div
-                              key={b.id}
-                              style={{
-                                background: "rgba(15, 23, 42, 0.7)",
-                                border: "1px solid rgba(56, 189, 248, 0.2)",
-                                borderRadius: 14,
-                                padding: "16px 18px",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 10,
-                              }}
-                            >
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                  <span
-                                    style={{
-                                      padding: "3px 10px",
-                                      borderRadius: 999,
-                                      fontSize: "0.75rem",
-                                      fontWeight: 700,
-                                      textTransform: "uppercase",
-                                      background:
-                                        b.status === "confirmed"
-                                          ? "rgba(34, 197, 94, 0.2)"
-                                          : b.status === "slot_allotted"
-                                          ? "rgba(245, 158, 11, 0.2)"
-                                          : "rgba(2, 132, 199, 0.2)",
-                                      color:
-                                        b.status === "confirmed"
-                                          ? "#4ade80"
-                                          : b.status === "slot_allotted"
-                                          ? "#fbbf24"
-                                          : "#38bdf8",
-                                      border: `1px solid ${
-                                        b.status === "confirmed"
-                                          ? "rgba(74, 222, 128, 0.3)"
-                                          : b.status === "slot_allotted"
-                                          ? "rgba(251, 191, 36, 0.3)"
-                                          : "rgba(56, 189, 248, 0.3)"
-                                      }`,
-                                    }}
-                                  >
-                                    {b.status.replace("_", " ")}
-                                  </span>
-                                  <span style={{ fontWeight: 700, fontSize: "1rem", color: "#fff" }}>
-                                    {b.service_title || b.service_type?.replace(/_/g, " ").toUpperCase() || "Doctor Consultation"}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                                  ID: <span style={{ fontFamily: "monospace", color: "#e2e8f0" }}>{b.id?.slice(0, 8)}</span>
-                                </div>
+                  <div className="cm-modal__body cm-kpim__body">
+                    {/* Upcoming */}
+                    {activeKpiModal === "upcoming" && (upcomingBookings.length > 0 ? (
+                      <ul className="cm-kpim__list">
+                        {upcomingBookings.map((b) => (
+                          <li key={b.id} className="cm-kpim-row">
+                            <div className="cm-kpim-row__main">
+                              <div className="cm-kpim-row__kind">{bookingKindLabel(b.service_type)}</div>
+                              <div className="cm-kpim-row__title">{titleOf(b)}</div>
+                              <div className="cm-kpim-row__meta">
+                                {[whenOf(b), b.provider_name || b.doctor_name].filter(Boolean).join(" · ")}
                               </div>
-
-                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, fontSize: "0.85rem", color: "#cbd5e1" }}>
-                                <div>
-                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Date &amp; Slot</div>
-                                  <div style={{ fontWeight: 600, color: "#f1f5f9" }}>
-                                    {b.booking_date || b.scheduled_date || "Today"} · {b.slot_id?.split("|")[2] || b.time_slot || "Assigned Slot"}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Mode of Care</div>
-                                  <div style={{ fontWeight: 600, color: "#f1f5f9", textTransform: "capitalize" }}>
-                                    {b.consultation_mode || b.booking_kind || (b.notes?.includes("Home Visit") ? "Home Visit" : "In-Person Clinic")}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Assigned Provider</div>
-                                  <div style={{ fontWeight: 600, color: "#f1f5f9" }}>{b.provider_name || b.doctor_name || "CallMedex Clinician"}</div>
-                                </div>
-                              </div>
-
+                            </div>
+                            <div className="cm-kpim-row__side">
+                              {statusPill(b.status)}
                               {b.status === "slot_allotted" && (
-                                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRespondSlot(b.id, true)}
-                                    style={{
-                                      padding: "6px 14px",
-                                      borderRadius: 8,
-                                      background: "var(--cm-done)",
-                                      color: "#fff",
-                                      border: "none",
-                                      fontWeight: 700,
-                                      fontSize: "0.8rem",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    ✓ Accept Allotted Slot
+                                <div className="cm-kpim-row__actions">
+                                  <button type="button" className="cm-btn cm-btn--primary cm-btn--sm" onClick={() => handleRespondSlot(b.id, true)}>
+                                    Accept time
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRespondSlot(b.id, false, "Reschedule requested by patient")}
-                                    style={{
-                                      padding: "6px 14px",
-                                      borderRadius: 8,
-                                      background: "rgba(255, 255, 255, 0.1)",
-                                      color: "#f87171",
-                                      border: "1px solid rgba(248, 113, 113, 0.3)",
-                                      fontWeight: 600,
-                                      fontSize: "0.8rem",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    Request Different Time
+                                  <button type="button" className="cm-btn cm-btn--secondary cm-btn--sm" onClick={() => handleRespondSlot(b.id, false, "Reschedule requested by patient")}>
+                                    Ask for another
                                   </button>
                                 </div>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
-                          <Clinical3DIcon name="calendar" size={48} glow />
-                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No upcoming appointments scheduled</div>
-                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>Need medical care, home nursing, or diagnostic blood tests?</div>
-                          <a
-                            href="/booking"
-                            style={{
-                              display: "inline-block",
-                              marginTop: 18,
-                              padding: "10px 22px",
-                              borderRadius: 999,
-                              background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
-                              color: "#fff",
-                              textDecoration: "none",
-                              fontWeight: 700,
-                              fontSize: "0.85rem",
-                            }}
-                          >
-                            Book Doctor Consultation or Test →
-                          </a>
-                        </div>
-                      )}
-                    </>
-                  )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="cm-empty">
+                        <span className="cm-empty__icon"><Calendar size={26} /></span>
+                        <p className="cm-empty__title">No upcoming appointments</p>
+                        <p className="cm-empty__body">Book a doctor, a lab test or a home visit and it will show up here.</p>
+                        <a href="/booking" className="cm-btn cm-btn--primary cm-btn--sm cm-empty__action">Book a service</a>
+                      </div>
+                    ))}
 
-                  {/* Mode 2: Completed Services */}
-                  {activeKpiModal === "completed" && (
-                    <>
-                      {completedBookings.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                          {completedBookings.map((b) => (
-                            <div
-                              key={b.id}
-                              style={{
-                                background: "rgba(15, 23, 42, 0.7)",
-                                border: "1px solid rgba(74, 222, 128, 0.2)",
-                                borderRadius: 14,
-                                padding: "16px 18px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                                gap: 12,
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span
-                                    style={{
-                                      padding: "2px 8px",
-                                      borderRadius: 999,
-                                      fontSize: "0.7rem",
-                                      fontWeight: 700,
-                                      background: "rgba(34, 197, 94, 0.2)",
-                                      color: "#4ade80",
-                                      border: "1px solid rgba(74, 222, 128, 0.3)",
-                                    }}
-                                  >
-                                    ✓ COMPLETED
-                                  </span>
-                                  <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff" }}>
-                                    {b.service_title || b.service_type?.replace(/_/g, " ").toUpperCase() || "Healthcare Session"}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 4 }}>
-                                  Completed on:{" "}
-                                  {b.completed_at
+                    {/* Completed */}
+                    {activeKpiModal === "completed" && (completedBookings.length > 0 ? (
+                      <ul className="cm-kpim__list">
+                        {completedBookings.map((b) => (
+                          <li key={b.id} className="cm-kpim-row">
+                            <div className="cm-kpim-row__main">
+                              <div className="cm-kpim-row__kind">{bookingKindLabel(b.service_type)}</div>
+                              <div className="cm-kpim-row__title">{titleOf(b)}</div>
+                              <div className="cm-kpim-row__meta">
+                                {[
+                                  b.completed_at
                                     ? new Date(b.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                                    : b.booking_date || "Past Session"}{" "}
-                                  · Provider: {b.provider_name || "Verified Practitioner"}
-                                </div>
-                              </div>
-
-                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                <a
-                                  href="/dashboard/patient/reports"
-                                  style={{
-                                    padding: "7px 14px",
-                                    borderRadius: 8,
-                                    background: "rgba(2, 132, 199, 0.2)",
-                                    color: "#38bdf8",
-                                    border: "1px solid rgba(56, 189, 248, 0.3)",
-                                    textDecoration: "none",
-                                    fontSize: "0.8rem",
-                                    fontWeight: 600,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                  }}
-                                >
-                                  <FileText size={14} /> View Report
-                                </a>
-                                <a
-                                  href={`/booking?service=${b.service_type || ""}`}
-                                  style={{
-                                    padding: "7px 14px",
-                                    borderRadius: 8,
-                                    background: "rgba(255, 255, 255, 0.08)",
-                                    color: "#fff",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    textDecoration: "none",
-                                    fontSize: "0.8rem",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  Rebook Service
-                                </a>
+                                    : whenOf(b),
+                                  b.provider_name,
+                                ].filter(Boolean).join(" · ")}
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
-                          <Clinical3DIcon name="check" size={48} glow />
-                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No completed sessions yet</div>
-                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>
-                            Your past medical consultations, diagnostic lab results, and home healthcare history will be safely cataloged here.
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                            <div className="cm-kpim-row__actions">
+                              {b.report_url ? (
+                                <a href={b.report_url} target="_blank" rel="noopener noreferrer" className="cm-btn cm-btn--secondary cm-btn--sm">
+                                  <Download size={14} /> Report
+                                </a>
+                              ) : (
+                                <a href="/dashboard/patient/reports" className="cm-btn cm-btn--secondary cm-btn--sm">
+                                  <FileText size={14} /> Reports
+                                </a>
+                              )}
+                              <button type="button" className="cm-btn cm-btn--ghost cm-btn--sm" onClick={() => { setActiveKpiModal(null); setReorderBooking(b); setShowReorderModal(true); }}>
+                                <RefreshCw size={14} /> Book again
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="cm-empty">
+                        <span className="cm-empty__icon"><CheckCircle2 size={26} /></span>
+                        <p className="cm-empty__title">No completed visits yet</p>
+                        <p className="cm-empty__body">Finished consultations, tests and home visits will be listed here with their reports.</p>
+                      </div>
+                    ))}
 
-                  {/* Mode 3: Active Prescriptions */}
-                  {activeKpiModal === "prescriptions" && (
-                    <>
-                      {familyState.medications?.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Medicines */}
+                    {activeKpiModal === "prescriptions" && (familyState.medications?.length > 0 ? (
+                      <>
+                        <ul className="cm-kpim__list">
                           {familyState.medications.map((m) => (
-                            <div
-                              key={m.id}
-                              style={{
-                                background: "rgba(15, 23, 42, 0.7)",
-                                border: "1px solid rgba(245, 158, 11, 0.2)",
-                                borderRadius: 14,
-                                padding: "16px 18px",
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                flexWrap: "wrap",
-                                gap: 12,
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  <span style={{ fontWeight: 800, fontSize: "1rem", color: "#fff" }}>{m.medicineName}</span>
-                                  <span
-                                    style={{
-                                      padding: "2px 8px",
-                                      borderRadius: 999,
-                                      fontSize: "0.7rem",
-                                      fontWeight: 600,
-                                      background: "rgba(255, 255, 255, 0.1)",
-                                      color: "#e2e8f0",
-                                    }}
-                                  >
-                                    {m.dosage}
-                                  </span>
-                                  {m.needsRefill && (
-                                    <span
-                                      style={{
-                                        padding: "2px 8px",
-                                        borderRadius: 999,
-                                        fontSize: "0.7rem",
-                                        fontWeight: 700,
-                                        background: "rgba(239, 68, 68, 0.2)",
-                                        color: "#f87171",
-                                        border: "1px solid rgba(239, 68, 68, 0.3)",
-                                      }}
-                                    >
-                                      Refill Needed
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginTop: 4 }}>
-                                  Remaining supply: <strong style={{ color: "#f1f5f9" }}>{m.remainingPills} pills</strong> ·{" "}
-                                  {m.daysLeft !== null && m.daysLeft !== undefined ? `~${m.daysLeft} days remaining` : `${m.pillsPerDay} dose/day`}
+                            <li key={m.id} className="cm-kpim-row">
+                              <div className="cm-kpim-row__main">
+                                <div className="cm-kpim-row__title">{m.medicineName}</div>
+                                <div className="cm-kpim-row__meta">
+                                  {[m.dosage, `${m.remainingPills} of ${m.totalPills} left`,
+                                    m.daysLeft != null ? `${m.daysLeft} day${m.daysLeft === 1 ? "" : "s"} of supply` : ""]
+                                    .filter(Boolean).join(" · ")}
                                 </div>
                               </div>
-
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <a
-                                  href="/dashboard/patient/pharmacy"
-                                  style={{
-                                    padding: "7px 14px",
-                                    borderRadius: 8,
-                                    background: "rgba(245, 158, 11, 0.2)",
-                                    color: "#fbbf24",
-                                    border: "1px solid rgba(251, 191, 36, 0.3)",
-                                    textDecoration: "none",
-                                    fontSize: "0.8rem",
-                                    fontWeight: 700,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                  }}
-                                >
-                                  <Pill size={14} /> 1-Click Refill
+                              <div className="cm-kpim-row__side">
+                                {(m.needsRefill || m.outOfStock) && (
+                                  <span className={`cm-pill ${m.outOfStock ? "cm-pill--urgent" : "cm-pill--waiting"}`}>
+                                    {m.outOfStock ? "Supply finished" : "Refill soon"}
+                                  </span>
+                                )}
+                                <a href="/dashboard/patient/pharmacy" className="cm-btn cm-btn--secondary cm-btn--sm">
+                                  <Pill size={14} /> Order refill
                                 </a>
                               </div>
-                            </div>
+                            </li>
                           ))}
+                        </ul>
+                        <div className="cm-kpim__foot">
+                          <button type="button" className="cm-btn cm-btn--ghost cm-btn--sm" onClick={() => closeTo("medicine-cabinet")}>
+                            Edit or remove medicines <ArrowRight size={14} />
+                          </button>
                         </div>
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#94a3b8" }}>
-                          <Clinical3DIcon name="pill" size={48} glow />
-                          <div style={{ marginTop: 14, fontSize: "1rem", fontWeight: 700, color: "#e2e8f0" }}>No active medication regimens recorded</div>
-                          <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: 4 }}>
-                            Keep track of your dosages, schedules, and prescription refills seamlessly.
-                          </div>
-                          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
-                            <a
-                              href="/dashboard/patient/pharmacy"
-                              style={{
-                                padding: "10px 20px",
-                                borderRadius: 999,
-                                background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
-                                color: "#fff",
-                                textDecoration: "none",
-                                fontWeight: 700,
-                                fontSize: "0.85rem",
-                              }}
-                            >
-                              Order from Partner Pharmacy →
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveKpiModal(null);
-                                setShowDrugShieldModal(true);
-                              }}
-                              style={{
-                                padding: "10px 18px",
-                                borderRadius: 999,
-                                background: "rgba(255, 255, 255, 0.1)",
-                                color: "#fff",
-                                border: "1px solid rgba(255, 255, 255, 0.2)",
-                                fontWeight: 600,
-                                fontSize: "0.85rem",
-                                cursor: "pointer",
-                              }}
-                            >
-                              CDSCO Drug Safety Guard
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Mode 4: Health Records & Diagnostic Test Reports (Self vs Family Segmented) */}
-                  {activeKpiModal === "records" && (() => {
-                    const allTestRecords = bookings.filter(b =>
-                      b.status === "completed" ||
-                      Boolean(b.report_url) ||
-                      ["lab_test", "diagnostic", "radiology", "health_package"].includes(b.booking_type || b.service_type)
-                    );
-
-                    const selfRecords = allTestRecords.filter(b => b.is_self !== false && !b.family_member_id);
-                    const familyRecords = allTestRecords.filter(b => b.is_self === false || Boolean(b.family_member_id));
-
-                    const displayedRecords = recordsTab === "self"
-                      ? selfRecords
-                      : (selectedFamilyMemberId === "all"
-                          ? familyRecords
-                          : familyRecords.filter(b => b.family_member_id === selectedFamilyMemberId));
-
-                    return (
-                      <div>
-                        {/* Segmented Control: Self vs Family Member */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          marginBottom: 16,
-                          background: "rgba(15, 23, 42, 0.7)",
-                          padding: "6px",
-                          borderRadius: 12,
-                          border: "1px solid rgba(255, 255, 255, 0.08)"
-                        }}>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => setRecordsTab("self")}
-                              style={{
-                                padding: "8px 18px",
-                                borderRadius: 8,
-                                border: "none",
-                                fontSize: "0.85rem",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                                background: recordsTab === "self" ? "linear-gradient(135deg, #0ea5e9, #2563eb)" : "transparent",
-                                color: recordsTab === "self" ? "#fff" : "#94a3b8",
-                                boxShadow: recordsTab === "self" ? "0 4px 12px rgba(14, 165, 233, 0.3)" : "none"
-                              }}
-                            >
-                              My Records ({selfRecords.length})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setRecordsTab("family")}
-                              style={{
-                                padding: "8px 18px",
-                                borderRadius: 8,
-                                border: "none",
-                                fontSize: "0.85rem",
-                                fontWeight: 700,
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                                background: recordsTab === "family" ? "linear-gradient(135deg, #8b5cf6, #6366f1)" : "transparent",
-                                color: recordsTab === "family" ? "#fff" : "#94a3b8",
-                                boxShadow: recordsTab === "family" ? "0 4px 12px rgba(139, 92, 246, 0.3)" : "none"
-                              }}
-                            >
-                              Family Records ({familyRecords.length})
-                            </button>
-                          </div>
-
-                          {recordsTab === "family" && familyState.members.length > 0 && (
-                            <select
-                              value={selectedFamilyMemberId}
-                              onChange={(e) => setSelectedFamilyMemberId(e.target.value)}
-                              style={{
-                                background: "rgba(30, 41, 59, 0.9)",
-                                color: "#e2e8f0",
-                                border: "1px solid rgba(148, 163, 184, 0.2)",
-                                borderRadius: 8,
-                                padding: "6px 12px",
-                                fontSize: "0.8rem",
-                                outline: "none"
-                              }}
-                            >
-                              <option value="all">All Family Members</option>
-                              {familyState.members.map((m: any) => (
-                                <option key={m.id} value={m.id}>{m.fullName} ({m.relationship})</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-
-                        {/* Health Summary Strip */}
-                        <div
-                          style={{
-                            background: "rgba(14, 165, 233, 0.08)",
-                            border: "1px solid rgba(14, 165, 233, 0.2)",
-                            borderRadius: 14,
-                            padding: "14px 18px",
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                            gap: 12,
-                            marginBottom: 16,
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
-                              Conducted Tests
-                            </div>
-                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
-                              {displayedRecords.length}
-                            </div>
-                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
-                              {recordsTab === "self" ? "Personal records" : "Dependent records"}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
-                              Available Reports
-                            </div>
-                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#fff", marginTop: 2 }}>
-                              {displayedRecords.filter(b => b.report_url || b.status === "completed").length}
-                            </div>
-                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>NABL &amp; CAP Verified</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: "0.72rem", color: "#38bdf8", textTransform: "uppercase", fontWeight: 700 }}>
-                              ABDM PHR Sync
-                            </div>
-                            <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#4ade80", marginTop: 2 }}>Active</div>
-                            <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>HIP/HIU Connected</div>
-                          </div>
-                        </div>
-
-                        {/* Conducted Lab Tests & Diagnostic Reports List */}
-                        {displayedRecords.length > 0 ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "380px", overflowY: "auto", paddingRight: 4 }}>
-                            {displayedRecords.map((rec) => {
-                              const title = rec.test_names || rec.package_name || rec.service_name || rec.notes || "Comprehensive Lab Test";
-                              const center = rec.hospital_name || "CallMedex Pathology & Diagnostic Network";
-                              const date = rec.scheduled_date || (rec.created_at ? rec.created_at.split("T")[0] : "Recent");
-                              const isCompleted = rec.status === "completed";
-
-                              return (
-                                <div
-                                  key={rec.id}
-                                  style={{
-                                    background: "rgba(15, 23, 42, 0.7)",
-                                    border: "1px solid rgba(255, 255, 255, 0.08)",
-                                    borderRadius: 12,
-                                    padding: "14px 16px",
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    gap: 16,
-                                    transition: "border-color 0.2s ease",
-                                  }}
-                                >
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                                      <span style={{ fontWeight: 700, fontSize: "0.92rem", color: "#fff" }}>
-                                        {title}
-                                      </span>
-                                      {rec.subject_name && !rec.is_self && (
-                                        <span style={{
-                                          fontSize: "0.68rem",
-                                          padding: "2px 8px",
-                                          borderRadius: 6,
-                                          background: "rgba(139, 92, 246, 0.2)",
-                                          color: "#c4b5fd",
-                                          border: "1px solid rgba(139, 92, 246, 0.3)"
-                                        }}>
-                                          {rec.subject_name} ({rec.subject_relationship || "Family"})
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ fontSize: "0.78rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: 12 }}>
-                                      <span>{center}</span>
-                                      <span>•</span>
-                                      <span>Date: {date}</span>
-                                    </div>
-                                  </div>
-
-                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <span style={{
-                                      fontSize: "0.72rem",
-                                      fontWeight: 600,
-                                      padding: "4px 10px",
-                                      borderRadius: 20,
-                                      background: isCompleted ? "rgba(34, 197, 94, 0.15)" : "rgba(14, 165, 233, 0.15)",
-                                      color: isCompleted ? "#4ade80" : "#38bdf8",
-                                      border: isCompleted ? "1px solid rgba(34, 197, 94, 0.3)" : "1px solid rgba(14, 165, 233, 0.3)"
-                                    }}>
-                                      {isCompleted ? "Completed & Verified" : (rec.status || "Conducted")}
-                                    </span>
-
-                                    {/* Action 1: View / Download Report */}
-                                    {rec.report_url ? (
-                                      <a
-                                        href={rec.report_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          padding: "6px 12px",
-                                          borderRadius: 8,
-                                          background: "rgba(255, 255, 255, 0.08)",
-                                          color: "#e2e8f0",
-                                          border: "1px solid rgba(255, 255, 255, 0.15)",
-                                          textDecoration: "none",
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 5
-                                        }}
-                                      >
-                                        <Download size={13} /> Report
-                                      </a>
-                                    ) : (
-                                      <a
-                                        href={`/dashboard/patient/reports`}
-                                        style={{
-                                          padding: "6px 12px",
-                                          borderRadius: 8,
-                                          background: "rgba(255, 255, 255, 0.08)",
-                                          color: "#cbd5e1",
-                                          border: "1px solid rgba(255, 255, 255, 0.12)",
-                                          textDecoration: "none",
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 5
-                                        }}
-                                      >
-                                        <FileText size={13} /> View
-                                      </a>
-                                    )}
-
-                                    {/* Action 2: Book Again CTA */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setReorderBooking(rec);
-                                        setShowReorderModal(true);
-                                      }}
-                                      style={{
-                                        padding: "6px 14px",
-                                        borderRadius: 8,
-                                        background: "linear-gradient(135deg, #0ea5e9, #0284c7)",
-                                        color: "#fff",
-                                        border: "none",
-                                        fontSize: "0.78rem",
-                                        fontWeight: 700,
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 5
-                                      }}
-                                    >
-                                      <RefreshCw size={12} /> Book Again
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div style={{ textAlign: "center", padding: "36px 16px", color: "#94a3b8" }}>
-                            <Clinical3DIcon name="chart" size={44} glow />
-                            <div style={{ marginTop: 12, fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0" }}>
-                              {recordsTab === "self" ? "No conducted test records found for Self" : "No test records found for Family Member"}
-                            </div>
-                            <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 4, maxWidth: "420px", margin: "4px auto 16px auto" }}>
-                              Book diagnostic panels, preventative full-body scans, or home sample collection to build your digital clinical health chart.
-                            </div>
-                            <a
-                              href="/booking"
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "8px 18px",
-                                borderRadius: 8,
-                                background: "linear-gradient(135deg, #0ea5e9, #2563eb)",
-                                color: "#fff",
-                                textDecoration: "none",
-                                fontSize: "0.85rem",
-                                fontWeight: 600,
-                              }}
-                            >
-                              <FlaskConical size={14} /> Book a Diagnostic Test
-                            </a>
-                          </div>
-                        )}
-
-                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 16 }}>
-                          <a
-                            href="/dashboard/patient/reports"
-                            style={{
-                              padding: "8px 16px",
-                              borderRadius: 8,
-                              background: "rgba(14, 165, 233, 0.15)",
-                              color: "#38bdf8",
-                              border: "1px solid rgba(56, 189, 248, 0.3)",
-                              textDecoration: "none",
-                              fontSize: "0.85rem",
-                              fontWeight: 600,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            }}
-                          >
-                            <FileText size={14} /> Open Full Reports Archive
-                          </a>
+                      </>
+                    ) : (
+                      <div className="cm-empty">
+                        <span className="cm-empty__icon"><Pill size={26} /></span>
+                        <p className="cm-empty__title">No medicines added</p>
+                        <p className="cm-empty__body">Add what you take to get dose reminders and a heads-up before you run out.</p>
+                        <div className="cm-empty__action" style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                          <button type="button" className="cm-btn cm-btn--primary cm-btn--sm" onClick={() => closeTo("medicine-cabinet")}>
+                            Add a medicine
+                          </button>
+                          <button type="button" className="cm-btn cm-btn--secondary cm-btn--sm" onClick={() => { setActiveKpiModal(null); setShowDrugShieldModal(true); }}>
+                            Check a medicine
+                          </button>
                         </div>
                       </div>
-                    );
-                  })()}
-                </div>
+                    ))}
 
-                {/* Modal Footer */}
-                <div
-                  style={{
-                    padding: "16px 24px",
-                    borderTop: "1px solid rgba(255, 255, 255, 0.1)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "rgba(15, 23, 42, 0.5)",
-                  }}
-                >
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
-                    <ShieldCheck size={14} color="#38bdf8" />
-                    <span>CallMedex Verified Healthcare Protocol</span>
+                    {/* Records */}
+                    {activeKpiModal === "records" && (() => {
+                      const selfRecords = conductedRecords.filter(b => b.is_self !== false && !b.family_member_id);
+                      const familyRecords = conductedRecords.filter(b => b.is_self === false || Boolean(b.family_member_id));
+                      const displayed = recordsTab === "self"
+                        ? selfRecords
+                        : (selectedFamilyMemberId === "all" ? familyRecords : familyRecords.filter(b => b.family_member_id === selectedFamilyMemberId));
+                      const ready = displayed.filter(b => b.report_url).length;
+
+                      return (
+                        <>
+                          <div className="cm-kpim__toolbar">
+                            <div className="cm-seg" role="tablist" aria-label="Whose records">
+                              <button type="button" role="tab" aria-selected={recordsTab === "self"} className={`cm-seg__opt${recordsTab === "self" ? " is-on" : ""}`} onClick={() => setRecordsTab("self")}>
+                                Mine ({selfRecords.length})
+                              </button>
+                              <button type="button" role="tab" aria-selected={recordsTab === "family"} className={`cm-seg__opt${recordsTab === "family" ? " is-on" : ""}`} onClick={() => setRecordsTab("family")}>
+                                Family ({familyRecords.length})
+                              </button>
+                            </div>
+                            {recordsTab === "family" && familyState.members.length > 0 && (
+                              <select className="cm-kpim__select" value={selectedFamilyMemberId} onChange={(e) => setSelectedFamilyMemberId(e.target.value)} aria-label="Family member">
+                                <option value="all">Everyone</option>
+                                {familyState.members.map((m: any) => (
+                                  <option key={m.id} value={m.id}>{m.fullName} ({m.relationship})</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          <div className="cm-kpim__stats">
+                            <div>
+                              <span>Visits &amp; tests</span>
+                              <strong>{displayed.length}</strong>
+                            </div>
+                            <div>
+                              <span>Reports ready</span>
+                              <strong>{ready}</strong>
+                            </div>
+                            <div>
+                              <span>ABHA</span>
+                              {abhaLinkedNumber ? (
+                                <strong className="cm-kpim__ok"><CheckCircle2 size={15} /> Linked</strong>
+                              ) : (
+                                <button type="button" className="cm-kpim__link" onClick={() => { setActiveKpiModal(null); setShowAbhaModal(true); }}>
+                                  Not linked · Link now
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {displayed.length > 0 ? (
+                            <ul className="cm-kpim__list">
+                              {displayed.map((rec) => (
+                                <li key={rec.id} className="cm-kpim-row">
+                                  <div className="cm-kpim-row__main">
+                                    <div className="cm-kpim-row__kind">
+                                      {bookingKindLabel(rec.service_type)}
+                                      {rec.subject_name && !rec.is_self && <> · {rec.subject_name}</>}
+                                    </div>
+                                    <div className="cm-kpim-row__title">{titleOf(rec)}</div>
+                                    <div className="cm-kpim-row__meta">
+                                      {[rec.hospital_name, whenOf(rec) || (rec.created_at ? new Date(rec.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "")].filter(Boolean).join(" · ")}
+                                    </div>
+                                  </div>
+                                  <div className="cm-kpim-row__side">
+                                    {rec.report_url
+                                      ? <span className="cm-pill cm-pill--done">Report ready</span>
+                                      : statusPill(rec.status)}
+                                    <div className="cm-kpim-row__actions">
+                                      {rec.report_url ? (
+                                        <a href={rec.report_url} target="_blank" rel="noopener noreferrer" className="cm-btn cm-btn--secondary cm-btn--sm">
+                                          <Download size={14} /> Report
+                                        </a>
+                                      ) : (
+                                        <a href="/dashboard/patient/reports" className="cm-btn cm-btn--secondary cm-btn--sm">
+                                          <FileText size={14} /> View
+                                        </a>
+                                      )}
+                                      <button type="button" className="cm-btn cm-btn--ghost cm-btn--sm" onClick={() => { setActiveKpiModal(null); setReorderBooking(rec); setShowReorderModal(true); }}>
+                                        <RefreshCw size={14} /> Book again
+                                      </button>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="cm-empty">
+                              <span className="cm-empty__icon"><FileText size={26} /></span>
+                              <p className="cm-empty__title">{recordsTab === "self" ? "No reports yet" : "No family reports yet"}</p>
+                              <p className="cm-empty__body">Reports from tests and visits booked on CallMedex will be kept here.</p>
+                              <a href="/booking" className="cm-btn cm-btn--primary cm-btn--sm cm-empty__action">
+                                <FlaskConical size={14} /> Book a test
+                              </a>
+                            </div>
+                          )}
+
+                          <div className="cm-kpim__foot">
+                            <a href="/dashboard/patient/reports" className="cm-btn cm-btn--ghost cm-btn--sm">
+                              All reports <ArrowRight size={14} />
+                            </a>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveKpiModal(null)}
-                    style={{
-                      padding: "8px 18px",
-                      borderRadius: 8,
-                      background: "linear-gradient(135deg, #0284c7 0%, #2563eb 100%)",
-                      color: "#fff",
-                      border: "none",
-                      fontWeight: 700,
-                      fontSize: "0.85rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Done
-                  </button>
                 </div>
               </div>
-            </div>
-          )}
-
-
+            );
+          })()}
 
           {/* Interactive 2-Step Sample Tracker Modal */}
           <SampleTrackerModal
@@ -1836,21 +1294,17 @@ export default function PatientDashboard() {
           {/* ── AI Preventive Care Advisor (OpenRouter AI) ────── */}
           <PatientAIAdvisor />
 
-          {/* ── Patient Dashboard Upgrade Subsystems ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {FEATURE_FLAGS.ENABLE_FAMILY_SWIPER && (
-              <div id="family-circle">
-                <FamilySwiperWheel lang={lang} />
+          {/* ── Body Explorer → My Medicines → Biomarker Matrix ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
+            <InteractiveBodyMap />
+            {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && (
+              <div id="medicine-cabinet">
+                <MedicineCabinetGrid lang={lang} />
               </div>
             )}
             {FEATURE_FLAGS.ENABLE_PREVENTIVE_BIOMARKERS && (
               <div id="biomarkers">
                 <BiomarkerMatrix lang={lang} />
-              </div>
-            )}
-            {FEATURE_FLAGS.ENABLE_SMART_MEDICINE_CABINET && (
-              <div id="medicine-cabinet">
-                <MedicineCabinetGrid lang={lang} />
               </div>
             )}
           </div>
@@ -2197,7 +1651,7 @@ export default function PatientDashboard() {
                       <div style={{ fontSize: "0.88rem", color: "var(--cm-ink)", marginBottom: 4 }}>
                         <strong>{slotStart.toLocaleDateString()}</strong> • {slotStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>{b.notes || b.service_type?.replace('_', ' ')}</div>
+                      <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)" }}>{parseBookingNotes(b.notes, b.service_type).title}</div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
@@ -2235,10 +1689,6 @@ export default function PatientDashboard() {
           </div>
         )}
 
-        {/* Interactive 3D Anatomical Twin Stage */}
-        <div style={{ marginBottom: 24 }}>
-          <InteractiveBodyMap />
-        </div>
 
 
 
@@ -2266,7 +1716,8 @@ export default function PatientDashboard() {
           ) : bookings?.length > 0 ? (
             bookings.map((booking: any) => {
               const isPastSlot = booking.slot_start && (new Date(booking.slot_start).getTime() < (Date.now() - 3600000));
-              const isAutoExpired = booking.status === "cancelled" && (booking.notes?.includes("Auto-Refuted") || booking.notes?.includes("Automatically cancelled"));
+              const shown = parseBookingNotes(booking.notes, booking.service_type);
+              const isAutoExpired = booking.status === "cancelled" && (shown.autoExpired || booking.notes?.includes("Automatically cancelled"));
               const isDoctorSvc = booking.service_type === "doctor_appointment" || booking.service_type === "video_consult" || booking.service_type === "consultation" || booking.provider_type === "doctor";
               const statusTone = isAutoExpired ? "halted"
                 : booking.status === "cancelled" || booking.status === "slot_rejected" ? "urgent"
@@ -2283,22 +1734,22 @@ export default function PatientDashboard() {
                     {booking.service_type === "lab_test" ? <Activity size={20} /> : booking.service_type === "video_consult" ? <Video size={20} /> : <Stethoscope size={20} />}
                   </div>
                   <div className="cm-pbk-card__text">
-                    <div className="cm-pbk-card__name">
-                      {booking.service_type.replace('_', ' ')}
-                    </div>
+                    <div className="cm-pbk-card__kind">{bookingKindLabel(booking.service_type)}</div>
+                    <div className="cm-pbk-card__name">{shown.title}</div>
                     <div className="cm-pbk-card__meta">
-                      {booking.notes || `Provider ID: ${booking.provider_id}`} · {new Date(booking.slot_start).toLocaleDateString()} at {new Date(booking.slot_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {[formatSlot(booking.slot_start), shown.total != null ? formatINR(shown.total) : ""].filter(Boolean).join(" · ")}
                     </div>
+                    {shown.statusNote && <div className="cm-pbk-card__note">{shown.statusNote}</div>}
                   </div>
                 </div>
                 <div className="cm-pbk-card__side">
                   <span className={`cm-pbk-status cm-pbk-status--${statusTone}`}>
-                    {isAutoExpired ? <><XCircle size={13} /> Expired / Concluded</>
+                    {isAutoExpired ? <><XCircle size={13} /> Expired</>
                       : booking.status === "pending_review" ? <><Clock size={13} /> Pending Review</>
                       : booking.status === "slot_allotted" ? <><Bell size={13} /> Slot Allotted</>
                         : booking.status === "slot_rejected" ? <><XCircle size={13} /> Slot Declined</>
                           : booking.status === "cancelled" ? <><XCircle size={13} /> Cancelled</>
-                            : <><CheckCircle2 size={13} /> {booking.status.replace('_', ' ')}</>}
+                            : <><CheckCircle2 size={13} /> {booking.status.replace(/_/g, ' ')}</>}
                   </span>
                   <div className="cm-pbk-card__actions">
                     {isDoctorSvc && booking.status === "confirmed" && !isPastSlot && (
@@ -2388,9 +1839,9 @@ export default function PatientDashboard() {
                 <ShieldCheck size={22} />
               </div>
               <div>
-                <h3 className="cm-pacct__title" id="pacct-title">Account Security &amp; Data Privacy</h3>
+                <h3 className="cm-pacct__title" id="pacct-title">Account &amp; privacy</h3>
                 <p className="cm-pacct__desc">
-                  Manage your data retention preferences or permanently close and erase your CallMedex patient account.
+                  Close your CallMedex account and permanently erase your data.
                 </p>
               </div>
             </div>
@@ -2398,10 +1849,11 @@ export default function PatientDashboard() {
               <Trash2 size={15} /> Delete Account
             </button>
           </div>
-          <div className="cm-pacct__foot">
-            <span>ABDM Registered · ISO 27001 Data Destruction Standards Compliant</span>
-            <span>Registered Email: <strong>{user?.email || "Linked CallMedex Account"}</strong></span>
-          </div>
+          {(profile?.email || user?.email) && (
+            <div className="cm-pacct__foot">
+              <span>Signed in as <strong>{profile?.email || user?.email}</strong></span>
+            </div>
+          )}
         </section>
 
         </main>
@@ -2544,16 +1996,25 @@ export default function PatientDashboard() {
             </p>
 
             <div style={{ backgroundColor: "var(--cm-surface-2)", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid var(--cm-line)" }}>
-              <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "0.95rem", textTransform: "capitalize", marginBottom: 4 }}>
-                {reorderBooking.service_type.replace('_', ' ')}
+              <div style={{ fontSize: "var(--cm-text-xs)", fontWeight: 600, color: "var(--cm-ink-3)", marginBottom: 2 }}>
+                {bookingKindLabel(reorderBooking.service_type)}
               </div>
-              <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", marginBottom: 8 }}>
-                {reorderBooking.notes || `Previous Booking ID: ${reorderBooking.id?.slice(0, 8)}`}
+              <div style={{ fontWeight: 700, color: "var(--cm-ink)", fontSize: "0.95rem", marginBottom: 4 }}>
+                {parseBookingNotes(reorderBooking.notes, reorderBooking.service_type).title}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "var(--cm-active)", borderTop: "1px dashed var(--cm-line)", paddingTop: 8 }}>
-                <span>{t.reorderModal.estimatedPrice}</span>
-                <span>₹{reorderBooking.total_price || 350}</span>
-              </div>
+              {parseBookingNotes(reorderBooking.notes, reorderBooking.service_type).address && (
+                <div style={{ fontSize: "0.82rem", color: "var(--cm-ink-3)", marginBottom: 8 }}>
+                  {parseBookingNotes(reorderBooking.notes, reorderBooking.service_type).address}
+                </div>
+              )}
+              {/* A made-up ₹350 used to stand in when the old booking had no
+                  price; a patient must never be quoted a number we invented. */}
+              {Number(reorderBooking.total_price) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", fontWeight: 700, color: "var(--cm-ink)", borderTop: "1px dashed var(--cm-line)", paddingTop: 8, fontVariantNumeric: "tabular-nums" }}>
+                  <span>{t.reorderModal.estimatedPrice}</span>
+                  <span>{formatINR(reorderBooking.total_price)}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
