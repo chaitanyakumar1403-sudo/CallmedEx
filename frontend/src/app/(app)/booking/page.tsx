@@ -147,6 +147,21 @@ function BookingPageContent() {
 
   const [step, setStep] = useState(1);
   const [bookingType, setBookingType] = useState(""); // "doctor" | "lab" | "home_doctor" | "home_collection" | "video_consult" | "nurse_visit"
+  const isHealthPackageFlow =
+    Boolean(packageParam) ||
+    searchParams.get("category") === "package" ||
+    searchParams.get("type") === "package" ||
+    bookingType === "packages";
+
+  const isLabTestFlow =
+    Boolean(serviceParam) ||
+    Boolean(nameParam) ||
+    Boolean(searchParams.get("test")) ||
+    modeParam === "home" ||
+    modeParam === "walkin" ||
+    Boolean(orgParam) ||
+    bookingType === "home_collection" ||
+    (bookingType === "lab" && !isHealthPackageFlow);
   // Real patient coordinates from the location picker. Dispatch ranks providers
   // by distance from these, so a hardcoded value matched every patient to the
   // same point on the map regardless of where they actually were.
@@ -373,13 +388,14 @@ function BookingPageContent() {
           // Lab/diagnostics is partner-blind: there is no centre step to land
           // on, so this goes straight to "Choose Tests" at step 2.
           setStep(2);
-          if (serviceParam) {
-            const catalogMatch = findMasterCatalogItem(serviceParam);
-            const resolvedName = (nameParam && nameParam !== "lab_1") ? nameParam : (catalogMatch?.name || serviceParam);
+          if (serviceParam || nameParam) {
+            const targetId = serviceParam || nameParam || "lab_test";
+            const catalogMatch = findMasterCatalogItem(targetId);
+            const resolvedName = (nameParam && nameParam !== "lab_1") ? nameParam : (catalogMatch?.name || serviceParam || "Diagnostic Test");
             const resolvedPrice = Number(priceParam) || catalogMatch?.price || 3500;
             const isWalkin = modeParam === "walkin";
             const singleItem = {
-              id: serviceParam,
+              id: targetId,
               name: resolvedName,
               price: resolvedPrice,
               description: catalogMatch?.category || "Diagnostic Test",
@@ -1713,16 +1729,20 @@ function BookingPageContent() {
              and org-specific (patient picked a centre from the marketplace). */}
         {step === 2 && bookingType === "lab" && !isUrgentHomeLab && (
           <div className="card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>Choose Your Tests</h3>
+            <h3 style={{ fontSize: "1.05rem", marginBottom: 6, color: "#1a2b4a" }}>
+              {isHealthPackageFlow ? "Choose Health Package" : "Choose Your Tests"}
+            </h3>
 
             {selectedOrg?.isReal ? (
               <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
                 Booking at <strong>{selectedOrg.organization_name || selectedOrg.name || "Selected Centre"}</strong>.
-                Pick the tests or health packages you need.
+                {isHealthPackageFlow ? " Pick the health checkup package you need." : " Pick the individual lab tests you need."}
               </p>
             ) : (
               <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: 20 }}>
-                Booked with CallMedex — we allocate the right centre internally. Select one or more tests or health panels.
+                {isHealthPackageFlow
+                  ? "Booked with CallMedex — fixed rates with free home sample collection included. Select your health package."
+                  : "Booked with CallMedex — we allocate the right centre internally. Select one or more tests for doorstep collection."}
               </p>
             )}
 
@@ -1849,8 +1869,8 @@ function BookingPageContent() {
 
               return (
                 <>
-                  {/* Health Packages are strictly omitted during walk-in diagnostic centre bookings or when booking a specific test */}
-                  {!isSpecificTestOrWalkin && (
+                  {/* Health Packages are strictly shown ONLY for health package bookings */}
+                  {isHealthPackageFlow && (
                     <>
                       <h4 style={{ fontSize: "0.92rem", color: "#805ad5", marginBottom: 10 }}>📦 Health Checkup Packages</h4>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
@@ -1906,9 +1926,12 @@ function BookingPageContent() {
                     </>
                   )}
 
-                  <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>
-                    {isSpecificTestOrWalkin ? "🔬 Additional Tests (Optional)" : "🔬 Individual Lab Tests"}
-                  </h4>
+                  {/* Individual Lab Tests are strictly shown ONLY when NOT booking a health package */}
+                  {!isHealthPackageFlow && (
+                    <>
+                      <h4 style={{ fontSize: "0.92rem", color: "#0284c7", marginBottom: 10 }}>
+                        {isSpecificTestOrWalkin ? "🔬 Additional Tests (Optional)" : "🔬 Individual Lab Tests"}
+                      </h4>
 
                   {/* Search box for the large catalog */}
                   {!hasOrgCatalog && (
@@ -1990,8 +2013,10 @@ function BookingPageContent() {
                     )}
                   </div>
                 </>
-              );
-            })()}
+              )}
+            </>
+          );
+        })()}
 
             {/* Total summary */}
             {selectedTests.length > 0 && (

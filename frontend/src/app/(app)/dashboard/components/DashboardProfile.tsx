@@ -167,7 +167,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   };
 
   useEffect(() => {
-    if (["doctor", "dentist", "physiotherapist", "dietitian", "nurse"].includes(role)) {
+    if (["doctor", "dentist", "physiotherapist", "dietitian", "nurse", "phlebotomist"].includes(role)) {
       fetch(`${apiBase}/api/providers/my-profile-photo`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       })
@@ -424,8 +424,8 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
     }
   };
 
-  const isPractitioner = ["doctor", "dentist", "physiotherapist", "dietitian", "nurse"].includes(role);
-  const initials = (formData.full_name || p.full_name || "DR")
+  const isPractitioner = ["doctor", "dentist", "physiotherapist", "dietitian", "nurse", "phlebotomist"].includes(role);
+  const initials = (formData.full_name || p.full_name || (role === "phlebotomist" ? "PH" : "DR"))
     .split(" ")
     .map((s: string) => s[0])
     .filter(Boolean)
@@ -509,7 +509,11 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               </h3>
             </div>
             <p className="cm-profile-studio__desc">
-              Your verified photo replaces generic placeholder icons on the public <strong>Consultation Directory</strong>, <strong>Tariff Justification Modal</strong>, and <strong>Video Consultation Waiting Room</strong>. Photos must be under 4MB (JPEG, PNG, or WebP).
+              Your verified photo replaces generic placeholder icons on the {role === "phlebotomist" ? (
+                <><strong>Doorstep Sample Collection Tracker</strong>, <strong>Patient Booking Receipt</strong>, and <strong>Direct Dispatch Console</strong>.</>
+              ) : (
+                <>public <strong>Consultation Directory</strong>, <strong>Tariff Justification Modal</strong>, and <strong>Video Consultation Waiting Room</strong>.</>
+              )} Photos must be under 4MB (JPEG, PNG, or WebP).
             </p>
 
             {/* Hidden File Inputs */}

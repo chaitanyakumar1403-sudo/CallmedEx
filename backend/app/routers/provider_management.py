@@ -1198,7 +1198,7 @@ async def upload_profile_photo(
 
     user_id = current_user["sub"]
     role = current_user.get("role", "doctor")
-    if role not in SCHEDULING_PROVIDER_ROLES and role not in ("doctor", "dentist", "physiotherapist", "dietitian", "nurse"):
+    if role not in SCHEDULING_PROVIDER_ROLES and role not in ("doctor", "dentist", "physiotherapist", "dietitian", "nurse", "phlebotomist"):
         raise HTTPException(403, "Only registered healthcare providers can upload a practitioner profile photo.")
 
     filename = file.filename or "profile.jpg"

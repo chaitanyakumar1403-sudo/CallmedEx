@@ -2072,7 +2072,15 @@ export default function PatientDashboard() {
                   <div className="cm-rapido-captain">
                     <div className="cm-rapido-captain__profile">
                       <div className="cm-rapido-captain__avatar">
-                        {provider.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                        {provider.profile_photo_url || provider.photo_url ? (
+                          <img
+                            src={provider.profile_photo_url || provider.photo_url}
+                            alt={provider.name}
+                            className="cm-rapido-captain__avatar-img"
+                          />
+                        ) : (
+                          provider.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)
+                        )}
                         <span className="cm-rapido-captain__online-badge" />
                       </div>
                       <div>

@@ -2204,6 +2204,14 @@ input[type="radio"] {
   position: relative;
 }
 
+.cm-rapido-captain__avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 .cm-rapido-captain__online-badge {
   position: absolute;
   bottom: 0;

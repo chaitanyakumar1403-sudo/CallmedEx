@@ -2037,6 +2037,21 @@ class UniversalDispatchEngine:
                         dist, dispatch.get("provider_type", "nurse")
                     )
 
+        if provider_location and dispatch.get("assigned_provider_id") and supabase:
+            try:
+                photo_res = (
+                    supabase.table("documents")
+                    .select("file_url")
+                    .eq("user_id", dispatch["assigned_provider_id"])
+                    .eq("document_type", "profile_photo")
+                    .limit(1)
+                    .execute()
+                )
+                if photo_res.data and photo_res.data[0].get("file_url"):
+                    provider_location["profile_photo_url"] = photo_res.data[0]["file_url"]
+            except Exception as e:
+                logger.warning(f"Could not load provider profile photo for {dispatch_id}: {e}")
+
         # While nobody has accepted yet, the patient stares at a spinner with
         # no idea whether anyone was even asked. These are the collectors who
         # actually hold a live offer for THIS job — not a fresh proximity

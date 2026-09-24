@@ -217,7 +217,7 @@ async def my_jobs(
             "patient_phone": pat_phone,
             "patient_address": addr,
             "scheduled_time": display_time,
-            "slot_time": slot_time,
+            "slot_time": display_time,
             "selected_tests": tests_list,
             "tests": tests_list,
             "collection_date": job.get("scheduled_for") or b_data.get("collection_date") or today_str,
