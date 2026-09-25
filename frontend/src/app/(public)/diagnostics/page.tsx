@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import StateDistrictPicker from "@/components/StateDistrictPicker";
@@ -31,6 +31,9 @@ import {
   Sun,
   Star,
   Info,
+  SlidersHorizontal,
+  ArrowUpDown,
+  RotateCcw,
 } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -98,6 +101,21 @@ function inferCategoryKey(
   return { category: "Blood & Lab Tests", category_key: "blood_tests" };
 }
 
+function requiresFasting(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    n.includes("fasting") ||
+    n.includes("fbs") ||
+    n.includes("lipid") ||
+    n.includes("cholesterol") ||
+    n.includes("triglyceride") ||
+    n.includes("glucose, fasting") ||
+    n.includes("insulin fasting") ||
+    n.includes("iron") ||
+    n.includes("metabolic")
+  );
+}
+
 function DiagnosticsContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "walkin" ? "walkin" : "home";
@@ -106,7 +124,36 @@ function DiagnosticsContent() {
 
   // Home Collection State
   const [labSearchQuery, setLabSearchQuery] = useState("");
+  const deferredLabSearchQuery = useDeferredValue(labSearchQuery);
   const [selectedSubCategory, setSelectedSubCategory] = useState("all");
+
+  // Advanced Filter & Sort State
+  const [sortBy, setSortBy] = useState<"recommended" | "price_asc" | "price_desc" | "name_asc" | "name_desc" | "discount_desc">("recommended");
+  const [priceFilter, setPriceFilter] = useState<"all" | "under_300" | "300_500" | "500_1000" | "above_1000">("all");
+  const [fastingFilter, setFastingFilter] = useState<"all" | "fasting" | "non_fasting">("all");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(48);
+  const filterPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Close filter popover on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    }
+    if (isFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isFilterOpen]);
+
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setVisibleCount(48);
+  }, [deferredLabSearchQuery, selectedSubCategory, sortBy, priceFilter, fastingFilter]);
 
   // Walk-in Center State
   const [loc, setLoc] = useState({ state: "Andhra Pradesh", district: "Visakhapatnam", detected: false });
@@ -212,9 +259,11 @@ function DiagnosticsContent() {
     };
   }, [activeCenterModal]);
 
-  // Filtered Lab Tests for Home Collection
+  // Filtered & Sorted Lab Tests for Home Collection
   const filteredHomeTests = useMemo(() => {
     let list = FIXED_PRICES as Array<{ name: string; mrp: number; price: number }>;
+
+    // 1. Sub-Category Filter
     if (selectedSubCategory !== "all") {
       const activeCat = SUB_CATEGORIES.find((c) => c.id === selectedSubCategory);
       if (activeCat?.keywords) {
@@ -223,12 +272,54 @@ function DiagnosticsContent() {
         );
       }
     }
-    if (labSearchQuery.trim()) {
-      const q = labSearchQuery.toLowerCase().trim();
+
+    // 2. Search Query (deferred for zero keystroke lag)
+    if (deferredLabSearchQuery.trim()) {
+      const q = deferredLabSearchQuery.toLowerCase().trim();
       list = list.filter((t) => t.name.toLowerCase().includes(q));
     }
+
+    // 3. Price Bracket Filter
+    if (priceFilter !== "all") {
+      if (priceFilter === "under_300") {
+        list = list.filter((t) => t.price <= 300);
+      } else if (priceFilter === "300_500") {
+        list = list.filter((t) => t.price > 300 && t.price <= 500);
+      } else if (priceFilter === "500_1000") {
+        list = list.filter((t) => t.price > 500 && t.price <= 1000);
+      } else if (priceFilter === "above_1000") {
+        list = list.filter((t) => t.price > 1000);
+      }
+    }
+
+    // 4. Fasting Requirement Filter
+    if (fastingFilter !== "all") {
+      if (fastingFilter === "fasting") {
+        list = list.filter((t) => requiresFasting(t.name));
+      } else if (fastingFilter === "non_fasting") {
+        list = list.filter((t) => !requiresFasting(t.name));
+      }
+    }
+
+    // 5. Sorting
+    if (sortBy === "price_asc") {
+      list = [...list].sort((a, b) => a.price - b.price);
+    } else if (sortBy === "price_desc") {
+      list = [...list].sort((a, b) => b.price - a.price);
+    } else if (sortBy === "name_asc") {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === "name_desc") {
+      list = [...list].sort((a, b) => b.name.localeCompare(a.name));
+    } else if (sortBy === "discount_desc") {
+      list = [...list].sort((a, b) => {
+        const discA = a.mrp > a.price ? (a.mrp - a.price) / a.mrp : 0;
+        const discB = b.mrp > b.price ? (b.mrp - b.price) / b.mrp : 0;
+        return discB - discA;
+      });
+    }
+
     return list;
-  }, [selectedSubCategory, labSearchQuery]);
+  }, [selectedSubCategory, deferredLabSearchQuery, priceFilter, fastingFilter, sortBy]);
 
   // Active Test Pool for Modal Center (Center Approved Services or 134 CallMedex Pre-Approved Tests)
   const modalTestPool = useMemo(() => {
@@ -507,51 +598,293 @@ function DiagnosticsContent() {
 
             {/* Individual Lab Tests Directory */}
             <div>
+              {/* Header with Title and Search/Filter Bar */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
                 <div>
                   <h3 style={{ fontSize: "1.35rem", fontWeight: 800, color: "#0f172a", margin: 0 }}>
-                    Lab & Blood Tests Directory ({filteredHomeTests.length})
+                    Lab &amp; Blood Tests Directory ({filteredHomeTests.length})
                   </h3>
                   <p style={{ color: "#64748b", fontSize: "0.85rem", margin: "2px 0 0" }}>
                     Doorstep blood sample collection with CallMedex fixed transparent tariffs
                   </p>
                 </div>
 
-                {/* Search Bar */}
-                <div style={{ position: "relative", minWidth: 280, maxWidth: 360, width: "100%" }}>
-                  <Search size={18} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                  <input
-                    type="text"
-                    value={labSearchQuery}
-                    onChange={(e) => setLabSearchQuery(e.target.value)}
-                    placeholder="Search CBC, Lipid, Thyroid, Sugar..."
-                    style={{
-                      width: "100%",
-                      padding: "10px 14px 10px 38px",
-                      borderRadius: 12,
-                      border: "1px solid #cbd5e1",
-                      fontSize: "0.88rem",
-                      background: "#fff",
-                      outline: "none",
-                    }}
-                  />
-                  {labSearchQuery && (
-                    <button
-                      onClick={() => setLabSearchQuery("")}
+                {/* Search Bar + Glass Filter & Sort Button */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", maxWidth: 460, minWidth: 280 }}>
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <Search size={18} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                    <input
+                      type="text"
+                      value={labSearchQuery}
+                      onChange={(e) => setLabSearchQuery(e.target.value)}
+                      placeholder="Search CBC, Lipid, Thyroid, Sugar..."
                       style={{
-                        position: "absolute",
-                        right: 10,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#94a3b8",
+                        width: "100%",
+                        padding: "10px 36px 10px 38px",
+                        borderRadius: 12,
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.88rem",
+                        background: "#fff",
+                        outline: "none",
+                        transition: "border-color 0.2s ease, box-shadow 0.2s ease",
                       }}
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
+                    />
+                    {labSearchQuery && (
+                      <button
+                        onClick={() => setLabSearchQuery("")}
+                        style={{
+                          position: "absolute",
+                          right: 10,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#94a3b8",
+                        }}
+                        aria-label="Clear search"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter & Sort Popover Trigger */}
+                  <div style={{ position: "relative" }} ref={filterPopoverRef}>
+                    {(() => {
+                      const activeFilterCount =
+                        (sortBy !== "recommended" ? 1 : 0) +
+                        (priceFilter !== "all" ? 1 : 0) +
+                        (fastingFilter !== "all" ? 1 : 0);
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setIsFilterOpen(!isFilterOpen)}
+                            className="btn-press"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                              padding: "10px 14px",
+                              borderRadius: 12,
+                              border: isFilterOpen || activeFilterCount > 0 ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
+                              background: isFilterOpen || activeFilterCount > 0 ? "#e0f2fe" : "#ffffff",
+                              color: isFilterOpen || activeFilterCount > 0 ? "#0369a1" : "#334155",
+                              fontWeight: 700,
+                              fontSize: "0.85rem",
+                              cursor: "pointer",
+                              transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                              whiteSpace: "nowrap",
+                              boxShadow: activeFilterCount > 0 ? "0 2px 8px rgba(2, 132, 199, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+                            }}
+                            aria-label="Filter and Sort tests"
+                          >
+                            <SlidersHorizontal size={16} />
+                            <span>Filter &amp; Sort</span>
+                            {activeFilterCount > 0 && (
+                              <span
+                                style={{
+                                  background: "#0284c7",
+                                  color: "#ffffff",
+                                  borderRadius: 999,
+                                  padding: "1px 6px",
+                                  fontSize: "0.72rem",
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {activeFilterCount}
+                              </span>
+                            )}
+                          </button>
+
+                          {/* Filter Popover */}
+                          {isFilterOpen && (
+                            <div
+                              className="glass-filter-popover"
+                              style={{
+                                position: "absolute",
+                                top: "calc(100% + 8px)",
+                                right: 0,
+                                zIndex: 100,
+                                width: "min(330px, calc(100vw - 32px))",
+                                background: "#ffffff",
+                                borderRadius: 16,
+                                boxShadow: "0 20px 38px -8px rgba(15, 23, 42, 0.18), 0 4px 14px rgba(0, 0, 0, 0.06)",
+                                border: "1px solid rgba(2, 132, 199, 0.2)",
+                                padding: "16px 18px",
+                              }}
+                            >
+                              {/* Popover Header */}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid #f1f5f9" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: "0.92rem", color: "#0f172a" }}>
+                                  <SlidersHorizontal size={16} style={{ color: "#0284c7" }} />
+                                  <span>Filter &amp; Sort Tests</span>
+                                </div>
+                                {activeFilterCount > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSortBy("recommended");
+                                      setPriceFilter("all");
+                                      setFastingFilter("all");
+                                    }}
+                                    className="btn-press"
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "#0284c7",
+                                      fontSize: "0.76rem",
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      padding: 0,
+                                    }}
+                                  >
+                                    <RotateCcw size={12} />
+                                    <span>Reset</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* 1. Sort By */}
+                              <div style={{ marginBottom: 14 }}>
+                                <label style={{ display: "block", fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                                  Sort Tests By
+                                </label>
+                                <div style={{ position: "relative" }}>
+                                  <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                    style={{
+                                      width: "100%",
+                                      padding: "8px 30px 8px 12px",
+                                      borderRadius: 10,
+                                      border: "1px solid #cbd5e1",
+                                      background: "#f8fafc",
+                                      color: "#0f172a",
+                                      fontSize: "0.84rem",
+                                      fontWeight: 600,
+                                      outline: "none",
+                                      cursor: "pointer",
+                                      appearance: "none",
+                                    }}
+                                  >
+                                    <option value="recommended">Recommended (Default)</option>
+                                    <option value="price_asc">Price: Low to High</option>
+                                    <option value="price_desc">Price: High to Low</option>
+                                    <option value="name_asc">Name: A to Z</option>
+                                    <option value="name_desc">Name: Z to A</option>
+                                    <option value="discount_desc">Highest Discount %</option>
+                                  </select>
+                                  <ArrowUpDown size={14} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#64748b" }} />
+                                </div>
+                              </div>
+
+                              {/* 2. Price Bracket */}
+                              <div style={{ marginBottom: 14 }}>
+                                <label style={{ display: "block", fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                                  Price Range
+                                </label>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {[
+                                    { id: "all", label: "All Prices" },
+                                    { id: "under_300", label: "Under ₹300" },
+                                    { id: "300_500", label: "₹300 – ₹500" },
+                                    { id: "500_1000", label: "₹500 – ₹1,000" },
+                                    { id: "above_1000", label: "₹1,000+" },
+                                  ].map((opt) => {
+                                    const isSel = priceFilter === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => setPriceFilter(opt.id as any)}
+                                        className="btn-press"
+                                        style={{
+                                          padding: "5px 10px",
+                                          borderRadius: 8,
+                                          fontSize: "0.78rem",
+                                          fontWeight: isSel ? 700 : 500,
+                                          border: isSel ? "1.5px solid #0284c7" : "1px solid #e2e8f0",
+                                          background: isSel ? "#e0f2fe" : "#ffffff",
+                                          color: isSel ? "#0369a1" : "#475569",
+                                          cursor: "pointer",
+                                          transition: "all 0.15s ease",
+                                        }}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* 3. Fasting Requirement */}
+                              <div style={{ marginBottom: 16 }}>
+                                <label style={{ display: "block", fontSize: "0.72rem", fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>
+                                  Fasting Protocol
+                                </label>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {[
+                                    { id: "all", label: "All Tests" },
+                                    { id: "fasting", label: "Fasting Required" },
+                                    { id: "non_fasting", label: "No Fasting" },
+                                  ].map((opt) => {
+                                    const isSel = fastingFilter === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => setFastingFilter(opt.id as any)}
+                                        className="btn-press"
+                                        style={{
+                                          padding: "5px 10px",
+                                          borderRadius: 8,
+                                          fontSize: "0.78rem",
+                                          fontWeight: isSel ? 700 : 500,
+                                          border: isSel ? "1.5px solid #0284c7" : "1px solid #e2e8f0",
+                                          background: isSel ? "#e0f2fe" : "#ffffff",
+                                          color: isSel ? "#0369a1" : "#475569",
+                                          cursor: "pointer",
+                                          transition: "all 0.15s ease",
+                                        }}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Apply Button */}
+                              <button
+                                type="button"
+                                onClick={() => setIsFilterOpen(false)}
+                                className="btn-press"
+                                style={{
+                                  width: "100%",
+                                  padding: "9px 14px",
+                                  borderRadius: 10,
+                                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  fontWeight: 700,
+                                  fontSize: "0.85rem",
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 10px rgba(2, 132, 199, 0.3)",
+                                }}
+                              >
+                                Apply &amp; View Results ({filteredHomeTests.length})
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
 
@@ -562,7 +895,7 @@ function DiagnosticsContent() {
                   gap: 8,
                   overflowX: "auto",
                   paddingBottom: 10,
-                  marginBottom: 16,
+                  marginBottom: 10,
                 }}
               >
                 {SUB_CATEGORIES.map((cat) => {
@@ -571,6 +904,7 @@ function DiagnosticsContent() {
                     <button
                       key={cat.id}
                       onClick={() => setSelectedSubCategory(cat.id)}
+                      className="btn-press"
                       style={{
                         padding: "6px 14px",
                         borderRadius: 20,
@@ -590,15 +924,152 @@ function DiagnosticsContent() {
                 })}
               </div>
 
+              {/* Active Filter Dismissal Chips Bar */}
+              {(() => {
+                const hasActive =
+                  sortBy !== "recommended" ||
+                  priceFilter !== "all" ||
+                  fastingFilter !== "all" ||
+                  selectedSubCategory !== "all" ||
+                  labSearchQuery.trim().length > 0;
+
+                if (!hasActive) return null;
+
+                const sortLabels: Record<string, string> = {
+                  price_asc: "Price: Low to High",
+                  price_desc: "Price: High to Low",
+                  name_asc: "Name: A to Z",
+                  name_desc: "Name: Z to A",
+                  discount_desc: "Highest Discount %",
+                };
+
+                const priceLabels: Record<string, string> = {
+                  under_300: "Under ₹300",
+                  300_500: "₹300 – ₹500",
+                  500_1000: "₹500 – ₹1,000",
+                  above_1000: "₹1,000+",
+                };
+
+                const fastingLabels: Record<string, string> = {
+                  fasting: "Fasting Required",
+                  non_fasting: "No Fasting",
+                };
+
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      marginBottom: 16,
+                      padding: "8px 12px",
+                      background: "rgba(240, 249, 255, 0.7)",
+                      borderRadius: 12,
+                      border: "1px solid #e0f2fe",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#0369a1" }}>
+                      Active Filters:
+                    </span>
+
+                    {labSearchQuery.trim() && (
+                      <span
+                        className="active-filter-tag"
+                        onClick={() => setLabSearchQuery("")}
+                        style={{ cursor: "pointer" }}
+                        title="Remove search filter"
+                      >
+                        <span>Search: &ldquo;{labSearchQuery}&rdquo;</span>
+                        <X size={12} />
+                      </span>
+                    )}
+
+                    {selectedSubCategory !== "all" && (
+                      <span
+                        className="active-filter-tag"
+                        onClick={() => setSelectedSubCategory("all")}
+                        style={{ cursor: "pointer" }}
+                        title="Remove category filter"
+                      >
+                        <span>Category: {SUB_CATEGORIES.find((c) => c.id === selectedSubCategory)?.label}</span>
+                        <X size={12} />
+                      </span>
+                    )}
+
+                    {sortBy !== "recommended" && (
+                      <span
+                        className="active-filter-tag"
+                        onClick={() => setSortBy("recommended")}
+                        style={{ cursor: "pointer" }}
+                        title="Reset sort"
+                      >
+                        <span>Sort: {sortLabels[sortBy]}</span>
+                        <X size={12} />
+                      </span>
+                    )}
+
+                    {priceFilter !== "all" && (
+                      <span
+                        className="active-filter-tag"
+                        onClick={() => setPriceFilter("all")}
+                        style={{ cursor: "pointer" }}
+                        title="Reset price filter"
+                      >
+                        <span>Price: {priceLabels[priceFilter]}</span>
+                        <X size={12} />
+                      </span>
+                    )}
+
+                    {fastingFilter !== "all" && (
+                      <span
+                        className="active-filter-tag"
+                        onClick={() => setFastingFilter("all")}
+                        style={{ cursor: "pointer" }}
+                        title="Reset fasting filter"
+                      >
+                        <span>Fasting: {fastingLabels[fastingFilter]}</span>
+                        <X size={12} />
+                      </span>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLabSearchQuery("");
+                        setSelectedSubCategory("all");
+                        setSortBy("recommended");
+                        setPriceFilter("all");
+                        setFastingFilter("all");
+                      }}
+                      className="btn-press"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        padding: "2px 6px",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                );
+              })()}
+
               {/* Grid of Lab Tests */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))", gap: 12 }}>
-                {filteredHomeTests.slice(0, 48).map((t, idx) => {
+                {filteredHomeTests.slice(0, visibleCount).map((t, idx) => {
                   const savings = t.mrp - t.price;
                   const pct = t.mrp > 0 ? Math.round((savings / t.mrp) * 100) : 0;
+                  const isFasting = requiresFasting(t.name);
                   return (
                     <div
                       key={idx}
-                      className="card"
+                      className="card smooth-card-hover"
                       style={{
                         background: "#fff",
                         padding: "16px 18px",
@@ -618,8 +1089,8 @@ function DiagnosticsContent() {
                             {t.name}
                           </h4>
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 600, marginTop: 4 }}>
-                          • Fasting 8-10 hrs · Report in 6-12h
+                        <div style={{ fontSize: "0.75rem", color: isFasting ? "#b45309" : "#16a34a", fontWeight: 600, marginTop: 4 }}>
+                          • {isFasting ? "Fasting 8-10 hrs" : "No Fasting Required"} · Report in 6-12h
                         </div>
                       </div>
 
@@ -642,6 +1113,7 @@ function DiagnosticsContent() {
 
                         <Link
                           href={`/booking?type=lab&name=${encodeURIComponent(t.name)}&price=${t.price}&mode=home`}
+                          className="btn-press"
                           style={{
                             padding: "6px 14px",
                             borderRadius: 8,
@@ -663,11 +1135,80 @@ function DiagnosticsContent() {
                 })}
               </div>
 
-              {filteredHomeTests.length > 48 && (
-                <div style={{ textAlign: "center", marginTop: 24 }}>
-                  <p style={{ color: "#64748b", fontSize: "0.88rem" }}>
-                    Showing 48 of {filteredHomeTests.length} tests. Use search above to narrow down.
+              {/* Empty State when no tests match */}
+              {filteredHomeTests.length === 0 && (
+                <div style={{ textAlign: "center", padding: "48px 16px", background: "#f8fafc", borderRadius: 16, border: "1px dashed #cbd5e1", marginTop: 16 }}>
+                  <TestTube2 size={36} style={{ color: "#94a3b8", margin: "0 auto 12px" }} />
+                  <h4 style={{ margin: "0 0 6px", color: "#1e293b", fontSize: "1.05rem", fontWeight: 700 }}>No Tests Found</h4>
+                  <p style={{ margin: "0 0 16px", color: "#64748b", fontSize: "0.85rem" }}>
+                    Try adjusting your search query, price bracket, or category filter.
                   </p>
+                  <button
+                    onClick={() => {
+                      setLabSearchQuery("");
+                      setSelectedSubCategory("all");
+                      setPriceFilter("all");
+                      setFastingFilter("all");
+                      setSortBy("recommended");
+                    }}
+                    className="btn-press"
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: 8,
+                      background: "#0284c7",
+                      color: "#fff",
+                      border: "none",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              )}
+
+              {/* Progressive Pagination Controls */}
+              {filteredHomeTests.length > visibleCount && (
+                <div style={{ textAlign: "center", marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                  <p style={{ color: "#64748b", fontSize: "0.88rem", margin: 0 }}>
+                    Showing {Math.min(visibleCount, filteredHomeTests.length)} of {filteredHomeTests.length} tests
+                  </p>
+                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                    <button
+                      onClick={() => setVisibleCount((prev) => Math.min(prev + 48, filteredHomeTests.length))}
+                      className="btn-press"
+                      style={{
+                        padding: "10px 22px",
+                        borderRadius: 10,
+                        background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                        color: "#ffffff",
+                        border: "none",
+                        fontWeight: 700,
+                        fontSize: "0.88rem",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 14px rgba(2, 132, 199, 0.25)",
+                      }}
+                    >
+                      Load 48 More Tests
+                    </button>
+                    <button
+                      onClick={() => setVisibleCount(filteredHomeTests.length)}
+                      className="btn-press"
+                      style={{
+                        padding: "10px 18px",
+                        borderRadius: 10,
+                        background: "#ffffff",
+                        color: "#0369a1",
+                        border: "1.5px solid #cbd5e1",
+                        fontWeight: 700,
+                        fontSize: "0.88rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Show All ({filteredHomeTests.length})
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

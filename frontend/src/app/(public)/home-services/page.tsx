@@ -160,7 +160,7 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
     color: "#7c3aed",
     accentGradient: "linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(139,92,246,0.05) 100%)",
     priceTag: "Packages starting from ₹349 with free home visit",
-    bookingUrl: "/diagnostics?tab=home",
+    bookingUrl: "/packages",
     ctaText: "View Health Packages",
     features: [
       { title: "Single & Couple Pricing", desc: "Special discounted bundle rates for couples and entire families." },
@@ -180,17 +180,26 @@ const HOME_SERVICES: Record<ServiceTab, ServiceDetail> = {
   },
 };
 
+let _cachedProviders: {
+  doctors: any[];
+  nurses: any[];
+  pharmacies: any[];
+  phlebotomists: any[];
+} | null = null;
+
 export default function HomeServicesPage() {
   const [activeTab, setActiveTab] = useState<ServiceTab>("nursing");
-  const [registeredDoctors, setRegisteredDoctors] = useState<any[]>([]);
-  const [registeredNurses, setRegisteredNurses] = useState<any[]>([]);
-  const [registeredPharmacies, setRegisteredPharmacies] = useState<any[]>([]);
-  const [registeredPhlebotomists, setRegisteredPhlebotomists] = useState<any[]>([]);
-  const [, setLoadingProviders] = useState<boolean>(true);
+  const [registeredDoctors, setRegisteredDoctors] = useState<any[]>(_cachedProviders?.doctors || []);
+  const [registeredNurses, setRegisteredNurses] = useState<any[]>(_cachedProviders?.nurses || []);
+  const [registeredPharmacies, setRegisteredPharmacies] = useState<any[]>(_cachedProviders?.pharmacies || []);
+  const [registeredPhlebotomists, setRegisteredPhlebotomists] = useState<any[]>(_cachedProviders?.phlebotomists || []);
+  const [, setLoadingProviders] = useState<boolean>(!_cachedProviders);
 
   useEffect(() => {
     async function fetchRealProviders() {
-      setLoadingProviders(true);
+      if (!_cachedProviders) {
+        setLoadingProviders(true);
+      }
       const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       try {
         const [docRes, nurseRes, pharmRes, phlebRes] = await Promise.all([
@@ -200,29 +209,22 @@ export default function HomeServicesPage() {
           fetch(`${apiBase}/api/providers/search/providers?type=phlebotomist`).then(r => r.json()).catch(() => null),
         ]);
 
-        if (docRes?.success && Array.isArray(docRes?.doctors)) {
-          setRegisteredDoctors(docRes.doctors);
-        } else {
-          setRegisteredDoctors([]);
-        }
+        const docs = docRes?.success && Array.isArray(docRes?.doctors) ? docRes.doctors : [];
+        const nurses = nurseRes?.success && Array.isArray(nurseRes?.providers) ? nurseRes.providers : [];
+        const pharms = pharmRes?.success && Array.isArray(pharmRes?.providers) ? pharmRes.providers : [];
+        const phlebs = phlebRes?.success && Array.isArray(phlebRes?.providers) ? phlebRes.providers : [];
 
-        if (nurseRes?.success && Array.isArray(nurseRes?.providers)) {
-          setRegisteredNurses(nurseRes.providers);
-        } else {
-          setRegisteredNurses([]);
-        }
+        setRegisteredDoctors(docs);
+        setRegisteredNurses(nurses);
+        setRegisteredPharmacies(pharms);
+        setRegisteredPhlebotomists(phlebs);
 
-        if (pharmRes?.success && Array.isArray(pharmRes?.providers)) {
-          setRegisteredPharmacies(pharmRes.providers);
-        } else {
-          setRegisteredPharmacies([]);
-        }
-
-        if (phlebRes?.success && Array.isArray(phlebRes?.providers)) {
-          setRegisteredPhlebotomists(phlebRes.providers);
-        } else {
-          setRegisteredPhlebotomists([]);
-        }
+        _cachedProviders = {
+          doctors: docs,
+          nurses: nurses,
+          pharmacies: pharms,
+          phlebotomists: phlebs,
+        };
       } catch (e) {
         console.error("Error fetching live providers", e);
       } finally {
@@ -579,26 +581,35 @@ export default function HomeServicesPage() {
                 Available Bedside Procedures & Services
               </h4>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {currentService.procedures.map((p, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      background: "#f0f9ff",
-                      color: "#0369a1",
-                      border: "1px solid #bae6fd",
-                      borderRadius: 999,
-                      padding: "6px 14px",
-                      fontSize: "0.82rem",
-                      fontWeight: 600,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <CheckCircle2 size={12} style={{ color: "#0284c7" }} />
-                    {p}
-                  </span>
-                ))}
+                {currentService.procedures.map((p, i) => {
+                  const content = (
+                    <span
+                      key={i}
+                      style={{
+                        background: "#f0f9ff",
+                        color: "#0369a1",
+                        border: "1px solid #bae6fd",
+                        borderRadius: 999,
+                        padding: "6px 14px",
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: activeTab === "packages" ? "pointer" : "default",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <CheckCircle2 size={12} style={{ color: "#0284c7" }} />
+                      {p}
+                    </span>
+                  );
+                  return activeTab === "packages" ? (
+                    <Link key={i} href="/packages" style={{ textDecoration: "none" }}>
+                      {content}
+                    </Link>
+                  ) : content;
+                })}
               </div>
             </div>
 
