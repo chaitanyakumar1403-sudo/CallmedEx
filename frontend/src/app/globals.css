@@ -47,11 +47,13 @@
   /* ─── Typography Design System ──────────────────────────────────────────
      Primary pairing: Manrope (Headings/Display) + Inter (Body/UI/Numerics).
      Both are self-hosted variable fonts via next/font with zero layout shift. */
-  --font-display: var(--font-display, 'Manrope', system-ui, -apple-system, sans-serif);
-  --font-body:    var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
-  --font-numeric: var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
-  --cm-font-display: var(--font-display, 'Manrope', system-ui, -apple-system, sans-serif);
-  --cm-font-body:    var(--font-ui, 'Inter', system-ui, -apple-system, sans-serif);
+  --font-display: 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-ui:      'Inter', system-ui, -apple-system, sans-serif;
+  --font-te:      'Noto Sans Telugu', sans-serif;
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-numeric: 'Inter', system-ui, -apple-system, sans-serif;
+  --cm-font-display: 'Manrope', system-ui, -apple-system, sans-serif;
+  --cm-font-body:    'Inter', system-ui, -apple-system, sans-serif;
 
   /* Optical tracking tokens */
   --tracking-tighter: -0.035em;
