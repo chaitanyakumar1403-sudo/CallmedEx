@@ -1680,9 +1680,6 @@ export default function SignupPage() {
                 <div className="form-group">
                   <label className="form-label">Walk-In Clinical Consultation Fee (₹) *</label>
                   <input name="consultation_fee" type="number" className="form-input" placeholder="e.g. 400" defaultValue="400" min="100" required />
-                  <div style={{ fontSize: "0.75rem", color: "var(--color-gray-500)", marginTop: 4 }}>
-                    Practice fee is governed under your CallMedex Provider Agreement with 80% net direct settlement.
-                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Delivery Modality</label>
@@ -1704,23 +1701,6 @@ export default function SignupPage() {
                       {s}
                     </span>
                   ))}
-                </div>
-              </div>
-
-              {/* CallMedex Dental Partner Terms MOU Info Banner */}
-              <div style={{
-                marginTop: 20,
-                padding: "16px 18px",
-                borderRadius: 12,
-                background: "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
-                border: "1px solid #bbf7d0",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-              }}>
-                <ShieldCheck size={22} color="#0284c7" style={{ flexShrink: 0, marginTop: 2 }} />
-                <div style={{ fontSize: "0.82rem", color: "#1e3a8a", lineHeight: 1.5 }}>
-                  <strong>CallMedex Dental Network &amp; MOU:</strong> Upon registration, the CallMedex Dental Partner Terms Agreement (80% net dentist payout / 20% platform fee, walk-in delivery protocol, autoclaving standards) is established. You can review, activate canonical dental procedures, and apply benchmark tariffs with 1 click directly in your Dentist Console after sign-in.
                 </div>
               </div>
             </div>
