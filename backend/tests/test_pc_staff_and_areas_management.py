@@ -22,6 +22,9 @@ from app.routers.pc_operations import (
     remove_pc_staff,
     start_sample_processing,
     deliver_lab_report,
+    get_sample_by_barcode,
+    verify_sample,
+    VerifyRequest,
     PCStaffCreateRequest,
     PCStaffUpdateRequest,
     DeliverReportRequest,
@@ -247,3 +250,81 @@ async def test_pc_sample_processing_and_report_delivery(mock_db):
 
     # Report job updated to delivered
     assert mock_db.db["report_jobs"][0]["status"] == "delivered"
+
+
+@pytest.mark.asyncio
+async def test_pc_staff_permanent_removal_and_sample_intake_autolink(mock_db):
+    """Test hard purge of misassigned staff and auto-linking sample on barcode scan intake."""
+    center_id = str(uuid.uuid4())
+    admin_user_id = str(uuid.uuid4())
+    phlebo_user_id = str(uuid.uuid4())
+
+    mock_db.db["users"] = [
+        {"id": admin_user_id, "email": "admin@lab.com", "full_name": "PC Admin", "role": "processing_center"},
+        {"id": phlebo_user_id, "email": "phlebo@field.com", "full_name": "Field Phlebo", "role": "processing_center"},
+    ]
+    mock_db.db["phlebotomists"] = [
+        {"id": str(uuid.uuid4()), "user_id": phlebo_user_id, "processing_center_id": center_id, "on_duty": True, "verification_status": "verified"}
+    ]
+    mock_db.db["processing_center_staff"] = [
+        {"id": str(uuid.uuid4()), "processing_center_id": center_id, "user_id": admin_user_id, "pc_role": "admin", "is_active": True},
+        {"id": str(uuid.uuid4()), "processing_center_id": center_id, "user_id": phlebo_user_id, "pc_role": "technician", "prior_role": "phlebotomist", "is_active": False},
+    ]
+
+    staff_ctx = {"processing_center_id": center_id, "user_id": admin_user_id, "pc_role": "admin"}
+
+    # 1. Verify list_pc_staff identifies phlebo role and returns bound phlebotomists
+    list_res = await list_pc_staff(staff=staff_ctx)
+    staff_items = list_res["staff"]
+    phlebo_item = [s for s in staff_items if s["user_id"] == phlebo_user_id][0]
+    assert phlebo_item["is_phlebotomist"] is True
+    assert phlebo_item["prior_role"] == "phlebotomist"
+    assert len(list_res["phlebotomists"]) == 1
+    assert list_res["phlebotomists"][0]["user_id"] == phlebo_user_id
+
+    # 2. Hard purge misassigned staff member
+    del_res = await remove_pc_staff(
+        user_id=phlebo_user_id,
+        permanent=True,
+        staff=staff_ctx,
+    )
+    assert del_res["ok"] is True
+    # Row completely deleted from processing_center_staff
+    assert not any(s["user_id"] == phlebo_user_id for s in mock_db.db["processing_center_staff"])
+    # User's role restored to prior_role (phlebotomist)
+    assert mock_db.db["users"][1]["role"] == "phlebotomist"
+
+    # 3. Sample Intake & Auto-linking test
+    unassigned_sample_id = str(uuid.uuid4())
+    test_barcode = "CMX-TUBE-999888"
+    mock_db.db["samples"] = [{
+        "id": unassigned_sample_id,
+        "processing_center_id": None, # Unassigned initially
+        "barcode": test_barcode,
+        "status": "in_transit",
+        "expected_tube_type_code": "LAV",
+    }]
+    mock_db.db["sample_events"] = []
+
+    # Barcode lookup auto-links sample to center_id
+    tech_ctx = {"processing_center_id": center_id, "user_id": admin_user_id, "pc_role": "technician"}
+    scanned = await get_sample_by_barcode(barcode=test_barcode, staff=tech_ctx)
+    assert scanned["id"] == unassigned_sample_id
+    assert mock_db.db["samples"][0]["processing_center_id"] == center_id
+
+    # 4. Verify sample in transit automatically marks intake receipt and verifies
+    v_res = await verify_sample(
+        sample_id=unassigned_sample_id,
+        body=VerifyRequest(
+            tube_received=True,
+            barcode_match=True,
+            tube_type_correct=True,
+            label_present=True,
+            quality_acceptable=True,
+        ),
+        staff=tech_ctx,
+    )
+    assert v_res["success"] is True
+    assert v_res["status"] == "verified"
+    assert mock_db.db["samples"][0]["status"] == "verified"
+

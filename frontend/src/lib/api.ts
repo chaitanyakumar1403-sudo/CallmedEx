@@ -204,6 +204,9 @@ export const api = {
 
 // ─── Authentication & Account Management API ──────────────────────────────
 export const authAPI = {
+  changePassword: (data: { current_password: string; new_password: string; confirm_password?: string }) =>
+    api.post<{ success: boolean; message: string }>('/auth/change-password', data),
+
   requestAccountDeletionOTP: () =>
     api.post<{
       success: boolean;
@@ -368,8 +371,8 @@ export const pcAPI = {
     api.post('/pc/staff', data),
   updateStaff: (userId: string, data: { pc_role?: string; is_active?: boolean }) =>
     api.patch(`/pc/staff/${userId}`, data),
-  deleteStaff: (userId: string) =>
-    api.delete(`/pc/staff/${userId}`),
+  deleteStaff: (userId: string, permanent: boolean = false) =>
+    api.delete(`/pc/staff/${userId}${permanent ? '?permanent=true' : ''}`),
   // Lab Testing & Report Delivery
   startProcessingSample: (sampleId: string) =>
     api.post(`/pc/samples/${sampleId}/start-processing`),

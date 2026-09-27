@@ -12,8 +12,11 @@
 import { useCallback, useRef, useState, useEffect } from "react";
 import { PageHeader, Tabs, Icon } from "@/components/ui";
 import { ShieldAlert, ChevronRight } from "@/components/ui/icons";
+import { KeyRound } from "lucide-react";
 import DeleteAccountModal from "@/app/components/DeleteAccountModal";
+import ChangePasswordModal from "@/app/components/ChangePasswordModal";
 import type { DashTab } from "@/components/ui";
+
 
 export type { DashTab };
 
@@ -46,6 +49,8 @@ export default function DashboardShell({
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+
 
   useEffect(() => {
     try {
@@ -157,6 +162,22 @@ export default function DashboardShell({
               <div className="cm-provider-nav-danger-zone">
                 <button
                   type="button"
+                  onClick={() => setIsChangePasswordOpen(true)}
+                  className="cm-provider-nav-item cm-provider-nav-item--secondary"
+                  title="Change your account password"
+                >
+                  <div className="cm-provider-nav-item__left">
+                    <span className="cm-provider-nav-item__icon">
+                      <KeyRound size={16} />
+                    </span>
+                    <span className="cm-provider-nav-item__label">
+                      Change Password
+                    </span>
+                  </div>
+                  <ChevronRight size={13} className="cm-provider-nav-chevron" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => setIsDeleteModalOpen(true)}
                   className="cm-provider-nav-item cm-provider-nav-item--danger"
                   title="Permanently delete your CallMedex account"
@@ -172,6 +193,7 @@ export default function DashboardShell({
                   <ChevronRight size={13} className="cm-provider-nav-chevron" />
                 </button>
               </div>
+
 
               {/* Console Status Footer */}
               <div className="cm-provider-nav-footer">
@@ -216,8 +238,15 @@ export default function DashboardShell({
           userName={userName}
         />
       )}
+
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        userEmail={userEmail}
+      />
     </div>
   );
+
 }
 
 /* SkeletonRows is the only symbol anything imports from this file besides the

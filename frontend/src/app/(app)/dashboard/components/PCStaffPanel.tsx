@@ -27,7 +27,9 @@ interface PCStaffPanelProps {
 
 export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProps) {
   const isAdmin = pcRole === "admin";
+  const [activeTab, setActiveTab] = useState<"staff" | "phlebotomists">("staff");
   const [staff, setStaff] = useState<any[]>([]);
+  const [phlebotomists, setPhlebotomists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +47,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
     try {
       const res = await pcAPI.getStaff();
       setStaff(res.staff || []);
+      setPhlebotomists(res.phlebotomists || []);
     } catch (e: any) {
       toast.error(e.message || "Failed to load processing center team");
     } finally {
@@ -126,7 +129,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
       return;
 
     try {
-      await pcAPI.deleteStaff(userId);
+      await pcAPI.deleteStaff(userId, false);
       toast.success("Staff member removed from active duty");
       fetchStaff();
     } catch (e: any) {
@@ -134,16 +137,31 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
     }
   };
 
-  const techniciansCount = staff.filter(
-    (s) => s.pc_role === "technician" && s.is_active
-  ).length;
-  const adminsCount = staff.filter(
-    (s) => s.pc_role === "admin" && s.is_active
-  ).length;
+  const handlePermanentRemoveStaff = async (userId: string, name: string, isPhlebo: boolean) => {
+    const confirmPrompt = isPhlebo
+      ? `Permanently remove phlebotomist ${name || "this member"} from the internal processing center staff directory? Their phlebotomist fleet account will remain intact.`
+      : `Permanently delete ${name || "this staff member"} from the processing center roster? This cannot be undone.`;
+
+    if (!(await customConfirm(confirmPrompt))) return;
+
+    try {
+      await pcAPI.deleteStaff(userId, true);
+      toast.success("Staff record permanently removed");
+      fetchStaff();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove staff record");
+    }
+  };
+
+  // Dedicated counting excluding miscategorized external phlebotomists
+  const activeLabStaff = staff.filter((s) => s.is_active && !s.is_phlebotomist);
+  const techniciansCount = activeLabStaff.filter((s) => s.pc_role === "technician").length;
+  const adminsCount = activeLabStaff.filter((s) => s.pc_role === "admin").length;
+  const phleboCount = phlebotomists.length + staff.filter((s) => s.is_phlebotomist).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Top Banner & Stats */}
+      {/* Top Banner & Actions */}
       <div
         style={{
           background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
@@ -161,7 +179,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
             <Users size={20} color="#0284c7" />
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
-              Processing Centre Team &amp; Technicians
+              Processing Centre Team &amp; Workforce
             </h3>
             <span
               style={{
@@ -173,12 +191,12 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                 fontWeight: 700,
               }}
             >
-              {staff.length} Members
+              {staff.length + phlebotomists.length} Total Workforce
             </span>
           </div>
           <p style={{ margin: 0, fontSize: "0.84rem", color: "#64748b" }}>
-            Technicians conduct barcode intake, 5-point verification, test analysis, and report delivery.
-            {!isAdmin && " (Admin permissions required to add or modify staff accounts)"}
+            Manage internal laboratory technicians and monitor field phlebotomist fleet conducting doorstep specimen collections.
+            {!isAdmin && " (Admin permissions required to modify staff roles)"}
           </p>
         </div>
 
@@ -231,8 +249,8 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
+      {/* Metrics Row (4 Cards) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px" }}>
         <div
           style={{
             background: "#ffffff",
@@ -245,7 +263,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
             Total Active Staff
           </div>
           <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#0f172a" }}>
-            {staff.filter((s) => s.is_active).length}
+            {activeLabStaff.length}
           </div>
         </div>
 
@@ -280,73 +298,414 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
             {adminsCount}
           </div>
         </div>
-      </div>
 
-      {/* Staff Table / List */}
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #e2e8f0",
-          borderRadius: "14px",
-          overflow: "hidden",
-        }}
-      >
         <div
           style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "12px",
             padding: "16px 20px",
-            borderBottom: "1px solid #f1f5f9",
-            fontWeight: 700,
-            fontSize: "0.92rem",
-            color: "#1e293b",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
           }}
         >
-          <span>Staff Directory</span>
-          <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
-            Role-Based Access: Admin (Full Operations) / Technician (Testing &amp; Intake)
-          </span>
+          <div style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600, marginBottom: "4px" }}>
+            Field Phlebotomists
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 800, color: "#d97706" }}>
+            {phleboCount}
+          </div>
         </div>
+      </div>
 
-        {loading ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-            Loading team members...
+      {/* Segmented View Switcher */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab("staff")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 18px",
+            borderRadius: "999px",
+            border: "1px solid",
+            borderColor: activeTab === "staff" ? "#0284c7" : "#e2e8f0",
+            background: activeTab === "staff" ? "#0284c7" : "#ffffff",
+            color: activeTab === "staff" ? "#ffffff" : "#475569",
+            fontWeight: 700,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <FlaskConical size={14} /> Laboratory Team ({staff.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("phlebotomists")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 18px",
+            borderRadius: "999px",
+            border: "1px solid",
+            borderColor: activeTab === "phlebotomists" ? "#d97706" : "#e2e8f0",
+            background: activeTab === "phlebotomists" ? "#d97706" : "#ffffff",
+            color: activeTab === "phlebotomists" ? "#ffffff" : "#475569",
+            fontWeight: 700,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <Users size={14} /> Field Phlebotomists ({phleboCount})
+        </button>
+      </div>
+
+      {/* Tab 1: Laboratory Staff Directory */}
+      {activeTab === "staff" && (
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "14px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #f1f5f9",
+              fontWeight: 700,
+              fontSize: "0.92rem",
+              color: "#1e293b",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>Internal Laboratory Directory</span>
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              Role-Based Access: Admin (Full Operations) / Technician (Testing &amp; Intake)
+            </span>
           </div>
-        ) : staff.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-            <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
-            <p style={{ margin: 0, fontWeight: 600 }}>No staff members configured yet.</p>
-            {isAdmin && (
-              <p style={{ fontSize: "0.82rem", marginTop: 4 }}>
-                Click &quot;Add Staff / Technician&quot; above to create or bind a team member.
+
+          {loading ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
+              Loading team members...
+            </div>
+          ) : staff.length === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
+              <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>No internal staff members configured yet.</p>
+              {isAdmin && (
+                <p style={{ fontSize: "0.82rem", marginTop: 4 }}>
+                  Click &quot;Add Staff / Technician&quot; above to create or bind a team member.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Team Member</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Email &amp; Contact</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Role</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Status</th>
+                    {isAdmin && <th style={{ padding: "12px 18px", fontWeight: 700, textAlign: "right" }}>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map((s) => {
+                    const isPhlebo = Boolean(s.is_phlebotomist || s.system_role === "phlebotomist");
+                    const roleTone = isPhlebo
+                      ? "#b45309"
+                      : s.pc_role === "admin"
+                      ? "#6366f1"
+                      : "#059669";
+                    const roleBg = isPhlebo
+                      ? "#fef3c7"
+                      : s.pc_role === "admin"
+                      ? "#e0e7ff"
+                      : "#d1fae5";
+
+                    return (
+                      <tr
+                        key={s.id || s.user_id}
+                        style={{
+                          borderBottom: "1px solid #f1f5f9",
+                          opacity: s.is_active ? 1 : 0.75,
+                          background: isPhlebo ? "#fffbeb" : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div
+                              style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                background: roleBg,
+                                color: roleTone,
+                                display: "grid",
+                                placeItems: "center",
+                                fontWeight: 800,
+                                fontSize: "0.85rem",
+                              }}
+                            >
+                              {(s.full_name || s.email || "S").charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                                <span>{s.full_name || "Staff Member"}</span>
+                                {isPhlebo && (
+                                  <span
+                                    style={{
+                                      fontSize: "0.68rem",
+                                      padding: "1px 6px",
+                                      borderRadius: "4px",
+                                      background: "#fde68a",
+                                      color: "#92400e",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Phlebotomist
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                                ID: {s.user_id?.slice(0, 8)}...
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
+                            <Mail size={13} color="#94a3b8" />
+                            <span>{s.email}</span>
+                          </div>
+                          {s.mobile && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64748b", fontSize: "0.78rem", marginTop: 2 }}>
+                              <Phone size={12} color="#94a3b8" />
+                              <span>{s.mobile}</span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <span
+                            style={{
+                              padding: "3px 10px",
+                              borderRadius: "999px",
+                              background: roleBg,
+                              color: roleTone,
+                              fontWeight: 700,
+                              fontSize: "0.75rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            {isPhlebo ? (
+                              <Users size={11} />
+                            ) : s.pc_role === "admin" ? (
+                              <Shield size={11} />
+                            ) : (
+                              <FlaskConical size={11} />
+                            )}
+                            {isPhlebo
+                              ? "Phlebotomist (Field Collector)"
+                              : s.pc_role === "admin"
+                              ? "Center Admin"
+                              : "Lab Technician"}
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          {s.is_active ? (
+                            <span
+                              style={{
+                                color: "#16a34a",
+                                fontWeight: 700,
+                                fontSize: "0.75rem",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <CheckCircle2 size={13} /> Active
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                color: isPhlebo ? "#b45309" : "#94a3b8",
+                                fontWeight: 600,
+                                fontSize: "0.75rem",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <XCircle size={13} /> {isPhlebo ? "Inactive (Misassigned)" : "Inactive"}
+                            </span>
+                          )}
+                        </td>
+
+                        {isAdmin && (
+                          <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                              {!isPhlebo && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRoleToggle(s.user_id, s.pc_role)}
+                                  title={`Switch to ${s.pc_role === "admin" ? "Technician" : "Admin"}`}
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    border: "1px solid #cbd5e1",
+                                    background: "#ffffff",
+                                    color: "#334155",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Make {s.pc_role === "admin" ? "Technician" : "Admin"}
+                                </button>
+                              )}
+
+                              {s.is_active && !isPhlebo && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeactivateStaff(s.user_id, s.full_name)}
+                                  title="Deactivate staff member"
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    border: "1px solid #fecaca",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <Trash2 size={12} /> Deactivate
+                                </button>
+                              )}
+
+                              {/* Hard purge option for misassigned phlebotomists or inactive ghost entries */}
+                              {(isPhlebo || !s.is_active) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePermanentRemoveStaff(s.user_id, s.full_name, isPhlebo)}
+                                  title={isPhlebo ? "Permanently remove from lab technician list" : "Delete staff record"}
+                                  style={{
+                                    padding: "4px 10px",
+                                    borderRadius: 6,
+                                    border: "1px solid #fecaca",
+                                    background: "#fef2f2",
+                                    color: "#dc2626",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <Trash2 size={12} /> {isPhlebo ? "Purge Misassigned" : "Permanently Delete"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 2: Field Phlebotomists Fleet */}
+      {activeTab === "phlebotomists" && (
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "14px",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid #f1f5f9",
+              fontWeight: 700,
+              fontSize: "0.92rem",
+              color: "#1e293b",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <span>Sample Collection Fleet (Field Phlebotomists)</span>
+              <p style={{ margin: "4px 0 0 0", fontSize: "0.78rem", color: "#64748b", fontWeight: 400 }}>
+                Doorstep collectors operating in this processing centre&apos;s city sector. Specimens collected by them arrive at your intake desk for scanning.
               </p>
-            )}
+            </div>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                padding: "3px 10px",
+                borderRadius: "999px",
+                background: "#fef3c7",
+                color: "#b45309",
+                fontWeight: 700,
+              }}
+            >
+              {phleboCount} Bound Collectors
+            </span>
           </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
-              <thead>
-                <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
-                  <th style={{ padding: "12px 18px", fontWeight: 700 }}>Team Member</th>
-                  <th style={{ padding: "12px 18px", fontWeight: 700 }}>Email &amp; Contact</th>
-                  <th style={{ padding: "12px 18px", fontWeight: 700 }}>Role</th>
-                  <th style={{ padding: "12px 18px", fontWeight: 700 }}>Status</th>
-                  {isAdmin && <th style={{ padding: "12px 18px", fontWeight: 700, textAlign: "right" }}>Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((s) => {
-                  const roleTone = s.pc_role === "admin" ? "#6366f1" : "#059669";
-                  const roleBg = s.pc_role === "admin" ? "#e0e7ff" : "#d1fae5";
-                  return (
-                    <tr
-                      key={s.id || s.user_id}
-                      style={{
-                        borderBottom: "1px solid #f1f5f9",
-                        opacity: s.is_active ? 1 : 0.6,
-                      }}
-                    >
+
+          {loading ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
+              Loading phlebotomist fleet...
+            </div>
+          ) : phleboCount === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
+              <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.4 }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>No active field phlebotomists currently assigned to this centre.</p>
+              <p style={{ fontSize: "0.82rem", marginTop: 4 }}>
+                When patients book home sample collections in your city, certified phlebotomists are dispatched and their specimens routed to your intake desk.
+              </p>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Collector Name</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Email &amp; Contact</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Role</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Field Duty Status</th>
+                    <th style={{ padding: "12px 18px", fontWeight: 700 }}>Verification</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Render bound phlebotomists */}
+                  {phlebotomists.map((p) => (
+                    <tr key={p.user_id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "14px 18px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                           <div
@@ -354,22 +713,22 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                               width: 34,
                               height: 34,
                               borderRadius: "50%",
-                              background: roleBg,
-                              color: roleTone,
+                              background: "#fef3c7",
+                              color: "#b45309",
                               display: "grid",
                               placeItems: "center",
                               fontWeight: 800,
                               fontSize: "0.85rem",
                             }}
                           >
-                            {(s.full_name || s.email || "S").charAt(0).toUpperCase()}
+                            {(p.full_name || p.email || "P").charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                              {s.full_name || "Staff Member"}
+                              {p.full_name || "Field Phlebotomist"}
                             </div>
                             <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
-                              ID: {s.user_id?.slice(0, 8)}...
+                              ID: {p.user_id?.slice(0, 8)}...
                             </div>
                           </div>
                         </div>
@@ -378,12 +737,12 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                       <td style={{ padding: "14px 18px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
                           <Mail size={13} color="#94a3b8" />
-                          <span>{s.email}</span>
+                          <span>{p.email}</span>
                         </div>
-                        {s.mobile && (
+                        {p.mobile && (
                           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64748b", fontSize: "0.78rem", marginTop: 2 }}>
                             <Phone size={12} color="#94a3b8" />
-                            <span>{s.mobile}</span>
+                            <span>{p.mobile}</span>
                           </div>
                         )}
                       </td>
@@ -393,8 +752,8 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           style={{
                             padding: "3px 10px",
                             borderRadius: "999px",
-                            background: roleBg,
-                            color: roleTone,
+                            background: "#fef3c7",
+                            color: "#b45309",
                             fontWeight: 700,
                             fontSize: "0.75rem",
                             display: "inline-flex",
@@ -402,13 +761,12 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                             gap: 4,
                           }}
                         >
-                          {s.pc_role === "admin" ? <Shield size={11} /> : <FlaskConical size={11} />}
-                          {s.pc_role === "admin" ? "Center Admin" : "Lab Technician"}
+                          <Users size={11} /> Field Phlebotomist
                         </span>
                       </td>
 
                       <td style={{ padding: "14px 18px" }}>
-                        {s.is_active ? (
+                        {p.on_duty ? (
                           <span
                             style={{
                               color: "#16a34a",
@@ -419,12 +777,12 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                               gap: 4,
                             }}
                           >
-                            <CheckCircle2 size={13} /> Active
+                            <CheckCircle2 size={13} /> On Duty / In Field
                           </span>
                         ) : (
                           <span
                             style={{
-                              color: "#94a3b8",
+                              color: "#64748b",
                               fontWeight: 600,
                               fontSize: "0.75rem",
                               display: "inline-flex",
@@ -432,65 +790,130 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                               gap: 4,
                             }}
                           >
-                            <XCircle size={13} /> Inactive
+                            <XCircle size={13} /> Off Duty
                           </span>
                         )}
                       </td>
 
-                      {isAdmin && (
-                        <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleRoleToggle(s.user_id, s.pc_role)}
-                              title={`Switch to ${s.pc_role === "admin" ? "Technician" : "Admin"}`}
+                      <td style={{ padding: "14px 18px" }}>
+                        <span
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: "999px",
+                            background: "#dcfce7",
+                            color: "#166534",
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {p.verification_status || "Verified"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Render any misassigned phlebo from staff list in the fleet view as well */}
+                  {staff
+                    .filter((s) => s.is_phlebotomist || s.system_role === "phlebotomist")
+                    .filter((s) => !phlebotomists.some((p) => p.user_id === s.user_id))
+                    .map((s) => (
+                      <tr key={`extra-${s.user_id}`} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div
                               style={{
-                                padding: "4px 8px",
-                                borderRadius: 6,
-                                border: "1px solid #cbd5e1",
-                                background: "#ffffff",
-                                color: "#334155",
-                                fontSize: "0.72rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
+                                width: 34,
+                                height: 34,
+                                borderRadius: "50%",
+                                background: "#fef3c7",
+                                color: "#b45309",
+                                display: "grid",
+                                placeItems: "center",
+                                fontWeight: 800,
+                                fontSize: "0.85rem",
                               }}
                             >
-                              Make {s.pc_role === "admin" ? "Technician" : "Admin"}
-                            </button>
-
-                            {s.is_active && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeactivateStaff(s.user_id, s.full_name)}
-                                title="Deactivate staff member"
-                                style={{
-                                  padding: "4px 8px",
-                                  borderRadius: 6,
-                                  border: "1px solid #fecaca",
-                                  background: "#fef2f2",
-                                  color: "#dc2626",
-                                  fontSize: "0.72rem",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <Trash2 size={12} /> Remove
-                              </button>
-                            )}
+                              {(s.full_name || s.email || "P").charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                                {s.full_name || "Field Phlebotomist"}
+                              </div>
+                              <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                                ID: {s.user_id?.slice(0, 8)}...
+                              </div>
+                            </div>
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
+                            <Mail size={13} color="#94a3b8" />
+                            <span>{s.email}</span>
+                          </div>
+                          {s.mobile && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#64748b", fontSize: "0.78rem", marginTop: 2 }}>
+                              <Phone size={12} color="#94a3b8" />
+                              <span>{s.mobile}</span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <span
+                            style={{
+                              padding: "3px 10px",
+                              borderRadius: "999px",
+                              background: "#fef3c7",
+                              color: "#b45309",
+                              fontWeight: 700,
+                              fontSize: "0.75rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <Users size={11} /> Field Phlebotomist
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <span
+                            style={{
+                              color: "#16a34a",
+                              fontWeight: 700,
+                              fontSize: "0.75rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            <CheckCircle2 size={13} /> Active Fleet
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "14px 18px" }}>
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: "999px",
+                              background: "#dcfce7",
+                              color: "#166534",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Verified
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Staff Modal */}
       {showAddModal && (

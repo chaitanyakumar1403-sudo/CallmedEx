@@ -74,11 +74,13 @@ export default function PCIntakePanel() {
   const [rejectSampleId, setRejectSampleId] = useState("");
 
   // View filter
-  const [filter, setFilter] = useState<"received" | "verified" | "rejected">("received");
+  type FilterType = "incoming" | "received" | "verified" | "rejected";
+  const [filter, setFilter] = useState<FilterType>("received");
 
   const load = useCallback(async () => {
     try {
-      const data = await pcAPI.getSamples(filter);
+      const statusParam = filter === "incoming" ? "collected,in_transit" : filter;
+      const data = await pcAPI.getSamples(statusParam);
       setSamples(data.samples || []);
     } catch (e: any) {
       setMsg({ kind: "err", text: e.message || "Failed to load samples" });
@@ -356,8 +358,8 @@ export default function PCIntakePanel() {
           <h3 style={{ margin: 0, fontSize: "1.05rem", color: "#0f172a" }}>
             Samples ({samples.length})
           </h3>
-          <div style={{ display: "flex", gap: 6 }}>
-            {(["received", "verified", "rejected"] as const).map((f) => (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(["incoming", "received", "verified", "rejected"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => { setFilter(f); setLoading(true); }}
@@ -370,7 +372,7 @@ export default function PCIntakePanel() {
                   transition: "all 0.15s",
                 }}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === "incoming" ? "In Transit / Field" : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
           </div>
@@ -382,7 +384,7 @@ export default function PCIntakePanel() {
           </div>
         ) : samples.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
-            No {filter} samples.
+            No {filter === "incoming" ? "incoming in-transit" : filter} samples.
           </div>
         ) : (
           <div style={{ display: "grid", gap: 6 }}>
@@ -423,12 +425,36 @@ export default function PCIntakePanel() {
                     padding: "3px 10px", borderRadius: 999,
                     fontSize: "0.72rem", fontWeight: 700,
                     background: s.status === "verified" ? "#dcfce7"
-                      : s.status === "rejected" ? "#fee2e2" : "#fef3c7",
+                      : s.status === "rejected" ? "#fee2e2"
+                      : s.status === "received" ? "#e0f2fe" : "#fef3c7",
                     color: s.status === "verified" ? "#166534"
-                      : s.status === "rejected" ? "#991b1b" : "#92400e",
+                      : s.status === "rejected" ? "#991b1b"
+                      : s.status === "received" ? "#0369a1" : "#92400e",
                   }}>
                     {s.status}
                   </span>
+
+                  {s.status !== "verified" && s.status !== "rejected" && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setScannedSample(s);
+                        setScanInput(s.barcode || "");
+                        setServerVerified(true);
+                        setChecks({
+                          tube_received: true,
+                          barcode_match: true,
+                          tube_type_correct: false,
+                          label_present: false,
+                          quality_acceptable: false,
+                        });
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      <Icon as={ShieldCheck} size={14} /> Intake &amp; Verify
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

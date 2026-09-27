@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from app.models.schemas import (
     UserSignup, UserLogin, TokenResponse, UserResponse, APIResponse, UserRole,
-    ForgotPasswordRequest, VerifyResetOTPRequest, ResetPasswordRequest,
+    ForgotPasswordRequest, VerifyResetOTPRequest, ResetPasswordRequest, ChangePasswordRequest,
     SendOTPRequest, VerifyOTPRequest, RefreshTokenRequest,
     BiometricRegisterRequest, BiometricChallengeRequest, BiometricChallengeResponse,
     BiometricVerifyRequest, MasterSwitchRequest,
@@ -1705,6 +1705,86 @@ async def reset_password_via_token(req: ResetPasswordRequest):
     return APIResponse(
         success=True,
         message="Password has been reset successfully! You can now login with your new password.",
+        data={}
+    )
+
+
+@router.post("/change-password", response_model=APIResponse)
+async def change_password(
+    req: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Authenticated password change for any logged-in user (e.g. Processing Center Admin/Staff, Doctor, Organization).
+    Validates current password, checks complexity of new password, updates hash and increments token_version.
+    """
+    user_id = current_user.get("sub") or current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    confirm = req.confirm_password if req.confirm_password is not None else req.new_password
+    if req.new_password != confirm:
+        raise HTTPException(status_code=400, detail="New passwords do not match.")
+
+    if req.current_password == req.new_password:
+        raise HTTPException(status_code=400, detail="New password cannot be the same as your current password.")
+
+    if pw_error := validate_password_strength(req.new_password):
+        raise HTTPException(status_code=400, detail=pw_error)
+
+    # Fetch user password_hash
+    user_row = None
+    if supabase:
+        try:
+            res = supabase.table("users").select("id, email, password_hash, token_version").eq("id", user_id).limit(1).execute()
+            if res.data:
+                user_row = res.data[0]
+        except Exception as e:
+            logger.error(f"Error fetching user for password change: {e}")
+
+    if not user_row:
+        # Check local users
+        for email, u in _local_users.items():
+            if u.get("id") == user_id or u.get("email") == current_user.get("email"):
+                user_row = u
+                break
+
+    if not user_row:
+        raise HTTPException(status_code=404, detail="User account not found.")
+
+    curr_hash = user_row.get("password_hash") or ""
+    if not verify_password(req.current_password, curr_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+
+    new_hash = hash_password(req.new_password)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    new_version = (user_row.get("token_version") or 1) + 1
+
+    if supabase:
+        try:
+            supabase.table("users").update({
+                "password_hash": new_hash,
+                "token_version": new_version,
+                "updated_at": now_iso,
+            }).eq("id", user_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to update password for user {user_id}: {e}")
+            if user_row.get("email") not in _local_users:
+                raise HTTPException(status_code=500, detail="Failed to update password.")
+
+    if user_row and user_row.get("email") in _local_users:
+        _local_users[user_row["email"]]["password_hash"] = new_hash
+        _local_users[user_row["email"]]["token_version"] = new_version
+        _local_users[user_row["email"]]["updated_at"] = now_iso
+    elif not supabase:
+        user_row["password_hash"] = new_hash
+        user_row["token_version"] = new_version
+        user_row["updated_at"] = now_iso
+
+
+    return APIResponse(
+        success=True,
+        message="Password changed successfully. Your account is now secured.",
         data={}
     )
 

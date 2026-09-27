@@ -6332,6 +6332,12 @@ input[type="radio"] {
   border-top: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+.cm-provider-nav-item--secondary {
+  margin-bottom: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .cm-provider-nav-item--danger {
   background: rgba(239, 68, 68, 0.08) !important;
   color: #f87171 !important;

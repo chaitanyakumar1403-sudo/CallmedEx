@@ -183,6 +183,62 @@ const PROACTIVE_ORG_NOTIFICATIONS: PatientNotification[] = [
   },
 ];
 
+const PROACTIVE_PC_NOTIFICATIONS: PatientNotification[] = [
+  {
+    id: "proactive-pc-1",
+    title: "Specimen In Transit (Barcode CMX-882194)",
+    message:
+      "Certified Field Phlebotomist is en route to intake desk with fasting venous blood sample (Visakhapatnam, 3.8°C verified cold box). Expected arrival in ~20 mins.",
+    category: "tracking",
+    time: "10 mins ago",
+    timestamp: Date.now() - 10 * 60 * 1000,
+    read: false,
+    actionLabel: "Open Intake Desk",
+    actionHref: "/dashboard/processing-center?tab=intake",
+    priority: "urgent",
+  },
+  {
+    id: "proactive-pc-2",
+    title: "New Home Collection Booking Accepted",
+    message:
+      "Patient booked Complete Blood Count & Fasting Lipid Profile in Visakhapatnam. Assigned on-duty phlebotomist confirmed doorstep collection block for today.",
+    category: "visit",
+    time: "25 mins ago",
+    timestamp: Date.now() - 25 * 60 * 1000,
+    read: false,
+    actionLabel: "View Laboratory Queue",
+    actionHref: "/dashboard/processing-center?tab=queue",
+    priority: "high",
+  },
+  {
+    id: "proactive-pc-3",
+    title: "Intake 5-Point Quality Check Queue",
+    message:
+      "Incoming sample tubes awaiting barcode scan, hemolysis check, label integrity, and temperature confirmation before batch registration.",
+    category: "biomarker",
+    time: "45 mins ago",
+    timestamp: Date.now() - 45 * 60 * 1000,
+    read: false,
+    actionLabel: "Verify Intake Samples",
+    actionHref: "/dashboard/processing-center?tab=intake",
+    priority: "normal",
+  },
+  {
+    id: "proactive-pc-4",
+    title: "Analyzer Interface & LIMS Bridge Synced",
+    message:
+      "Kriya AI / MediAssist LIMS integration channel online. Ready for batch result ingestion, report verification, and patient delivery.",
+    category: "medication",
+    time: "2 hours ago",
+    timestamp: Date.now() - 2 * 3600 * 1000,
+    read: true,
+    actionLabel: "Lab Testing & Reports",
+    actionHref: "/dashboard/processing-center?tab=testing",
+    priority: "normal",
+  },
+];
+
+
 function relativeTime(iso?: string): string {
   if (!iso) return "recently";
   const then = new Date(iso).getTime();
@@ -254,18 +310,21 @@ export function PatientNotificationCenter({
 
   const detectedRole = (() => {
     const raw = (role || "").toLowerCase();
+    if (raw.includes("processing") || raw.includes("center") || raw.includes("lab")) return "processing_center";
     if (raw.includes("doctor") || raw.includes("workstation")) return "doctor";
     if (raw.includes("organization") || raw.includes("console")) return "organization";
     if (raw.includes("patient") || raw.includes("portal")) return "patient";
     try {
       const path = typeof window !== "undefined" ? window.location.pathname : "";
+      if (path.includes("/dashboard/processing-center") || path.includes("/dashboard/processing_center")) return "processing_center";
       if (path.includes("/dashboard/doctor")) return "doctor";
       if (path.includes("/dashboard/organization")) return "organization";
       if (path.includes("/dashboard/patient")) return "patient";
       const u = JSON.parse(localStorage.getItem("user") || "{}");
       const r = (u.role || "").toLowerCase();
+      if (r === "processing_center") return "processing_center";
       if (r === "doctor") return "doctor";
-      if (r === "organization" || r === "processing_center") return "organization";
+      if (r === "organization") return "organization";
       return "patient";
     } catch {
       return "patient";
@@ -313,10 +372,20 @@ export function PatientNotificationCenter({
               !item.title.toLowerCase().includes("phlebotomist") &&
               !item.message.toLowerCase().includes("metformin")
           );
+        } else if (detectedRole === "processing_center") {
+          roleFiltered = fetchedItems.filter(
+            (item) =>
+              !item.title.toLowerCase().includes("teleconsultation") &&
+              !item.title.toLowerCase().includes("medication dose") &&
+              !item.title.toLowerCase().includes("opd") &&
+              !item.message.toLowerCase().includes("metformin")
+          );
         }
 
         const proactiveList =
-          detectedRole === "doctor"
+          detectedRole === "processing_center"
+            ? PROACTIVE_PC_NOTIFICATIONS
+            : detectedRole === "doctor"
             ? PROACTIVE_DOCTOR_NOTIFICATIONS
             : detectedRole === "organization"
             ? PROACTIVE_ORG_NOTIFICATIONS
@@ -329,6 +398,7 @@ export function PatientNotificationCenter({
             allItems.push(item);
           }
         }
+
 
         // Apply local read overrides
         const finalItems = allItems.map((item) => ({
@@ -477,14 +547,18 @@ export function PatientNotificationCenter({
             </div>
             <div>
               <h2 id="cm-notification-title" className="cm-notification-header__title">
-                {detectedRole === "doctor"
+                {detectedRole === "processing_center"
+                  ? "Diagnostic Processing Centre Operations"
+                  : detectedRole === "doctor"
                   ? "Doctor Clinical Alert & Roster Center"
                   : detectedRole === "organization"
                   ? "Organization Operations Center"
                   : "Patient Notification Center"}
               </h2>
               <p className="cm-notification-header__subtitle">
-                {detectedRole === "doctor"
+                {detectedRole === "processing_center"
+                  ? "Lab specimen intake alerts, transit telemetry, batch manifests & quality verification"
+                  : detectedRole === "doctor"
                   ? "Practice queue alerts, consultation requests, roster sync & clinical updates"
                   : detectedRole === "organization"
                   ? "Facility bookings, affiliated doctor availability & diagnostic queues"
@@ -536,7 +610,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("visit")}
           >
             <Calendar size={14} />
-            {detectedRole === "doctor" ? "Consultations" : detectedRole === "organization" ? "Appointments" : "Visits & Consults"}
+            {detectedRole === "processing_center" ? "City Bookings" : detectedRole === "doctor" ? "Consultations" : detectedRole === "organization" ? "Appointments" : "Visits & Consults"}
           </button>
           <button
             type="button"
@@ -546,7 +620,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("tracking")}
           >
             <Truck size={14} />
-            {detectedRole === "doctor" ? "Roster Sync" : detectedRole === "organization" ? "Doctor Roster" : "Sample Tracking"}
+            {detectedRole === "processing_center" ? "Transit & Intake" : detectedRole === "doctor" ? "Roster Sync" : detectedRole === "organization" ? "Doctor Roster" : "Sample Tracking"}
           </button>
           <button
             type="button"
@@ -556,7 +630,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("medication")}
           >
             <Pill size={14} />
-            {detectedRole === "doctor" ? "e-Prescriptions" : detectedRole === "organization" ? "Services" : "Medications"}
+            {detectedRole === "processing_center" ? "Batches & LIMS" : detectedRole === "doctor" ? "e-Prescriptions" : detectedRole === "organization" ? "Services" : "Medications"}
           </button>
           <button
             type="button"
@@ -566,7 +640,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("biomarker")}
           >
             <Activity size={14} />
-            {detectedRole === "doctor" ? "Credentials" : detectedRole === "organization" ? "Facility" : "Biomarkers & Care"}
+            {detectedRole === "processing_center" ? "QA & Reports" : detectedRole === "doctor" ? "Credentials" : detectedRole === "organization" ? "Facility" : "Biomarkers & Care"}
           </button>
         </div>
 
@@ -643,7 +717,9 @@ export function PatientNotificationCenter({
           <div className="cm-notification-footer__telemetry">
             <Sparkles size={14} />
             <span>
-              {detectedRole === "doctor"
+              {detectedRole === "processing_center"
+                ? "LIMS Telemetry — Specimen Intake, Barcodes & Diagnostic Pipeline Active"
+                : detectedRole === "doctor"
                 ? "Workstation Telemetry — Real-time Practice Queue & NMC e-Rx Active"
                 : detectedRole === "organization"
                 ? "Operations Telemetry — Reception OPD & Walk-in Queue Active"
@@ -654,7 +730,9 @@ export function PatientNotificationCenter({
             type="button"
             className="cm-notification-footer__btn"
             onClick={() => {
-              if (detectedRole === "doctor") {
+              if (detectedRole === "processing_center") {
+                handleActionClick("/dashboard/processing-center");
+              } else if (detectedRole === "doctor") {
                 handleActionClick("/dashboard/doctor");
               } else if (detectedRole === "organization") {
                 handleActionClick("/dashboard/organization");
@@ -664,7 +742,9 @@ export function PatientNotificationCenter({
             }}
           >
             <span>
-              {detectedRole === "doctor"
+              {detectedRole === "processing_center"
+                ? "Processing Console"
+                : detectedRole === "doctor"
                 ? "Open Workstation"
                 : detectedRole === "organization"
                 ? "Manage Roster"

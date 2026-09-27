@@ -27,12 +27,14 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
     if (pathname?.includes("/dashboard/collection-point")) return "/dashboard/collection-point";
     if (pathname?.includes("/dashboard/organization")) return "/dashboard/organization";
     if (pathname?.includes("/dashboard/admin")) return "/dashboard/admin";
+    if (pathname?.includes("/dashboard/processing-center")) return "/dashboard/processing-center";
     if (pathname?.includes("/dashboard/patient")) return "/dashboard/patient";
 
     try {
       const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
       if (userStr) {
         const u = JSON.parse(userStr);
+        if (u.role === "processing_center") return "/dashboard/processing-center";
         if (u.role === "doctor") return "/dashboard/doctor";
         if (u.role === "phlebotomist") return "/dashboard/phlebotomist";
         if (u.role === "collection_point") return "/dashboard/collection-point";
@@ -55,7 +57,9 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
     }
 
     try {
-      if (pathname?.includes("/dashboard/doctor")) {
+      if (pathname?.includes("/dashboard/processing-center")) {
+        setResolvedRole("Processing Center Console");
+      } else if (pathname?.includes("/dashboard/doctor")) {
         setResolvedRole("Workstation Dashboard");
       } else if (pathname?.includes("/dashboard/organization")) {
         setResolvedRole("Organization Console");
@@ -69,9 +73,11 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         if (!userName && u.full_name) {
           setResolvedUser(u.full_name);
         }
-        if (!role && !pathname?.includes("/dashboard/doctor") && u.role) {
+        if (!role && !pathname?.includes("/dashboard/doctor") && !pathname?.includes("/dashboard/processing-center") && u.role) {
           if (pathname?.includes("/dashboard/patient") || u.role === "patient") {
             setResolvedRole("My Portal");
+          } else if (u.role === "processing_center") {
+            setResolvedRole("Processing Center Console");
           } else {
             setResolvedRole(`${u.role.charAt(0).toUpperCase() + u.role.slice(1)} Dashboard`);
           }

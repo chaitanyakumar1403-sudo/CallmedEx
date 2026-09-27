@@ -17,8 +17,9 @@ from app.models.schemas import (
     OwnershipType,
     VerifyResetOTPRequest,
     ResetPasswordRequest,
+    ChangePasswordRequest,
 )
-from app.routers.auth import _build_user_data, _build_profile_data
+from app.routers.auth import _build_user_data, _build_profile_data, change_password
 from app.services.email import EmailService
 from app.config import settings
 
@@ -164,3 +165,67 @@ def test_provider_booking_alert_email_url_routing(monkeypatch):
         },
     )
     assert f"{settings.FRONTEND_URL}/dashboard/dentist" in recorded["html"]
+
+
+@pytest.mark.asyncio
+async def test_change_password_endpoint_validation_and_flow():
+    """Verify change_password endpoint enforces old password verification, strength, and updates hash."""
+    from app.utils.security import hash_password, verify_password
+    from app.routers import auth as auth_mod
+    from fastapi import HTTPException
+
+    import uuid
+    user_id = str(uuid.uuid4())
+    old_hash = hash_password("OldPassword@123")
+    auth_mod._local_users["pcadmin@lab.com"] = {
+        "id": user_id,
+        "email": "pcadmin@lab.com",
+        "password_hash": old_hash,
+        "token_version": 1,
+    }
+
+    current_user = {"sub": user_id, "email": "pcadmin@lab.com", "role": "processing_center"}
+
+    # 1. Incorrect current password rejected
+    with pytest.raises(HTTPException) as exc_info:
+        await change_password(
+            req=ChangePasswordRequest(current_password="WrongPass@123", new_password="NewSecurePassword@2026", confirm_password="NewSecurePassword@2026"),
+            current_user=current_user,
+        )
+    assert exc_info.value.status_code == 400
+    assert "Current password is incorrect" in exc_info.value.detail
+
+    # 2. Same password rejected
+    with pytest.raises(HTTPException) as exc_info:
+        await change_password(
+            req=ChangePasswordRequest(current_password="OldPassword@123", new_password="OldPassword@123", confirm_password="OldPassword@123"),
+            current_user=current_user,
+        )
+    assert exc_info.value.status_code == 400
+    assert "cannot be the same" in exc_info.value.detail
+
+    # 3. Weak password without digit rejected by validate_password_strength
+    with pytest.raises(HTTPException) as exc_info:
+        await change_password(
+            req=ChangePasswordRequest(current_password="OldPassword@123", new_password="NoDigitsPassword", confirm_password="NoDigitsPassword"),
+            current_user=current_user,
+        )
+    assert exc_info.value.status_code == 400
+    assert "digit" in exc_info.value.detail.lower()
+
+    # 4. Short password rejected by schema validation
+    with pytest.raises(ValidationError):
+        ChangePasswordRequest(current_password="OldPassword@123", new_password="short", confirm_password="short")
+
+    # 5. Successful change
+    res = await change_password(
+        req=ChangePasswordRequest(current_password="OldPassword@123", new_password="NewSecurePassword@2026", confirm_password="NewSecurePassword@2026"),
+        current_user=current_user,
+    )
+    assert res.success is True
+    assert "Password changed successfully" in res.message
+    updated_user = auth_mod._local_users["pcadmin@lab.com"]
+    assert verify_password("NewSecurePassword@2026", updated_user["password_hash"])
+    assert updated_user["token_version"] == 2
+
+

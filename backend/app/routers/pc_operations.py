@@ -291,7 +291,27 @@ async def get_sample_by_barcode(
         .execute()
     )
     if not rows:
-        raise HTTPException(404, "Sample not found at this centre.")
+        # Check if sample exists globally and is unassigned or routing to this centre
+        global_rows = _rows(
+            supabase.table("samples")
+            .select("*")
+            .eq("barcode", barcode.strip().upper())
+            .limit(1)
+            .execute()
+        )
+        if not global_rows:
+            raise HTTPException(404, "Sample not found at this centre.")
+        candidate = global_rows[0]
+        cand_center = candidate.get("processing_center_id")
+        if cand_center and cand_center != centre_id:
+            raise HTTPException(403, "This sample belongs to another processing centre.")
+        # Auto-link to this processing centre on intake scan
+        supabase.table("samples").update({
+            "processing_center_id": centre_id,
+            "updated_at": _now_iso(),
+        }).eq("id", candidate["id"]).execute()
+        candidate["processing_center_id"] = centre_id
+        rows = [candidate]
 
     sample = rows[0]
 
@@ -615,10 +635,24 @@ async def verify_sample(
 
     if sample.get("processing_center_id") != centre_id:
         raise HTTPException(403, "This sample does not belong to your centre.")
+
+    now = _now_iso()
+    if sample.get("status") in ("collected", "in_transit", "handover_requested"):
+        # Auto-record intake receipt from phlebotomist courier delivery
+        supabase.table("samples").update({
+            "status": "received",
+            "received_at": now,
+            "received_by": staff["user_id"],
+        }).eq("id", sample_id).execute()
+        _log_event(sample_id, "received", staff["user_id"], centre_id,
+                   "Specimen physically received at processing centre intake desk from phlebotomist collection")
+        sample["status"] = "received"
+
     try:
         validate_sample_transition(sample.get("status"), "verified")
     except ValueError as e:
         raise HTTPException(409, detail=str(e))
+
 
     checks = body.model_dump()
     all_pass = all(checks.values())
@@ -688,7 +722,7 @@ async def verify_sample(
             except Exception as exc:
                 logger.error(f"Outbound MediAssist submission error for verified sample {sample_id}: {exc}")
 
-    return {"success": True, "message": "Sample verified.", "verification": verification}
+    return {"success": True, "status": "verified", "message": "Sample verified.", "verification": verification}
 
 
 # ─── Rejection ────────────────────────────────────────────────────────────
@@ -1099,7 +1133,7 @@ class PCStaffUpdateRequest(BaseModel):
 
 @router.get("/staff")
 async def list_pc_staff(staff: dict = Depends(get_current_pc_staff)):
-    """List all staff and technicians for this processing centre."""
+    """List all staff, technicians, and bound field phlebotomists for this processing centre."""
     centre_id = staff["processing_center_id"]
     staff_rows = _rows(
         supabase.table("processing_center_staff")
@@ -1108,21 +1142,24 @@ async def list_pc_staff(staff: dict = Depends(get_current_pc_staff)):
         .order("created_at", desc=False)
         .execute()
     )
-    if not staff_rows:
-        return {"staff": []}
 
     u_ids = [s["user_id"] for s in staff_rows if s.get("user_id")]
     u_map = {}
+    phlebo_user_ids = set()
     if u_ids:
         try:
-            u_rows = _rows(supabase.table("users").select("id, full_name, email, mobile").in_("id", u_ids).execute())
+            u_rows = _rows(supabase.table("users").select("id, full_name, email, mobile, role").in_("id", u_ids).execute())
             u_map = {u["id"]: u for u in u_rows}
+            p_rows = _rows(supabase.table("phlebotomists").select("user_id").in_("user_id", u_ids).execute())
+            phlebo_user_ids = {p["user_id"] for p in p_rows}
         except Exception as e:
             logger.warning(f"Error fetching user profiles for PC staff: {e}")
 
     result = []
     for s in staff_rows:
         u = u_map.get(s["user_id"], {})
+        sys_role = u.get("role") or ""
+        is_phlebo = (s["user_id"] in phlebo_user_ids) or (sys_role == "phlebotomist")
         result.append({
             "id": s.get("id"),
             "user_id": s.get("user_id"),
@@ -1130,10 +1167,43 @@ async def list_pc_staff(staff: dict = Depends(get_current_pc_staff)):
             "email": u.get("email") or "",
             "mobile": u.get("mobile") or "",
             "pc_role": s.get("pc_role", "technician"),
+            "prior_role": s.get("prior_role") or "",
+            "system_role": sys_role,
+            "is_phlebotomist": is_phlebo,
             "is_active": s.get("is_active", True),
             "created_at": s.get("created_at"),
         })
-    return {"staff": result}
+
+    # Also retrieve bound field phlebotomists for this processing center
+    bound_phlebos = []
+    try:
+        raw_phlebos = _rows(
+            supabase.table("phlebotomists")
+            .select("user_id, on_duty, verification_status")
+            .eq("processing_center_id", centre_id)
+            .execute()
+        )
+        if raw_phlebos:
+            p_uids = [p["user_id"] for p in raw_phlebos if p.get("user_id")]
+            if p_uids:
+                p_users = _rows(supabase.table("users").select("id, full_name, email, mobile").in_("id", p_uids).execute())
+                pu_map = {u["id"]: u for u in p_users}
+                for p in raw_phlebos:
+                    pu = pu_map.get(p["user_id"], {})
+                    bound_phlebos.append({
+                        "user_id": p.get("user_id"),
+                        "full_name": pu.get("full_name") or "Field Phlebotomist",
+                        "email": pu.get("email") or "",
+                        "mobile": pu.get("mobile") or "",
+                        "on_duty": p.get("on_duty", False),
+                        "verification_status": p.get("verification_status", "verified"),
+                        "role": "phlebotomist",
+                    })
+    except Exception as e:
+        logger.warning(f"Error fetching bound phlebotomists for centre {centre_id}: {e}")
+
+    return {"staff": result, "phlebotomists": bound_phlebos}
+
 
 
 @router.post("/staff")
@@ -1254,33 +1324,43 @@ async def update_pc_staff(
 @router.delete("/staff/{user_id}")
 async def remove_pc_staff(
     user_id: str,
+    permanent: bool = False,
     staff: dict = Depends(require_pc_admin),
 ):
-    """Deactivate a staff member from this processing centre."""
+    """Deactivate or permanently remove a staff member from this processing centre."""
     centre_id = staff["processing_center_id"]
     if user_id == staff["user_id"]:
         raise HTTPException(status_code=400, detail="Cannot remove yourself from the centre.")
 
     staff_rows = _rows(
-        supabase.table("processing_center_staff").select("prior_role")
+        supabase.table("processing_center_staff").select("id, prior_role, is_active")
         .eq("processing_center_id", centre_id).eq("user_id", user_id)
         .limit(1).execute()
     )
     if not staff_rows:
         raise HTTPException(status_code=404, detail="Staff member not found.")
 
-    supabase.table("processing_center_staff").update({"is_active": False}) \
-        .eq("processing_center_id", centre_id).eq("user_id", user_id).execute()
+    target_staff = staff_rows[0]
+    prior_role = target_staff.get("prior_role") or ""
+
+    # If permanent is requested, hard delete the row; otherwise deactivate it
+    if permanent:
+        supabase.table("processing_center_staff").delete() \
+            .eq("processing_center_id", centre_id).eq("user_id", user_id).execute()
+    else:
+        supabase.table("processing_center_staff").update({"is_active": False}) \
+            .eq("processing_center_id", centre_id).eq("user_id", user_id).execute()
+
 
     still_pc_staff = _rows(
         supabase.table("processing_center_staff").select("id")
         .eq("user_id", user_id).eq("is_active", True).limit(1).execute()
     )
-    prior_role = staff_rows[0].get("prior_role") if staff_rows else ""
     if not still_pc_staff and prior_role:
         supabase.table("users").update({"role": prior_role}).eq("id", user_id).execute()
 
     return {"ok": True, "message": "Staff member removed from centre."}
+
 
 
 # ─── Sample Lab Testing & Report Delivery ─────────────────────────────────
