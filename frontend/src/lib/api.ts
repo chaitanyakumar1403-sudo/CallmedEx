@@ -362,6 +362,19 @@ export const pcAPI = {
   runRosterPass: (date: string) =>
     api.post(`/pc/roster/${date}/run`),
   getCatalog: () => api.get('/pc/home-services'),
+  // Staff & Team Management (Spec 2 PC Admin)
+  getStaff: () => api.get('/pc/staff'),
+  addStaff: (data: { email: string; full_name?: string; mobile?: string; password?: string; pc_role?: string }) =>
+    api.post('/pc/staff', data),
+  updateStaff: (userId: string, data: { pc_role?: string; is_active?: boolean }) =>
+    api.patch(`/pc/staff/${userId}`, data),
+  deleteStaff: (userId: string) =>
+    api.delete(`/pc/staff/${userId}`),
+  // Lab Testing & Report Delivery
+  startProcessingSample: (sampleId: string) =>
+    api.post(`/pc/samples/${sampleId}/start-processing`),
+  deliverReport: (sampleId: string, data: { report_url: string; notes?: string }) =>
+    api.post(`/pc/samples/${sampleId}/deliver-report`, data),
 };
 
 // ─── Phlebotomist doorstep API (Spec 3) ──────────────────────────────────

@@ -5,6 +5,8 @@ Centres are created by CallMedex, never by self-signup. Deciding who becomes a
 processing centre is a business decision, not a registration form.
 """
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +21,7 @@ from app.database import supabase
 from app.middleware.auth import get_current_user
 from app.middleware.pc_auth import get_current_pc_staff
 from app.utils.db_helpers import _rows
+from app.utils.security import hash_password
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +78,11 @@ class CenterIn(BaseModel):
 
 
 class StaffIn(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    mobile: Optional[str] = None
+    password: Optional[str] = None
     pc_role: str = "technician"
 
 
@@ -88,6 +95,14 @@ class AreaIn(BaseModel):
     pincode: Optional[str] = None
     radius_km: Optional[float] = None
     priority: int = 100
+
+
+class AreaUpdateIn(BaseModel):
+    city: Optional[str] = None
+    pincode: Optional[str] = None
+    radius_km: Optional[float] = None
+    priority: Optional[int] = None
+    is_active: Optional[bool] = None
 
 
 @router.post("")
@@ -138,10 +153,25 @@ async def list_centers(user: dict = Depends(get_current_user)):
         # nothing. Without this the panel showed "Service Areas (0)" while
         # patients in the centre's own city were told no partner covers them.
         _ensure_primary_area(c)
-        c["staff"] = _rows(
+        staff_rows = _rows(
             supabase.table("processing_center_staff").select("*")
             .eq("processing_center_id", c["id"]).eq("is_active", True).execute()
         )
+        if staff_rows:
+            u_ids = [s["user_id"] for s in staff_rows if s.get("user_id")]
+            if u_ids:
+                try:
+                    u_rows = _rows(supabase.table("users").select("id, full_name, email, mobile").in_("id", u_ids).execute())
+                    u_map = {u["id"]: u for u in u_rows}
+                    for s in staff_rows:
+                        matched_u = u_map.get(s["user_id"], {})
+                        s["users"] = matched_u
+                        s["full_name"] = matched_u.get("full_name", "")
+                        s["email"] = matched_u.get("email", "")
+                        s["role"] = s.get("pc_role", "")
+                except Exception as enrich_err:
+                    logger.warning(f"Error enriching staff users: {enrich_err}")
+        c["staff"] = staff_rows
         c["areas"] = _rows(
             supabase.table("processing_center_areas").select("*")
             .eq("processing_center_id", c["id"]).eq("is_active", True).execute()
@@ -211,25 +241,83 @@ async def add_staff(center_id: str, payload: StaffIn,
     if payload.pc_role not in ("admin", "technician"):
         raise HTTPException(status_code=400, detail="pc_role must be admin or technician.")
 
-    # Record whatever role the user held BEFORE this grant overwrites it, so
-    # remove_staff has somewhere to put it back. Without this, revoking PC
-    # access permanently locks the user out of both /api/pc/* and whatever
-    # role (doctor, phlebotomist, ...) they held beforehand.
-    existing_user = _rows(
-        supabase.table("users").select("role").eq("id", payload.user_id).limit(1).execute()
-    )
-    prior_role = existing_user[0].get("role") if existing_user else ""
+    target_user_id = payload.user_id
+    email = (payload.email or "").strip().lower()
+    auto_created = False
+    temp_password = None
 
-    supabase.table("processing_center_staff").insert({
-        "processing_center_id": center_id,
-        "user_id": payload.user_id,
+    if not target_user_id and not email:
+        raise HTTPException(status_code=400, detail="Either user_id or email is required.")
+
+    if not target_user_id and email:
+        existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("email", email).limit(1).execute())
+        if existing:
+            target_user_id = existing[0]["id"]
+            prior_role = existing[0].get("role") or ""
+        else:
+            # Auto-create user account for processing center staff/admin (No MOU required)
+            target_user_id = str(uuid.uuid4())
+            temp_password = payload.password or "CallMedex@2026"
+            full_name = (payload.full_name or "").strip() or email.split("@")[0].replace(".", " ").title()
+            now_iso = datetime.now(timezone.utc).isoformat()
+            new_user = {
+                "id": target_user_id,
+                "email": email,
+                "full_name": full_name,
+                "mobile": payload.mobile or "",
+                "role": "processing_center",
+                "password_hash": hash_password(temp_password),
+                "registration_status": "active",
+                "is_active": True,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            supabase.table("users").insert(new_user).execute()
+            auto_created = True
+            prior_role = ""
+    else:
+        existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("id", target_user_id).limit(1).execute())
+        if not existing:
+            raise HTTPException(status_code=404, detail="User not found.")
+        prior_role = existing[0].get("role") or ""
+        email = existing[0].get("email") or ""
+
+    # Check if already in processing_center_staff for this centre
+    existing_staff = _rows(
+        supabase.table("processing_center_staff")
+        .select("id, is_active, prior_role")
+        .eq("processing_center_id", center_id)
+        .eq("user_id", target_user_id)
+        .limit(1)
+        .execute()
+    )
+    if existing_staff:
+        effective_prior = existing_staff[0].get("prior_role") or prior_role
+        supabase.table("processing_center_staff").update({
+            "pc_role": payload.pc_role,
+            "is_active": True,
+            "prior_role": effective_prior,
+        }).eq("id", existing_staff[0]["id"]).execute()
+    else:
+        supabase.table("processing_center_staff").insert({
+            "processing_center_id": center_id,
+            "user_id": target_user_id,
+            "pc_role": payload.pc_role,
+            "is_active": True,
+            "prior_role": prior_role,
+        }).execute()
+
+    supabase.table("users").update({"role": "processing_center"}).eq("id", target_user_id).execute()
+
+    return {
+        "ok": True,
+        "user_id": target_user_id,
+        "email": email,
         "pc_role": payload.pc_role,
-        "is_active": True,
-        "prior_role": prior_role,
-    }).execute()
-    supabase.table("users").update({"role": "processing_center"}) \
-        .eq("id", payload.user_id).execute()
-    return {"ok": True}
+        "auto_created": auto_created,
+        "temporary_password": temp_password if auto_created else None,
+        "message": f"Successfully assigned {payload.pc_role} role to {email}",
+    }
 
 
 @router.delete("/{center_id}/staff/{user_id}")
@@ -295,7 +383,40 @@ async def add_area(center_id: str, payload: AreaIn,
         body["city"] = body["city"].strip().lower()
     body["processing_center_id"] = center_id
     body["is_active"] = True
-    supabase.table("processing_center_areas").insert(body).execute()
+    created = _rows(supabase.table("processing_center_areas").insert(body).execute())
+    return {"ok": True, "area": created[0] if created else None}
+
+
+@router.patch("/{center_id}/areas/{area_id}")
+async def update_area(center_id: str, area_id: str, payload: AreaUpdateIn,
+                      user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    body = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if "city" in body and body["city"]:
+        body["city"] = body["city"].strip().lower()
+    if not body:
+        return {"ok": True}
+    updated = _rows(
+        supabase.table("processing_center_areas")
+        .update(body)
+        .eq("id", area_id)
+        .eq("processing_center_id", center_id)
+        .execute()
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Service area not found.")
+    return {"ok": True, "area": updated[0]}
+
+
+@router.delete("/{center_id}/areas/{area_id}")
+async def delete_area(center_id: str, area_id: str,
+                      user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    supabase.table("processing_center_areas") \
+        .delete() \
+        .eq("id", area_id) \
+        .eq("processing_center_id", center_id) \
+        .execute()
     return {"ok": True}
 
 

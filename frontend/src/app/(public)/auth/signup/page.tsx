@@ -520,18 +520,7 @@ export default function SignupPage() {
         body.clinic_name = formData.get("clinic_name");
         body.consultation_fee = Number(formData.get("consultation_fee")) || 400;
         body.dental_specializations = dentalSpecs;
-        body.scope_of_services = DENTAL_PROCEDURES_LIST.filter((p) =>
-          selectedDentalProcedures.includes(p.id)
-        ).map((p) => ({
-          procedure_id: p.id,
-          name: p.name,
-          category: p.category,
-          benchmark_price: p.price,
-          agreed_price: p.price,
-          duration: p.duration,
-          modality: "clinic",
-          is_active: true,
-        }));
+        body.scope_of_services = [];
       }
       if (role === "phlebotomist") {
         body.phleb_type = formData.get("phleb_type");
@@ -1718,124 +1707,20 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              {/* Canonical 19 Dental Procedures Selector */}
+              {/* CallMedex Dental Partner Terms MOU Info Banner */}
               <div style={{
-                marginTop: 24,
-                padding: "20px",
+                marginTop: 20,
+                padding: "16px 18px",
                 borderRadius: 12,
                 background: "linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%)",
                 border: "1px solid #bbf7d0",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
               }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ padding: 6, borderRadius: 8, background: "#0284c7", color: "#fff", display: "flex" }}>
-                      <CheckCircle2 size={18} />
-                    </div>
-                    <div>
-                      <span style={{ fontWeight: 800, fontSize: "0.98rem", color: "#0f172a", display: "block" }}>
-                        CallMedex Dental Procedure Scope (19 Canonical Procedures)
-                      </span>
-                      <span style={{ fontSize: "0.78rem", color: "#475569" }}>
-                        Selected procedures will automatically populate in your Workstation &amp; walk-in booking directory.
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={selectAllDentalProcedures}
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 999,
-                      background: "#0284c7",
-                      color: "#fff",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      border: "none",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease"
-                    }}
-                  >
-                    {selectedDentalProcedures.length === DENTAL_PROCEDURES_LIST.length ? "Deselect All" : "Select All (19)"}
-                  </button>
-                </div>
-
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                  gap: 10,
-                  maxHeight: "360px",
-                  overflowY: "auto",
-                  paddingRight: 4,
-                  marginBottom: 14,
-                }}>
-                  {DENTAL_PROCEDURES_LIST.map((proc) => {
-                    const isSelected = selectedDentalProcedures.includes(proc.id);
-                    const netPayout = Math.round(proc.price * 0.8);
-                    return (
-                      <div
-                        key={proc.id}
-                        onClick={() => toggleDentalProcedure(proc.id)}
-                        style={{
-                          padding: "10px 14px",
-                          borderRadius: 10,
-                          background: isSelected ? "#ffffff" : "#f8fafc",
-                          border: isSelected ? "2px solid #0284c7" : "1px solid #cbd5e1",
-                          cursor: "pointer",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          transition: "all 0.15s ease",
-                          boxShadow: isSelected ? "0 2px 8px rgba(2, 132, 199, 0.12)" : "none",
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              style={{ accentColor: "#0284c7", cursor: "pointer" }}
-                            />
-                            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f172a" }}>
-                              {proc.name}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 20 }}>
-                            <span style={{ fontSize: "0.7rem", padding: "1px 6px", borderRadius: 4, background: "#e0f2fe", color: "#0369a1", fontWeight: 600 }}>
-                              {proc.category}
-                            </span>
-                            <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
-                              {proc.duration}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#0284c7" }}>
-                            ₹{proc.price}
-                          </div>
-                          <div style={{ fontSize: "0.68rem", color: "#16a34a", fontWeight: 700 }}>
-                            Net: ₹{netPayout}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* CallMedex Dental Partner Terms MOU Info Banner */}
-                <div style={{
-                  padding: "12px 14px",
-                  borderRadius: 8,
-                  background: "#eff6ff",
-                  border: "1px solid #bfdbfe",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 10,
-                }}>
-                  <ShieldCheck size={20} color="#0284c7" style={{ flexShrink: 0, marginTop: 2 }} />
-                  <div style={{ fontSize: "0.78rem", color: "#1e3a8a", lineHeight: 1.5 }}>
-                    <strong>Automated Partner MOU Dispatch:</strong> Upon registration, the CallMedex Dental Partner Terms Agreement (80% net dentist payout / 20% platform fee, 100% walk-in delivery protocol, autoclaving standards) will be automatically generated and emailed to you. You can adjust your tariffs and availability anytime in the Dentist Workstation.
-                  </div>
+                <ShieldCheck size={22} color="#0284c7" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ fontSize: "0.82rem", color: "#1e3a8a", lineHeight: 1.5 }}>
+                  <strong>CallMedex Dental Network &amp; MOU:</strong> Upon registration, the CallMedex Dental Partner Terms Agreement (80% net dentist payout / 20% platform fee, walk-in delivery protocol, autoclaving standards) is established. You can review, activate canonical dental procedures, and apply benchmark tariffs with 1 click directly in your Dentist Console after sign-in.
                 </div>
               </div>
             </div>

@@ -484,6 +484,58 @@ export default function DentistDashboard() {
     }
   };
 
+  const handleApplyCallMedexTemplate = async () => {
+    // Reset all 19 canonical dental procedures to benchmark prices, active = true, 80/20 split
+    const resetProcedures = CANONICAL_19_DENTAL_PROCEDURES.map((item) => ({
+      ...item,
+      custom_price: item.benchmark_price,
+      platform_fee_amount: Math.round(item.benchmark_price * 0.2),
+      provider_share_amount: Math.round(item.benchmark_price * 0.8),
+      is_active: true,
+    }));
+    setScopeList(resetProcedures);
+    setSavingScope(true);
+    setScopeSuccessMsg("");
+    try {
+      const token = getToken();
+      const payload = {
+        consultation_fee: consultFee || 400,
+        scope_of_services: resetProcedures.map((item) => ({
+          procedure_id: item.id,
+          id: item.id,
+          service_name: item.service_name,
+          category: item.category,
+          modality: "clinic",
+          duration: item.duration,
+          benchmark_price: item.benchmark_price,
+          agreed_price: item.benchmark_price,
+          custom_price: item.benchmark_price,
+          platform_fee_amount: item.platform_fee_amount,
+          provider_share_amount: item.provider_share_amount,
+          is_active: true,
+        })),
+      };
+
+      const res = await fetch(`${apiBase}/api/providers/me/scope`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setScopeSuccessMsg("✨ Pre-agreed CallMedex benchmark rates (80% net / 20% platform) applied to all 19 procedures!");
+        setTimeout(() => setScopeSuccessMsg(""), 6000);
+      }
+    } catch (e) {
+      console.error("Failed to auto-apply CallMedex dental template", e);
+    } finally {
+      setSavingScope(false);
+    }
+  };
+
   const handleApplyToothFinding = () => {
     if (selectedTooth === null) return;
     setToothFindings((prev) => ({
@@ -616,6 +668,60 @@ export default function DentistDashboard() {
         {/* TAB 1: MASTER PROCEDURES & TARIFFS */}
         {activeTab === "procedures" && (
           <div>
+            {/* CallMedex Recommended Prices & Walk-in Pre-applied Template Banner */}
+            <div style={{
+              background: "linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(3, 105, 161, 0.12) 100%)",
+              border: "1.5px solid rgba(56, 189, 248, 0.35)",
+              borderRadius: 14,
+              padding: "20px 24px",
+              marginBottom: 24,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 20,
+              flexWrap: "wrap",
+              boxShadow: "0 4px 16px rgba(2, 132, 199, 0.08)",
+            }}>
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: "1.25rem" }}>✨</span>
+                  <h4 style={{ margin: 0, color: "#0369a1", fontSize: "1.05rem", fontWeight: 800 }}>
+                    CallMedex Recommended Dental Walk-In Tariffs Template
+                  </h4>
+                  <span style={{ fontSize: "0.72rem", backgroundColor: "#e0f2fe", color: "#0284c7", padding: "2px 8px", borderRadius: 6, fontWeight: 700 }}>
+                    Pre-Agreed Benchmark Rates (19 Canonical Procedures)
+                  </span>
+                </div>
+                <p style={{ margin: 0, color: "#475569", fontSize: "0.86rem", lineHeight: 1.5 }}>
+                  Expand your clinic practice with verified walk-in patients. Automatically apply the 19 standard CallMedex dental procedures (Routine Cleanings, RCT, Extractions, Fillings, Crowns) at benchmark rates with 80% net clinic payout / 20% platform fee, or tailor individual procedure pricing below.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handleApplyCallMedexTemplate}
+                  disabled={savingScope}
+                  style={{
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    color: "white",
+                    border: "none",
+                    padding: "10px 18px",
+                    borderRadius: 8,
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: savingScope ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
+                  }}
+                >
+                  <Sparkles size={15} /> Apply CallMedex Template
+                </button>
+              </div>
+            </div>
+
             {/* Tariff Control Bar */}
             <div
               style={{

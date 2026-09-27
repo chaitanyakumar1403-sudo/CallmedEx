@@ -1079,3 +1079,341 @@ async def roster_summary(
         "total_dispatches": len(dispatches),
         "unassigned_count": len(unassigned_jobs),
     }
+
+
+# ─── PC Staff & Team Management (PC Admin Only) ──────────────────────────
+
+class PCStaffCreateRequest(BaseModel):
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+    mobile: Optional[str] = None
+    password: Optional[str] = None
+    pc_role: str = "technician"
+
+
+class PCStaffUpdateRequest(BaseModel):
+    pc_role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/staff")
+async def list_pc_staff(staff: dict = Depends(get_current_pc_staff)):
+    """List all staff and technicians for this processing centre."""
+    centre_id = staff["processing_center_id"]
+    staff_rows = _rows(
+        supabase.table("processing_center_staff")
+        .select("*")
+        .eq("processing_center_id", centre_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    if not staff_rows:
+        return {"staff": []}
+
+    u_ids = [s["user_id"] for s in staff_rows if s.get("user_id")]
+    u_map = {}
+    if u_ids:
+        try:
+            u_rows = _rows(supabase.table("users").select("id, full_name, email, mobile").in_("id", u_ids).execute())
+            u_map = {u["id"]: u for u in u_rows}
+        except Exception as e:
+            logger.warning(f"Error fetching user profiles for PC staff: {e}")
+
+    result = []
+    for s in staff_rows:
+        u = u_map.get(s["user_id"], {})
+        result.append({
+            "id": s.get("id"),
+            "user_id": s.get("user_id"),
+            "full_name": u.get("full_name") or s.get("user_id", "")[:8],
+            "email": u.get("email") or "",
+            "mobile": u.get("mobile") or "",
+            "pc_role": s.get("pc_role", "technician"),
+            "is_active": s.get("is_active", True),
+            "created_at": s.get("created_at"),
+        })
+    return {"staff": result}
+
+
+@router.post("/staff")
+async def create_pc_staff(
+    payload: PCStaffCreateRequest,
+    staff: dict = Depends(require_pc_admin),
+):
+    """Add or provision a technician/admin for this processing centre."""
+    centre_id = staff["processing_center_id"]
+    if payload.pc_role not in ("admin", "technician"):
+        raise HTTPException(status_code=400, detail="pc_role must be admin or technician.")
+
+    target_user_id = payload.user_id
+    email = (payload.email or "").strip().lower()
+    auto_created = False
+    temp_password = None
+
+    if not target_user_id and not email:
+        raise HTTPException(status_code=400, detail="Either user_id or email is required.")
+
+    if not target_user_id and email:
+        existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("email", email).limit(1).execute())
+        if existing:
+            target_user_id = existing[0]["id"]
+            prior_role = existing[0].get("role") or ""
+        else:
+            # Auto-create user account for processing center staff (No MOU required)
+            from app.utils.security import hash_password
+            target_user_id = str(uuid.uuid4())
+            temp_password = payload.password or "CallMedex@2026"
+            full_name = (payload.full_name or "").strip() or email.split("@")[0].replace(".", " ").title()
+            now_iso = _now_iso()
+            new_user = {
+                "id": target_user_id,
+                "email": email,
+                "full_name": full_name,
+                "mobile": payload.mobile or "",
+                "role": "processing_center",
+                "password_hash": hash_password(temp_password),
+                "registration_status": "active",
+                "is_active": True,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+            }
+            supabase.table("users").insert(new_user).execute()
+            auto_created = True
+            prior_role = ""
+    else:
+        existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("id", target_user_id).limit(1).execute())
+        if not existing:
+            raise HTTPException(status_code=404, detail="User not found.")
+        prior_role = existing[0].get("role") or ""
+        email = existing[0].get("email") or ""
+
+    existing_staff = _rows(
+        supabase.table("processing_center_staff")
+        .select("id, is_active, prior_role")
+        .eq("processing_center_id", centre_id)
+        .eq("user_id", target_user_id)
+        .limit(1)
+        .execute()
+    )
+    if existing_staff:
+        effective_prior = existing_staff[0].get("prior_role") or prior_role
+        supabase.table("processing_center_staff").update({
+            "pc_role": payload.pc_role,
+            "is_active": True,
+            "prior_role": effective_prior,
+        }).eq("id", existing_staff[0]["id"]).execute()
+    else:
+        supabase.table("processing_center_staff").insert({
+            "processing_center_id": centre_id,
+            "user_id": target_user_id,
+            "pc_role": payload.pc_role,
+            "is_active": True,
+            "prior_role": prior_role,
+        }).execute()
+
+    supabase.table("users").update({"role": "processing_center"}).eq("id", target_user_id).execute()
+
+    return {
+        "ok": True,
+        "user_id": target_user_id,
+        "email": email,
+        "pc_role": payload.pc_role,
+        "auto_created": auto_created,
+        "temporary_password": temp_password if auto_created else None,
+        "message": f"Successfully added {payload.pc_role} account for {email}",
+    }
+
+
+@router.patch("/staff/{user_id}")
+async def update_pc_staff(
+    user_id: str,
+    payload: PCStaffUpdateRequest,
+    staff: dict = Depends(require_pc_admin),
+):
+    """Update role or active status of staff at this processing centre."""
+    centre_id = staff["processing_center_id"]
+    body = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not body:
+        return {"ok": True}
+    if "pc_role" in body and body["pc_role"] not in ("admin", "technician"):
+        raise HTTPException(status_code=400, detail="pc_role must be admin or technician.")
+
+    updated = _rows(
+        supabase.table("processing_center_staff")
+        .update(body)
+        .eq("processing_center_id", centre_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Staff member not found at this centre.")
+    return {"ok": True, "staff": updated[0]}
+
+
+@router.delete("/staff/{user_id}")
+async def remove_pc_staff(
+    user_id: str,
+    staff: dict = Depends(require_pc_admin),
+):
+    """Deactivate a staff member from this processing centre."""
+    centre_id = staff["processing_center_id"]
+    if user_id == staff["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself from the centre.")
+
+    staff_rows = _rows(
+        supabase.table("processing_center_staff").select("prior_role")
+        .eq("processing_center_id", centre_id).eq("user_id", user_id)
+        .limit(1).execute()
+    )
+    if not staff_rows:
+        raise HTTPException(status_code=404, detail="Staff member not found.")
+
+    supabase.table("processing_center_staff").update({"is_active": False}) \
+        .eq("processing_center_id", centre_id).eq("user_id", user_id).execute()
+
+    still_pc_staff = _rows(
+        supabase.table("processing_center_staff").select("id")
+        .eq("user_id", user_id).eq("is_active", True).limit(1).execute()
+    )
+    prior_role = staff_rows[0].get("prior_role") if staff_rows else ""
+    if not still_pc_staff and prior_role:
+        supabase.table("users").update({"role": prior_role}).eq("id", user_id).execute()
+
+    return {"ok": True, "message": "Staff member removed from centre."}
+
+
+# ─── Sample Lab Testing & Report Delivery ─────────────────────────────────
+
+class DeliverReportRequest(BaseModel):
+    report_url: str
+    notes: Optional[str] = ""
+    test_results: Optional[dict] = None
+    clinical_summary: Optional[str] = ""
+
+
+@router.post("/samples/{sample_id}/start-processing")
+async def start_sample_processing(
+    sample_id: str,
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """Move a verified sample into active laboratory processing/testing."""
+    centre_id = staff["processing_center_id"]
+    rows = _rows(
+        supabase.table("samples")
+        .select("id, status, processing_center_id, barcode")
+        .eq("id", sample_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Sample not found.")
+    sample = rows[0]
+
+    if sample.get("processing_center_id") != centre_id:
+        raise HTTPException(403, "This sample does not belong to your centre.")
+
+    try:
+        validate_sample_transition(sample.get("status"), "processing")
+    except ValueError as e:
+        raise HTTPException(409, detail=str(e))
+
+    now = _now_iso()
+    supabase.table("samples").update({
+        "status": "processing",
+        "processing_started_at": now,
+        "processing_by": staff["user_id"],
+    }).eq("id", sample_id).execute()
+
+    _log_event(
+        sample_id,
+        "processing",
+        staff["user_id"],
+        centre_id,
+        "Laboratory test analysis in progress at processing centre",
+    )
+    return {"success": True, "status": "processing", "message": "Sample testing started."}
+
+
+@router.post("/samples/{sample_id}/deliver-report")
+async def deliver_lab_report(
+    sample_id: str,
+    body: DeliverReportRequest,
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """Publish laboratory test report and notify the patient."""
+    centre_id = staff["processing_center_id"]
+    report_url = (body.report_url or "").strip()
+    if not report_url:
+        raise HTTPException(400, "report_url is required to deliver a laboratory report.")
+
+    rows = _rows(
+        supabase.table("samples")
+        .select("id, status, processing_center_id, barcode, patient_id, booking_id")
+        .eq("id", sample_id)
+        .limit(1)
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(404, "Sample not found.")
+    sample = rows[0]
+
+    if sample.get("processing_center_id") != centre_id:
+        raise HTTPException(403, "This sample does not belong to your centre.")
+
+    now = _now_iso()
+    try:
+        if sample.get("status") == "verified":
+            validate_sample_transition("verified", "processing")
+        validate_sample_transition("processing", "report_ready")
+    except ValueError:
+        pass
+
+    supabase.table("samples").update({
+        "status": "report_ready",
+        "report_url": report_url,
+        "report_delivered_at": now,
+        "delivered_by": staff["user_id"],
+        "lab_notes": body.notes or "",
+    }).eq("id", sample_id).execute()
+
+    _log_event(
+        sample_id,
+        "report_delivered",
+        staff["user_id"],
+        centre_id,
+        f"Lab report delivered: {report_url}. Notes: {body.notes or 'None'}",
+    )
+
+    try:
+        supabase.table("report_jobs").update({
+            "status": "delivered",
+            "source_document_path": report_url,
+            "updated_at": now,
+        }).eq("sample_id", sample_id).execute()
+    except Exception as e:
+        logger.warning(f"Could not update report_jobs for sample {sample_id}: {e}")
+
+    patient_id = sample.get("patient_id")
+    if patient_id:
+        try:
+            from app.services.notification_engine import NotificationEngine
+            barcode = sample.get("barcode", "")
+            await NotificationEngine.send(
+                user_id=patient_id,
+                channel="in_app",
+                title="Your Lab Report is Ready",
+                body=f"Your laboratory diagnostic test report for sample {barcode} is ready to view.",
+                data={"sample_id": sample_id, "barcode": barcode, "report_url": report_url},
+            )
+        except Exception as notif_err:
+            logger.warning(f"Failed to notify patient of report delivery: {notif_err}")
+
+    return {
+        "success": True,
+        "status": "report_ready",
+        "sample_id": sample_id,
+        "barcode": sample.get("barcode"),
+        "report_url": report_url,
+        "message": "Report successfully published and delivered to patient.",
+    }

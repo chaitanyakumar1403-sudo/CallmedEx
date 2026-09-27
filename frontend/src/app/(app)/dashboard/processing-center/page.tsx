@@ -18,15 +18,10 @@ import PCQueuePanel from "../components/PCQueuePanel";
 import PCIntakePanel from "../components/PCIntakePanel";
 import PCBatchPanel from "../components/PCBatchPanel";
 import PCRosterPanel from "../components/PCRosterPanel";
+import PCStaffPanel from "../components/PCStaffPanel";
+import PCTestingReportsPanel from "../components/PCTestingReportsPanel";
 import { pcAPI } from "@/lib/api";
 import { Building2 } from "lucide-react";
-
-const TABS: DashTab[] = [
-  { id: "queue", label: "Queue" },
-  { id: "intake", label: "Intake & Verify" },
-  { id: "batches", label: "Batches" },
-  { id: "roster", label: "Roster" },
-];
 
 export default function ProcessingCenterDashboard() {
   const router = useRouter();
@@ -62,6 +57,15 @@ export default function ProcessingCenterDashboard() {
     checkAuth();
   }, [router]);
 
+  const tabs: DashTab[] = [
+    { id: "queue", label: "Queue" },
+    { id: "intake", label: "Intake & Verify" },
+    { id: "testing", label: "Lab Testing & Reports" },
+    { id: "batches", label: "Batches" },
+    { id: "roster", label: "Roster" },
+    { id: "staff", label: pcRole === "admin" ? "Staff Management" : "Team Directory" },
+  ];
+
   if (!authChecked) {
     return (
       <div style={{
@@ -80,7 +84,7 @@ export default function ProcessingCenterDashboard() {
         role="processing_center"
         title="Processing Center Dashboard"
         subtitle="Operational Command Center"
-        tabs={TABS}
+        tabs={tabs}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       >
@@ -90,7 +94,7 @@ export default function ProcessingCenterDashboard() {
           </div>
           <h3 style={{ color: "var(--cm-ink)", margin: "0 0 8px 0", fontSize: "var(--cm-text-base)", fontWeight: 800 }}>Processing Center Staff Account</h3>
           <p style={{ color: "var(--cm-ink-3)", fontSize: "var(--cm-text-sm)", maxWidth: 500, margin: "0 auto 20px auto", lineHeight: 1.5 }}>
-            Your account is authenticated as Processing Center staff. Once assigned to a specific branch in the Admin Panel, your live queue, intake scans, batches, and roster tools will activate automatically.
+            Your account is authenticated as Processing Center staff. Once assigned to a specific branch in the Admin Panel, your live queue, intake scans, testing reports, batches, and roster tools will activate automatically.
           </p>
         </div>
       </DashboardShell>
@@ -102,14 +106,16 @@ export default function ProcessingCenterDashboard() {
       role="processing_center"
       title={centre.name || "Processing Center"}
       subtitle={`${centre.code || ""} • ${centre.city || ""} • ${pcRole}`}
-      tabs={TABS}
+      tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
     >
       {activeTab === "queue" && <PCQueuePanel />}
       {activeTab === "intake" && <PCIntakePanel />}
+      {activeTab === "testing" && <PCTestingReportsPanel />}
       {activeTab === "batches" && <PCBatchPanel />}
       {activeTab === "roster" && <PCRosterPanel />}
+      {activeTab === "staff" && <PCStaffPanel pcRole={pcRole} />}
     </DashboardShell>
   );
 }

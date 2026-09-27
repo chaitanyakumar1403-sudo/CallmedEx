@@ -50,3 +50,8 @@ pricing_details/
 # Local run scripts — may contain API keys
 run-claude.ps1
 openrouter_proxy.py
+
+# Codebase memory MCP local index & installer
+.codebase-memory/
+install.ps1
+

@@ -39,6 +39,8 @@ import {
   UserPlus,
   Link2,
   MapPin,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import Clinical3DIcon, { Clinical3DIconName } from '@/components/ui/Clinical3DIcon';
 
@@ -170,6 +172,8 @@ export default function AdminDashboard() {
   const [phleboMsg, setPhleboMsg] = useState('');
   const [areaForm, setAreaForm] = useState({ city: '', pincode: '', radius_km: '', priority: 100 });
   const [areaMsg, setAreaMsg] = useState('');
+  const [editingAreaId, setEditingAreaId] = useState<string | null>(null);
+  const [editAreaForm, setEditAreaForm] = useState({ city: '', pincode: '', radius_km: '', priority: 100 });
 
   const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
@@ -386,32 +390,27 @@ export default function AdminDashboard() {
 
   const handleAddStaff = async (centreId: string) => {
     if (!staffEmail.trim()) return;
-    setStaffMsg('Looking up user...');
+    setStaffMsg('Assigning staff...');
     const token = getToken();
     if (!token) return;
     try {
-      // First, find the user by email
-      const userRes = await fetch(`${apiBase}/api/admin/users?q=${encodeURIComponent(staffEmail.trim())}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!userRes.ok) { setStaffMsg('❌ Failed to search users'); return; }
-      const userData = await userRes.json();
-      const matched = (userData.users || []).filter((u: any) => u.email.toLowerCase() === staffEmail.trim().toLowerCase());
-      if (matched.length === 0) { setStaffMsg('❌ No user found with that email'); return; }
-      const userId = matched[0].id;
-
-      // Add staff
       const addRes = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ user_id: userId, pc_role: staffRole }),
+        body: JSON.stringify({ email: staffEmail.trim(), pc_role: staffRole }),
       });
+      const d = await addRes.json();
       if (addRes.ok) {
-        setStaffMsg(`✅ ${matched[0].full_name} added as ${staffRole}`);
+        if (d.auto_created) {
+          setStaffMsg(`✅ Account auto-created & assigned: ${d.email} (${d.pc_role}). Initial password: ${d.temporary_password || 'CallMedex@2026'}`);
+          toast.success(`Processing Centre account created for ${d.email}`);
+        } else {
+          setStaffMsg(`✅ ${d.full_name || d.email} assigned as ${d.pc_role}`);
+          toast.success('Staff assigned successfully');
+        }
         setStaffEmail('');
         fetchCentres();
       } else {
-        const d = await addRes.json();
         setStaffMsg(`❌ ${d.detail || 'Failed'}`);
       }
     } catch { setStaffMsg('❌ Error adding staff'); }
@@ -500,6 +499,65 @@ export default function AdminDashboard() {
         setAreaMsg(`❌ ${d.detail || 'Failed'}`);
       }
     } catch { setAreaMsg('❌ Error adding area'); }
+  };
+
+  const handleStartEditArea = (area: any) => {
+    setEditingAreaId(area.id);
+    setEditAreaForm({
+      city: area.city || '',
+      pincode: area.pincode || '',
+      radius_km: area.radius_km !== null && area.radius_km !== undefined ? String(area.radius_km) : '',
+      priority: area.priority ?? 100,
+    });
+  };
+
+  const handleSaveEditArea = async (centreId: string, areaId: string) => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const body: any = {};
+      if (editAreaForm.city.trim()) body.city = editAreaForm.city.trim();
+      if (editAreaForm.pincode.trim()) body.pincode = editAreaForm.pincode.trim();
+      if (editAreaForm.radius_km) body.radius_km = parseFloat(editAreaForm.radius_km);
+      if (editAreaForm.priority !== undefined) body.priority = Number(editAreaForm.priority);
+
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/areas/${areaId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        toast.success('Service area updated successfully');
+        setEditingAreaId(null);
+        fetchCentres();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.detail || 'Failed to update service area');
+      }
+    } catch {
+      toast.error('Error updating service area');
+    }
+  };
+
+  const handleDeleteArea = async (centreId: string, areaId: string) => {
+    if (!(await customConfirm('Are you sure you want to remove this service area?'))) return;
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/areas/${areaId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        toast.success('Service area deleted');
+        fetchCentres();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.detail || 'Failed to delete service area');
+      }
+    } catch {
+      toast.error('Error deleting service area');
+    }
   };
 
   const handleDeleteCentre = async (centreId: string, code: string) => {
@@ -1553,12 +1611,90 @@ export default function AdminDashboard() {
                             <MapPin size={15} /> Service Areas <span className="cm-pc-sec__count">{areaList.length}</span>
                           </div>
                           {areaList.length > 0 ? (
-                            <div className="cm-pc-chips">
-                              {areaList.map((a: any) => (
-                                <span key={a.id} className="cm-pc-chip cm-pc-chip--area">
-                                  {a.city || a.pincode || `${a.radius_km}km`} {a.priority !== 100 ? `(p${a.priority})` : ''}
-                                </span>
-                              ))}
+                            <div className="cm-pc-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              {areaList.map((a: any) => {
+                                const isEditing = editingAreaId === a.id;
+                                if (isEditing) {
+                                  return (
+                                    <div key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '8px' }}>
+                                      <input
+                                        placeholder="City"
+                                        value={editAreaForm.city}
+                                        onChange={e => setEditAreaForm({ ...editAreaForm, city: e.target.value })}
+                                        className="cm-pc-input cm-pc-input--sm"
+                                        style={{ width: '130px' }}
+                                      />
+                                      <input
+                                        placeholder="Pincode"
+                                        value={editAreaForm.pincode}
+                                        onChange={e => setEditAreaForm({ ...editAreaForm, pincode: e.target.value })}
+                                        className="cm-pc-input cm-pc-input--sm"
+                                        style={{ width: '85px' }}
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Radius km"
+                                        value={editAreaForm.radius_km}
+                                        onChange={e => setEditAreaForm({ ...editAreaForm, radius_km: e.target.value })}
+                                        className="cm-pc-input cm-pc-input--sm"
+                                        style={{ width: '85px' }}
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Priority"
+                                        value={editAreaForm.priority}
+                                        onChange={e => setEditAreaForm({ ...editAreaForm, priority: parseInt(e.target.value) || 100 })}
+                                        className="cm-pc-input cm-pc-input--sm"
+                                        style={{ width: '65px' }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveEditArea(c.id, a.id)}
+                                        className="cm-pc-btn cm-pc-btn--primary cm-pc-btn--sm"
+                                        title="Save Area Changes"
+                                      >
+                                        <Check size={13} /> Save
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingAreaId(null)}
+                                        className="cm-pc-btn cm-pc-btn--ghost cm-pc-btn--sm"
+                                        title="Cancel"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <span key={a.id} className="cm-pc-chip cm-pc-chip--area" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>
+                                      {a.city ? `${a.city} ` : ''}
+                                      {a.pincode ? `[${a.pincode}] ` : ''}
+                                      {a.radius_km !== null && a.radius_km !== undefined ? `${a.radius_km}km` : ''}
+                                      {a.priority !== 100 ? ` (p${a.priority})` : ''}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditArea(a)}
+                                      className="cm-pc-chip__edit"
+                                      title="Edit service area"
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center', color: '#64748b' }}
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteArea(c.id, a.id)}
+                                      className="cm-pc-chip__x"
+                                      title="Delete service area"
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center', color: '#ef4444' }}
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </span>
+                                );
+                              })}
                             </div>
                           ) : (
                             <p className="cm-pc-sec__empty">No service areas yet.</p>
