@@ -68,7 +68,7 @@ export default function FraudAndQualityDashboard() {
         )}
 
         <div style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <table className="cm-stack-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#f7fafc', borderBottom: '2px solid #e2e8f0' }}>
               <tr>
                 <th style={{ padding: '20px', color: '#4a5568' }}>Provider Name</th>
@@ -86,10 +86,10 @@ export default function FraudAndQualityDashboard() {
                     {p.name}
                     {p.flagged && <div style={{ color: '#e53e3e', fontSize: '12px', marginTop: '4px', fontWeight: 'normal' }}>⚠️ {p.flag_reason}</div>}
                   </td>
-                  <td style={{ padding: '20px', color: '#718096', textTransform: 'capitalize' }}>{p.type}</td>
-                  <td style={{ padding: '20px', color: '#718096' }}>{p.total_bookings}</td>
-                  <td style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                  <td data-label="Type" style={{ padding: '20px', color: '#718096', textTransform: 'capitalize' }}>{p.type}</td>
+                  <td data-label="Bookings" style={{ padding: '20px', color: '#718096' }}>{p.total_bookings}</td>
+                  <td data-label="Signals" style={{ padding: '20px' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                       <span style={{ backgroundColor: p.no_shows > 0 ? '#fed7d7' : '#edf2f7', color: p.no_shows > 0 ? '#c53030' : '#4a5568', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
                         {p.no_shows} No-Shows
                       </span>
@@ -98,7 +98,7 @@ export default function FraudAndQualityDashboard() {
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: '20px' }}>
+                  <td data-label="Trust score" style={{ padding: '20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{ flex: 1, height: '8px', backgroundColor: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${p.score}%`, backgroundColor: p.score > 80 ? '#38a169' : p.score > 60 ? '#dd6b20' : '#e53e3e' }} />
@@ -108,7 +108,7 @@ export default function FraudAndQualityDashboard() {
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: '20px' }}>
+                  <td data-label="Standing" style={{ padding: '20px' }}>
                     {p.flagged ? (
                       <button style={{ padding: '8px 12px', backgroundColor: '#e53e3e', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
                         Review / Suspend

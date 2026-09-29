@@ -181,7 +181,7 @@ export default function PCTestingReportsPanel() {
           gap: "12px",
         }}
       >
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div className="cm-pc-pills" style={{ display: "flex", gap: "8px" }}>
           <button
             type="button"
             onClick={() => setFilter("verified")}
@@ -243,7 +243,7 @@ export default function PCTestingReportsPanel() {
           </button>
         </div>
 
-        <div style={{ position: "relative", minWidth: "240px" }}>
+        <div className="cm-pc-search" style={{ position: "relative", minWidth: "240px" }}>
           <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "#94a3b8" }} />
           <input
             type="text"
@@ -288,7 +288,7 @@ export default function PCTestingReportsPanel() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+            <table className="cm-stack-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
                   <th style={{ padding: "12px 18px", fontWeight: 700 }}>Barcode &amp; Tube</th>
@@ -328,7 +328,7 @@ export default function PCTestingReportsPanel() {
                         </div>
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Patient" style={{ padding: "14px 18px" }}>
                         <div style={{ fontWeight: 600, color: "#334155" }}>
                           {s.patient_name || s.subject_name || "Patient Sample"}
                         </div>
@@ -337,7 +337,7 @@ export default function PCTestingReportsPanel() {
                         </div>
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Status" style={{ padding: "14px 18px" }}>
                         {s.status === "verified" && (
                           <span
                             style={{
@@ -391,11 +391,11 @@ export default function PCTestingReportsPanel() {
                         )}
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#64748b", fontSize: "0.8rem" }}>
+                      <td data-label="Intake time" style={{ padding: "14px 18px", color: "#64748b", fontSize: "0.8rem" }}>
                         {s.created_at ? new Date(s.created_at).toLocaleTimeString() : "—"}
                       </td>
 
-                      <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                      <td data-label="Actions" style={{ padding: "14px 18px", textAlign: "right" }}>
                         {s.status === "verified" && (
                           <button
                             type="button"
@@ -442,7 +442,7 @@ export default function PCTestingReportsPanel() {
                         )}
 
                         {s.status === "report_ready" && (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <div className="cm-pc-row__side" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                             {s.report_url && (
                               <a
                                 href={s.report_url}
@@ -620,7 +620,7 @@ export default function PCTestingReportsPanel() {
                 />
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+              <div className="cm-pc-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
                 <button
                   type="button"
                   onClick={() => setDeliverySample(null)}

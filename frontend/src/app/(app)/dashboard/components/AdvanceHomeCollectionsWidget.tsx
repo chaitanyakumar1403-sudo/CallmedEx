@@ -194,7 +194,7 @@ export default function AdvanceHomeCollectionsWidget({
         </div>
 
         {/* Timeframe selector tabs */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div className="cm-fld-tabs" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button
             onClick={() => setTimeframe("today")}
             style={{
@@ -476,6 +476,7 @@ export default function AdvanceHomeCollectionsWidget({
                   </div>
                   {mapsUrl && (
                     <a
+                      className="cm-fld-link"
                       href={mapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -578,9 +579,10 @@ export default function AdvanceHomeCollectionsWidget({
                     Booking Ref: <code style={{ color: "#0284c7", fontWeight: 700 }}>{bId ? bId.slice(0, 8) : "N/A"}</code>
                   </div>
 
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="cm-fld-cta-wrap" style={{ display: "flex", gap: 8 }}>
                     {onSelectBookingForCollection && bId && (
                       <button
+                        className="cm-fld-cta"
                         onClick={() => onSelectBookingForCollection(bId)}
                         style={{
                           display: "flex",

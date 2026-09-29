@@ -577,6 +577,7 @@ export default function DoctorConsultationRoom({
     >
       {/* ── Top Telemedicine Status Bar (High-Precision Medical Workstation Header) ── */}
       <header
+        className="cm-mc-chead"
         style={{
           borderBottom: "1px solid rgba(226, 232, 240, 0.8)",
           background: "rgba(255, 255, 255, 0.95)",
@@ -592,7 +593,7 @@ export default function DoctorConsultationRoom({
           boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.04)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+        <div className="cm-mc-cleft" style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <button
             type="button"
             onClick={() => router.push("/dashboard/doctor")}
@@ -617,7 +618,7 @@ export default function DoctorConsultationRoom({
 
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <h1 style={{ margin: 0, fontSize: "1.22rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
+              <h1 className="cm-mc-ctitle" style={{ margin: 0, fontSize: "1.22rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#0f172a", display: "flex", alignItems: "center", gap: 10 }}>
                 <span>CallMedex Telemedicine Cockpit</span>
                 <span
                   style={{
@@ -684,7 +685,7 @@ export default function DoctorConsultationRoom({
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="cm-mc-cactions" style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {!started && !aiAnalysis && (
             <button
               type="button"
@@ -735,10 +736,10 @@ export default function DoctorConsultationRoom({
         </div>
       </header>
 
-      <main style={{ maxWidth: "1520px", margin: "0 auto", padding: "28px 24px" }}>
+      <main className="cm-mc-cmain" style={{ maxWidth: "1520px", margin: "0 auto", padding: "28px 24px" }}>
         {/* VIEW 1: PRE-CALL DOCTOR COMMAND CONSOLE (STAGING) */}
         {!started && !aiAnalysis && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))", gap: 26 }}>
+          <div className="cm-mc-stage" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))", gap: 26 }}>
             {/* Patient Clinical Intake Card (High-Precision Medical Monitor) */}
             <div
               style={{
@@ -1153,6 +1154,7 @@ export default function DoctorConsultationRoom({
         {/* VIEW 2: ACTIVE SECURE TELECONSULTATION SPLIT SCREEN */}
         {started && !aiAnalysis && (
           <div
+            className="cm-mc-split"
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 1fr)",
@@ -1163,6 +1165,7 @@ export default function DoctorConsultationRoom({
           >
             {/* Left: HD Video Room Frame */}
             <div
+              className="cm-mc-video"
               style={{
                 background: "var(--cm-navy)",
                 borderRadius: "var(--cm-radius)",
@@ -1183,6 +1186,7 @@ export default function DoctorConsultationRoom({
 
             {/* Right: Clinical Command Deck (AI Scribe + e-Prescription Pad) */}
             <div
+              className="cm-mc-deck"
               style={{
                 borderRadius: 20,
                 border: "1px solid var(--cm-line)",
@@ -1798,7 +1802,7 @@ export default function DoctorConsultationRoom({
                     Under the NMC Telemedicine Practice Guidelines 2026, the consulting doctor must transmit the digitally signed prescription directly to the patient&apos;s verified email address.
                   </p>
 
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div className="cm-mc-stack" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <div style={{ flex: 1, minWidth: "260px" }}>
                       <input
                         type="email"
@@ -1865,7 +1869,7 @@ export default function DoctorConsultationRoom({
                   <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
                     Digital Rx timestamped: {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · Linked to Patient EHR
                   </div>
-                  <div style={{ display: "flex", gap: 10 }}>
+                  <div className="cm-mc-stack" style={{ display: "flex", gap: 10 }}>
                     <button
                       type="button"
                       onClick={() => window.print()}

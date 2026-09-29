@@ -172,7 +172,7 @@ export default function LabTeamPanel() {
                     {r.phlebotomist?.mobile} • {r.phlebotomist?.email}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="cm-pc-verdict" style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => respond(r.id, true)} disabled={busy} className="btn btn-primary" style={{ padding: "6px 16px", fontSize: "0.83rem" }}>
                     Approve
                   </button>
@@ -192,18 +192,20 @@ export default function LabTeamPanel() {
         <p style={{ margin: "0 0 12px 0", fontSize: "0.85rem", color: "#64748b" }}>
           Invite by email or mobile. They join your roster only once they accept.
         </p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="cm-pc-scan" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <input
+            className="cm-pc-scan__input"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             placeholder="Email or mobile number"
-            style={{ ...inputStyle, flex: 1, minWidth: 220 }}
+            style={{ ...inputStyle, flex: "1 1 220px", minWidth: 0 }}
           />
           <input
+            className="cm-pc-scan__input"
             value={inviteMessage}
             onChange={(e) => setInviteMessage(e.target.value)}
             placeholder="Message (optional)"
-            style={{ ...inputStyle, flex: 1, minWidth: 200 }}
+            style={{ ...inputStyle, flex: "1 1 200px", minWidth: 0 }}
           />
           <button onClick={invite} disabled={busy || !identifier.trim()} className="btn btn-primary" style={{ opacity: busy || !identifier.trim() ? 0.6 : 1 }}>
             Send invite

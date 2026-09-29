@@ -230,7 +230,7 @@ export default function PhleboStockPanel() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div className="cm-fld-statrow" style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "#38bdf8" }}>{totalTubesInHand}</div>
             <div style={{ fontSize: "0.72rem", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Tubes In Hand</div>
@@ -243,6 +243,7 @@ export default function PhleboStockPanel() {
 
           <button
             type="button"
+            className="cm-fld-restock"
             onClick={handleQuickRestockAll}
             disabled={quickFilling}
             style={{
@@ -280,7 +281,7 @@ export default function PhleboStockPanel() {
 
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
               gap: 14
             }}>
               {catItems.map((item) => {
@@ -427,7 +428,7 @@ export default function PhleboStockPanel() {
                         }}>
                           <button
                             type="button"
-                            onClick={() => handleStep(item.code, -1)}
+                            className="cm-fld-step" onClick={() => handleStep(item.code, -1)}
                             disabled={displayQty <= 0}
                             style={{
                               width: 28, height: 32, border: "none", background: "none",
@@ -439,6 +440,7 @@ export default function PhleboStockPanel() {
                           </button>
 
                           <input
+                            className="cm-fld-stepinput"
                             type="number"
                             min={0}
                             value={isEdited ? edits[item.code] : item.quantity}
@@ -453,7 +455,7 @@ export default function PhleboStockPanel() {
 
                           <button
                             type="button"
-                            onClick={() => handleStep(item.code, 1)}
+                            className="cm-fld-step" onClick={() => handleStep(item.code, 1)}
                             style={{
                               width: 28, height: 32, border: "none", background: "none",
                               cursor: "pointer", display: "grid", placeItems: "center", color: "#475569"
@@ -465,6 +467,7 @@ export default function PhleboStockPanel() {
 
                         <button
                           type="button"
+                          className="cm-fld-stepsave"
                           onClick={() => handleSave(item.code)}
                           disabled={saving[item.code] || !isEdited}
                           style={{

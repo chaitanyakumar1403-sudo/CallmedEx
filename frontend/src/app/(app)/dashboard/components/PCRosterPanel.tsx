@@ -140,7 +140,7 @@ export default function PCRosterPanel() {
           display: "flex", justifyContent: "space-between",
           alignItems: "center", flexWrap: "wrap", gap: 14,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="cm-pc-datepick" style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Icon as={CalendarDays} size={20} />
             <input
               type="date"
@@ -153,7 +153,7 @@ export default function PCRosterPanel() {
               }}
             />
           </div>
-          <div style={{ display: "flex", gap: 16, fontSize: "0.85rem" }}>
+          <div style={{ display: "flex", gap: 8, columnGap: 16, flexWrap: "wrap", fontSize: "0.85rem" }}>
             <span style={{ color: "#16a34a", fontWeight: 700 }}>
               <Icon as={CheckCircle2} size={14} /> {available.length} available
             </span>
@@ -176,7 +176,7 @@ export default function PCRosterPanel() {
           <h3 style={{ margin: 0, fontSize: "1.05rem" }}>
             <Icon as={Users} size={16} /> Phlebotomists
           </h3>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div className="cm-pc-actions cm-pc-actions--inline" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             {isAdmin === false && (
               <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600 }}>
                 View only — roster changes need a centre administrator.
@@ -215,7 +215,7 @@ export default function PCRosterPanel() {
                     background: "#fff", gap: 12, flexWrap: "wrap",
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: "#0f172a" }}>
                       {p.full_name || "Unnamed"}
                     </div>
@@ -229,7 +229,7 @@ export default function PCRosterPanel() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 4 }}>
+                  <div className="cm-pc-seg" style={{ display: "flex", gap: 4 }}>
                     {STATUS_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}

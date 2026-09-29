@@ -1,0 +1,387 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   mobile-shell.css — app-grade phone/tablet chrome.
+   Imported after globals.css so it wins the cascade. Everything that changes
+   layout lives inside a max-width query: desktop (>960px) is untouched.
+   Stacking: appbar 900 / provider tab strip 890 < chat 1000 < modals 2000+
+   < notification backdrop 10000.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Harmless everywhere: no 300ms tap delay / grey flash, no font inflation. */
+button, a, [role="tab"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+html { -webkit-text-size-adjust: 100%; }
+
+/* Notification sheet grab handle is phone-only. */
+.cm-notification-grab { display: none; }
+/* Mobile account block is phone/tablet-only. */
+.cm-mobile-account { display: none; }
+
+/* ── ≤960: tablet + phone ─────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  /* 16px minimum stops iOS Safari zooming the page on focus. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  /* Sticky app bar, notch-safe. */
+  .cm-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: max(var(--cm-3, 12px), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--cm-3, 12px), env(safe-area-inset-right, 0px));
+  }
+
+  /* ── Provider section nav → sticky segmented tab strip ── */
+  .cm-dash--provider .cm-provider-layout {
+    --cm-mob-pad: 16px;
+    align-items: stretch;
+    padding: var(--cm-mob-pad) var(--cm-mob-pad) calc(88px + env(safe-area-inset-bottom, 0px));
+    gap: 12px;
+    min-height: 0;
+  }
+  .cm-dash--provider .cm-provider-sidebar {
+    position: sticky;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    z-index: 890;
+    width: auto;
+    max-width: none;
+    margin: calc(var(--cm-mob-pad) * -1) calc(var(--cm-mob-pad) * -1) 0;
+    background: var(--cm-surface);
+    border-bottom: 1px solid var(--cm-line);
+  }
+  .cm-dash--provider .cm-provider-nav-widget {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    overflow: visible;
+  }
+  .cm-dash--provider .cm-provider-nav-danger-zone { display: none; }
+  .cm-dash--provider .cm-provider-nav-list {
+    gap: 0;
+    padding: 0 32px 0 var(--cm-mob-pad);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    /* right-edge fade hints that more tabs are off-screen */
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+  .cm-dash--provider .cm-provider-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 44px;
+    padding: 0 14px;
+    gap: 6px;
+    border: 0 !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--cm-ink-2) !important;
+    font-weight: 600;
+    scroll-snap-align: center;
+    white-space: nowrap;
+  }
+  .cm-dash--provider .cm-provider-nav-item--active {
+    color: var(--cm-navy) !important;
+    border-bottom-color: var(--cm-navy) !important;
+    font-weight: 700 !important;
+  }
+  .cm-dash--provider .cm-provider-nav-item__left { flex: 0 0 auto; gap: 8px; }
+  .cm-dash--provider .cm-provider-nav-item__icon { color: currentColor; width: 18px; height: 18px; }
+  .cm-dash--provider .cm-provider-nav-item__label { overflow: visible; font-size: 0.875rem; }
+  .cm-dash--provider .cm-provider-nav-item__count {
+    background: var(--cm-surface-3);
+    color: var(--cm-navy);
+    border-color: var(--cm-line);
+  }
+  .cm-dash--provider .cm-provider-nav-item__count--alert {
+    background: var(--cm-urgent);
+    color: var(--cm-surface);
+    border-color: var(--cm-urgent);
+  }
+
+  /* ── Account & security block, after the content ── */
+  .cm-mobile-account {
+    display: block;
+    margin: 0 var(--cm-4, 16px) calc(88px + env(safe-area-inset-bottom, 0px));
+    background: var(--cm-surface);
+    border: 1px solid var(--cm-line);
+    border-radius: var(--cm-radius);
+    overflow: hidden;
+  }
+  .cm-dash--provider .cm-provider-layout { padding-bottom: 24px; }
+  .cm-mobile-account__title {
+    margin: 0;
+    padding: 12px 16px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--cm-ink-3);
+  }
+  .cm-mobile-account__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--cm-line);
+    color: var(--cm-ink);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .cm-mobile-account__row:active { background: var(--cm-surface-2); }
+  .cm-mobile-account__label { flex: 1 1 auto; }
+  .cm-mobile-account__icon { display: inline-flex; color: var(--cm-ink-3); }
+  .cm-mobile-account__row--danger,
+  .cm-mobile-account__row--danger .cm-mobile-account__icon { color: var(--cm-urgent); }
+}
+
+/* ── ≤640: phone ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cm-dash--provider .cm-provider-layout { --cm-mob-pad: 12px; gap: 10px; padding-bottom: 20px; }
+  .cm-mobile-account { margin-left: 12px; margin-right: 12px; }
+
+  /* Page header: compact, actions wrap cleanly. */
+  .cm-dash[data-role] .cm-dash__head {
+    padding: 14px max(16px, env(safe-area-inset-left, 0px)) 14px !important;
+  }
+  .cm-dash[data-role] .cm-dash__head-inner { gap: 10px; row-gap: 10px; }
+  .cm-dash[data-role] .cm-dash__title {
+    font-size: clamp(1.3rem, 5.5vw, 1.7rem);
+    line-height: 1.2;
+  }
+  .cm-dash[data-role] .cm-dash__sub {
+    margin-top: 4px;
+    font-size: 0.9rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  .cm-dash__aside { width: 100%; gap: 8px; }
+  .cm-dash__aside .cm-btn,
+  .cm-dash__aside button { min-height: 44px; }
+
+  /* Body padding + room for the floating buttons under the last element. */
+  .cm-dash[data-role] .cm-dash__body {
+    padding: 12px 12px calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .cm-panel, .cm-card { padding: 16px; }
+
+  /* KPI cards: compact 2-up grid. */
+  .cm-kpi-grid,
+  [data-surface="glass"] .cm-kpi-grid,
+  .cm-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: var(--cm-4, 16px);
+  }
+  .cm-kpi-card,
+  [data-surface="glass"] .cm-kpi-card,
+  .cm-patient-layout .cm-kpi-card,
+  .cm-stat-card {
+    padding: 14px;
+    gap: 8px;
+    min-width: 0;
+  }
+  .cm-kpi-card:hover,
+  [data-surface="glass"] .cm-kpi-card:hover,
+  .cm-patient-layout .cm-kpi-card:hover,
+  .cm-stat-card:hover { transform: none; }
+  .cm-kpi-card > div:first-child { min-width: 0; }
+  .cm-kpi-card__label {
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    overflow-wrap: anywhere;
+  }
+  .cm-kpi-card__value { font-size: 1.5rem; }
+  .cm-kpi-card__icon { display: none; }
+  .cm-stat-card__icon { width: 34px; height: 34px; font-size: 1.05rem; }
+  .cm-stat-card__value { font-size: 1.4rem; }
+
+  /* Patient portal chips: compact, never truncated, scroll sideways. */
+  .cm-patient-sidebar-widget { padding: 8px 0 !important; border-radius: var(--cm-radius) !important; }
+  .cm-patient-sidebar-widget .cm-provider-nav-section-title { padding: 0 12px; margin: 4px 0; }
+  .cm-patient-sidebar-widget .cm-provider-nav-list {
+    gap: 8px;
+    padding: 2px 32px 4px 12px !important;
+    margin-bottom: 4px !important;
+    scroll-snap-type: x proximity;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+  .cm-patient-sidebar-widget .cm-provider-nav-item {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: var(--cm-radius-pill);
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+  .cm-patient-sidebar-widget .cm-provider-nav-item__left { flex: 0 0 auto; gap: 8px; }
+  .cm-patient-sidebar-widget .cm-provider-nav-item__label { overflow: visible; text-overflow: clip; }
+  .cm-patient-sidebar-widget .cm-provider-nav-item > svg { display: none; }
+
+  /* Modals become bottom sheets. */
+  .cm-overlay { padding: 0; align-items: flex-end; }
+  .cm-modal,
+  .cm-modal--wide,
+  .cm-modal--mou {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .cm-modal__body { overscroll-behavior: contain; }
+  .cm-modal-backdrop,
+  [aria-labelledby="delete-account-title"] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .cm-modal-panel,
+  .cm-modal-glass-dialog,
+  [aria-labelledby="delete-account-title"] > div {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 92dvh !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    border-radius: 20px 20px 0 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Notification center bottom sheet. */
+  .cm-notification-backdrop { padding: 0; align-items: flex-end; justify-content: center; }
+  .cm-notification-panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .cm-notification-grab {
+    display: block;
+    flex: 0 0 auto;
+    padding-top: 8px;
+    background: var(--cm-navy);
+  }
+  .cm-notification-grab::after {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .cm-notification-header { padding: 8px 12px 12px; gap: 8px; }
+  .cm-notification-header__title-group { min-width: 0; flex: 1 1 auto; align-items: center; gap: 10px; }
+  .cm-notification-header__title-group > div:last-child { min-width: 0; }
+  .cm-notification-header__icon-bubble { width: 36px; height: 36px; }
+  .cm-notification-header__title {
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cm-notification-header__subtitle { display: none; }
+  .cm-notification-header__actions { gap: 4px; flex: 0 0 auto; }
+  .cm-notification-btn-text {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  .cm-notification-btn-text__label { display: none; }
+  .cm-notification-btn-close { width: 44px; height: 44px; }
+  .cm-notification-tabs {
+    padding: 6px 12px;
+    scroll-snap-type: x proximity;
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+  }
+  .cm-notification-tab { min-height: 44px; flex: 0 0 auto; scroll-snap-align: start; }
+  .cm-notification-list {
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cm-notification-card { padding: 14px; }
+  .cm-notification-card__message {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+  .cm-notification-cta-btn,
+  .cm-notification-toggle-read { min-height: 44px; }
+  .cm-notification-footer { padding: 10px 12px; }
+  .cm-notification-footer__telemetry { display: none; }
+  .cm-notification-footer__btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* Floating buttons: smaller, notch-safe. */
+  .chat-widget {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+  }
+  .chat-widget__btn { width: 48px; height: 48px; }
+  .cm-hud {
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    left: calc(12px + env(safe-area-inset-left, 0px)) !important;
+  }
+  .cm-hud__trigger {
+    width: 48px;
+    height: 48px;
+    padding: 0 !important;
+    justify-content: center;
+  }
+  .cm-hud__trigger > div,
+  .cm-hud__trigger > svg { display: none; }
+  .cm-hud > div:not(.cm-hud__trigger) { bottom: 58px !important; max-height: 70dvh !important; }
+}
+
+/* ── ≤380: narrow phones ──────────────────────────────────────────────── */
+@media (max-width: 380px) {
+  .cm-kpi-card,
+  [data-surface="glass"] .cm-kpi-card,
+  .cm-patient-layout .cm-kpi-card { padding: 12px; }
+  .cm-kpi-card__value { font-size: 1.35rem; }
+  .cm-dash--provider .cm-provider-nav-item { padding: 0 12px; }
+  .cm-notification-header__title { font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-dash--provider .cm-provider-nav-list,
+  .cm-notification-tabs { scroll-behavior: auto; }
+}

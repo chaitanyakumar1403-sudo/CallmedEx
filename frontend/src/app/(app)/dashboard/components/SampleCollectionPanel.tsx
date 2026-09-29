@@ -302,7 +302,7 @@ export default function SampleCollectionPanel() {
   }
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={{ display: "grid", gap: 20, gridTemplateColumns: "minmax(0, 1fr)" }}>
       {msg && (
         <div
           style={{
@@ -354,7 +354,7 @@ export default function SampleCollectionPanel() {
                 &ldquo;{inv.message}&rdquo;
               </div>
             )}
-            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <div className="cm-fld-actions" style={{ display: "flex", gap: 10, marginTop: 12 }}>
               <button
                 onClick={() => respondToInvite(inv.id, true)}
                 disabled={savingLab}
@@ -432,7 +432,7 @@ export default function SampleCollectionPanel() {
             >
               Not attached to a home laboratory yet. Select a certified diagnostic center in your service zone to establish specimen drop-off affiliation.
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="cm-fld-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
               <select
                 onChange={(e) => requestToJoin(e.target.value)}
                 disabled={savingLab || labs.length === 0}
@@ -440,7 +440,7 @@ export default function SampleCollectionPanel() {
                 style={{
                   ...inputStyle,
                   flex: 1,
-                  minWidth: 260,
+                  minWidth: "min(100%, 260px)",
                   marginTop: 0,
                   background: "#ffffff",
                   cursor: "pointer",
@@ -461,8 +461,8 @@ export default function SampleCollectionPanel() {
       </div>
 
       {/* ── Active collection runs ───────────────────────────────────── */}
-      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div className="card cm-fld-card" style={{ padding: 22, borderRadius: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
           <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
             <Icon as={MapPin} size={20} /> Assigned Collection Runs ({tasks.length})
           </h3>
@@ -520,7 +520,7 @@ export default function SampleCollectionPanel() {
       </div>
 
       {/* ── Register a collected tube ──────────────────────────────────── */}
-      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+      <div className="card cm-fld-card" style={{ padding: 22, borderRadius: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div>
             <h3 style={{ margin: "0 0 4px 0", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
@@ -629,7 +629,7 @@ export default function SampleCollectionPanel() {
           </div>
         </div>
 
-        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+        <div className="cm-fld-actions" style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
           <Button
             variant="primary"
             onClick={registerSample}
@@ -642,8 +642,8 @@ export default function SampleCollectionPanel() {
       </div>
 
       {/* ── Manifest + handover ──────────────────────────────────────── */}
-      <div className="card" style={{ padding: 22, borderRadius: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div className="card cm-fld-card" style={{ padding: 22, borderRadius: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
           <div>
             <h3 style={{ margin: "0 0 4px 0", fontSize: "1.1rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
               <Icon as={Package} size={20} /> Cold-Chain Specimen Carrier ({inHand.length})
@@ -699,7 +699,7 @@ export default function SampleCollectionPanel() {
                       style={{ width: 18, height: 18, accentColor: "#0284c7" }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontFamily: "monospace", color: "#0f172a", fontSize: "0.95rem" }}>
                           {s.barcode}
                         </span>
@@ -718,11 +718,11 @@ export default function SampleCollectionPanel() {
               })}
             </div>
 
-            <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="cm-fld-actions" style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <select
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                style={{ ...inputStyle, flex: 1, minWidth: 260, marginTop: 0, background: "#fff" }}
+                style={{ ...inputStyle, flex: 1, minWidth: "min(100%, 260px)", marginTop: 0, background: "#fff" }}
               >
                 <option value="">
                   {homeLab.name ? `Destination: Primary Hub (${homeLab.name})` : "Choose destination laboratory"}
@@ -755,7 +755,7 @@ export default function SampleCollectionPanel() {
 
       {/* ── Recent history ───────────────────────────────────────────── */}
       {samples.length > inHand.length && (
-        <div className="card" style={{ padding: 22, borderRadius: 18 }}>
+        <div className="card cm-fld-card" style={{ padding: 22, borderRadius: 18 }}>
           <h3 style={{ margin: "0 0 14px 0", fontSize: "1.05rem", fontWeight: 800, color: "#0f172a", display: "flex", alignItems: "center", gap: 8 }}>
             <Icon as={Clock} size={20} /> Verified Handover Log (Last 15 Specimen Batches)
           </h3>
@@ -768,6 +768,7 @@ export default function SampleCollectionPanel() {
                   key={s.id}
                   style={{
                     display: "flex",
+                    flexWrap: "wrap", gap: 6,
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "10px 14px",

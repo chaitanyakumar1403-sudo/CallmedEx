@@ -706,7 +706,7 @@ export default function DoctorDashboard() {
               </div>
 
               {/* Timeframe Filter Tabs */}
-              <div style={{ display: "flex", background: "rgba(241, 245, 249, 0.9)", padding: 3, borderRadius: 10, gap: 4, border: "1px solid #e2e8f0" }}>
+              <div className="cm-mc-chips" style={{ display: "flex", maxWidth: "100%", background: "rgba(241, 245, 249, 0.9)", padding: 3, borderRadius: 10, gap: 4, border: "1px solid #e2e8f0" }}>
                 {[
                   { id: "today", label: "Today" },
                   { id: "tomorrow", label: "Tomorrow" },
@@ -1668,7 +1668,7 @@ export default function DoctorDashboard() {
           TAB 6: APPOINTMENTS TAB (SUB-MODALITY TABS & 1-CLICK E-RX)
       ══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "appointments" && (
-        <div>
+        <div className="cm-mc-q">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--cm-4)", flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "var(--cm-text-lg)", fontWeight: 600 }}>
@@ -1678,7 +1678,7 @@ export default function DoctorDashboard() {
                 Patient consultation schedule with verified contact emails, triage records, and direct e-Rx dispatch.
               </p>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div className="cm-mc-chips" style={{ display: "flex", gap: 6 }}>
               {(["all", "waiting", "confirmed", "completed"] as const).map((filter) => (
                 <button
                   key={filter}
@@ -1714,6 +1714,7 @@ export default function DoctorDashboard() {
 
           {/* Deep Navy Glassmorphic Sub-Modality Filter Tabs */}
           <div
+            className="cm-mc-chips"
             style={{
               display: "flex",
               gap: 8,
@@ -1808,7 +1809,7 @@ export default function DoctorDashboard() {
               {filteredBookings.map((b, i) => (
                 <div
                   key={b.id || i}
-                  className="cm-card"
+                  className="cm-card cm-mc-appt"
                   style={{
                     padding: "var(--cm-4) var(--cm-5)",
                     border: "1px solid var(--cm-line)",
@@ -1820,7 +1821,7 @@ export default function DoctorDashboard() {
                   }}
                 >
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 600, color: "var(--cm-ink)", fontSize: "var(--cm-text-base)" }}>
                         {b.patient_name || "Patient"}
                       </span>
@@ -1832,7 +1833,7 @@ export default function DoctorDashboard() {
                       </span>
                     </div>
 
-                    <div style={{ display: "flex", gap: 16, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)" }}>
+                    <div style={{ display: "flex", gap: 16, fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", flexWrap: "wrap" }}>
                       <span>Mode: <strong style={{ color: "var(--cm-ink)" }}>{b.service_type || "Consultation"}</strong></span>
                       {b.patient_email && (
                         <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--cm-active)" }}>
@@ -1847,7 +1848,7 @@ export default function DoctorDashboard() {
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="cm-mc-actions" style={{ display: "flex", gap: 8 }}>
                     <button
                       type="button"
                       onClick={() => {
@@ -1964,11 +1965,14 @@ export default function DoctorDashboard() {
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", minWidth: 0, maxWidth: "100%" }}>
               <select
                 value={homeVisitShift}
                 onChange={(e) => setHomeVisitShift(e.target.value)}
                 style={{
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  flex: "1 1 200px",
                   padding: "8px 12px",
                   borderRadius: 8,
                   border: "1px solid var(--cm-line)",

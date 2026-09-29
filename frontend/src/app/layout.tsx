@@ -1,5 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./styles/mobile-shell.css";
+import "./styles/mobile-field.css";
+import "./styles/mobile-clinical.css";
+import "./styles/mobile-console.css";
 import { Toaster } from 'sonner';
 import SessionKeeper from './components/SessionKeeper';
 
@@ -7,6 +11,14 @@ export const metadata: Metadata = {
   title: "CallMedex — India's AI-Native Healthcare Platform",
   description: "Book diagnostic tests, video consultations, pharmacy delivery, and home sample collection. ABHA-integrated, WhatsApp-native healthcare marketplace.",
   keywords: "healthcare, diagnostics, telemedicine, pharmacy, ABHA, home collection",
+  appleWebApp: { capable: true, title: "CallMedex", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#1a2b4a",
 };
 
 export default function RootLayout({

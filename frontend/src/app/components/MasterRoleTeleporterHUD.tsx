@@ -213,6 +213,7 @@ export default function MasterRoleTeleporterHUD() {
 
   return (
     <div
+      className="cm-hud"
       style={{
         position: "fixed",
         bottom: "clamp(12px, 3vw, 24px)",
@@ -224,6 +225,7 @@ export default function MasterRoleTeleporterHUD() {
     >
       {/* Floating Pill Trigger */}
       <button
+        className="cm-hud__trigger"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           display: "inline-flex",

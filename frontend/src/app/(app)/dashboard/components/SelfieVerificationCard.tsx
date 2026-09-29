@@ -278,7 +278,7 @@ export default function SelfieVerificationCard({ onVerified }: { onVerified?: ()
 
   return (
     <div
-      className="card"
+      className="card cm-fld-card"
       style={{
         padding: "20px 24px",
         borderLeft: "4px solid #8b5cf6",
@@ -288,7 +288,7 @@ export default function SelfieVerificationCard({ onVerified }: { onVerified?: ()
         marginBottom: 20,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h4 style={{ margin: 0, color: "#1e293b", fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
             📸 Live Selfie Identity Verification
@@ -316,7 +316,7 @@ export default function SelfieVerificationCard({ onVerified }: { onVerified?: ()
 
       {status === "idle" && (
         <div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <div className="cm-fld-actions" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
             <button
               onClick={startCamera}
               disabled={startingCamera}
@@ -388,7 +388,7 @@ export default function SelfieVerificationCard({ onVerified }: { onVerified?: ()
             </label>
           </div>
 
-          <div style={{ fontSize: "0.78rem", color: "#94a3b8", display: "flex", gap: 16 }}>
+          <div style={{ fontSize: "0.78rem", color: "#94a3b8", display: "flex", gap: "4px 16px", flexWrap: "wrap" }}>
             <span>• Face well-lit and directly centered</span>
             <span>• No dark sunglasses or excessive glare</span>
             <span>• Single practitioner in frame</span>

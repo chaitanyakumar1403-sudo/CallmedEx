@@ -250,7 +250,7 @@ export default function SampleIntakeQueue() {
                               {s.test_names?.length ? ` • ${s.test_names.join(", ")}` : ""}
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 6 }}>
+                          <div className="cm-pc-verdict" style={{ display: "flex", gap: 6 }}>
                             <button
                               onClick={() => setVerdict(h.id, s.id, "accept")}
                               style={{
@@ -283,6 +283,7 @@ export default function SampleIntakeQueue() {
                                 <button
                                   key={r}
                                   onClick={() => setReason(h.id, s.id, r)}
+                                  className="cm-pc-filter"
                                   style={{
                                     padding: "4px 10px",
                                     borderRadius: 999,
@@ -318,7 +319,7 @@ export default function SampleIntakeQueue() {
                   })}
                 </div>
 
-                <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div className="cm-pc-actions" style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontSize: "0.82rem", color: "#64748b" }}>
                     {(h.samples?.length || 0) - rejectCount} accepting
                     {rejectCount > 0 ? `, ${rejectCount} rejecting` : ""}
@@ -360,14 +361,15 @@ export default function SampleIntakeQueue() {
                     </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <div className="cm-pc-scan" style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                   <input
+                    className="cm-pc-scan__input"
                     value={reportUrls[s.id] || ""}
                     onChange={(e) => setReportUrls((p) => ({ ...p, [s.id]: e.target.value }))}
                     placeholder="Report URL (PDF)"
                     style={{
-                      flex: 1,
-                      minWidth: 220,
+                      flex: "1 1 220px",
+                      minWidth: 0,
                       padding: "9px 12px",
                       borderRadius: 8,
                       border: "1px solid #cbd5e1",

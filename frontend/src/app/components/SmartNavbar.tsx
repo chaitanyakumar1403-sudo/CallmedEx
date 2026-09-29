@@ -228,7 +228,7 @@ export default function SmartNavbar() {
             )}
           </ul>
         </div>
-        <div className="navbar__actions" style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+        <div className="navbar__actions" style={{ alignItems: "center", gap: 12, marginLeft: "auto" }}>
           {user ? (
             <>
               {/* Notification Bell with Live Unread Badge */}

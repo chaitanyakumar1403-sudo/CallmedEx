@@ -842,6 +842,7 @@ export default function DentistDashboard() {
                 overflow: "hidden",
                 boxShadow: "0 2px 10px rgba(0,0,0,0.03)",
               }}
+              className="cm-mc-scroll"
             >
               <div
                 style={{
@@ -1067,7 +1068,7 @@ export default function DentistDashboard() {
               <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>
                 Maxillary Arch (Upper Teeth 1 – 16)
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(16, 1fr)", gap: 6 }}>
+              <div className="cm-mc-teeth" style={{ display: "grid", gridTemplateColumns: "repeat(16, 1fr)", gap: 6 }}>
                 {Array.from({ length: 16 }, (_, i) => i + 1).map((tooth) => {
                   const finding = toothFindings[tooth];
                   const isSelected = selectedTooth === tooth;
@@ -1104,7 +1105,7 @@ export default function DentistDashboard() {
               <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>
                 Mandibular Arch (Lower Teeth 17 – 32)
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(16, 1fr)", gap: 6 }}>
+              <div className="cm-mc-teeth" style={{ display: "grid", gridTemplateColumns: "repeat(16, 1fr)", gap: 6 }}>
                 {Array.from({ length: 16 }, (_, i) => i + 17).map((tooth) => {
                   const finding = toothFindings[tooth];
                   const isSelected = selectedTooth === tooth;

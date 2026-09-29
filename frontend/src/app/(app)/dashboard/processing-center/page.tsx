@@ -48,8 +48,14 @@ export default function ProcessingCenterDashboard() {
         const data = await pcAPI.getMe();
         setCentre(data.center);
         setPcRole(data.pc_role || "technician");
-      } catch {
-        router.push("/auth/login");
+      } catch (err) {
+        // A dead session still goes to login; any other failure (centre not
+        // reachable / not yet assigned) renders the unassigned state.
+        if ((err as { status?: number })?.status === 401) {
+          router.push("/auth/login");
+          return;
+        }
+        setCentre(null);
       } finally {
         setAuthChecked(true);
       }

@@ -46,6 +46,10 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const navRef = useRef<HTMLElement | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
+  const firstRun = useRef(true);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -66,6 +70,30 @@ export default function DashboardShell({
       // ignore
     }
   }, []);
+
+  // Phones: keep the active tab visible in the strip, and if the sticky strip
+  // is stuck (page scrolled down) return to the top of the new section.
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    if (typeof window === "undefined" || !window.matchMedia("(max-width: 960px)").matches) return;
+    const nav = navRef.current;
+    const btn = tabRefs.current[activeTab];
+    if (nav && btn) {
+      const left = btn.offsetLeft - (nav.clientWidth - btn.offsetWidth) / 2;
+      nav.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+    }
+    const sidebar = sidebarRef.current;
+    const content = contentRef.current;
+    if (!sidebar || !content) return;
+    const barH = document.querySelector(".cm-appbar")?.getBoundingClientRect().height ?? 56;
+    const stuck = sidebar.getBoundingClientRect().top <= barH + 2;
+    if (!stuck) return;
+    const top = content.getBoundingClientRect().top + window.scrollY - barH - sidebar.offsetHeight - 8;
+    if (window.scrollY > top) window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }, [activeTab]);
 
   const onNavKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -102,9 +130,10 @@ export default function DashboardShell({
       )}
 
       {isProviderWithTabs ? (
+        <>
         <div className="cm-provider-layout">
           {/* Left-Aligned Sticky Glassmorphic Navigation Widget */}
-          <aside className="cm-provider-sidebar" aria-label={`${title} Navigation`}>
+          <aside ref={sidebarRef} className="cm-provider-sidebar" aria-label={`${title} Navigation`}>
             <div className="cm-provider-nav-widget">
               <div className="cm-provider-nav-header">
                 <div className="cm-provider-nav-badge">
@@ -115,6 +144,7 @@ export default function DashboardShell({
               </div>
 
               <nav
+                ref={navRef}
                 className="cm-provider-nav-list"
                 role="tablist"
                 aria-label={`${title} sections`}
@@ -210,6 +240,7 @@ export default function DashboardShell({
 
           {/* Right Main Content Panel */}
           <main
+            ref={contentRef}
             className="cm-provider-content"
             role={activeTab ? "tabpanel" : undefined}
             id={activeTab ? `panel-${activeTab}` : undefined}
@@ -218,6 +249,32 @@ export default function DashboardShell({
             {children}
           </main>
         </div>
+
+        {/* Phones: account actions live after the content, not above it. */}
+        <section className="cm-mobile-account" aria-label="Account and security">
+          <h2 className="cm-mobile-account__title">Account &amp; security</h2>
+          <button
+            type="button"
+            className="cm-mobile-account__row"
+            onClick={() => setIsChangePasswordOpen(true)}
+          >
+            <span className="cm-mobile-account__icon"><KeyRound size={16} /></span>
+            <span className="cm-mobile-account__label">Change Password</span>
+            <ChevronRight size={14} />
+          </button>
+          {(role as DashRole) !== "patient" && (
+            <button
+              type="button"
+              className="cm-mobile-account__row cm-mobile-account__row--danger"
+              onClick={() => setIsDeleteModalOpen(true)}
+            >
+              <span className="cm-mobile-account__icon"><ShieldAlert size={16} /></span>
+              <span className="cm-mobile-account__label">Delete Account</span>
+              <ChevronRight size={14} />
+            </button>
+          )}
+        </section>
+        </>
       ) : (
         <div
           className="cm-dash__body"

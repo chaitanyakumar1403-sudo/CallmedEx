@@ -628,7 +628,7 @@ ${o.delivery_address ? `<p class="m">Deliver to: ${esc(o.delivery_address)}</p>`
                   </div>
                 ) : (
                   <div className="cm-pharm-table-wrap">
-                    <table className="cm-pharm-table">
+                    <table className="cm-pharm-table cm-pharm-table--cards">
                       <thead>
                         <tr>
                           <th scope="col">Order</th>

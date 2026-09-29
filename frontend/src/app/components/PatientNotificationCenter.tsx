@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   CheckCheck,
@@ -251,7 +252,30 @@ function relativeTime(iso?: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function mapRawNotification(row: RawNotification): PatientNotification {
+const KNOWN_ROLES = new Set([
+  "patient", "doctor", "dentist", "dietitian", "physiotherapist", "nurse",
+  "phlebotomist", "pharmacy", "organization", "staff", "admin", "supervisor",
+  "processing_center", "collection_point",
+]);
+/* Roles that keep the bespoke alert copy + proactive demo feeds above. */
+const LEGACY_ROLES = new Set(["patient", "doctor", "organization", "processing_center"]);
+
+function normalizeRole(raw: string): string {
+  const r = raw.toLowerCase().trim().replace(/-/g, "_");
+  return KNOWN_ROLES.has(r) ? r : "";
+}
+
+function roleFromLabel(raw: string): string {
+  const r = raw.toLowerCase();
+  if (r.includes("processing") || r.includes("center") || r.includes("lab")) return "processing_center";
+  if (r.includes("doctor") || r.includes("workstation")) return "doctor";
+  if (r.includes("organization") || r.includes("console")) return "organization";
+  if (r.includes("patient") || r.includes("portal")) return "patient";
+  for (const k of KNOWN_ROLES) if (r.includes(k)) return k;
+  return "";
+}
+
+function mapRawNotification(row: RawNotification, neutral = false): PatientNotification {
   const data = row.data || {};
   let category: PatientNotification["category"] = "visit";
   let actionLabel = "View Details";
@@ -275,6 +299,12 @@ function mapRawNotification(row: RawNotification): PatientNotification {
     actionHref = "/consultation";
   }
 
+  // Other roles (phlebotomist, nurse, ...) must not get patient-only CTAs.
+  if (neutral) {
+    actionHref = undefined;
+    actionLabel = "";
+  }
+
   return {
     id: row.id,
     title: row.title,
@@ -283,7 +313,7 @@ function mapRawNotification(row: RawNotification): PatientNotification {
     time: relativeTime(row.created_at),
     timestamp: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
     read: row.status === "read",
-    actionLabel,
+    actionLabel: actionLabel || undefined,
     actionHref,
     priority: "normal",
   };
@@ -308,28 +338,39 @@ export function PatientNotificationCenter({
   const router = useRouter();
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const detectedRole = (() => {
-    const raw = (role || "").toLowerCase();
-    if (raw.includes("processing") || raw.includes("center") || raw.includes("lab")) return "processing_center";
-    if (raw.includes("doctor") || raw.includes("workstation")) return "doctor";
-    if (raw.includes("organization") || raw.includes("console")) return "organization";
-    if (raw.includes("patient") || raw.includes("portal")) return "patient";
+    // 1. /dashboard/<segment>  2. stored user.role  3. role prop  4. patient
+    const seg = /^\/dashboard\/([^/?#]+)/.exec(pathname || "")?.[1] || "";
+    const fromPath = normalizeRole(seg);
+    if (fromPath) return fromPath;
     try {
-      const path = typeof window !== "undefined" ? window.location.pathname : "";
-      if (path.includes("/dashboard/processing-center") || path.includes("/dashboard/processing_center")) return "processing_center";
-      if (path.includes("/dashboard/doctor")) return "doctor";
-      if (path.includes("/dashboard/organization")) return "organization";
-      if (path.includes("/dashboard/patient")) return "patient";
       const u = JSON.parse(localStorage.getItem("user") || "{}");
-      const r = (u.role || "").toLowerCase();
-      if (r === "processing_center") return "processing_center";
-      if (r === "doctor") return "doctor";
-      if (r === "organization") return "organization";
-      return "patient";
+      const fromUser = normalizeRole(String(u.role || ""));
+      if (fromUser) return fromUser;
     } catch {
-      return "patient";
+      // ignore
     }
+    return roleFromLabel(role || "") || "patient";
   })();
+  const isLegacyRole = LEGACY_ROLES.has(detectedRole);
+  const ownDashboard =
+    detectedRole === "processing_center"
+      ? "/dashboard/processing-center"
+      : `/dashboard/${detectedRole.replace(/_/g, "-")}`;
+
+  // Lock page scroll while the sheet is open; restore whatever was there.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
 
   // Fetch notifications or populate realistic proactive notifications
   useEffect(() => {
@@ -346,7 +387,7 @@ export function PatientNotificationCenter({
             "/communications/notifications?limit=30"
           );
           if (res && res.notifications && res.notifications.length > 0) {
-            fetchedItems = res.notifications.map(mapRawNotification);
+            fetchedItems = res.notifications.map((r) => mapRawNotification(r, !isLegacyRole));
           }
         } catch {
           // Backend offline or user unauthenticated: fallback to proactive clinical alerts
@@ -389,7 +430,9 @@ export function PatientNotificationCenter({
             ? PROACTIVE_DOCTOR_NOTIFICATIONS
             : detectedRole === "organization"
             ? PROACTIVE_ORG_NOTIFICATIONS
-            : PROACTIVE_PATIENT_NOTIFICATIONS;
+            : detectedRole === "patient"
+            ? PROACTIVE_PATIENT_NOTIFICATIONS
+            : [];
 
         // Merge with role-appropriate proactive alerts
         const allItems = [...roleFiltered];
@@ -426,7 +469,7 @@ export function PatientNotificationCenter({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, onUnreadCountChange, detectedRole]);
+  }, [isOpen, onUnreadCountChange, detectedRole, isLegacyRole]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -495,15 +538,15 @@ export function PatientNotificationCenter({
       if (targetElem) {
         targetElem.scrollIntoView({ behavior: "smooth", block: "start" });
       } else {
-        // If not on the patient dashboard, navigate with hash
-        router.push(`/dashboard/patient${actionHref}`);
+        // If not on the patient dashboard, navigate with hash (patient only)
+        if (detectedRole === "patient") router.push(`/dashboard/patient${actionHref}`);
       }
     } else {
       router.push(actionHref);
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const filteredNotifications = notifications.filter((item) => {
     if (activeCategory === "all") return true;
@@ -527,7 +570,7 @@ export function PatientNotificationCenter({
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="cm-notification-backdrop"
       onClick={(e) => {
@@ -538,6 +581,7 @@ export function PatientNotificationCenter({
       aria-labelledby="cm-notification-title"
     >
       <div className="cm-notification-panel" ref={modalRef}>
+        <span className="cm-notification-grab" aria-hidden="true" />
         {/* Specular Ambient Glow Banner */}
         <div className="cm-notification-header">
           <div className="cm-notification-header__title-group">
@@ -553,7 +597,9 @@ export function PatientNotificationCenter({
                   ? "Doctor Clinical Alert & Roster Center"
                   : detectedRole === "organization"
                   ? "Organization Operations Center"
-                  : "Patient Notification Center"}
+                  : detectedRole === "patient"
+                  ? "Patient Notification Center"
+                  : "Notifications"}
               </h2>
               <p className="cm-notification-header__subtitle">
                 {detectedRole === "processing_center"
@@ -562,7 +608,9 @@ export function PatientNotificationCenter({
                   ? "Practice queue alerts, consultation requests, roster sync & clinical updates"
                   : detectedRole === "organization"
                   ? "Facility bookings, affiliated doctor availability & diagnostic queues"
-                  : "Clinical care alerts, cold-chain tracking, and proactive reminders"}
+                  : detectedRole === "patient"
+                  ? "Clinical care alerts, cold-chain tracking, and proactive reminders"
+                  : "Alerts and updates for your workspace"}
               </p>
             </div>
           </div>
@@ -576,7 +624,7 @@ export function PatientNotificationCenter({
                 aria-label="Mark all notifications as read"
               >
                 <CheckCheck size={16} />
-                <span>Mark all read</span>
+                <span className="cm-notification-btn-text__label">Mark all read</span>
               </button>
             )}
             <button
@@ -610,7 +658,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("visit")}
           >
             <Calendar size={14} />
-            {detectedRole === "processing_center" ? "City Bookings" : detectedRole === "doctor" ? "Consultations" : detectedRole === "organization" ? "Appointments" : "Visits & Consults"}
+            {detectedRole === "processing_center" ? "City Bookings" : detectedRole === "doctor" ? "Consultations" : detectedRole === "organization" ? "Appointments" : detectedRole === "patient" ? "Visits & Consults" : "Appointments"}
           </button>
           <button
             type="button"
@@ -620,7 +668,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("tracking")}
           >
             <Truck size={14} />
-            {detectedRole === "processing_center" ? "Transit & Intake" : detectedRole === "doctor" ? "Roster Sync" : detectedRole === "organization" ? "Doctor Roster" : "Sample Tracking"}
+            {detectedRole === "processing_center" ? "Transit & Intake" : detectedRole === "doctor" ? "Roster Sync" : detectedRole === "organization" ? "Doctor Roster" : detectedRole === "patient" ? "Sample Tracking" : "Tracking"}
           </button>
           <button
             type="button"
@@ -630,7 +678,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("medication")}
           >
             <Pill size={14} />
-            {detectedRole === "processing_center" ? "Batches & LIMS" : detectedRole === "doctor" ? "e-Prescriptions" : detectedRole === "organization" ? "Services" : "Medications"}
+            {detectedRole === "processing_center" ? "Batches & LIMS" : detectedRole === "doctor" ? "e-Prescriptions" : detectedRole === "organization" ? "Services" : detectedRole === "patient" ? "Medications" : "Orders & Rx"}
           </button>
           <button
             type="button"
@@ -640,7 +688,7 @@ export function PatientNotificationCenter({
             onClick={() => setActiveCategory("biomarker")}
           >
             <Activity size={14} />
-            {detectedRole === "processing_center" ? "QA & Reports" : detectedRole === "doctor" ? "Credentials" : detectedRole === "organization" ? "Facility" : "Biomarkers & Care"}
+            {detectedRole === "processing_center" ? "QA & Reports" : detectedRole === "doctor" ? "Credentials" : detectedRole === "organization" ? "Facility" : detectedRole === "patient" ? "Biomarkers & Care" : "Updates"}
           </button>
         </div>
 
@@ -657,7 +705,9 @@ export function PatientNotificationCenter({
                   ? "No pending practice alerts in this category. Your consultation queue and credentials are up to date."
                   : detectedRole === "organization"
                   ? "No active alerts in this category. Facility schedules and appointments are up to date."
-                  : "No active notifications in this category. Your appointments, prescriptions, and health records are up to date."}
+                  : detectedRole === "patient"
+                  ? "No active notifications in this category. Your appointments, prescriptions, and health records are up to date."
+                  : "No notifications in this category right now."}
               </p>
             </div>
           ) : (
@@ -723,7 +773,9 @@ export function PatientNotificationCenter({
                 ? "Workstation Telemetry — Real-time Practice Queue & NMC e-Rx Active"
                 : detectedRole === "organization"
                 ? "Operations Telemetry — Reception OPD & Walk-in Queue Active"
-                : "AI Care Engine — Continuous Health Guardian Active"}
+                : detectedRole === "patient"
+                ? "AI Care Engine — Continuous Health Guardian Active"
+                : "Live updates active for your workspace"}
             </span>
           </div>
           <button
@@ -736,8 +788,10 @@ export function PatientNotificationCenter({
                 handleActionClick("/dashboard/doctor");
               } else if (detectedRole === "organization") {
                 handleActionClick("/dashboard/organization");
-              } else {
+              } else if (detectedRole === "patient") {
                 handleActionClick("#sample-tracking");
+              } else {
+                handleActionClick(ownDashboard);
               }
             }}
           >
@@ -748,13 +802,16 @@ export function PatientNotificationCenter({
                 ? "Open Workstation"
                 : detectedRole === "organization"
                 ? "Manage Roster"
-                : "Track Phlebotomist"}
+                : detectedRole === "patient"
+                ? "Track Phlebotomist"
+                : "Open Dashboard"}
             </span>
             <ExternalLink size={14} />
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

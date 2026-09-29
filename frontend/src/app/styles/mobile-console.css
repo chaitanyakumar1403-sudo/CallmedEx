@@ -1,0 +1,393 @@
+/* Session 06 — mobile app-grade layer (console).
+   Patient, organization, admin/supervisor and processing-centre dashboards.
+   Loaded after globals.css. Every rule here sits inside a max-width media
+   query so desktop (>960px) is untouched.
+
+   Most of the organization / admin / processing-centre markup is inline-styled,
+   so those rules use [style*="..."] hooks (React serialises inline styles as
+   "property: value"), scoped to the console roles and to the page content so
+   nothing leaks into the other dashboards. */
+
+/* ═══ ≤960: tablet + phone ══════════════════════════════════════════════ */
+@media (max-width: 960px) {
+  /* Body explorer: the 2-column grid already collapses at 900; keep the
+     3D stage from being taller than a tablet screen. */
+  .cm-twin-viewport { height: min(420px, 60vh); }
+  .cm-ai-orchestra-grid { gap: 12px; }
+}
+
+/* ═══ ≤640: phone ═══════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Patient portal ─────────────────────────────────────────────────── */
+  .cm-patient-layout .cm-psec,
+  .cm-patient-layout .cm-family-panel-glass {
+    padding: 16px !important;
+    border-radius: var(--cm-radius-lg);
+  }
+  /* backdrop-filter on a panel makes position:fixed dialogs inside it (medicine
+     dialog) size to the panel instead of the viewport. */
+  .cm-patient-layout .cm-psec,
+  .cm-patient-layout .cm-psec:hover,
+  .cm-patient-layout .cm-family-panel-glass {
+    transform: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .cm-patient-layout .cm-psec .cm-med__head,
+  .cm-patient-layout .cm-psec .cm-adv__head { margin-bottom: 12px; gap: 10px; }
+  .cm-patient-layout .cm-adv__lead { flex-basis: 100%; gap: 10px; }
+  .cm-patient-layout .cm-adv__title,
+  .cm-patient-layout .cm-psec__title,
+  .cm-patient-layout .cm-med__title { font-size: 1.1rem; }
+  .cm-patient-layout .cm-adv__sub,
+  .cm-patient-layout .cm-med__sub,
+  .cm-patient-layout .cm-psec .cm-panel__note { font-size: 0.85rem; line-height: 1.45; }
+  .cm-patient-layout .cm-adv__icon { width: 36px; height: 36px; }
+  /* Header CTAs: full width, one comfortable tap target. */
+  .cm-patient-layout .cm-adv__head > .cm-btn,
+  .cm-patient-layout .cm-med__head > .cm-btn {
+    width: 100%;
+    min-height: 44px;
+    max-height: 48px;
+    justify-content: center;
+  }
+  .cm-patient-layout .cm-psec .cm-empty { padding: 20px 12px; }
+  .cm-patient-layout .cm-empty__title { font-size: 1rem; }
+
+  /* Health advisor cards */
+  .cm-ai-orchestra-grid { gap: 10px; }
+  .cm-adv-card { padding: 14px; gap: 10px; }
+  .cm-adv-card__head { margin-bottom: 6px; }
+  .cm-adv-card__cta { min-height: 44px; max-height: 48px; }
+  .cm-adv__note { margin-top: 12px; }
+
+  /* Advisor pop-ups become full-width bottom sheets. */
+  .cm-widget-overlay { padding: 0; align-items: flex-end; }
+  .cm-glass-widget-modal {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 92dvh !important;
+    margin: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  .cm-glass-widget-modal [style*="grid-template-columns: repeat(auto-fit, minmax(200px"] {
+    grid-template-columns: 1fr !important;
+  }
+  .cm-glass-widget-modal [style*="min-width: 180px"],
+  .cm-glass-widget-modal [style*="min-width: 200px"] { min-width: 0 !important; flex: 1 1 100% !important; }
+
+  /* Body explorer */
+  .cm-body-map-grid { gap: 12px; }
+  .cm-twin-viewport { height: 300px; }
+  .cm-twin-overlay-hud { top: 8px; left: 10px; right: 10px; }
+  .cm-twin-controls {
+    flex-direction: row;
+    bottom: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+  .cm-twin-ctrl-btn { width: 44px; height: 44px; }
+  .cm-twin-organ-chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 10px 12px;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cm-twin-organ-chip { min-height: 44px; scroll-snap-align: start; }
+  .cm-body-map-grid .cm-card { padding: 14px; }
+  .cm-body-map-grid .cm-card [style*="grid-template-columns: 1fr 1fr"] { gap: 10px !important; }
+
+  /* Medicines */
+  .cm-med-list { grid-template-columns: 1fr; gap: 10px; }
+  .cm-med-empty { padding: 16px; }
+  .cm-med-dialog { padding: 16px; }
+  .cm-med-actions { flex-direction: column-reverse; }
+  .cm-med-actions > * { width: 100%; min-height: 44px; }
+
+  /* Biomarkers */
+  .cm-bio-compass { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .cm-bio-points { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .cm-bio-codes { flex-wrap: nowrap; scroll-snap-type: x proximity; }
+  .cm-bio-codes > .cm-btn { flex: 0 0 auto; min-height: 44px; }
+
+  /* Family circle */
+  .cm-fam-head { flex-wrap: wrap; gap: 12px; }
+  .cm-fam-head > button { width: 100%; min-height: 44px; justify-content: center; }
+  .cm-fam-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .cm-fam-form { padding: 16px !important; }
+  .cm-fam-row { flex-wrap: wrap; gap: 10px; padding: 14px !important; }
+  .cm-fam-row > div:first-child { flex: 1 1 100% !important; }
+  .cm-fam-row__actions { width: 100%; }
+  .cm-fam-row__actions > a { flex: 1; min-height: 44px; justify-content: center; }
+  .cm-fam-row__actions > button { min-width: 44px; min-height: 44px; justify-content: center; }
+  .cm-family-panel-glass [style*="padding: 40px"] { padding: 24px 16px !important; }
+
+  /* Bookings + account cards */
+  .cm-pbk__title { font-size: 1.1rem; }
+  .cm-pbk-card { gap: 10px; }
+  .cm-pbk-card__main { flex-basis: 100%; }
+  .cm-pbk-btn { min-height: 44px; }
+  .cm-pacct { padding: 16px !important; }
+  .cm-pacct__lead { flex-basis: 100%; }
+  .cm-pacct__delete { width: 100%; justify-content: center; }
+  .cm-patient-layout .card[style*="padding: 32px"],
+  .cm-patient-layout .card[style*="padding: 40px"] { padding: 20px 16px !important; margin-top: 16px !important; }
+
+  /* Patient inline modals (dispatch reason, reorder) */
+  .cm-patient-layout [style*="position: fixed"] > div[style*="padding: 32px"],
+  .cm-patient-layout [style*="position: fixed"] > div[style*="padding: 28px"] {
+    padding: 16px !important;
+    max-height: 92dvh;
+    overflow-y: auto;
+  }
+
+  /* ── Supervisor / task lists (class based) ──────────────────────────── */
+  .cm-task { flex-wrap: wrap; gap: 10px; }
+  .cm-task__body { flex: 1 1 100%; min-width: 0; }
+  .cm-task__actions { width: 100%; display: flex; gap: 8px; }
+  .cm-task__actions > * { flex: 1; min-height: 44px; }
+  .cm-row-between { flex-wrap: wrap; gap: 8px; }
+
+  /* ═══ Console roles (organization / admin / processing centre) ════════ */
+
+  /* Rows that push an action to the right wrap instead of squeezing. */
+  :is(.cm-dash[data-role="organization"], .cm-dash[data-role="admin"], .cm-dash[data-role="processing_center"], .cm-dash[data-role="patient"])
+    :is(.cm-provider-content, .cm-dash__body) {
+    & [style*="justify-content: space-between"] { flex-wrap: wrap; row-gap: 8px; }
+    & [style*="min-width: 180px"] { min-width: 0 !important; flex-basis: min(100%, 180px) !important; }
+    & [style*="min-width: 200px"] { min-width: 0 !important; flex-basis: min(100%, 200px) !important; }
+    & [style*="min-width: 220px"] { min-width: 0 !important; flex-basis: min(100%, 220px) !important; }
+    & [style*="min-width: 240px"] { min-width: 0 !important; flex-basis: min(100%, 240px) !important; }
+    & [style*="min-width: 260px"] { min-width: 0 !important; flex-basis: min(100%, 260px) !important; }
+    & [style*="min-width: 280px"] { min-width: 0 !important; flex-basis: min(100%, 280px) !important; }
+    & [style*="min-width: 300px"] { min-width: 0 !important; flex-basis: min(100%, 300px) !important; }
+
+    /* Fixed multi-column grids collapse; minmax mins that exceed a phone
+       column collapse to a single column. */
+    & [style*="grid-template-columns: 1fr 1fr"],
+    & [style*="grid-template-columns: 2fr 1fr"],
+    & [style*="grid-template-columns: 1.4fr 1fr"],
+    & [style*="grid-template-columns: 1fr 2fr"],
+    & [style*="minmax(340px"],
+    & [style*="minmax(300px"],
+    & [style*="minmax(280px"],
+    & [style*="minmax(260px"],
+    & [style*="minmax(240px"],
+    & [style*="minmax(220px"],
+    & [style*="minmax(460px"] { grid-template-columns: minmax(0, 1fr) !important; }
+    & [style*="grid-template-columns: repeat(4, 1fr)"],
+    & [style*="grid-template-columns: repeat(3, 1fr)"],
+    & [style*="minmax(180px"],
+    & [style*="minmax(140px"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+    /* Big paddings and headline glyphs tighten up. */
+    & [style*="padding: 24px"],
+    & [style*="padding: 28px"],
+    & [style*="padding: 30px"],
+    & [style*="padding: 32px"],
+    & [style*="padding: 20px 24px"] { padding: 16px !important; }
+    & [style*="padding: 40px"] { padding: 24px 16px !important; }
+    & [style*="font-size: 3rem"] { font-size: 2.25rem !important; }
+
+    /* Headings and micro text */
+    & :is(h2, h3):not([style*="font-size"]) { font-size: 1.15rem; line-height: 1.3; }
+    & h4:not([style*="font-size"]) { font-size: 1rem; }
+    & [style*="font-size: 2rem"] { font-size: 1.6rem !important; }
+    & [style*="font-size: 0.68rem"],
+    & [style*="font-size: 0.7rem"],
+    & [style*="font-size: 0.72rem"],
+    & [style*="font-size: 0.74rem"] { font-size: 0.75rem !important; }
+
+    /* Inline label + button forms (insurance ABHA check, etc.) wrap. */
+    & form[style*="display: flex"]:not([style*="flex-direction: column"]) { flex-wrap: wrap; }
+    & form[style*="display: flex"] > input[style*="flex: 1"] { flex: 1 1 100% !important; min-width: 0; }
+    & form[style*="display: flex"] > button[type="submit"] { flex: 1 1 100%; justify-content: center; }
+
+    /* Tap targets */
+    & button,
+    & a[style*="display: inline-flex"],
+    & select {
+      min-height: 44px;
+    }
+    & button[style*="background: none"] { min-width: 44px; }
+    & input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    & select { min-height: 44px; }
+    & input[type="checkbox"],
+    & input[type="radio"] { width: 20px; height: 20px; }
+
+    /* Wide flex forms stack their controls. */
+    & [style*="display: flex"][style*="gap"] > input:not([type="checkbox"]):not([type="radio"])[style*="flex: 1"] { min-width: 0; }
+
+    /* Dense tables scroll inside their own container. */
+    & table[style*="border-collapse"] { min-width: 600px; }
+    & .cm-table-responsive,
+    & div[style*="overflow-x: auto"] { -webkit-overflow-scrolling: touch; max-width: 100%; }
+    & table[style*="border-collapse"] th,
+    & table[style*="border-collapse"] td { white-space: nowrap; }
+    & table[style*="border-collapse"] th[style*="padding: 20px"],
+    & table[style*="border-collapse"] td[style*="padding: 20px"] { padding: 12px 14px !important; }
+
+    /* Inline modal overlays: bottom sheet, internal scroll, notch-safe. */
+    & [style*="position: fixed"][style*="inset: 0"],
+    & [style*="position: fixed"][style*="top: 0"] {
+      display: flex !important;
+      align-items: flex-end !important;
+      justify-content: center;
+      padding: 0 !important;
+    }
+    & [style*="position: fixed"][style*="inset: 0"] > div,
+    & [style*="position: fixed"][style*="top: 0"] > div {
+      width: 100% !important;
+      max-width: none !important;
+      max-height: 92dvh !important;
+      overflow-y: auto !important;
+      overscroll-behavior: contain;
+      border-radius: 20px 20px 0 0 !important;
+      padding: 16px 16px calc(76px + env(safe-area-inset-bottom, 0px)) !important; /* clears the chat FAB */
+      margin: 0 !important;
+    }
+    /* Two-button footers (Cancel + confirm) stack full width, confirm on top. */
+    & [style*="position: fixed"] div[style*="display: flex"]:has(> button:first-child:nth-last-child(2)):has(> button:last-child) {
+      flex-direction: column-reverse;
+      align-items: stretch !important;
+    }
+    & [style*="position: fixed"] div[style*="display: flex"]:has(> button:first-child:nth-last-child(2)):has(> button:last-child) > button {
+      width: 100%;
+      flex: 0 0 auto !important;
+      justify-content: center;
+    }
+  }
+
+  /* Stat tiles: 2-up compact grid (auto-fit 190px would give a single tall column). */
+  :is(.cm-dash[data-role="organization"], .cm-dash[data-role="admin"], .cm-dash[data-role="processing_center"]) .cm-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  :is(.cm-dash[data-role="organization"], .cm-dash[data-role="admin"], .cm-dash[data-role="processing_center"]) .cm-stat {
+    padding: 12px;
+    min-width: 0;
+  }
+  :is(.cm-dash[data-role="organization"], .cm-dash[data-role="admin"], .cm-dash[data-role="processing_center"]) .cm-stat__label { overflow-wrap: anywhere; }
+  :is(.cm-dash[data-role="organization"], .cm-dash[data-role="admin"], .cm-dash[data-role="processing_center"]) .cm-stat__value { font-size: 1.5rem; }
+
+  /* ── Timings (organization) ── */
+  .cm-org-time-row { flex-wrap: wrap; row-gap: 10px; }
+  .cm-org-time-day { width: auto !important; flex: 1 1 100px; }
+  .cm-org-time-range { margin-left: 0 !important; width: 100%; }
+  .cm-org-time-range > input { flex: 1 1 0; min-width: 0; }
+
+  /* ── Processing centre ─────────────────────────────────────────────── */
+  /* Scan / URL entry: the field takes the full row, buttons share the next. */
+  .cm-pc-scan { flex-wrap: wrap; }
+  .cm-pc-scan > .cm-pc-scan__input { flex: 1 1 100% !important; min-width: 0 !important; min-height: 52px; }
+  .cm-pc-scan > button,
+  .cm-pc-scan > .cm-btn { flex: 1 1 0; min-height: 48px; justify-content: center; }
+
+  /* Right-aligned action groups become full-width, primary last-in-thumb-reach. */
+  .cm-pc-actions { flex-direction: column-reverse; align-items: stretch !important; }
+  .cm-pc-actions > button,
+  .cm-pc-actions > .cm-btn,
+  .cm-pc-actions > select { width: 100%; min-height: 48px; justify-content: center; flex: 0 0 auto; }
+  .cm-pc-actions--inline { flex-direction: row; flex-wrap: wrap; align-items: center !important; }
+  .cm-pc-actions--inline > button,
+  .cm-pc-actions--inline > .cm-btn { width: auto; flex: 1 1 auto; }
+  .cm-pc-actions > div[style*="text-align: right"] { text-align: left !important; }
+
+  /* Specimen row: identity first, status + action below. */
+  .cm-pc-row { flex-wrap: wrap; align-items: flex-start !important; row-gap: 8px; }
+  .cm-pc-row > div:not(.cm-pc-row__side) { flex: 1 1 200px !important; min-width: 0; }
+  .cm-pc-row > button { flex: 1 1 100%; min-height: 44px; justify-content: center; }
+  .cm-pc-row__side { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+  .cm-pc-row__side .cm-btn,
+  .cm-pc-row__side a { min-height: 44px; }
+  .cm-pc-check { padding: 12px !important; }
+  .cm-pc-check input[type="checkbox"] { width: 24px !important; height: 24px !important; flex-shrink: 0; }
+  .cm-pc-batchhead > button,
+  .cm-pc-batchhead > .cm-btn { width: 100%; justify-content: center; }
+  .cm-pc-verdict { width: 100%; }
+  .cm-pc-verdict > button { flex: 1; min-height: 48px; }
+  .cm-pc-reject-grid > button { min-height: 48px; }
+  .cm-pc-datepick { width: 100%; }
+  .cm-pc-datepick > input { flex: 1; min-width: 0; min-height: 48px; }
+
+  /* Segmented switchers and filter pills */
+  .cm-pc-seg { width: 100%; }
+  .cm-pc-seg > button { flex: 1 1 0; justify-content: center; min-height: 44px; }
+  .cm-pc-pills,
+  .cm-pc-filter-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 4px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cm-pc-pills > button { flex: 0 0 auto; min-height: 44px; scroll-snap-align: start; }
+  .cm-pc-filter { min-height: 44px; }
+  .cm-pc-search { flex: 1 1 100% !important; width: 100%; min-width: 0 !important; }
+  .cm-pc-search > svg { top: 50% !important; transform: translateY(-50%); }
+  .cm-pc-search > input { min-height: 44px; padding-left: 34px !important; }
+
+  /* Tables → stacked cards (rows carry data-label on their cells). */
+  .cm-stack-table { min-width: 0 !important; }
+  .cm-stack-table,
+  .cm-stack-table tbody,
+  .cm-stack-table tr,
+  .cm-stack-table td { display: block; width: 100%; }
+  .cm-stack-table thead { display: none; }
+  .cm-stack-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--cm-line);
+  }
+  .cm-stack-table td {
+    padding: 4px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    border: 0;
+    min-width: 0;
+  }
+  .cm-stack-table td:first-child,
+  .cm-stack-table td[data-label="Contact"],
+  .cm-stack-table td[data-label="Patient"],
+  .cm-stack-table td[data-label="Signals"],
+  .cm-stack-table td[data-label="Trust score"],
+  .cm-stack-table td[data-label="Standing"],
+  .cm-stack-table td[data-label="Actions"] { grid-column: 1 / -1; }
+  .cm-stack-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cm-ink-3);
+  }
+  .cm-stack-table td:empty { display: none; }
+  .cm-stack-table td[data-label="Actions"]::before { display: none; }
+  .cm-stack-table td[data-label="Actions"] { padding-top: 8px !important; }
+  .cm-stack-table td .cm-pc-row__side,
+  .cm-stack-table td > button,
+  .cm-stack-table td > div[style*="inline-flex"] { flex-wrap: wrap; }
+  .cm-stack-table td > button { width: 100%; justify-content: center; min-height: 44px; }
+  .cm-stack-table td [style*="inline-flex"] > button,
+  .cm-stack-table td [style*="inline-flex"] > a { min-height: 44px; }
+}
+
+/* ═══ ≤380: narrow phones ═══════════════════════════════════════════════ */
+@media (max-width: 380px) {
+  .cm-patient-layout .cm-psec,
+  .cm-patient-layout .cm-family-panel-glass { padding: 14px !important; }
+  .cm-twin-viewport { height: 280px; }
+  .cm-pc-reject-grid { grid-template-columns: 1fr !important; }
+  .cm-bio-points { grid-template-columns: 1fr !important; }
+}

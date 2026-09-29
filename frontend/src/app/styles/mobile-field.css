@@ -1,0 +1,300 @@
+/* Session 06 — mobile app-grade layer (field). Loaded after globals.css.
+   Every rule here sits inside a max-width media query so desktop (>960px) is untouched
+   (the one min-width rule only hides the phone-only Scan FAB on desktop).
+   Field workers (phlebotomist, nurse) work outdoors on a phone: primary actions >= 52px,
+   secondary >= 44px, no gradients, red only for urgency. */
+
+@media (min-width: 961px) {
+  .cm-scan-fab { display: none; }
+}
+
+/* ── ≤960: tablet + phone ─────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  /* Scan-anywhere floating action button (phlebotomist page). Bottom-left; the chat bubble is bottom-right. */
+  .cm-scan-fab {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 950;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: var(--cm-radius-pill);
+    background: var(--cm-navy);
+    color: #fff;
+    font-family: var(--cm-font-ui);
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: var(--cm-shadow-3);
+    cursor: pointer;
+  }
+  .cm-scan-fab:active { background: var(--cm-navy-deep); }
+  .cm-scan-fab:focus-visible { outline: 3px solid var(--cm-active-line); outline-offset: 2px; }
+
+  /* Tables and wide blocks never push the page sideways. */
+  .cm-fld-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+
+  /* Card padding: inline `padding: 22` on field cards is too generous on a phone. */
+  .cm-fld-card { padding: 16px !important; border-radius: var(--cm-radius-lg) !important; }
+  /* Inputs inside field cards: big enough to hit with a thumb. */
+  .cm-fld-card input:not([type="checkbox"]):not([type="radio"]),
+  .cm-fld-card select { min-height: 48px; }
+  .cm-fld-card select { max-width: 100%; }
+  .cm-vacutainer-pill { min-height: 44px; padding: 0 16px; scroll-snap-align: start; }
+  .cm-vacutainer-presets { -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+
+  /* Action rows: buttons go full width, thumb-sized. */
+  .cm-fld-actions { flex-direction: column; align-items: stretch !important; }
+  .cm-fld-actions > button,
+  .cm-fld-actions > .cm-btn,
+  .cm-fld-actions > select { width: 100%; min-height: 52px; flex: 0 0 auto; justify-content: center; }
+
+  /* 3D hub: touch users must still be able to scroll the page over the canvas. */
+  .cm-3d-viewport canvas { touch-action: pan-y; }
+}
+
+/* ── ≤640: phone ──────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* A. Live Dispatch order: duty + active task first, advance roster next, 3D hub last. */
+  .cm-fld-dispatch { display: flex; flex-direction: column; }
+  .cm-fld-dispatch__work { order: 1; }
+  .cm-fld-dispatch__advance { order: 2; }
+  .cm-fld-dispatch__hub { order: 3; }
+
+  /* Shorter 3D hub: it is a glance, not the job. */
+  .cm-3d-hub__body { min-height: 0; }
+  .cm-3d-viewport { min-height: 260px; height: 260px; }
+  .cm-3d-hub__header { padding: 12px 14px; gap: 8px; }
+  .cm-3d-hub__title > div:last-child > div:last-child { display: none; } /* long subtitle */
+  .cm-3d-sidebar { padding: 12px; gap: 8px; }
+  .cm-3d-modality-card { padding: 10px 12px; min-height: 52px; }
+  .cm-3d-modality-card:hover,
+  .cm-3d-modality-card--active { transform: none; }
+  .cm-3d-control-btn { min-height: 44px; padding: 0 12px; }
+  .cm-3d-hud-controls { bottom: 8px; left: 8px; }
+  .cm-3d-hud-overlay { top: 8px; left: 8px; }
+
+  /* B. Duty bar: one message, one big button, three compact stats. */
+  .cm-offduty { display: none; } /* duty bar already says "Off Duty" and owns the Go On Duty button */
+  .cm-duty__head { padding: var(--cm-3); gap: var(--cm-3); }
+  .cm-duty__text { flex: 1 1 0; min-width: 0; }
+  .cm-duty__head > .cm-btn { flex: 1 1 100%; width: 100%; min-height: 56px; font-size: 1.0625rem; }
+  .cm-duty .cm-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 0; }
+  .cm-duty .cm-stat { padding: 10px; border-left-width: 3px; min-height: 64px; }
+  .cm-duty .cm-stat__label { font-size: 0.75rem; gap: 4px; letter-spacing: 0; }
+  .cm-duty .cm-stat__label svg { display: none; }
+  .cm-duty .cm-stat__value { font-size: 1.25rem; overflow-wrap: anywhere; }
+  .cm-duty .cm-stat__meta { display: none; }
+
+  /* Task cards: big Accept / Reject. */
+  .cm-task__actions .cm-btn { min-height: 52px; }
+
+  /* Active task: full-width primary steps, sticky above the Scan FAB. */
+  .cm-active__nav .cm-btn,
+  .cm-active__task-actions .cm-btn { min-height: 52px; }
+  .cm-active__advance,
+  .cm-active__verify {
+    position: sticky;
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+    min-height: 56px;
+    font-size: 1.0625rem;
+    box-shadow: var(--cm-shadow-3);
+  }
+  .cm-active__otp .cm-input { min-height: 56px; font-size: 1.5rem; letter-spacing: 0.3em; text-align: center; }
+  .cm-alltasks__map { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* E. Collection tab. */
+  .cm-phlebo-console-header { padding: 16px; }
+  .cm-phlebo-search-box { flex-wrap: wrap; padding: 10px; gap: 8px; }
+  .cm-phlebo-search-input { flex: 1 1 calc(100% - 40px); min-width: 0; min-height: 48px; font-size: 1rem; }
+  .cm-phlebo-scan-btn { flex: 1 1 35%; justify-content: center; min-height: 48px; order: 2; }
+  .cm-phlebo-scan-btn:last-child {
+    order: 1;
+    flex: 2 1 60%;
+    min-height: 52px;
+    background: var(--cm-navy);
+    border-color: var(--cm-navy);
+    color: #fff;
+    font-size: 1rem;
+  }
+  .cm-phlebo-run-grid { grid-template-columns: minmax(0, 1fr); }
+  .cm-phlebo-run-card { padding: 14px; min-height: 52px; }
+  .cm-phlebo-run-card__pill { min-height: 32px; }
+  .cm-phlebo-idle-card { padding: 20px 16px; }
+  .cm-phlebo-idle-actions { flex-direction: column; align-items: stretch; width: 100%; }
+  .cm-phlebo-idle-actions .cm-btn { width: 100%; min-height: 52px; justify-content: center; }
+  .cm-phlebo-protocol-steps { grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 16px; padding-top: 12px; }
+  .cm-phlebo-step__text { font-size: 0.8125rem; }
+
+  /* D. Barcode scanner: full-screen camera. */
+  .cm-overlay:has(.cm-scan-modal) { align-items: stretch; background: #000; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal {
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    padding-bottom: 0;
+    background: #000;
+    color: #fff;
+  }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal__head {
+    padding: calc(8px + env(safe-area-inset-top, 0px)) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px));
+    border-bottom: 0;
+  }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal__title { color: #fff; }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal__x { width: 48px; height: 48px; min-height: 48px; color: #fff; }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal__body { flex: 1 1 auto; min-height: 0; padding: 0; display: flex; flex-direction: column; }
+  .cm-scan-modal { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 0 12px; }
+  .cm-scan__cam {
+    flex: 1 1 auto;
+    aspect-ratio: auto !important;
+    max-height: none !important;
+    min-height: 240px;
+    border-radius: var(--cm-radius-lg) !important;
+  }
+  .cm-scan__cam video { height: 100% !important; }
+  .cm-scan__hint { color: #fff !important; font-size: 1rem !important; padding: 8px 0; }
+  .cm-scan-modal label { color: #fff; }
+  .cm-scan-modal input { min-height: 52px; }
+  .cm-overlay:has(.cm-scan-modal) .cm-modal__foot {
+    border-top: 0;
+    padding: 8px calc(12px + env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
+  }
+  .cm-scan__foot { display: flex; gap: 8px; width: 100%; }
+  .cm-scan__foot > * { flex: 1 1 0; min-height: 52px; justify-content: center; }
+}
+
+@media (max-width: 380px) {
+  .cm-scan-fab { padding: 0 18px; }
+  .cm-duty .cm-stat__value { font-size: 1.125rem; }
+  .cm-3d-viewport { min-height: 220px; height: 220px; }
+}
+
+/* Scanner footer buttons on wider screens (phone layout is above). */
+@media (min-width: 641px) {
+  .cm-scan__foot { display: flex; gap: 8px; justify-content: flex-end; width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .cm-task__body { flex: 1 1 100%; min-width: 0; }
+  .cm-task__name { align-items: flex-start; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 640px) {
+  /* Going off duty is a deliberate act, not the screen's headline: outlined, not a slab of red. */
+  .cm-duty--on .cm-duty__head > .cm-btn {
+    min-height: 48px;
+    background: var(--cm-surface);
+    color: var(--cm-urgent);
+    border: 1.5px solid var(--cm-urgent-line);
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Nothing floats over the full-screen camera. */
+  body:has(.cm-scan-modal) .chat-widget { display: none; }
+}
+
+@media (max-width: 640px) {
+  /* Per-tube verify row: input on its own line, then Camera + Verify as big buttons. */
+  .cm-fld-scanrow > input { flex: 1 1 100% !important; min-height: 52px; font-size: 1rem !important; }
+  .cm-fld-scanrow > button,
+  .cm-fld-scanrow > .cm-btn { flex: 1 1 40%; min-height: 52px; justify-content: center; }
+  .cm-fld-scanrow > .cm-btn { flex: 2 1 55%; }
+  /* Modal footers holding two actions: stack, full width. */
+  .cm-fld-foot { flex-direction: column-reverse; align-items: stretch !important; width: 100%; }
+  .cm-fld-foot > .cm-btn { width: 100%; min-height: 52px; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  /* Schedule: three sparse full-width KPI cards become one compact row; 14 days in 4 columns. */
+  .cm-fld-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .cm-fld-kpis > div { padding: 10px !important; gap: 6px !important; flex-direction: column; align-items: flex-start !important; min-width: 0; }
+  .cm-fld-kpis > div > div:first-child { display: none; }
+  .cm-fld-kpis > div > div > div:last-child:not(:first-child) { display: none; }
+  .cm-fld-days { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .cm-fld-x { width: 44px !important; height: 44px !important; }
+}
+
+@media (max-width: 640px) {
+  /* Kit & Stock: thumb-sized steppers, restock as a full-width action. */
+  .cm-fld-statrow { flex-wrap: wrap; width: 100%; gap: 12px !important; }
+  .cm-fld-statrow > div { text-align: left !important; }
+  .cm-fld-restock { width: 100%; min-height: 48px; justify-content: center; }
+  .cm-fld-step { width: 44px !important; height: 44px !important; }
+  .cm-fld-stepinput { width: 56px !important; height: 44px !important; font-size: 1rem !important; }
+  .cm-fld-stepsave { height: 44px !important; padding: 0 16px !important; font-size: 0.9375rem !important; }
+}
+
+@media (max-width: 640px) {
+  .cm-wallet .cm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 0; }
+  .cm-wallet .cm-stat { padding: 12px; }
+  .cm-wallet .cm-stat__value { font-size: 1.25rem; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 960px) {
+  /* Availability strip: seven columns cannot fit a phone. */
+  .perf__av-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .perf__av-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .perf__av-day { min-height: 76px; }
+  .perf__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cm-profile-studio { padding: 16px; }
+  .cm-profile-studio__actions { flex-direction: column; align-items: stretch; }
+  .cm-profile-studio__actions > button { width: 100%; min-height: 48px; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  /* Advance roster: thumb-sized filters and a full-width Start action. */
+  .cm-fld-tabs > button { min-height: 44px; }
+  .cm-fld-tabs > button:last-child { width: 44px !important; height: 44px !important; }
+  .cm-fld-cta-wrap { width: 100%; }
+  .cm-fld-cta { width: 100%; min-height: 52px; justify-content: center; font-size: 1rem !important; background: var(--cm-navy) !important; box-shadow: none !important; }
+}
+
+@media (max-width: 640px) {
+  /* Nurse: the marketing header and KPI strip sit above the work on every tab. The shell already
+     titles the page, the tab strip navigates, and the tracker owns the real duty control. */
+  .cm-fld-nurse-chrome { display: none; }
+}
+
+/* ── Nurse dashboard (phone) ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cm-nurse-schedule-bar { padding: 10px; }
+  .cm-nurse-timeframe-tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .cm-nurse-timeframe-tab { flex: 1 0 auto; justify-content: center; min-height: 44px; white-space: nowrap; }
+  .cm-nurse-proc-search-wrap { min-width: 0; flex: 1 1 100%; }
+  .cm-nurse-procedure-card { padding: 14px; }
+  .cm-nurse-procedure-info,
+  .cm-nurse-slot-info,
+  .cm-nurse-patient-input { min-width: 0; flex: 1 1 100%; }
+  .cm-nurse-procedure-right { width: 100%; }
+  .cm-nurse-btn-toggle { min-width: 0; width: 100%; min-height: 48px; justify-content: center; }
+  .cm-nurse-slot-card { padding: 14px; }
+  .cm-nurse-slot-actions { width: 100%; }
+  .cm-nurse-slot-actions > * { flex: 1 1 40%; min-height: 44px; justify-content: center; }
+  .cm-nurse-btn-action-start { flex: 1 1 100%; min-height: 52px; font-size: 1rem; }
+  .cm-nurse-vitals-matrix { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cm-nurse-vital-card { padding: 12px; min-width: 0; }
+  .cm-nurse-vital-input,
+  .cm-nurse-bp-input { min-height: 48px; }
+  .cm-nurse-bp-input { width: 100%; min-width: 0; }
+  .cm-nurse-submit-btn { width: 100%; min-height: 56px; justify-content: center; }
+  .cm-nurse-tools-btn { min-height: 44px; }
+}
+
+@media (max-width: 640px) {
+  .cm-nurse-vitals-form { padding: 16px; }
+  .cm-nsvc__launcher { background-image: none; min-height: 64px; }
+}
+
+@media (max-width: 640px) {
+  .cm-fld-link { min-height: 44px; padding-top: 0 !important; padding-bottom: 0 !important; display: inline-flex !important; align-items: center; }
+}

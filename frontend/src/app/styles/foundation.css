@@ -7661,7 +7661,11 @@ input[type="radio"] {
   .navbar__nav--unified { display: none; }
   .navbar__hamburger { display: flex; align-items: center; justify-content: center; }
   .navbar__wide-container { padding: 0 16px; }
-  .utility-bar__wide-container { padding: 0 16px; }
+  .utility-bar__wide-container { padding: 0 16px; overflow: hidden; }
+}
+
+@media (max-width: 640px) {
+  .navbar__actions { display: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════

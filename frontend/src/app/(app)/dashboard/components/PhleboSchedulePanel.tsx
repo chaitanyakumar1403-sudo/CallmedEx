@@ -231,7 +231,7 @@ export default function PhleboSchedulePanel() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* ─── Summary Metric KPI Strip ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+      <div className="cm-fld-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
         {/* Available / Full Duty */}
         <div style={{
           padding: "18px 20px", borderRadius: 14, background: "#ffffff",
@@ -406,7 +406,7 @@ export default function PhleboSchedulePanel() {
       )}
 
       {/* ─── 14 Days Interactive Calendar Grid ─── */}
-      <div style={{
+      <div className="cm-fld-card" style={{
         background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14,
         padding: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
       }}>
@@ -425,7 +425,7 @@ export default function PhleboSchedulePanel() {
         </div>
 
         {/* 7-Column Modern Calendar Grid */}
-        <div style={{
+        <div className="cm-fld-days" style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))",
           gap: 10
@@ -512,7 +512,7 @@ export default function PhleboSchedulePanel() {
 
       {/* ─── Interactive Shift Setting Drawer ─── */}
       {selectedDate && (
-        <div style={{
+        <div className="cm-fld-card" style={{
           background: "#ffffff", border: "2px solid #0284c7", borderRadius: 14,
           padding: 24, boxShadow: "0 10px 25px -5px rgba(2, 132, 199, 0.15)",
           animation: "fadeIn 0.2s ease-out"
@@ -534,6 +534,7 @@ export default function PhleboSchedulePanel() {
 
             <button
               type="button"
+              className="cm-fld-x"
               onClick={() => setSelectedDate(null)}
               style={{
                 background: "#f1f5f9", border: "none", borderRadius: 8,

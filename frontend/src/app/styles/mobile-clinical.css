@@ -1,0 +1,133 @@
+/* Session 06 — mobile app-grade layer (clinical). Loaded after globals.css.
+   Every rule here must sit inside a max-width media query so desktop (>960px) is untouched. */
+
+/* ── Tablet + phone (≤960): telemedicine cockpit stacks, video on top ── */
+@media (max-width: 960px) {
+  .cm-mc-split { grid-template-columns: minmax(0, 1fr) !important; height: auto !important; min-height: 0 !important; gap: 12px !important; }
+  .cm-mc-video { height: clamp(260px, 46dvh, 560px); min-height: 0; }
+  .cm-mc-deck { min-height: 72dvh; }
+  .cm-mc-stage { grid-template-columns: minmax(0, 1fr) !important; gap: 16px !important; }
+  .cm-mc-cmain { padding-left: 16px !important; padding-right: 16px !important; }
+  .cm-mc-chead { padding: 10px 16px !important; }
+  .cm-3d-hub__body { min-height: 0; }
+}
+
+/* ── Phone (≤640) ── */
+@media (max-width: 640px) {
+  /* Collapse fixed multi-column inline grids to one column */
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(260px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(280px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(320px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(340px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(360px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(auto-fit, minmax(460px"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1.5fr 1fr 1fr"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1.8fr 1.2fr"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 2fr 1fr 1fr"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1fr 1.5fr auto"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1.5fr 1fr;"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 2fr 1fr;"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1fr 1fr 1fr"] { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* Paddings that eat a 360px screen */
+  :is(.cm-dash, .cm-mc-cmain) [style*="padding: 28px 32px"], :is(.cm-dash, .cm-mc-cmain) [style*="padding: 16px 32px"], :is(.cm-dash, .cm-mc-cmain) [style*="padding: 32px"] { padding: 16px !important; }
+
+  /* Every control at least 44px */
+  :is(.cm-dash, .cm-mc-cmain) :is(button, select, [role="button"], input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"])),
+  .cm-btn--sm, .cm-sched-chip, .cm-sched-icon-btn, .cm-seg__btn, .cm-sched-day-toggle, .cm-sched-link, .cm-pharm-filter__btn {
+    min-height: 44px;
+  }
+  :is(.cm-dash, .cm-mc-cmain) :is(a.cm-btn, a.cm-pharm-link) { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* Doctor appointments: queue first, analytics hub last */
+  .cm-mc-q { display: flex; flex-direction: column; }
+  .cm-mc-q > .cm-3d-hub { order: 5; margin-top: 16px; }
+  .cm-mc-q > .cm-3d-hub .cm-3d-viewport { min-height: 260px; height: 260px; }
+  .cm-3d-hub__header { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+  .cm-3d-sidebar { padding: 12px; }
+  .cm-mc-appt { flex-direction: column !important; align-items: stretch !important; padding: 14px !important; }
+  .cm-mc-actions { flex-direction: column; width: 100%; }
+  .cm-mc-actions > .cm-btn { width: 100%; justify-content: center; min-height: 48px; }
+  .cm-mc-chips { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; }
+  .cm-mc-chips::-webkit-scrollbar { display: none; }
+  .cm-mc-chips > button { flex: 0 0 auto; white-space: nowrap; }
+
+  /* Stack rows of controls, full-width buttons */
+  .cm-mc-stack { flex-direction: column !important; align-items: stretch !important; }
+  .cm-mc-stack > * { min-width: 0 !important; width: 100%; }
+  .cm-mc-stack .cm-btn { justify-content: center; min-height: 48px; }
+
+  /* Telemedicine cockpit header + bottom action bar */
+  .cm-mc-chead { flex-wrap: wrap; gap: 8px; backdrop-filter: none !important; background: var(--cm-surface) !important; }
+  .cm-mc-cleft { gap: 10px !important; min-width: 0; flex: 1 1 100%; flex-wrap: wrap; }
+  .cm-mc-cleft > div { min-width: 0; }
+  .cm-mc-cleft > div > div:first-child { flex-wrap: wrap; gap: 6px !important; }
+  .cm-mc-cleft > div > div:first-child > span { display: none; }
+  .cm-mc-cleft > div > div:nth-child(2) { flex-wrap: wrap; }
+  .cm-mc-ctitle { font-size: 1rem !important; flex-wrap: wrap; }
+  .cm-mc-cactions {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; width: 100%;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--cm-surface); border-top: 1px solid var(--cm-line);
+  }
+  .cm-mc-cactions:empty { display: none; }
+  /* The chat bubble would sit on top of the consult action bar. */
+  body:has(.cm-mc-cactions:not(:empty)) .chat-widget { display: none; }
+  .cm-mc-cactions > button { flex: 1; justify-content: center; min-height: 48px; }
+  .cm-mc-cmain { padding-top: 12px !important; padding-bottom: calc(88px + env(safe-area-inset-bottom)) !important; }
+  .cm-mc-video { height: clamp(240px, 42dvh, 460px); border-radius: var(--cm-radius) !important; }
+  .cm-mc-deck { min-height: 78dvh; border-radius: var(--cm-radius) !important; }
+
+  /* Dentist: data-dense tariff table and odontogram scroll inside their card */
+  .cm-mc-scroll { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .cm-mc-scroll > div { min-width: 820px; }
+  .cm-mc-teeth { grid-template-columns: repeat(16, 44px) !important; overflow-x: auto; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+
+  /* Inline-styled modal cards (physio custom procedure etc.) */
+  :is(.cm-dash, .cm-mc-cmain) [style*="max-width: 460px"][style*="border-radius: 16px"] { max-height: 92dvh; overflow-y: auto; }
+
+  /* Pharmacy */
+  .cm-pharm { gap: 16px; }
+  .cm-pharm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cm-pharm-kpi { padding: 12px; }
+  .cm-pharm-kpi__value { font-size: var(--cm-text-xl); }
+  .cm-pharm-kpi__icon { width: 32px; height: 32px; }
+  .cm-pharm-toolbar { align-items: stretch; }
+  .cm-pharm-filter { overflow-x: auto; flex-wrap: nowrap; width: 100%; scrollbar-width: none; }
+  .cm-pharm-filter__btn { flex: 0 0 auto; }
+  .cm-pharm-search { flex: 1 1 100%; }
+  .cm-pharm-list__row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .cm-pharm-actions { width: 100%; }
+  .cm-pharm-actions > * { flex: 1 1 auto; justify-content: center; }
+  .cm-pharm-import .cm-pharm-file, .cm-pharm-import .cm-btn { width: 100%; justify-content: center; }
+  .cm-pharm-preview { max-width: 100%; }
+
+  /* Pharmacy order table becomes stacked cards */
+  .cm-pharm-table--cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cm-pharm-table--cards, .cm-pharm-table--cards tbody { display: block; }
+  .cm-pharm-table--cards tr { display: block; padding: 12px 14px; border-bottom: 8px solid var(--cm-surface-3); }
+  .cm-pharm-table--cards tbody tr:last-child { border-bottom: 0; }
+  .cm-pharm-table--cards td { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 8px 0 !important; border-bottom: 1px solid var(--cm-line) !important; }
+  .cm-pharm-table--cards td:last-child { border-bottom: 0 !important; display: block; }
+  .cm-pharm-table--cards td::before { flex: 0 0 84px; font-size: var(--cm-text-2xs); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cm-ink-3); }
+  .cm-pharm-table--cards td:nth-child(1)::before { content: "Order"; }
+  .cm-pharm-table--cards td:nth-child(2)::before { content: "Patient"; }
+  .cm-pharm-table--cards td:nth-child(3)::before { content: "Medicines"; }
+  .cm-pharm-table--cards td:nth-child(4)::before { content: "Rx"; }
+  .cm-pharm-table--cards td:nth-child(5)::before { content: "Status"; }
+  .cm-pharm-table--cards td:last-child::before { content: none; }
+  .cm-pharm-table--cards td > * { min-width: 0; text-align: right; }
+  .cm-pharm-table--cards td:nth-child(2) > div, .cm-pharm-table--cards td:nth-child(3) > ul { text-align: left; }
+  .cm-pharm-table--cards td:last-child .cm-pharm-actions > * { flex: 1 1 100%; min-height: 48px; }
+  .cm-pharm-table--cards tbody tr:hover td { background: transparent; }
+}
+
+@media (max-width: 480px) {
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: 1fr 1fr;"],
+  :is(.cm-dash, .cm-mc-cmain) [style*="grid-template-columns: repeat(2, 1fr)"] { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+@media (max-width: 380px) {
+  .cm-pharm-kpi__icon { display: none; }
+  .cm-mc-ctitle { font-size: 0.95rem !important; }
+}

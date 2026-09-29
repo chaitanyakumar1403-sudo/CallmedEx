@@ -726,7 +726,11 @@ export default function ProviderDispatchTracker({ title, providerType, embedded 
 
         {locationError && <Banner tone="urgent">{locationError}</Banner>}
 
-        {!onDuty && <OffDutyPanel onGoOnDuty={onToggleClick} />}
+        {!onDuty && (
+          <div className="cm-offduty">
+            <OffDutyPanel onGoOnDuty={onToggleClick} />
+          </div>
+        )}
 
         {/* ─── ACTIVE TASK TRACKER ─── */}
         {onDuty && activeTask && (

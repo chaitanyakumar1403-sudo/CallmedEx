@@ -64,7 +64,7 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
           </p>
         </div>
       ) : viewMode === 'compass' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--cm-5)', alignItems: 'start' }}>
+        <div className="cm-bio-compass" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--cm-5)', alignItems: 'start' }}>
           <div className="cm-stat cm-stat--done" style={{ alignItems: 'center', textAlign: 'center' }}>
             <span className="cm-stat__label">{t.readingsOnFile}</span>
             <span className="cm-stat__value">{riskScore.totalReadings}</span>
@@ -99,7 +99,7 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--cm-4)' }}>
-          <div style={{ display: 'flex', gap: 'var(--cm-2)', overflowX: 'auto', paddingBottom: 4 }}>
+          <div className="cm-bio-codes" style={{ display: 'flex', gap: 'var(--cm-2)', overflowX: 'auto', paddingBottom: 4 }}>
             {availableCodes.map((code) => {
               const isSelected = selectedCode === code;
               return (
@@ -132,7 +132,7 @@ export const BiomarkerMatrix: React.FC<BiomarkerMatrixProps> = ({ lang = 'en' })
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--cm-3)' }}>
+            <div className="cm-bio-points" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--cm-3)' }}>
               {filteredData.map((item, idx) => (
                 <div key={idx} style={{ background: 'var(--cm-surface-2)', padding: 'var(--cm-3)', borderRadius: 'var(--cm-radius)', border: '1px solid var(--cm-line)', textAlign: 'center' }}>
                   <div style={{ fontSize: 'var(--cm-text-xs)', color: 'var(--cm-ink-3)', fontWeight: 600 }}>{item.recordedAt}</div>

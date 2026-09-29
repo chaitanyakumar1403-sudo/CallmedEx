@@ -423,8 +423,8 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
 
                 {/* Scan input */}
                 {!scanned && !isCollected && (
-                  <div style={{
-                    display: "flex", gap: 10, marginTop: 14, alignItems: "center",
+                  <div className="cm-fld-scanrow" style={{
+                    display: "flex", gap: 10, marginTop: 14, alignItems: "center", flexWrap: "wrap",
                   }}>
                     <input
                       value={scanInputs[s.id] || ""}
@@ -482,7 +482,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
                 
                 {/* Confirm Collection Button */}
                 {scanned && !isCollected && (
-                  <div style={{ marginTop: 14 }}>
+                  <div className="cm-fld-actions" style={{ marginTop: 14 }}>
                     <Button
                       variant="primary"
                       onClick={() => confirmCollection(s)}
@@ -506,7 +506,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
         onClose={() => { setMismatchSample(null); setMismatchResult(null); }}
         title="Tube Cap Color Mismatch"
         footer={
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <div className="cm-fld-foot" style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <Button
               variant="secondary"
               onClick={() => { setMismatchSample(null); setMismatchResult(null); }}
@@ -536,7 +536,7 @@ export default function DoorstepScanPanel({ bookingId }: { bookingId: string }) 
             </div>
 
             <div style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+              display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 12,
             }}>
               <div style={{
                 padding: 16, borderRadius: 12,

@@ -200,7 +200,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div className="cm-pc-actions cm-pc-actions--inline" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
           <button
             type="button"
             onClick={fetchStaff}
@@ -317,7 +317,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
       </div>
 
       {/* Segmented View Switcher */}
-      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
+      <div className="cm-pc-seg" style={{ display: "flex", gap: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
         <button
           type="button"
           onClick={() => setActiveTab("staff")}
@@ -407,7 +407,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+              <table className="cm-stack-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
                     <th style={{ padding: "12px 18px", fontWeight: 700 }}>Team Member</th>
@@ -482,7 +482,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           </div>
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Contact" style={{ padding: "14px 18px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
                             <Mail size={13} color="#94a3b8" />
                             <span>{s.email}</span>
@@ -495,7 +495,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           )}
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Role" style={{ padding: "14px 18px" }}>
                           <span
                             style={{
                               padding: "3px 10px",
@@ -524,7 +524,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           </span>
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Status" style={{ padding: "14px 18px" }}>
                           {s.is_active ? (
                             <span
                               style={{
@@ -555,7 +555,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                         </td>
 
                         {isAdmin && (
-                          <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                          <td data-label="Actions" style={{ padding: "14px 18px", textAlign: "right" }}>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                               {!isPhlebo && (
                                 <button
@@ -692,7 +692,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
+              <table className="cm-stack-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc", color: "#475569", borderBottom: "1px solid #e2e8f0" }}>
                     <th style={{ padding: "12px 18px", fontWeight: 700 }}>Collector Name</th>
@@ -734,7 +734,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                         </div>
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Contact" style={{ padding: "14px 18px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
                           <Mail size={13} color="#94a3b8" />
                           <span>{p.email}</span>
@@ -747,7 +747,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                         )}
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Role" style={{ padding: "14px 18px" }}>
                         <span
                           style={{
                             padding: "3px 10px",
@@ -765,7 +765,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Field duty" style={{ padding: "14px 18px" }}>
                         {p.on_duty ? (
                           <span
                             style={{
@@ -795,7 +795,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                         )}
                       </td>
 
-                      <td style={{ padding: "14px 18px" }}>
+                      <td data-label="Verification" style={{ padding: "14px 18px" }}>
                         <span
                           style={{
                             padding: "2px 8px",
@@ -846,7 +846,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           </div>
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Contact" style={{ padding: "14px 18px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#334155" }}>
                             <Mail size={13} color="#94a3b8" />
                             <span>{s.email}</span>
@@ -859,7 +859,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           )}
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Role" style={{ padding: "14px 18px" }}>
                           <span
                             style={{
                               padding: "3px 10px",
@@ -877,7 +877,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           </span>
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Field duty" style={{ padding: "14px 18px" }}>
                           <span
                             style={{
                               color: "#16a34a",
@@ -892,7 +892,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                           </span>
                         </td>
 
-                        <td style={{ padding: "14px 18px" }}>
+                        <td data-label="Verification" style={{ padding: "14px 18px" }}>
                           <span
                             style={{
                               padding: "2px 8px",
@@ -1100,7 +1100,7 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                 </span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
+              <div className="cm-pc-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}

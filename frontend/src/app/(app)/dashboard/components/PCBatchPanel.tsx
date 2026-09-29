@@ -198,6 +198,7 @@ export default function PCBatchPanel() {
               {unbatched.map((s) => (
                 <div
                   key={s.id}
+                  className="cm-pc-row"
                   style={{
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "10px 14px", borderRadius: 8,
@@ -247,7 +248,7 @@ export default function PCBatchPanel() {
             </div>
 
             {selectedIds.length > 0 && openBatches.length > 0 && (
-              <div style={{
+              <div className="cm-pc-actions" style={{
                 display: "flex", gap: 10, marginTop: 14,
                 alignItems: "center", flexWrap: "wrap",
               }}>
@@ -305,7 +306,7 @@ export default function PCBatchPanel() {
                   border: "1px solid #e2e8f0", background: "#fff",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div className="cm-pc-batchhead" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div>
                     <div style={{ fontWeight: 800, fontFamily: "monospace", color: "#0f172a" }}>
                       {b.batch_code}
@@ -360,7 +361,7 @@ export default function PCBatchPanel() {
                   border: "1px solid #86efac", background: "#f0fdf4",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div className="cm-pc-batchhead" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div>
                     <div style={{ fontWeight: 800, fontFamily: "monospace", color: "#166534" }}>
                       {b.batch_code}
@@ -394,6 +395,7 @@ export default function PCBatchPanel() {
             {sentBatches.slice(0, 10).map(b => (
               <div
                 key={b.id}
+                className="cm-pc-row"
                 style={{
                   display: "flex", justifyContent: "space-between",
                   alignItems: "center", padding: "10px 14px",
@@ -484,8 +486,9 @@ export default function PCBatchPanel() {
           <p style={{ margin: "0 0 12px 0", fontSize: "0.82rem", color: "#475569" }}>
             Paste the report URL for this sample. The patient will be notified.
           </p>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div className="cm-pc-scan" style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <input
+              className="cm-pc-scan__input"
               value={uploadUrl}
               onChange={(e) => setUploadUrl(e.target.value)}
               placeholder="https://reports.example.com/CMX-…"

@@ -181,7 +181,10 @@ export function BarcodeScannerModal({
         { facingMode: "environment" },
         {
           fps: 10,
-          qrbox: { width: 250, height: 150 },
+          qrbox: (vw: number, vh: number) => ({
+            width: Math.max(120, Math.min(vw - 32, 340)),
+            height: Math.max(100, Math.min(Math.round(vh * 0.5), 180)),
+          }),
         },
         (decodedText: string) => {
           // On each successful decode
@@ -196,7 +199,12 @@ export function BarcodeScannerModal({
       );
       if (aliveRef.current) {
         setMode("html5_qrcode");
-        setHintText("Library-based scanning active");
+        setHintText("Hold the barcode inside the frame");
+      } else {
+        // Closed while the camera was still starting: stop it now or the
+        // stream (and the camera LED) stays on.
+        html5.stop().catch(() => {});
+        html5Ref.current = null;
       }
     } catch (err: unknown) {
       if (!aliveRef.current) return;
@@ -232,18 +240,10 @@ export function BarcodeScannerModal({
 
   /* ── effects ────────────────────────────────────────────────────────── */
 
-  // Reset state when modal opens / closes
-  useEffect(() => {
-    if (!open) {
-      stopAllScanners();
-      aliveRef.current = false;
-      setMode("loading");
-      setManualCode("");
-      setErrorMsg("");
-      setHintText("");
-      return;
-    }
-
+  const beginScanning = useCallback(() => {
+    // Must be set before either path: the html5-qrcode fallback bails out on a
+    // false flag, so on browsers without BarcodeDetector the camera never started.
+    aliveRef.current = true;
     // Detect insecure context (non-HTTPS / localhost may still work in some
     // browsers, but getUserMedia is undefined on truly insecure origins).
     if (
@@ -263,7 +263,33 @@ export function BarcodeScannerModal({
       // BarcodeDetector not supported → use html5-qrcode library
       startHtml5Scanner();
     }
-  }, [open, startNativeScanner, startHtml5Scanner, stopAllScanners]);
+  }, [startNativeScanner, startHtml5Scanner]);
+
+  // Reset state when modal opens / closes
+  useEffect(() => {
+    if (!open) {
+      stopAllScanners();
+      aliveRef.current = false;
+      setMode("loading");
+      setManualCode("");
+      setErrorMsg("");
+      setHintText("");
+      return;
+    }
+    beginScanning();
+  }, [open, beginScanning, stopAllScanners]);
+
+  /** Camera -> typed entry, releasing the camera first. */
+  const switchToManual = () => {
+    stopAllScanners();
+    aliveRef.current = false;
+    setErrorMsg("");
+    setMode("manual");
+  };
+  const switchToCamera = () => {
+    setErrorMsg("");
+    beginScanning();
+  };
 
   // Set up the native scan interval when native camera mode is active
   useEffect(() => {
@@ -329,20 +355,32 @@ export function BarcodeScannerModal({
       title={title}
       footer={
         isManual ? (
-          <Button
-            variant="primary"
-            onClick={handleManualSubmit}
-            disabled={manualCode.trim().length === 0}
-          >
-            Use this code
-          </Button>
-        ) : undefined
+          <div className="cm-scan__foot">
+            <Button variant="secondary" onClick={switchToCamera}>
+              Use camera
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleManualSubmit}
+              disabled={manualCode.trim().length === 0}
+            >
+              Use this code
+            </Button>
+          </div>
+        ) : (
+          <div className="cm-scan__foot">
+            <Button variant="secondary" onClick={switchToManual}>
+              Enter code manually
+            </Button>
+          </div>
+        )
       }
     >
-      <>
+      <div className="cm-scan-modal">
         {/* ── Native Camera view ───────────────────────────────────────── */}
         {isNativeCamera && (
           <div
+            className="cm-scan__cam"
             style={{
               position: "relative",
               width: "100%",
@@ -413,9 +451,10 @@ export function BarcodeScannerModal({
         )}
 
         {/* ── html5-qrcode Library Camera View ─────────────────────────── */}
-        {isHtml5 && (
+        {(isHtml5 || isLoading) && (
           <div
             ref={scanContainerRef}
+            className="cm-scan__cam"
             style={{
               width: "100%",
               maxHeight: "50vh",
@@ -484,6 +523,7 @@ export function BarcodeScannerModal({
         {/* ── Hint text ────────────────────────────────────────────────── */}
         {(isNativeCamera || isHtml5) && (
           <p
+            className="cm-scan__hint"
             style={{
               margin: "var(--cm-3) 0 0",
               textAlign: "center",
@@ -494,7 +534,7 @@ export function BarcodeScannerModal({
             {hintText || "Point at the tube barcode"}
           </p>
         )}
-      </>
+      </div>
     </Modal>
   );
 }

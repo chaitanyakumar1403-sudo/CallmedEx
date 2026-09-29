@@ -146,21 +146,30 @@ export default function PhlebotomistDashboard() {
         onClose={() => setBarcodeScannerOpen(false)}
         onScan={(code) => {
           setCollectionBookingId(code);
+          setActiveTab("collection");
           setBarcodeScannerOpen(false);
         }}
         title="Scan Patient Barcode"
       />
 
-        <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
+        <div className={activeTab === "dispatch" ? "cm-fld-dispatch" : "tab-panel-hidden"}>
           {/* Mounted only while the tab is open: a hidden panel has zero width,
               so a WebGL context built here would size itself to nothing. */}
-          {activeTab === "dispatch" && <PhleboFieldOps3D tasks={activeTasks} />}
-          <AdvanceHomeCollectionsWidget onSelectBookingForCollection={handleStartCollection} />
-          <ProviderDispatchTracker
-            title="Phlebotomist Hub"
-            providerType="phlebotomist"
-            embedded
-          />
+          {/* On phones the CSS `order` puts the duty control + active task first
+              and this hub last (see mobile-field.css); desktop order is unchanged. */}
+          <div className="cm-fld-dispatch__hub">
+            {activeTab === "dispatch" && <PhleboFieldOps3D tasks={activeTasks} />}
+          </div>
+          <div className="cm-fld-dispatch__advance">
+            <AdvanceHomeCollectionsWidget onSelectBookingForCollection={handleStartCollection} />
+          </div>
+          <div className="cm-fld-dispatch__work">
+            <ProviderDispatchTracker
+              title="Phlebotomist Hub"
+              providerType="phlebotomist"
+              embedded
+            />
+          </div>
         </div>
 
         {activeTab === "collection" && (
@@ -318,6 +327,18 @@ export default function PhlebotomistDashboard() {
         )}
 
         {activeTab === "wallet" && !isSalaried && <PhleboWalletPanel />}
+
+      {activeTab !== "profile" && !barcodeScannerOpen && (
+        <button
+          type="button"
+          className="cm-scan-fab"
+          onClick={() => setBarcodeScannerOpen(true)}
+          aria-label="Scan tube barcode"
+        >
+          <Icon as={Camera} size={20} />
+          <span>Scan</span>
+        </button>
+      )}
 
       {activeTab === "profile" && (
         <>

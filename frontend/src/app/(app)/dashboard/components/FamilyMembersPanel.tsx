@@ -108,7 +108,7 @@ export default function FamilyMembersPanel() {
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div className="cm-fam-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0, color: "var(--cm-ink)", fontSize: "1.15rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 6, background: "var(--cm-surface-3)", color: "var(--cm-navy)" }}>
@@ -135,9 +135,9 @@ export default function FamilyMembersPanel() {
 
       {/* Add Form */}
       {showForm && (
-        <div className="cm-card" style={{ padding: 24, marginBottom: 16, borderLeft: "4px solid var(--cm-active)" }}>
+        <div className="cm-card cm-fam-form" style={{ padding: 24, marginBottom: 16, borderLeft: "4px solid var(--cm-active)" }}>
           <form onSubmit={handleAdd}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <div className="cm-fam-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
               <div>
                 <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--cm-ink-2)", display: "block", marginBottom: 4 }}>Full Name *</label>
                 <input
@@ -235,7 +235,7 @@ export default function FamilyMembersPanel() {
           {members.map(m => (
             <div
               key={m.id}
-              className="cm-card"
+              className="cm-card cm-fam-row"
               style={{
                 padding: "16px 20px",
                 display: "flex",
@@ -282,7 +282,7 @@ export default function FamilyMembersPanel() {
                   )}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div className="cm-fam-row__actions" style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <a
                   href={`/booking?for=${m.id}&name=${encodeURIComponent(m.full_name)}`}
                   className="cm-btn cm-btn--primary cm-btn--sm"

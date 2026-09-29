@@ -2960,11 +2960,11 @@ export default function OrganizationDashboard() {
               {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, idx) => {
                 const currentTiming = orgTimings.find(t => t.day_of_week === idx) || { is_open: false, open_time: "09:00", close_time: "17:00" };
                 return (
-                  <div key={day} style={{
+                  <div key={day} className="cm-org-time-row" style={{
                     display: "flex", alignItems: "center", gap: 16, padding: "16px",
                     backgroundColor: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0"
                   }}>
-                    <div style={{ width: 120, fontWeight: 600, color: "#334155" }}>{day}</div>
+                    <div className="cm-org-time-day" style={{ width: 120, fontWeight: 600, color: "#334155" }}>{day}</div>
 
                     <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                       <input
@@ -2978,7 +2978,7 @@ export default function OrganizationDashboard() {
                     </label>
 
                     {currentTiming.is_open && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+                      <div className="cm-org-time-range" style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
                         <input
                           type="time"
                           value={currentTiming.open_time}

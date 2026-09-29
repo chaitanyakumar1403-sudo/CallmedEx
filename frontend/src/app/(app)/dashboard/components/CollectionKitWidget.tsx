@@ -173,7 +173,7 @@ export default function CollectionKitWidget({
         }
         .cm-kit__grid {
           display: grid; gap: 10px;
-          grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
         }
         .cm-kit__tube {
           display: flex; gap: 12px; align-items: flex-start;

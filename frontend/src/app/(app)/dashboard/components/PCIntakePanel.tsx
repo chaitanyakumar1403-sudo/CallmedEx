@@ -209,8 +209,12 @@ export default function PCIntakePanel() {
           Scan or type a barcode to begin the 5-point quality check.
         </p>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div className="cm-pc-scan" style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <input
+            className="cm-pc-scan__input"
+            inputMode="text"
+            autoCapitalize="characters"
+            autoComplete="off"
             value={scanInput}
             onChange={(e) => setScanInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleScan(); }}
@@ -285,6 +289,7 @@ export default function PCIntakePanel() {
             {CHECK_LABELS.map(({ key, label, desc }) => (
               <label
                 key={key}
+                className="cm-pc-check"
                 style={{
                   display: "flex", alignItems: "center", gap: 12,
                   padding: "12px 16px", borderRadius: 10,
@@ -318,7 +323,7 @@ export default function PCIntakePanel() {
             ))}
           </div>
 
-          <div style={{
+          <div className="cm-pc-actions" style={{
             display: "flex", gap: 10, marginTop: 16,
             justifyContent: "flex-end",
           }}>
@@ -362,6 +367,7 @@ export default function PCIntakePanel() {
             {(["incoming", "received", "verified", "rejected"] as const).map((f) => (
               <button
                 key={f}
+                className="cm-pc-filter"
                 onClick={() => { setFilter(f); setLoading(true); }}
                 style={{
                   padding: "5px 14px", borderRadius: 999,
@@ -391,6 +397,7 @@ export default function PCIntakePanel() {
             {samples.map((s) => (
               <div
                 key={s.id}
+                className="cm-pc-row"
                 style={{
                   display: "flex", justifyContent: "space-between",
                   alignItems: "center", padding: "10px 14px",
@@ -415,7 +422,7 @@ export default function PCIntakePanel() {
                     </span>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="cm-pc-row__side" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {s.rejection_code && (
                     <span style={{ fontSize: "0.75rem", color: "#991b1b" }}>
                       {s.rejection_code.replace(/_/g, " ")}
@@ -485,7 +492,7 @@ export default function PCIntakePanel() {
         <p style={{ margin: "0 0 14px 0", fontSize: "0.9rem", color: "#475569" }}>
           Select a rejection reason:
         </p>
-        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
+        <div className="cm-pc-reject-grid" style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
           {REJECTION_CODES.map((r) => {
             const IconComp = r.icon;
             return (

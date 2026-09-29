@@ -598,7 +598,7 @@ export default function NurseDashboard() {
       <NurseToolsModal isOpen={showToolsModal} onClose={() => setShowToolsModal(false)} />
 
       {/* ─── Ultra-Premium Clinical Station Header Card ─── */}
-      <div className="cm-nurse-console-header">
+      <div className="cm-nurse-console-header cm-fld-nurse-chrome">
         <div className="cm-nurse-header-left">
           <div className="cm-nurse-badge-row">
             {profile?.qualification && (
@@ -634,7 +634,7 @@ export default function NurseDashboard() {
       </div>
 
       {/* ─── Nursing KPI Strip ─── */}
-      <div className="cm-nurse-kpi-grid">
+      <div className="cm-nurse-kpi-grid cm-fld-nurse-chrome">
         <div
           className="cm-nurse-kpi-card"
           onClick={() => setActiveTab("dispatch")}
@@ -699,13 +699,18 @@ export default function NurseDashboard() {
       {/* ══════════════════════════════════════════════════════════════════════
           TAB 1: LIVE DOORSTEP DISPATCH
       ══════════════════════════════════════════════════════════════════════ */}
-      <div className={activeTab === "dispatch" ? "" : "tab-panel-hidden"}>
-        {activeTab === "dispatch" && <NurseFieldOps3D />}
-        <ProviderDispatchTracker
-          title="Nurse Doorstep Dispatch Center"
-          providerType="nurse"
-          embedded
-        />
+      <div className={activeTab === "dispatch" ? "cm-fld-dispatch" : "tab-panel-hidden"}>
+        {/* Phones: CSS `order` puts the duty control + active task first and the 3D hub last. */}
+        <div className="cm-fld-dispatch__hub">
+          {activeTab === "dispatch" && <NurseFieldOps3D />}
+        </div>
+        <div className="cm-fld-dispatch__work">
+          <ProviderDispatchTracker
+            title="Nurse Doorstep Dispatch Center"
+            providerType="nurse"
+            embedded
+          />
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
