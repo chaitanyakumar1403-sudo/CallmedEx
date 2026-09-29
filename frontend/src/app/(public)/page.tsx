@@ -18,7 +18,7 @@ export default function HomePage() {
     <div style={{ backgroundColor: "var(--cm-surface)", color: "var(--cm-ink)", minHeight: "100vh" }}>
       {/* ─── Hero Section ─── */}
       <section style={{ borderBottom: "1px solid var(--cm-line)", padding: "72px 24px 64px", background: "var(--cm-surface)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 48, alignItems: "center" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: 48, alignItems: "center" }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: "999px", background: "var(--cm-active-surface)", border: "1px solid var(--cm-active-line)", color: "var(--cm-active)", fontSize: "var(--cm-text-xs)", fontWeight: 600, letterSpacing: "0.02em", marginBottom: 20 }}>
               <ShieldCheck size={14} /> National Health Authority (ABHA) Integrated
@@ -42,7 +42,7 @@ export default function HomePage() {
             </div>
 
             {/* Metrics Ticker */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, borderTop: "1px solid var(--cm-line)", paddingTop: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 90px), 1fr))", gap: 20, borderTop: "1px solid var(--cm-line)", paddingTop: 24 }}>
               <div>
                 <div style={{ fontFamily: "var(--cm-font-display)", fontSize: "var(--cm-text-2xl)", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--cm-navy)", fontVariantNumeric: "tabular-nums" }}>50+</div>
                 <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", fontWeight: 600 }}>NABL Accredited Labs</div>
@@ -59,8 +59,8 @@ export default function HomePage() {
           </div>
 
           {/* Hero Visual Card: Clinical Status Preview */}
-          <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid var(--cm-line)", paddingBottom: 16 }}>
+          <div className="cm-card" style={{ padding: "clamp(16px, 4vw, 28px)", border: "1px solid var(--cm-line)", borderRadius: "var(--cm-radius)", background: "var(--cm-surface)", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.06)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20, borderBottom: "1px solid var(--cm-line)", paddingBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "transparent", display: "grid", placeItems: "center" }}>
                   <Clinical3DIcon name="activity" size={36} glow />
@@ -110,7 +110,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--cm-line)", paddingTop: 14 }}>
+            <div style={{ fontSize: "var(--cm-text-xs)", color: "var(--cm-ink-3)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, borderTop: "1px solid var(--cm-line)", paddingTop: 14 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Clinical3DIcon name="shield" size={18} /> Zero Data Leakage Guarantee
               </span>
@@ -220,7 +220,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: 24 }}>
             <div className="cm-card" style={{ padding: 28, border: "1px solid var(--cm-line)", background: "var(--cm-surface)" }}>
               <div style={{ width: 44, height: 44, borderRadius: "var(--cm-radius-sm)", background: "var(--cm-surface-2)", color: "var(--cm-active)", display: "grid", placeItems: "center", marginBottom: 16 }}>
                 <ShieldCheck size={22} />

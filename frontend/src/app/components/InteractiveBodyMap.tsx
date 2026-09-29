@@ -439,7 +439,7 @@ export default function InteractiveBodyMap() {
       </div>
 
       {/* Main Grid: Anatomical Twin + Organ Clinical Dossier */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.3fr", gap: "var(--cm-5)", alignItems: "start" }}>
+      <div className="cm-body-map-grid">
 
         {/* Left Column: 3D Twin OR 2D Fallback */}
         {viewMode === "3d" ? (
@@ -780,7 +780,7 @@ export default function InteractiveBodyMap() {
         )}
 
         {/* Right Column: Selected Organ Clinical Dossier */}
-        <div className="cm-card" style={{ border: `1px solid var(--cm-line)`, borderTop: `4px solid ${current.color}`, borderRadius: "var(--cm-radius-lg)", boxShadow: "var(--cm-shadow-1)" }}>
+        <div className="cm-card" style={{ border: `1px solid var(--cm-line)`, borderTop: `4px solid ${current.color}`, borderRadius: "var(--cm-radius-lg)", boxShadow: "var(--cm-shadow-1)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {/* Dossier Header */}
           <div style={{ display: "flex", alignItems: "center", gap: "var(--cm-3)", marginBottom: "var(--cm-3)" }}>
             <span style={{
@@ -791,7 +791,7 @@ export default function InteractiveBodyMap() {
             }}>
               <Organ3DInteractiveEmblem id={current.id} />
             </span>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <h4 style={{ margin: 0, fontSize: "var(--cm-text-base)", color: "var(--cm-ink)", fontWeight: 800 }}>{current.name}</h4>
               <span className="cm-pill cm-pill--active" style={{ marginTop: 4, background: "var(--cm-surface-2)", color: "var(--cm-ink)", border: "1px solid var(--cm-line-strong)" }}>
                 {current.specialization} Specialist Care
@@ -833,7 +833,8 @@ export default function InteractiveBodyMap() {
                     border: "1px solid rgba(255, 255, 255, 0.9)",
                     boxShadow: "0 2px 8px rgba(2, 132, 199, 0.05)",
                     borderRadius: "var(--cm-radius)", padding: "10px 14px",
-                    display: "flex", justifyContent: "space-between", alignItems: "center"
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    flexWrap: "wrap", gap: 8
                   }}
                 >
                   <div>

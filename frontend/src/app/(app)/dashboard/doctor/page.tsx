@@ -1432,28 +1432,30 @@ export default function DoctorDashboard() {
                       No medications added yet. Add medications using the formulation deck on the left.
                     </div>
                   ) : (
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1.5px solid #cbd5e1", textAlign: "left", color: "#475569", fontSize: "0.72rem", textTransform: "uppercase" }}>
-                          <th style={{ padding: "6px 8px", width: 24 }}>#</th>
-                          <th style={{ padding: "6px 8px" }}>Formulation &amp; Strength</th>
-                          <th style={{ padding: "6px 8px" }}>Dosage &amp; Frequency</th>
-                          <th style={{ padding: "6px 8px" }}>Duration</th>
-                          <th style={{ padding: "6px 8px" }}>Timing</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rxItems.map((med, idx) => (
-                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "8px", fontWeight: 600, color: "#64748b" }}>{idx + 1}</td>
-                            <td style={{ padding: "8px", fontWeight: 600, color: "#0f172a" }}>{med.name}</td>
-                            <td style={{ padding: "8px", color: "#334155" }}>{med.dose} · {med.freq}</td>
-                            <td style={{ padding: "8px", color: "#334155" }}>{med.days}</td>
-                            <td style={{ padding: "8px", color: "var(--cm-active)", fontWeight: 600 }}>{med.notes || "After food"}</td>
+                    <div className="cm-table-responsive">
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1.5px solid #cbd5e1", textAlign: "left", color: "#475569", fontSize: "0.72rem", textTransform: "uppercase" }}>
+                            <th style={{ padding: "6px 8px", width: 24 }}>#</th>
+                            <th style={{ padding: "6px 8px" }}>Formulation &amp; Strength</th>
+                            <th style={{ padding: "6px 8px" }}>Dosage &amp; Frequency</th>
+                            <th style={{ padding: "6px 8px" }}>Duration</th>
+                            <th style={{ padding: "6px 8px" }}>Timing</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {rxItems.map((med, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: "8px", fontWeight: 600, color: "#64748b" }}>{idx + 1}</td>
+                              <td style={{ padding: "8px", fontWeight: 600, color: "#0f172a" }}>{med.name}</td>
+                              <td style={{ padding: "8px", color: "#334155" }}>{med.dose} · {med.freq}</td>
+                              <td style={{ padding: "8px", color: "#334155" }}>{med.days}</td>
+                              <td style={{ padding: "8px", color: "var(--cm-active)", fontWeight: 600 }}>{med.notes || "After food"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
 

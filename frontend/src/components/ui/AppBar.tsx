@@ -175,11 +175,11 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
         aria-label="My Portal"
       >
         <Icon as={LayoutDashboard} size={16} />
-        My Portal
+        <span className="cm-appbar__btn-label">My Portal</span>
       </Button>
-      <Button variant="ghost" onClick={logout}>
+      <Button variant="ghost" className="cm-appbar__logout-btn" onClick={logout} aria-label="Log out">
         <Icon as={LogOut} size={16} />
-        Log out
+        <span className="cm-appbar__btn-label">Log out</span>
       </Button>
     </header>
   );

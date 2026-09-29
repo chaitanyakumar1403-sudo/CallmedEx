@@ -215,8 +215,9 @@ export default function MasterRoleTeleporterHUD() {
     <div
       style={{
         position: "fixed",
-        bottom: 24,
-        left: 24,
+        bottom: "clamp(12px, 3vw, 24px)",
+        left: "clamp(12px, 3vw, 24px)",
+        maxWidth: "calc(100vw - 24px)",
         zIndex: 99999,
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
@@ -237,6 +238,7 @@ export default function MasterRoleTeleporterHUD() {
           cursor: "pointer",
           backdropFilter: "blur(12px)",
           transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+          maxWidth: "100%",
         }}
         title="Owner Persona & Dashboard Teleporter"
       >
@@ -274,7 +276,8 @@ export default function MasterRoleTeleporterHUD() {
             position: "absolute",
             bottom: 56,
             left: 0,
-            width: "360px",
+            width: "min(360px, calc(100vw - 32px))",
+            maxWidth: "calc(100vw - 32px)",
             maxHeight: "80vh",
             background: "rgba(15, 29, 51, 0.95)",
             backdropFilter: "blur(20px)",

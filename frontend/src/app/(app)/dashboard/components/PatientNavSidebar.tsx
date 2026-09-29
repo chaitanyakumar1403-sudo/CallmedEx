@@ -152,7 +152,7 @@ export default function PatientNavSidebar() {
           <Compass size={12} />
           <span>CARE SERVICES</span>
         </div>
-        <div className="cm-provider-nav-list" style={{ flex: "0 0 auto", marginBottom: 12 }}>
+        <div className="cm-provider-nav-list" style={{ flex: "0 1 auto", width: "100%", maxWidth: "100%", minWidth: 0, marginBottom: 12 }}>
           {CARE_SERVICES.map((route) => {
             const IconComponent = route.icon;
             return (
@@ -182,6 +182,7 @@ export default function PatientNavSidebar() {
           className="cm-provider-nav-list"
           role="tablist"
           aria-label="Dashboard sections"
+          style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
         >
           {DASHBOARD_SECTIONS.map((item) => {
             const IconComponent = item.icon;

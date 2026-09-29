@@ -547,7 +547,7 @@ function NRIConsultationContent() {
 
         {/* Loading State */}
         {isLoading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))', gap: 20 }}>
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
@@ -650,7 +650,7 @@ function NRIConsultationContent() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))',
               gap: 24,
             }}
           >
@@ -850,7 +850,7 @@ function NRIConsultationContent() {
         <div
           style={{
             marginTop: 48,
-            padding: 24,
+            padding: 'clamp(14px, 4vw, 24px)',
             borderRadius: 14,
             background: '#ffffff',
             border: '1px solid #e2e8f0',
@@ -874,7 +874,7 @@ function NRIConsultationContent() {
           >
             <ShieldCheck size={24} style={{ color: '#10b981' }} />
           </div>
-          <div style={{ flex: 1, minWidth: 280 }}>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
             <h4 style={{ margin: '0 0 4px', fontSize: '0.96rem', fontWeight: 700, color: '#0f172a' }}>
               Full Compliance with NMC 2026 & Telemedicine Practice Guidelines
             </h4>

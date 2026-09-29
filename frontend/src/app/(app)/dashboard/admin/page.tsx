@@ -839,28 +839,30 @@ export default function AdminDashboard() {
               {(liveOps?.active_dispatches || []).length === 0 ? (
                 <p style={{ color: '#9ca3af', textAlign: 'center', padding: 20 }}>No active dispatches at the moment.</p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>ID</th>
-                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Patient</th>
-                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Type</th>
-                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
-                      <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(liveOps?.active_dispatches || []).map((d: any, i: number) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: 10, fontSize: '0.85rem', fontFamily: 'monospace' }}>{(d.id || d.dispatch_id || '').slice(0, 8)}...</td>
-                        <td style={{ padding: 10, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{d.patient_name || 'N/A'}</td>
-                        <td style={{ padding: 10, fontSize: '0.85rem', textTransform: 'capitalize' }}>{(d.provider_type || '').replace('_', ' ')}</td>
-                        <td style={{ padding: 10 }}><StatusBadge status={d.status} /></td>
-                        <td style={{ padding: 10, fontSize: '0.85rem', color: '#4b5563' }}>{d.patient_address || 'N/A'}</td>
+                <div className="cm-table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                        <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>ID</th>
+                        <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Patient</th>
+                        <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Type</th>
+                        <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
+                        <th style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase' }}>Address</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(liveOps?.active_dispatches || []).map((d: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: 10, fontSize: '0.85rem', fontFamily: 'monospace' }}>{(d.id || d.dispatch_id || '').slice(0, 8)}...</td>
+                          <td style={{ padding: 10, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{d.patient_name || 'N/A'}</td>
+                          <td style={{ padding: 10, fontSize: '0.85rem', textTransform: 'capitalize' }}>{(d.provider_type || '').replace('_', ' ')}</td>
+                          <td style={{ padding: 10 }}><StatusBadge status={d.status} /></td>
+                          <td style={{ padding: 10, fontSize: '0.85rem', color: '#4b5563' }}>{d.patient_address || 'N/A'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
@@ -939,7 +941,8 @@ export default function AdminDashboard() {
         {activeTab === 'providers' && (
           <div style={{ backgroundColor: 'white', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
             <h3 style={{ margin: '0 0 16px 0', color: '#1a2b4a' }}>Provider Directory</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="cm-table-responsive">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
                   {['Type', 'Name', 'City', 'Specialization', 'Rating', 'Completed', 'Status'].map(h => (
@@ -971,6 +974,7 @@ export default function AdminDashboard() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -1167,7 +1171,8 @@ export default function AdminDashboard() {
                     <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.85rem', marginLeft: 8 }}>({displayedUsers.length})</span>
                   </h3>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cm-table-responsive">
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
                       <th style={{ padding: 10, textAlign: 'left', width: 40 }}>
@@ -1247,6 +1252,7 @@ export default function AdminDashboard() {
                     })}
                   </tbody>
                 </table>
+                </div>
                 {displayedUsers.length === 0 && <p style={{ textAlign: 'center', color: '#9ca3af', marginTop: 20 }}>No users found{userRoleFilter !== 'all' ? ` with role "${userRoleFilter}"` : ''}.</p>}
               </div>
             </div>

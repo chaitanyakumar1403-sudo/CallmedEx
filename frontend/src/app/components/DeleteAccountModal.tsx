@@ -215,7 +215,8 @@ export default function DeleteAccountModal({
           boxShadow:
             "0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 50px rgba(37, 99, 235, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.15)",
           color: "#f8fafc",
-          overflow: "hidden",
+          maxHeight: "calc(100vh - 32px)",
+          overflowY: "auto",
           position: "relative",
           animation: "cmModalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         }}

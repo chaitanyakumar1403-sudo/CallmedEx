@@ -90,7 +90,7 @@ export default function LoginPage() {
           width: "100%",
           maxWidth: "1160px",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))",
           gap: "48px",
           alignItems: "center",
         }}
@@ -223,7 +223,7 @@ export default function LoginPage() {
             {/* Top Cyan Accent Stripe */}
             <div className="cm-login-glass-stripe" />
 
-            <div style={{ padding: "38px 34px" }}>
+            <div style={{ padding: "clamp(24px, 5vw, 38px) clamp(16px, 4vw, 34px)" }}>
               <div style={{ textAlign: "center", marginBottom: 28 }}>
                 {/* 3D Glassmorphic Heart Logo Pod */}
                 <div className="cm-login-glass-heart">

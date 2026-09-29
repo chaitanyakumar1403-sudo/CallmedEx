@@ -868,9 +868,18 @@ input[type="radio"] {
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
 }
 @media (max-width: 640px) {
-  .cm-appbar { padding: 0 var(--cm-4); }
+  .cm-appbar { padding: 0 var(--cm-3, 12px); gap: var(--cm-2, 6px); }
   .cm-appbar__user { display: none; }
+  .cm-appbar__btn-label { display: none; }
   .cm-appbar__patient-nav span:not(.cm-icon) { display: none; }
+  .cm-appbar__home-link span { display: none; }
+  .cm-appbar__home-link { margin-left: 4px !important; padding: 5px 8px !important; }
+  .cm-appbar .cm-btn--ghost { padding: 6px 8px; min-width: 36px; }
+}
+@media (max-width: 440px) {
+  .cm-appbar { padding: 0 8px; gap: 4px; }
+  .cm-appbar__brand { font-size: 0.98rem; }
+  .cm-appbar__role { display: none; }
 }
 .cm-gallery-row { display: flex; flex-wrap: wrap; gap: var(--cm-3); align-items: center; }
 .cm-dash__body > .cm-panel { margin-bottom: var(--cm-5); }
@@ -3600,6 +3609,23 @@ input[type="radio"] {
 }
 
 /* 3D Anatomical Twin Canvas & Controls */
+.cm-body-map-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr);
+  gap: var(--cm-5);
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .cm-body-map-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--cm-4);
+  }
+}
+
 .cm-twin-container {
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
@@ -3607,16 +3633,28 @@ input[type="radio"] {
   overflow: hidden;
   position: relative;
   box-shadow: var(--cm-shadow-1);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .cm-twin-viewport {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 480px;
   position: relative;
   background: radial-gradient(circle at 50% 50%, var(--cm-surface) 0%, var(--cm-surface-2) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.cm-twin-viewport canvas {
+  max-width: 100% !important;
+  width: 100% !important;
+  display: block;
 }
 
 .cm-twin-overlay-hud {
@@ -4546,19 +4584,16 @@ input[type="radio"] {
        3D canvas pushed the whole dashboard wider than the phone. */
     grid-template-columns: minmax(0, 1fr);
     gap: var(--cm-4);
+    min-width: 0;
+    max-width: 100%;
   }
-}
-
-.cm-patient-sidebar {
-  position: sticky;
-  top: 24px;
-  z-index: 20;
-}
-
-@media (max-width: 1024px) {
   .cm-patient-sidebar {
     position: static;
     top: auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
   }
 }
 
@@ -6586,7 +6621,23 @@ input[type="radio"] {
 
   .cm-provider-sidebar {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     position: static;
+    margin-top: 0;
+  }
+
+  .cm-provider-nav-widget,
+  .cm-patient-sidebar-widget {
+    min-height: auto !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 12px 14px !important;
+    border-radius: 16px !important;
+    gap: 8px;
+    overflow: hidden;
   }
 
   .cm-provider-nav-header {
@@ -6596,6 +6647,9 @@ input[type="radio"] {
   .cm-provider-nav-list {
     flex-direction: row;
     overflow-x: auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-bottom: 4px;
@@ -6612,6 +6666,29 @@ input[type="radio"] {
 
   .cm-provider-nav-item:hover {
     transform: none;
+  }
+
+  .cm-provider-nav-danger-zone {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 8px;
+  }
+
+  .cm-provider-nav-danger-zone .cm-provider-nav-item {
+    flex: 1 1 0%;
+    margin-bottom: 0;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    justify-content: center;
+  }
+
+  .cm-provider-nav-danger-zone .cm-provider-nav-chevron {
+    display: none;
+  }
+
+  .cm-provider-nav-footer {
+    display: none;
   }
 }
 
@@ -7580,7 +7657,7 @@ input[type="radio"] {
   display: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1040px) {
   .navbar__nav--unified { display: none; }
   .navbar__hamburger { display: flex; align-items: center; justify-content: center; }
   .navbar__wide-container { padding: 0 16px; }
@@ -8679,7 +8756,9 @@ input[type="radio"] {
 .cm-pharm-filter__n { font-size: var(--cm-text-2xs); font-weight: 700; padding: 1px 7px; border-radius: var(--cm-radius-pill); background: var(--cm-line); color: var(--cm-ink-2); font-variant-numeric: tabular-nums; }
 .cm-pharm-filter__btn[aria-pressed="true"] .cm-pharm-filter__n { background: var(--cm-royal-soft); color: var(--cm-royal); }
 
-.cm-pharm-table-wrap { overflow-x: auto; }
+.cm-pharm-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cm-pharm-preview { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 400px; }
+.cm-table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: var(--cm-4, 16px); }
 .cm-pharm-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--cm-text-sm); }
 .cm-pharm-table th { background: var(--cm-surface-2); color: var(--cm-ink-3); font-size: var(--cm-text-2xs); font-weight: 700; letter-spacing: var(--cm-track-wider); text-transform: uppercase; text-align: left; padding: var(--cm-3) var(--cm-4); border-bottom: 1px solid var(--cm-line-strong); white-space: nowrap; }
 .cm-pharm-table td { padding: var(--cm-4); border-bottom: 1px solid var(--cm-line); color: var(--cm-ink); vertical-align: top; font-variant-numeric: tabular-nums; }

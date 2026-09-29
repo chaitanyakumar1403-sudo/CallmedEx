@@ -295,7 +295,7 @@ td { font-family: var(--font-body); font-size: 0.875rem; font-variant-numeric: t
 /* Utility Bar */
 .utility-bar { background: var(--color-navy-dark); color: var(--color-white); font-size: 0.8rem; padding: 8px 0; font-family: var(--font-body); }
 .utility-bar .container { display: flex; justify-content: space-between; align-items: center; }
-.utility-bar__left { display: flex; gap: var(--space-lg); align-items: center; }
+.utility-bar__left { display: flex; gap: var(--space-lg); align-items: center; min-width: 0; max-width: 100%; }
 .utility-bar__left a { color: var(--color-gray-300); display: flex; align-items: center; gap: 6px; transition: color var(--transition-fast); font-weight: 500; }
 .utility-bar__left a:hover { color: var(--color-white); }
 .utility-bar__right .tagline-badge { background: rgba(255,255,255,0.12); padding: 4px 14px; border-radius: var(--radius-full); font-weight: 600; font-size: 0.72rem; letter-spacing: 0.04em; }
@@ -417,6 +417,9 @@ td { font-family: var(--font-body); font-size: 0.875rem; font-variant-numeric: t
   h1 { font-size: 2rem; } h2 { font-size: 1.5rem; }
   .hero__content h1 { font-size: 2.2rem; }
   .hero { padding: var(--space-2xl) 0; min-height: auto; }
+  .utility-bar__right { display: none; }
+  .utility-bar__left { gap: var(--space-md, 12px); overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; padding-bottom: 2px; }
+  .utility-bar__left::-webkit-scrollbar { display: none; }
   .navbar__nav { display: none; }
   .navbar__hamburger { display: block; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
@@ -432,9 +435,16 @@ td { font-family: var(--font-body); font-size: 0.875rem; font-variant-numeric: t
 @media (max-width: 480px) {
   .container { padding: 0 var(--space-md); }
   .hero__content h1 { font-size: 1.8rem; }
-  .role-selector { grid-template-columns: 1fr 1fr; }
+  .auth-page { padding: var(--space-lg) var(--space-sm); }
+  .auth-card { padding: 20px 16px; }
+  .role-selector { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .role-option { padding: 10px 6px; }
+  .role-option__label { font-size: 0.76rem; word-break: break-word; hyphens: auto; }
   .hero__actions { flex-direction: column; }
   .hero__actions .btn { width: 100%; }
+  .navbar__actions > a.cm-btn { display: none; }
+  .utility-bar__left { gap: 8px; font-size: 0.72rem; }
+  .utility-bar__left a { font-size: 0.72rem; gap: 4px; }
 }
 
 /* ============================================================================

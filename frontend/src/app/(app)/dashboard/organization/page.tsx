@@ -2764,34 +2764,36 @@ export default function OrganizationDashboard() {
                       </div>
                     ) : (
                       <>
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
-                          <thead>
-                            <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
-                              <th style={{ padding: "10px 14px", color: "#475569" }}>Test Name</th>
-                              <th style={{ padding: "10px 14px", color: "#475569" }}>Category</th>
-                              <th style={{ padding: "10px 14px", color: "#475569" }}>Type</th>
-                              <th style={{ padding: "10px 14px", color: "#475569", textAlign: "right" }}>Price</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {csvParsedServices.slice(0, 100).map((svc, idx) => (
-                              <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                <td style={{ padding: "8px 14px", fontWeight: 600, color: "#1e293b" }}>{svc.name}</td>
-                                <td style={{ padding: "8px 14px", color: "#64748b" }}>{svc.category || "General"}</td>
-                                <td style={{ padding: "8px 14px" }}>
-                                  <span style={{
-                                    fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                                    background: svc.type === "imaging" ? "#fdf4ff" : "#f0fdf4",
-                                    color: svc.type === "imaging" ? "#a21caf" : "#15803d"
-                                  }}>
-                                    {svc.type === "imaging" ? "Radiology" : "Lab Test"}
-                                  </span>
-                                </td>
-                                <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>₹{svc.price}</td>
+                        <div className="cm-table-responsive">
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                            <thead>
+                              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
+                                <th style={{ padding: "10px 14px", color: "#475569" }}>Test Name</th>
+                                <th style={{ padding: "10px 14px", color: "#475569" }}>Category</th>
+                                <th style={{ padding: "10px 14px", color: "#475569" }}>Type</th>
+                                <th style={{ padding: "10px 14px", color: "#475569", textAlign: "right" }}>Price</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {csvParsedServices.slice(0, 100).map((svc, idx) => (
+                                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                  <td style={{ padding: "8px 14px", fontWeight: 600, color: "#1e293b" }}>{svc.name}</td>
+                                  <td style={{ padding: "8px 14px", color: "#64748b" }}>{svc.category || "General"}</td>
+                                  <td style={{ padding: "8px 14px" }}>
+                                    <span style={{
+                                      fontSize: "0.7rem", fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                      background: svc.type === "imaging" ? "#fdf4ff" : "#f0fdf4",
+                                      color: svc.type === "imaging" ? "#a21caf" : "#15803d"
+                                    }}>
+                                      {svc.type === "imaging" ? "Radiology" : "Lab Test"}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "8px 14px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>₹{svc.price}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                         {csvParsedServices.length > 100 && (
                           <div style={{ padding: 8, textAlign: "center", color: "#64748b", fontSize: "0.75rem", background: "#f8fafc" }}>
                             ...and {csvParsedServices.length - 100} more items.

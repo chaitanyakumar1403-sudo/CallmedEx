@@ -132,8 +132,9 @@ export default function ChangePasswordModal({
           borderRadius: "16px",
           width: "100%",
           maxWidth: "460px",
+          maxHeight: "calc(100vh - 32px)",
+          overflowY: "auto",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8)",
-          overflow: "hidden",
           animation: "modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >

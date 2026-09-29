@@ -73,10 +73,10 @@ export default function DateOfBirthPicker({ value, onChange, label = "Date of Bi
 
   const selectStyle: React.CSSProperties = {
     flex: 1,
-    padding: "12px 14px",
+    padding: "10px clamp(6px, 1.5vw, 12px)",
     borderRadius: 10,
     border: "1.5px solid var(--color-gray-200)",
-    fontSize: "0.92rem",
+    fontSize: "0.85rem",
     fontFamily: "var(--font-body)",
     color: "var(--color-gray-800)",
     backgroundColor: "var(--color-white)",
@@ -85,11 +85,11 @@ export default function DateOfBirthPicker({ value, onChange, label = "Date of Bi
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
     appearance: "none" as const,
     WebkitAppearance: "none" as const,
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
     backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 12px center",
-    backgroundSize: "12px",
-    paddingRight: "32px",
+    backgroundPosition: "right 8px center",
+    backgroundSize: "10px",
+    paddingRight: "22px",
     minWidth: 0,
   };
 
@@ -103,7 +103,7 @@ export default function DateOfBirthPicker({ value, onChange, label = "Date of Bi
           {label} <span style={{ color: "var(--color-red)" }}>*</span>
         </label>
       )}
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: "clamp(4px, 1.5vw, 8px)", flexWrap: "wrap" }}>
         {/* Year Selector — with search */}
         <div ref={yearDropdownRef} style={{ flex: 1.2, position: "relative" }}>
           <div

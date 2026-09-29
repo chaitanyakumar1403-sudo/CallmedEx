@@ -1024,7 +1024,7 @@ function BookingPageContent() {
 
         {/* Step Progress Indicator */}
         {step !== 10 && getSteps().length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 32, overflowX: "auto", scrollbarWidth: "none", width: "100%", paddingBottom: 6 }}>
             {getSteps().map((label, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", flex: i < getSteps().length - 1 ? 1 : "none" }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 60 }}>
