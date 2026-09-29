@@ -439,6 +439,7 @@ function DiagnosticsContent() {
 
           {/* Primary Bifurcation Tabs */}
           <div
+            className="cm-diag-switch"
             style={{
               display: "inline-flex",
               background: "rgba(15, 23, 42, 0.55)",
@@ -452,6 +453,8 @@ function DiagnosticsContent() {
           >
             <button
               onClick={() => setPrimaryTab("home")}
+              className="cm-diag-switch__btn"
+              aria-pressed={primaryTab === "home"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -469,8 +472,9 @@ function DiagnosticsContent() {
               }}
             >
               <Home size={18} />
-              <span>Home Sample Collection</span>
+              <span className="cm-diag-switch__label">Home Sample Collection</span>
               <span
+                className="cm-diag-switch__badge"
                 style={{
                   background: primaryTab === "home" ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
                   padding: "2px 8px",
@@ -484,6 +488,8 @@ function DiagnosticsContent() {
 
             <button
               onClick={() => setPrimaryTab("walkin")}
+              className="cm-diag-switch__btn"
+              aria-pressed={primaryTab === "walkin"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -501,8 +507,9 @@ function DiagnosticsContent() {
               }}
             >
               <Building2 size={18} />
-              <span>Walk-in Diagnostic Centres</span>
+              <span className="cm-diag-switch__label">Walk-in Diagnostic Centres</span>
               <span
+                className="cm-diag-switch__badge"
                 style={{
                   background: primaryTab === "walkin" ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.1)",
                   padding: "2px 8px",

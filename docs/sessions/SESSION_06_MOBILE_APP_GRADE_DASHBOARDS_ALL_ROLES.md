@@ -118,6 +118,11 @@ Inline-style attribute selectors in `mobile-clinical.css` are scoped to `:is(.cm
 - `globals.css` / `foundation.css`: the utility bar clips overflowing phone links.
 - `mobile-clinical.css`: the chat bubble is hidden on phones while the video-consult action bar is showing.
 
+**Fixed from the owner's phone screenshot:**
+- `/diagnostics` "Home Sample Collection | Walk-in Diagnostic Centres" switcher: on phones the "Scans & Labs" badge ran past the screen edge. This was invisible to both audits because the hero clips overflow, so `scrollWidth` stayed clean. The switcher now splits the width evenly and stacks icon, label and badge (`.cm-diag-switch*` in `mobile-shell.css`, plus `aria-pressed` on both buttons).
+- The public utility bar's sideways-scrolling emergency numbers get a right-edge fade, so a cut-off number reads as "swipe for more".
+- New check `scripts/verify_edge_clip.mjs`: flags visible elements that stick past the viewport edge even when an ancestor clips them. It skips intentional scrollers and decorative `pointer-events: none` glows. Result across 12 public routes at 360 / 390px: **0**.
+
 `scripts/sweep_tabs.mjs` is new. Unlike the Session 05 audit, it waits for each dashboard's tabs to render and clicks through every section tab before measuring.
 
 ---
