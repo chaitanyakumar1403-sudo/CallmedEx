@@ -358,6 +358,11 @@ export const pcAPI = {
     api.post(`/pc/batches/${batchId}/send`, { courier_reference: courierRef }),
   getRosterSummary: (date?: string) =>
     api.get(`/pc/roster-summary${date ? `?date=${date}` : ''}`),
+  // Manual-assignment fallback for collections auto-assignment could not place.
+  getUnassignedCollections: (date?: string) =>
+    api.get(`/pc/unassigned-collections${date ? `?date=${date}` : ''}`),
+  assignCollection: (bookingId: string, phlebotomistUserId: string) =>
+    api.post('/pc/assign-collection', { booking_id: bookingId, phlebotomist_user_id: phlebotomistUserId }),
   getRoster: (date: string) =>
     api.get(`/pc/roster?date=${date}`),
   setRoster: (date: string, entries: any[]) =>

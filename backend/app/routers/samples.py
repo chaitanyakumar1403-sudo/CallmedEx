@@ -449,7 +449,8 @@ async def get_sample_timeline(
     # 4. Fetch AI report analysis details
     ai_analysis = {}
     if report_job and report_job.get("id"):
-        ai_analysis = _first(supabase.table("ai_report_analyses").select("id, report_version, report_status, created_at").eq("report_job_id", report_job["id"]).limit(1).execute())
+        # Latest version — a corrected report adds a row rather than replacing one.
+        ai_analysis = _first(supabase.table("ai_report_analyses").select("id, report_version, report_status, created_at").eq("report_job_id", report_job["id"]).order("report_version", desc=True).limit(1).execute())
 
     timeline = []
 

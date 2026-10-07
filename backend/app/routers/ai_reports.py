@@ -314,13 +314,24 @@ async def get_report_history(
     try:
         result = (
             supabase.table("ai_report_analyses")
-            .select("id, raw_report_url, plain_language_summary, created_at")
+            .select("id, raw_report_url, plain_language_summary, created_at, "
+                    "report_job_id, report_version, report_status")
             .eq("patient_id", current_user["sub"])
             .order("created_at", desc=True)
-            .limit(20)
+            .limit(60)
             .execute()
         )
-        return {"success": True, "analyses": result.data or []}
+        # A corrected report is a new version row; show each report once, at
+        # its latest version (report_status says whether it was corrected).
+        latest: dict = {}
+        ordered = []
+        for row in result.data or []:
+            key = row.get("report_job_id") or row.get("id")
+            if key not in latest:
+                ordered.append(key)
+            if key not in latest or (row.get("report_version") or 1) > (latest[key].get("report_version") or 1):
+                latest[key] = row
+        return {"success": True, "analyses": [latest[k] for k in ordered][:20]}
     except Exception as e:
         logger.warning(f"Could not fetch report history: {e}")
         return {"success": True, "analyses": []}

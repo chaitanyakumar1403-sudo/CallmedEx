@@ -44,6 +44,38 @@ def _require_phlebo(user: dict) -> dict:
     return user
 
 
+# The visit has started at the door (patient's arrival OTP verified). Tubes
+# may be drawn, labelled and added to only from here on.
+_AT_DOOR = {"in_progress", "completed"}
+
+
+def _require_assigned(user: dict, booking_id: Optional[str], at_door: bool = False) -> None:
+    """403 unless this phlebotomist is the one assigned to the booking.
+
+    Every doorstep endpoint used to check only the role, so any collector
+    could read another patient's tube list, bind barcodes on it, mark it
+    collected, or add tests to it and accrue the upsell incentive to
+    themselves. `at_door` additionally requires the visit to have started.
+    """
+    if user.get("role") == "admin":
+        return
+    if not booking_id:
+        raise HTTPException(403, "This sample is not linked to a booking assigned to you.")
+    rows = _rows(
+        supabase.table("dispatch_requests")
+        .select("status")
+        .eq("booking_id", booking_id)
+        .eq("assigned_provider_id", user.get("sub"))
+        .execute()
+    )
+    if not rows:
+        raise HTTPException(403, "This booking is not assigned to you.")
+    if at_door and not any(r.get("status") in _AT_DOOR for r in rows):
+        raise HTTPException(
+            409, "Verify the patient's OTP at the door before collecting or adding tests.",
+        )
+
+
 # ─── Booking samples read ─────────────────────────────────────────────────
 
 @router.get("/booking-samples/{booking_id}")
@@ -53,6 +85,7 @@ async def get_booking_samples(
 ):
     """Samples expected for a booking — the tube list for doorstep collection."""
     _require_phlebo(user)
+    _require_assigned(user, booking_id)
 
     samples = _rows(
         supabase.table("samples")
@@ -248,13 +281,14 @@ async def scan_tube(
 
     sample = _first(
         supabase.table("samples")
-        .select("id, expected_tube_type_code, tube_type_code, barcode, status")
+        .select("id, expected_tube_type_code, tube_type_code, barcode, status, booking_id")
         .eq("id", body.sample_id)
         .limit(1)
         .execute()
     )
     if not sample:
         raise HTTPException(404, "Sample not found.")
+    _require_assigned(user, sample.get("booking_id"), at_door=True)
 
     expected = sample.get("expected_tube_type_code", "")
     scanned = body.scanned_tube_type_code
@@ -322,13 +356,14 @@ async def ack_mismatch(
 
     sample = _first(
         supabase.table("samples")
-        .select("id, expected_tube_type_code, tube_type_code")
+        .select("id, expected_tube_type_code, tube_type_code, booking_id")
         .eq("id", sample_id)
         .limit(1)
         .execute()
     )
     if not sample:
         raise HTTPException(404, "Sample not found.")
+    _require_assigned(user, sample.get("booking_id"), at_door=True)
 
     supabase.table("samples").update({
         "tube_mismatch_ack": True,
@@ -357,13 +392,16 @@ async def add_doorstep_test(
     # Validate the booking exists
     booking = _first(
         supabase.table("bookings")
-        .select("id, processing_center_id, patient_id")
+        .select("id, processing_center_id, patient_id, total_price, selected_tests, status")
         .eq("id", body.booking_id)
         .limit(1)
         .execute()
     )
     if not booking:
         raise HTTPException(404, "Booking not found.")
+    if booking.get("status") == "cancelled":
+        raise HTTPException(400, "Cannot add tests to a cancelled booking.")
+    _require_assigned(user, body.booking_id, at_door=True)
 
     # Validate the service exists
     service = _first(
@@ -474,6 +512,22 @@ async def add_doorstep_test(
     # ── Upsell incentive accrual ────────────────────────────────────────
     # Best-effort: if the rule row is missing, log and skip — never fail the addon.
     _accrue_upsell_incentive(phlebo_id, body.booking_id, bt_id, float(service.get("base_price", 0)))
+
+    # The add-on lived only in booking_tests, so the booking the patient pays
+    # against and the centre reads still showed the original test list and
+    # price. Best-effort: the test itself is already recorded above.
+    try:
+        tests = list(booking.get("selected_tests") or [])
+        if service.get("name") and service["name"] not in tests:
+            tests.append(service["name"])
+        supabase.table("bookings").update({
+            "selected_tests": tests,
+            "total_price": round(float(booking.get("total_price") or 0)
+                                 + float(service.get("base_price", 0)), 2),
+            "updated_at": _now_iso(),
+        }).eq("id", body.booking_id).execute()
+    except Exception as e:
+        logger.error(f"doorstep add-on {bt_id}: booking total not updated: {e}")
 
     return {
         "success": True,
@@ -682,19 +736,15 @@ async def verify_barcode(
                 .execute()
             )
             if other_sample:
-                # Scanned barcode belongs to another sample/patient! -> CASE 4
-                other_patient_name = "Another Patient"
-                if other_sample.get("patient_id"):
-                    usr = _first(supabase.table("users").select("full_name").eq("id", other_sample["patient_id"]).limit(1).execute())
-                    other_patient_name = usr.get("full_name", "Another Patient")
+                # Scanned barcode belongs to another sample/patient! -> CASE 4.
+                # Never name that other patient or their booking: the collector
+                # only needs to know "wrong tube", not whose it is.
                 return {
                     "case": "DIFFERENT_PATIENT",
                     "valid": False,
                     "reason": "DIFFERENT_PATIENT",
                     "message": "This barcode belongs to another patient.",
                     "barcode": raw_barcode,
-                    "patient_name": other_patient_name,
-                    "booking_id": other_sample.get("booking_id"),
                     "allowed_actions": ["scan_again"],
                 }
             sample = sample_by_id
@@ -713,6 +763,22 @@ async def verify_barcode(
     # Retrieve related context
     patient_id = sample.get("patient_id")
     booking_id = sample.get("booking_id")
+
+    # A tube on someone else's run: say so, and reveal nothing about it. This
+    # lookup used to return the patient's name, booking, address and tests to
+    # any phlebotomist who typed in a barcode.
+    if user.get("role") != "admin":
+        try:
+            _require_assigned(user, booking_id)
+        except HTTPException:
+            return {
+                "case": "NOT_ASSIGNED",
+                "valid": False,
+                "reason": "NOT_ASSIGNED",
+                "message": "This tube belongs to a booking that is not assigned to you.",
+                "barcode": raw_barcode,
+                "allowed_actions": ["scan_again"],
+            }
 
     patient_name = "Patient"
     if patient_id:
@@ -878,6 +944,7 @@ async def confirm_sample_collection(
     )
     if not sample:
         raise HTTPException(404, "Sample not found.")
+    _require_assigned(user, sample.get("booking_id"), at_door=True)
 
     # Prevent collection if booking is cancelled
     if sample.get("booking_id"):

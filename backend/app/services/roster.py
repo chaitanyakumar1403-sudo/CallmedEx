@@ -98,6 +98,8 @@ def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[di
         .eq("processing_center_id", processing_center_id)
         .eq("collection_date", roster_date)
         .eq("booking_kind", "home_collection")
+        # A cancelled booking must not be handed to a collector overnight.
+        .not_.in_("status", ["cancelled", "completed", "no_show", "slot_rejected"])
         .execute()
     )
     existing = {
@@ -117,16 +119,17 @@ def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[di
     ]
 
 
-FULL_TIME_RADIUS_KM = 25.0
+# Same figure the live dispatch path uses (dispatch_engine.FULL_TIME_PHLEBO_RADIUS_KM).
+FULL_TIME_RADIUS_KM = 20.0
 
 
 def _pick(candidates: List[dict], booking: dict, load: dict,
           exclude: Optional[set] = None) -> Optional[dict]:
-    """Nearest by base location within radius, breaking ties on load.
+    """Least-loaded, then nearest, collector within their radius of the booking.
 
-    - Full-time phlebotomists: 25 km service radius across the city/train route.
+    - Full-time phlebotomists: 20 km service radius from their base.
     - Part-time phlebotomists: 15 km local radius.
-    - Pass 1: prefers full-time phlebotomists within 25 km.
+    - Pass 1: prefers full-time phlebotomists within 20 km.
     - Pass 2: falls back to part-time phlebotomists within 15 km.
     """
     exclude = exclude or set()
@@ -502,8 +505,15 @@ def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional
         return None
     booking = booking_rows[0]
 
-    candidates = _available_phlebos(
-        booking["processing_center_id"], request.get("scheduled_for"))
+    # Same candidate pool the booking was first assigned from: the centre's
+    # collectors, else the city's (a booking with no centre got its first
+    # collector from the city pool, so a decline must look there too).
+    candidates = []
+    if booking.get("processing_center_id"):
+        candidates = _available_phlebos(
+            booking["processing_center_id"], request.get("scheduled_for"))
+    if not candidates and booking.get("collection_city"):
+        candidates = _city_phlebos(booking["collection_city"], request.get("scheduled_for"))
     load, busy = _roster_state(request.get("scheduled_for"))
     slot = _slot_hhmm(booking)
     exclude = set(declined) | {uid for uid, held in busy.items() if slot and slot in held}
@@ -523,8 +533,262 @@ def decline_job(dispatch_request_id: str, phlebotomist_user_id: str) -> Optional
         "status": "provider_accepted",
     }).eq("id", dispatch_request_id).execute()
 
+    # The booking still named the collector who declined, and the new one was
+    # never told — they found the job only if they happened to open Schedule.
+    try:
+        supabase.table("bookings").update({
+            "provider_id": replacement["user_id"],
+        }).eq("id", booking["id"]).execute()
+    except Exception as e:
+        logger.warning(f"decline_job: booking {booking['id']} provider re-point failed: {e}")
+    slot = slot or "the scheduled time"
+    _notify_in_app(
+        replacement["user_id"],
+        "Home collection assigned to you",
+        f"A doorstep collection on {request.get('scheduled_for')} at {slot} "
+        "was reassigned to you. Open Schedule for the address.",
+        {"type": "roster_assignment", "booking_id": booking["id"],
+         "dispatch_id": dispatch_request_id,
+         "roster_date": request.get("scheduled_for")},
+    )
+
     return {
         "dispatch_request_id": dispatch_request_id,
         "booking_id": booking["id"],
         "phlebotomist_user_id": replacement["user_id"],
     }
+
+
+# ─── Manual assignment (processing-centre fallback) ─────────────────────────
+#
+# Collectors are assigned automatically from the patient's location — at
+# booking time, by the evening roster pass, or by the same-day live offer.
+# This is only for what those could not place: everyone declined, nobody in
+# range accepted, or the centre wants to place a booking before the pass runs.
+# Suggestions are ranked by the same rule the automatic pass uses, nearest to
+# the PATIENT first, so the centre is choosing among sensible options.
+
+# Auto-dispatch states meaning "nobody holds this job and nothing is still
+# trying". searching/provider_notified are excluded on purpose: a live offer
+# is out, and assigning over it would let two collectors arrive.
+_FAILED_AUTO = {"needs_manual_assignment", "no_provider", "expired"}
+_LIVE_BOOKING = ["confirmed", "provider_accepted", "pending"]
+
+
+def _blocks_manual(dispatch: dict) -> bool:
+    """True when this dispatch row still holds (or is still offering) the job."""
+    return dispatch.get("status") not in _FAILED_AUTO and dispatch.get("status") != "cancelled"
+
+
+def _centre_collectors(processing_center_id: str, roster_date: str) -> List[dict]:
+    """Every verified collector of the centre with a usable location, leave flagged."""
+    people = _rows(
+        supabase.table("phlebotomists")
+        .select("user_id, base_lat, base_lng, current_lat, current_lng, phleb_type, verification_status")
+        .eq("processing_center_id", processing_center_id)
+        .execute()
+    )
+    on_leave = {
+        r["phlebotomist_user_id"] for r in _rows(
+            supabase.table("phlebotomist_roster")
+            .select("phlebotomist_user_id, status")
+            .eq("processing_center_id", processing_center_id)
+            .eq("roster_date", roster_date)
+            .execute()
+        ) if r.get("status") in ("unavailable", "leave")
+    }
+    uids = [p["user_id"] for p in people if p.get("user_id")]
+    names: dict = {}
+    if uids:
+        names = {u["id"]: u for u in _rows(
+            supabase.table("users").select("id, full_name, mobile").in_("id", uids).execute()
+        )}
+    out = []
+    for p in people:
+        if (p.get("verification_status") or "") != "verified":
+            continue
+        lat, lng = p.get("base_lat"), p.get("base_lng")
+        if lat is None or lng is None:
+            lat, lng = p.get("current_lat"), p.get("current_lng")
+        u = names.get(p["user_id"], {})
+        out.append({
+            **p, "base_lat": lat, "base_lng": lng,
+            "full_name": u.get("full_name") or "", "mobile": u.get("mobile") or "",
+            "on_leave": p["user_id"] in on_leave,
+        })
+    return out
+
+
+def _collection_area(booking: dict) -> str:
+    notes = booking.get("notes") or ""
+    if "Collection address:" in notes:
+        return notes.split("Collection address:")[-1].strip().splitlines()[0]
+    return booking.get("collection_city") or booking.get("collection_district") or ""
+
+
+def manual_assignment_queue(processing_center_id: str, roster_date: str) -> List[dict]:
+    """This centre's home collections on `roster_date` that no collector holds."""
+    bookings = _rows(
+        supabase.table("bookings")
+        .select("id, patient_id, status, slot_id, slot_start, notes, selected_tests, "
+                "collection_lat, collection_lng, collection_city, collection_district")
+        .eq("processing_center_id", processing_center_id)
+        .eq("collection_date", roster_date)
+        .eq("booking_kind", "home_collection")
+        .in_("status", _LIVE_BOOKING)
+        .execute()
+    )
+    if not bookings:
+        return []
+    by_booking: dict = {}
+    for d in _rows(
+        supabase.table("dispatch_requests")
+        .select("booking_id, status, assigned_provider_id")
+        .in_("booking_id", [b["id"] for b in bookings])
+        .execute()
+    ):
+        by_booking.setdefault(d.get("booking_id"), []).append(d)
+
+    collectors = _centre_collectors(processing_center_id, roster_date)
+    load, busy = _roster_state(roster_date)
+    queue = []
+    for b in bookings:
+        rows = by_booking.get(b["id"], [])
+        if any(_blocks_manual(d) for d in rows):
+            continue  # held by a collector, or a live offer is still out
+        slot = _slot_hhmm(b)
+        has_location = b.get("collection_lat") is not None and b.get("collection_lng") is not None
+        suggestions = []
+        for c in collectors:
+            dist = None
+            if has_location and c.get("base_lat") is not None and c.get("base_lng") is not None:
+                dist = round(haversine_km(
+                    float(b["collection_lat"]), float(b["collection_lng"]),
+                    float(c["base_lat"]), float(c["base_lng"]),
+                ), 1)
+            full_time = (c.get("phleb_type") or "full_time").lower() in ("full_time", "full-time", "ft")
+            radius = FULL_TIME_RADIUS_KM if full_time else ADVANCE_RADIUS_KM
+            suggestions.append({
+                "user_id": c["user_id"], "full_name": c["full_name"], "mobile": c["mobile"],
+                "phleb_type": "full_time" if full_time else "part_time",
+                "distance_km": dist,
+                "within_radius": dist is not None and dist <= radius,
+                "busy_at_slot": bool(slot and slot in busy.get(c["user_id"], set())),
+                "on_leave": c["on_leave"],
+                "jobs_that_day": load.get(c["user_id"], 0),
+            })
+        # Same preference as the automatic pass: free, in range, nearest.
+        suggestions.sort(key=lambda s: (
+            s["on_leave"], s["busy_at_slot"], not s["within_radius"],
+            s["distance_km"] if s["distance_km"] is not None else 1e9,
+        ))
+        queue.append({
+            "booking_id": b["id"],
+            "slot_time": slot,
+            "area": _collection_area(b),
+            "tests": b.get("selected_tests") or [],
+            "has_location": has_location,
+            "reason": "auto_assignment_failed" if rows else "awaiting_auto_assignment",
+            "suggestions": suggestions,
+        })
+    queue.sort(key=lambda q: q["slot_time"] or "99:99")
+    return queue
+
+
+async def manual_assign(processing_center_id: str, booking_id: str,
+                        phlebotomist_user_id: str, actor_user_id: str) -> dict:
+    """Assign a centre collector to an unplaced home collection.
+
+    Raises LookupError (not found), PermissionError (other centre) or
+    ValueError (cannot be assigned as asked) with a message fit for staff.
+    """
+    rows = _rows(
+        supabase.table("bookings").select("*").eq("id", booking_id).limit(1).execute()
+    )
+    if not rows:
+        raise LookupError("Booking not found.")
+    booking = rows[0]
+    if booking.get("processing_center_id") != processing_center_id:
+        raise PermissionError("This booking belongs to another processing centre.")
+    if booking.get("booking_kind") != "home_collection" or booking.get("status") not in _LIVE_BOOKING:
+        raise ValueError(f"This booking cannot be assigned (status: {booking.get('status')}).")
+    if booking.get("collection_lat") is None or booking.get("collection_lng") is None:
+        raise ValueError("This booking has no collection location yet, so it cannot be dispatched.")
+
+    roster_date = booking.get("collection_date") or (booking.get("slot_start") or "")[:10]
+    collector = next(
+        (c for c in _centre_collectors(processing_center_id, roster_date)
+         if c["user_id"] == phlebotomist_user_id), None)
+    if not collector:
+        raise ValueError("That phlebotomist is not a verified collector of this centre.")
+
+    existing = _rows(
+        supabase.table("dispatch_requests").select("id, status, assigned_provider_id")
+        .eq("booking_id", booking_id).execute()
+    )
+    if any(_blocks_manual(d) for d in existing):
+        raise ValueError("This booking is already assigned, or a live offer is still out.")
+
+    _, busy = _roster_state(roster_date)
+    slot = _slot_hhmm(booking)
+    if slot and slot in busy.get(phlebotomist_user_id, set()):
+        raise ValueError(f"{collector['full_name'] or 'This phlebotomist'} already has a collection at {slot}.")
+
+    # Reuse the failed auto row if there is one, so the booking keeps a single
+    # dispatch. 'advance' (the schema allows advance/realtime/urgent) makes it
+    # behave like a rostered job: on the collector's schedule, and declinable
+    # through the normal reassign path.
+    payload = {
+        "assigned_provider_id": phlebotomist_user_id,
+        "assignment_mode": "advance",
+        "scheduled_for": roster_date,
+        "status": "provider_accepted",
+    }
+    failed = next((d for d in existing if d.get("status") in _FAILED_AUTO), None)
+    if failed:
+        dispatch_id = failed["id"]
+        supabase.table("dispatch_requests").update(payload).eq("id", dispatch_id).execute()
+    else:
+        dispatch_id = str(uuid.uuid4())
+        supabase.table("dispatch_requests").insert({
+            **payload,
+            "id": dispatch_id,
+            "booking_id": booking_id,
+            "patient_id": booking.get("patient_id"),
+            "provider_type": "phlebotomist",
+            "service_subtype": "home_collection",
+            "priority": booking.get("priority") or "normal",
+            "declined_by": [],
+            "patient_lat": booking["collection_lat"],
+            "patient_lng": booking["collection_lng"],
+            "patient_address": _collection_area(booking),
+            "notes": f"Manually assigned by processing centre ({slot or 'scheduled'})",
+        }).execute()
+
+    supabase.table("bookings").update({
+        "provider_id": phlebotomist_user_id, "provider_type": "phlebotomist",
+    }).eq("id", booking_id).execute()
+
+    when = f"{roster_date} at {slot or 'the scheduled time'}"
+    try:
+        from app.services.notification_engine import NotificationEngine
+        await NotificationEngine.send_multi(
+            user_id=phlebotomist_user_id, channels=["in_app", "push"],
+            title="Home collection assigned to you",
+            body=f"Doorstep collection on {when} ({_collection_area(booking) or 'see Schedule'}).",
+            data={"type": "roster_assignment", "booking_id": booking_id,
+                  "dispatch_id": dispatch_id, "roster_date": roster_date},
+        )
+        if booking.get("patient_id"):
+            await NotificationEngine.send_multi(
+                user_id=booking["patient_id"], channels=["in_app"],
+                title="Phlebotomist Assigned",
+                body=f"{collector['full_name'] or 'A phlebotomist'} has been assigned for your home collection on {when}.",
+                data={"booking_id": booking_id, "phlebotomist_id": phlebotomist_user_id},
+            )
+    except Exception as e:
+        logger.warning(f"manual_assign notifications failed for booking {booking_id}: {e}")
+
+    logger.info(f"Booking {booking_id} manually assigned to {phlebotomist_user_id} by {actor_user_id}")
+    return {"booking_id": booking_id, "dispatch_id": dispatch_id,
+            "phlebotomist_user_id": phlebotomist_user_id, "full_name": collector["full_name"]}

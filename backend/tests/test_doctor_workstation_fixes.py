@@ -93,7 +93,25 @@ async def test_apply_standard_mou_tariffs(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_send_rx_email_dispatches_successfully():
+async def test_send_rx_email_refuses_without_a_registration_number(monkeypatch):
+    # NMC: every e-prescription carries the prescriber's registration number.
+    monkeypatch.setattr(tm, "_prescriber_credentials",
+                        lambda uid, role: {"name": "Dr. X", "qualification": "MBBS", "reg_number": ""})
+    req = SendRxEmailRequest(patient_email="patient@example.com", patient_name="P", diagnosis="D", medicines=[])
+    with pytest.raises(HTTPException) as exc:
+        await send_rx_email(req, DOCTOR_USER)
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_send_rx_email_dispatches_successfully(monkeypatch):
+    monkeypatch.setattr(tm, "_prescriber_credentials",
+                        lambda uid, role: {"name": "Dr. Latchireddi Sa Naidu",
+                                           "qualification": "MBBS, MD", "reg_number": "APMC-12345"})
+    import app.services.email as email_mod
+    sent = []
+    monkeypatch.setattr(email_mod.EmailService, "send_eprescription_email",
+                        staticmethod(lambda **kw: sent.append(kw) or True))
     req = SendRxEmailRequest(
         patient_email="patient@example.com",
         patient_name="Priya Sharma",
@@ -108,6 +126,7 @@ async def test_send_rx_email_dispatches_successfully():
     result = await send_rx_email(req, DOCTOR_USER)
     assert result["success"] is True
     assert "patient@example.com" in result["message"]
+    assert sent and sent[0]["doctor_reg_number"] == "APMC-12345"
 
 
 @pytest.mark.asyncio

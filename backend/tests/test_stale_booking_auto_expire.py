@@ -19,8 +19,15 @@ class FakeSupabaseTable:
         self._action = "select"
         return self
 
+    @property
+    def not_(self):
+        self._negate = True
+        return self
+
     def in_(self, field, values):
-        self._filtered = [r for r in self._filtered if r.get(field) in values]
+        neg = getattr(self, "_negate", False)
+        self._negate = False
+        self._filtered = [r for r in self._filtered if (r.get(field) in values) != neg]
         return self
 
     def eq(self, field, val):
@@ -63,7 +70,7 @@ class FakeSupabaseClient:
     def table(self, name):
         if name == "bookings":
             return FakeSupabaseTable(self.bookings_data)
-        elif name == "patient_samples":
+        elif name in ("samples", "patient_samples"):
             return FakeSupabaseTable(self.samples_data)
         elif name == "dispatch_requests":
             return FakeSupabaseTable(self.dispatches_data)

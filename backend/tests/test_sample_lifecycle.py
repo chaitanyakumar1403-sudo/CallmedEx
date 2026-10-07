@@ -63,7 +63,9 @@ class FakeQuery:
         return self
 
     def in_(self, col, vals):
-        self.filters.append(("in", col, list(vals)))
+        # `.not_.in_(...)` is real PostgREST and used by the app; honour it.
+        self.filters.append(("not_in" if self._negate_next else "in", col, list(vals)))
+        self._negate_next = False
         return self
 
     def lte(self, col, val):
@@ -135,6 +137,8 @@ class FakeQuery:
             if kind == "neq" and row.get(col) == val:
                 return False
             if kind == "in" and row.get(col) not in val:
+                return False
+            if kind == "not_in" and row.get(col) in val:
                 return False
             # ISO-8601 UTC timestamps sort correctly as strings, which is how
             # every timestamp column in this codebase is stored.

@@ -74,7 +74,8 @@ async def test_dispatch_request_creates_booking_when_missing():
 
 @pytest.mark.asyncio
 async def test_accept_task_syncs_booking_status():
-    """Verify accept_task updates the linked booking to in_progress with assigned provider_id."""
+    """Verify accept_task marks the linked booking provider_accepted (not in_progress —
+    that is only earned at the door via OTP) with the assigned provider_id."""
     from app.routers.dispatch import accept_task
 
     fake_provider = {"sub": "nurse-uuid-8888", "role": "nurse"}
@@ -114,7 +115,7 @@ async def test_accept_task_syncs_booking_status():
 
         assert res["success"] is True
         assert "bookings_payload" in updated_records
-        assert updated_records["bookings_payload"]["status"] == "in_progress"
+        assert updated_records["bookings_payload"]["status"] == "provider_accepted"
         assert updated_records["bookings_payload"]["provider_id"] == fake_provider["sub"]
 
 
@@ -136,7 +137,8 @@ async def test_update_task_status_lifecycle_syncs_booking_completed():
             # 1. select current status
             query.select.return_value = query
             query.eq.return_value = query
-            query.execute.return_value = MagicMock(data=[{"status": "in_progress"}])
+            query.limit.return_value = query
+            query.execute.return_value = MagicMock(data=[{"status": "in_progress", "assigned_provider_id": fake_provider["sub"]}])
             # 2. update call
             def capture_dispatch_update(payload):
                 inner = MagicMock()
@@ -160,7 +162,8 @@ async def test_update_task_status_lifecycle_syncs_booking_completed():
 
     mock_supabase.table.side_effect = table_router
 
-    with patch("app.database.supabase", mock_supabase):
+    # The engine owns the write and holds its own module-level client.
+    with patch("app.database.supabase", mock_supabase),          patch("app.services.dispatch_engine.supabase", mock_supabase):
         body = StatusUpdate(status="completed")
         res = await update_task_status_lifecycle(dispatch_id=dispatch_id, body=body, current_user=fake_provider)
 

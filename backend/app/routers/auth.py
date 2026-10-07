@@ -179,6 +179,17 @@ def _create_role_profile(table: str, profile_data: dict) -> dict:
             try:
                 result = supabase.table(table).insert(payload).execute()
                 if result.data and len(result.data) > 0:
+                    if table == "phlebotomists" and payload.get("user_id"):
+                        # Anchor the collector's 20 km service radius on the
+                        # address they registered, before their first duty
+                        # toggle. Geocoding is an HTTP call — keep it off the
+                        # request; _ensure_base_location never raises.
+                        import threading
+                        from app.services.dispatch_engine import UniversalDispatchEngine
+                        threading.Thread(
+                            target=UniversalDispatchEngine._ensure_base_location,
+                            args=(payload["user_id"],), daemon=True,
+                        ).start()
                     return result.data[0]
                 raise RuntimeError(f"{table} insert returned no row")
             except Exception as e:

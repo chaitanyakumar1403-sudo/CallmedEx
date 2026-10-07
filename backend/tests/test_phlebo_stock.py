@@ -21,6 +21,13 @@ from app.routers import phlebo_stock as stock_mod
 from tests.test_sample_lifecycle import FakeSupabase
 
 
+@pytest.fixture(autouse=True)
+def _skip_assignment_gate(monkeypatch):
+    # Assigned-collector / at-the-door gating has its own suite
+    # (test_doorstep_assignment_gate.py); these tests exercise other logic.
+    monkeypatch.setattr("app.routers.phlebo_doorstep._require_assigned", lambda *a, **k: None)
+
+
 # ── Extended Fake with gte support ─────────────────────────────────────────
 
 class FakeQueryWithGte:

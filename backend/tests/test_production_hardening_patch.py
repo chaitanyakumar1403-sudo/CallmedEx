@@ -25,6 +25,13 @@ import app.services.report_submission as report_submission_mod
 from tests.test_sample_lifecycle import FakeSupabase
 
 
+@pytest.fixture(autouse=True)
+def _skip_assignment_gate(monkeypatch):
+    # Assigned-collector / at-the-door gating has its own suite
+    # (test_doorstep_assignment_gate.py); these tests exercise other logic.
+    monkeypatch.setattr("app.routers.phlebo_doorstep._require_assigned", lambda *a, **k: None)
+
+
 @pytest.fixture
 def fake_db(monkeypatch):
     fake = FakeSupabase()

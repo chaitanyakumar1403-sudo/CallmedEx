@@ -38,6 +38,12 @@ export default function PCRosterPanel() {
   // Local roster edits (user_id → status)
   const [edits, setEdits] = useState<Record<string, string>>({});
 
+  // Collections auto-assignment could not place, and the centre's pick per
+  // booking (defaults to the top suggestion — nearest free collector).
+  const [queue, setQueue] = useState<any[]>([]);
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const [assigning, setAssigning] = useState<string | null>(null);
+
   // Roster writes are centre-admin only (require_pc_admin on the backend).
   // The buttons used to be shown to everyone, so a technician could edit the
   // whole roster, press Save and get a flat error with no idea why — which is
@@ -55,8 +61,20 @@ export default function PCRosterPanel() {
     // reload, so the panel showed an error over correct, current data.
     setMsg(null);
     try {
-      const result = await pcAPI.getRosterSummary(selectedDate);
+      const [result, unplaced] = await Promise.all([
+        pcAPI.getRosterSummary(selectedDate),
+        // The roster must still render if this list fails to load.
+        pcAPI.getUnassignedCollections(selectedDate).catch(() => ({ items: [] })),
+      ]);
       setData(result);
+      const items = unplaced?.items || [];
+      setQueue(items);
+      setPicks(Object.fromEntries(
+        items.map((q: any) => [
+          q.booking_id,
+          (q.suggestions || []).find((s: any) => !s.busy_at_slot)?.user_id || "",
+        ])
+      ));
       // Initialize edits from current roster
       const initial: Record<string, string> = {};
       for (const p of result.phlebotomists || []) {
@@ -110,12 +128,27 @@ export default function PCRosterPanel() {
     }
   }
 
+  async function assign(bookingId: string) {
+    const uid = picks[bookingId];
+    if (!uid) return;
+    setAssigning(bookingId);
+    setMsg(null);
+    try {
+      const result = await pcAPI.assignCollection(bookingId, uid);
+      setMsg({ kind: "ok", text: result.message || "Phlebotomist assigned." });
+      await load();
+    } catch (e: any) {
+      setMsg({ kind: "err", text: e.message || "Could not assign the phlebotomist" });
+    } finally {
+      setAssigning(null);
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading roster…</div>;
   }
 
   const phlebos = data?.phlebotomists || [];
-  const unassigned = data?.unassigned_jobs || [];
   const available = phlebos.filter((p: any) => edits[p.user_id] === "available");
   const hasEdits = phlebos.some(
     (p: any) => edits[p.user_id] !== p.roster_status
@@ -260,36 +293,70 @@ export default function PCRosterPanel() {
         )}
       </div>
 
-      {/* ── Unassigned jobs ───────────────────────────────────────── */}
-      {unassigned.length > 0 && (
+      {/* ── Collections needing a phlebotomist ────────────────────── */}
+      {queue.length > 0 && (
         <div className="card" style={{ padding: 20 }}>
-          <h3 style={{ margin: "0 0 14px 0", fontSize: "1.05rem", color: "#f59e0b" }}>
-            <Icon as={AlertTriangle} size={16} /> Unassigned Jobs ({unassigned.length})
+          <h3 style={{ margin: "0 0 6px 0", fontSize: "1.05rem", color: "#b45309" }}>
+            <Icon as={AlertTriangle} size={16} /> Needs a phlebotomist ({queue.length})
           </h3>
           <p style={{ margin: "0 0 14px 0", fontSize: "0.85rem", color: "#64748b" }}>
-            These bookings need manual assignment — every rostered phlebotomist declined or is out of range.
+            Phlebotomists are assigned automatically from the patient&apos;s location. These are the
+            collections that could not be placed automatically. Suggestions are nearest to the patient first.
           </p>
-          <div style={{ display: "grid", gap: 6 }}>
-            {unassigned.map((job: any) => (
-              <div
-                key={job.id}
-                style={{
-                  display: "flex", justifyContent: "space-between",
-                  alignItems: "center", padding: "10px 14px",
-                  borderRadius: 8, background: "#fffbeb",
-                  border: "1px solid #fcd34d",
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "#92400e" }}>
-                    Booking: {job.booking_id?.slice(0, 8)}…
-                  </span>
-                  <span style={{ fontSize: "0.78rem", color: "#a16207", marginLeft: 8 }}>
-                    {job.status?.replace(/_/g, " ")}
-                  </span>
+          <div style={{ display: "grid", gap: 10 }}>
+            {queue.map((q: any) => {
+              const failed = q.reason === "auto_assignment_failed";
+              return (
+                <div
+                  key={q.booking_id}
+                  style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    gap: 12, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10,
+                    background: failed ? "#fffbeb" : "#f8fafc",
+                    border: `1px solid ${failed ? "#fcd34d" : "#e2e8f0"}`,
+                  }}
+                >
+                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <Icon as={Clock} size={14} /> {q.slot_time || "No time"} · {q.area || "Area not given"}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: 2, overflowWrap: "anywhere" }}>
+                      {(q.tests || []).join(", ") || "Tests not listed"}
+                    </div>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 700, marginTop: 4, color: failed ? "#b45309" : "#64748b" }}>
+                      {failed ? "Auto-assignment found no one" : "Not yet auto-assigned"}
+                      {!q.has_location && " · No collection location — cannot dispatch"}
+                    </div>
+                  </div>
+                  {isAdmin !== false && q.has_location && (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", maxWidth: "100%" }}>
+                      <select
+                        aria-label="Phlebotomist to assign"
+                        value={picks[q.booking_id] || ""}
+                        onChange={(e) => setPicks((p) => ({ ...p, [q.booking_id]: e.target.value }))}
+                        style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", maxWidth: "100%" }}
+                      >
+                        {(q.suggestions || []).length === 0 && <option value="">No verified phlebotomists</option>}
+                        {(q.suggestions || []).map((s: any) => (
+                          <option key={s.user_id} value={s.user_id} disabled={s.busy_at_slot}>
+                            {s.full_name || "Unnamed"}
+                            {s.distance_km != null ? ` · ${s.distance_km} km` : ""}
+                            {s.on_leave ? " · on leave" : s.busy_at_slot ? " · busy at this time" : !s.within_radius ? " · out of range" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="primary"
+                        onClick={() => assign(q.booking_id)}
+                        disabled={!picks[q.booking_id] || assigning === q.booking_id}
+                      >
+                        {assigning === q.booking_id ? "Assigning…" : "Assign"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

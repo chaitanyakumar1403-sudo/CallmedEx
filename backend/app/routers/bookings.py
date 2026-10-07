@@ -27,6 +27,72 @@ router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
 
 # Scheduled home sample collection window (IST, inclusive).
 HOME_COLLECTION_WINDOW = ("06:00", "11:00")
+# How far ahead a doorstep slot must be for a collector to reach it. The
+# booking wizard hides slots inside this window too (HOME_LEAD_MINUTES there).
+HOME_COLLECTION_LEAD_MINUTES = 60
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _reject_past_slot(slot_start: Optional[str], preferred_date: Optional[str],
+                      is_home_collection: bool) -> None:
+    """422 when a scheduled booking points at a time that has already passed."""
+    now_ist = datetime.now(_IST)
+    if slot_start:
+        try:
+            slot_dt = datetime.fromisoformat(slot_start)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid slot time.")
+        lead = timedelta(minutes=HOME_COLLECTION_LEAD_MINUTES if is_home_collection else 0)
+        if slot_dt < now_ist + lead:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "This time slot has already passed or is too close to book. "
+                    "Please pick a later slot."
+                ),
+            )
+    elif preferred_date and str(preferred_date)[:10] < now_ist.strftime("%Y-%m-%d"):
+        raise HTTPException(status_code=422, detail="This date has already passed. Please pick today or a later date.")
+
+
+def _home_slot_capacity(city: str, date_str: str) -> int:
+    """How many doorstep collections one slot can take in this city that day.
+
+    One per available collector — not one per city. The old rule locked a slot
+    city-wide after the first booking, so a city with 20 collectors could take
+    only 11 home collections a day.
+    """
+    if not city:
+        return 1
+    try:
+        from app.services.roster import _city_phlebos
+        return max(1, len(_city_phlebos(city, date_str)))
+    except Exception as e:
+        logger.warning(f"home slot capacity lookup failed for {city}: {e}")
+        return 1
+
+
+def _home_slot_counts(city: str, date_str: str) -> dict:
+    """Live home-collection bookings per HH:MM slot in this city on this date."""
+    query = (
+        supabase.table("bookings")
+        .select("slot_id, slot_start")
+        .eq("booking_kind", "home_collection")
+        .not_.in_("status", ["cancelled", "slot_rejected"])
+    )
+    if city:
+        query = query.eq("collection_city", city)
+    counts: dict = {}
+    for b in _rows(query.execute()):
+        parts = (b.get("slot_id") or "").split("|")
+        t = None
+        if len(parts) == 3 and parts[1] == date_str and ":" in parts[2]:
+            t = parts[2][:5]
+        elif (b.get("slot_start") or "").startswith(date_str) and "T" in b["slot_start"]:
+            t = b["slot_start"].split("T")[1][:5]
+        if t:
+            counts[t] = counts.get(t, 0) + 1
+    return counts
 
 
 def _strip_centre_identity(booking: dict) -> dict:
@@ -571,28 +637,13 @@ async def get_booked_slots(
     try:
         booked_times = []
 
-        # Area-based home collection slot locking
+        # Area-based home collection: a slot shows as booked only once it is
+        # at capacity (one booking per available collector in the city).
         if service_type in ("home_collection", "lab") or not provider_id:
-            query = (
-                supabase.table("bookings")
-                .select("slot_id, slot_start, collection_city, collection_district")
-                .eq("booking_kind", "home_collection")
-                .not_.in_("status", ["cancelled", "slot_rejected"])
+            capacity = _home_slot_capacity(city or "", date_str)
+            booked_times.extend(
+                t for t, n in _home_slot_counts(city or "", date_str).items() if n >= capacity
             )
-            if city:
-                query = query.eq("collection_city", city)
-            active_home_bookings = _rows(query.execute())
-            for b in active_home_bookings:
-                slot_id = b.get("slot_id") or ""
-                parts = slot_id.split("|")
-                if len(parts) == 3 and parts[1] == date_str:
-                    booked_times.append(parts[2])
-                elif b.get("slot_start") and b["slot_start"].startswith(date_str):
-                    try:
-                        time_part = b["slot_start"].split("T")[1][:5]
-                        booked_times.append(time_part)
-                    except Exception:
-                        pass
 
         if provider_id:
             target_ids = [provider_id]
@@ -825,6 +876,14 @@ async def create_booking(
             detail="Home sample collection slots run from 6:00 AM to 11:00 AM. Please pick a time in that window.",
         )
 
+    # A slot that has already gone by (or, for doorstep collection, is too
+    # close for a collector to reach) can never be honoured. The wizard hides
+    # these, but the server is the only place that can guarantee it — a page
+    # left open overnight still submits yesterday's "today".
+    if not booking.slot_id.startswith(("on_demand|", "reorder|")):
+        _reject_past_slot(slot_start if slot_has_time else None,
+                          booking.preferred_date, is_home_collection)
+
     if needs_org_review:
         booking_status = BookingStatus.PENDING_REVIEW.value
         booking_data = {
@@ -989,39 +1048,20 @@ async def create_booking(
         except Exception as dup_err:
             logger.warning(f"Duplicate-booking check failed: {dup_err}")
 
-        # Area conflict check for home collection:
-        # Prevent two patients from booking the same home collection slot in the same city
+        # Capacity check for home collection: a slot in a city is full once it
+        # holds as many live bookings as there are collectors available there.
         if is_home_collection and slot_has_time:
             try:
                 col_city = booking.city or booking_data.get("collection_city") or ""
                 col_date = booking_data.get("collection_date") or (slot_parts[1] if len(slot_parts) >= 2 else "")
-                req_time = slot_parts[2] if len(slot_parts) >= 3 else ""
+                req_time = slot_parts[2][:5] if len(slot_parts) >= 3 else ""
                 if col_city and col_date and req_time and ":" in req_time:
-                    active_same_area = _rows(
-                        supabase.table("bookings")
-                        .select("id, slot_id, slot_start, collection_city")
-                        .eq("booking_kind", "home_collection")
-                        .eq("collection_city", col_city)
-                        .not_.in_("status", ["cancelled", "slot_rejected"])
-                        .execute()
-                    )
-                    for cb in active_same_area:
-                        cb_slot = cb.get("slot_id") or ""
-                        cb_parts = cb_slot.split("|")
-                        match = False
-                        if len(cb_parts) == 3 and cb_parts[1] == col_date and cb_parts[2] == req_time:
-                            match = True
-                        elif cb.get("slot_start") and cb["slot_start"].startswith(col_date):
-                            try:
-                                if cb["slot_start"].split("T")[1][:5] == req_time:
-                                    match = True
-                            except Exception:
-                                pass
-                        if match and cb.get("id") != booking_id:
-                            raise HTTPException(
-                                status_code=409,
-                                detail=f"The {req_time} home collection time slot in {col_city} is already booked. Please select an alternate time slot."
-                            )
+                    taken = _home_slot_counts(col_city, col_date).get(req_time, 0)
+                    if taken >= _home_slot_capacity(col_city, col_date):
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"The {req_time} home collection time slot in {col_city} is fully booked. Please select an alternate time slot."
+                        )
             except HTTPException:
                 raise
             except Exception as conflict_err:
@@ -1556,7 +1596,11 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
         query = (
             supabase.table("bookings")
             .select("*")
-            .in_("status", ["pending_review", "slot_allotted", "requested", "searching", "provider_notified", "confirmed"])
+            # provider_accepted / in_progress are included: a collector who
+            # accepted and never turned up used to leave the booking "upcoming"
+            # forever. Condition B below keeps anything actually serviced.
+            .in_("status", ["pending_review", "slot_allotted", "requested", "searching",
+                            "provider_notified", "confirmed", "provider_accepted", "in_progress"])
         )
         if patient_id:
             query = query.eq("patient_id", patient_id)
@@ -1607,22 +1651,27 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
             if not is_past_due:
                 continue
 
-            # Condition B: For confirmed status, ensure no specimen was already collected or visit conducted
-            if status == "confirmed":
+            # Condition B: never cancel a booking that was actually serviced —
+            # a tube left the patient (canonical `samples` table) or the
+            # collector reached the door. If either check cannot be read, keep
+            # the booking: a wrongly cancelled visit is worse than a stale one.
+            if status in ("confirmed", "provider_accepted", "in_progress"):
                 try:
-                    samples_res = (
-                        supabase.table("patient_samples")
-                        .select("id, status")
+                    serviced = _rows(
+                        supabase.table("samples").select("id")
                         .eq("booking_id", b_id)
-                        .in_("status", ["collected", "delivered_to_center", "analyzed", "verified"])
-                        .limit(1)
-                        .execute()
+                        .not_.in_("status", ["pending_collection", "cancelled"])
+                        .limit(1).execute()
+                    ) or _rows(
+                        supabase.table("dispatch_requests").select("id")
+                        .eq("booking_id", b_id)
+                        .in_("status", ["arrived", "in_progress", "completed", "samples_delivered_to_lab"])
+                        .limit(1).execute()
                     )
-                    if samples_res.data and len(samples_res.data) > 0:
-                        # Specimens were collected; do not cancel
-                        continue
                 except Exception:
-                    pass
+                    continue
+                if serviced:
+                    continue
 
             # Auto-refute and cancel this stale booking
             reason = "Automatically cancelled: Scheduled appointment date passed without provider fulfillment/acceptance."
@@ -1644,9 +1693,15 @@ def auto_expire_stale_bookings(patient_id: Optional[str] = None) -> int:
                     "status": "cancelled",
                     "cancel_reason": "Expired: Scheduled date passed without provider fulfillment",
                     "updated_at": now_iso,
-                }).eq("booking_id", b_id).in_("status", ["searching", "provider_notified", "provider_accepted"]).execute()
+                }).eq("booking_id", b_id).in_("status", ["searching", "provider_notified", "provider_accepted", "en_route", "needs_manual_assignment"]).execute()
             except Exception as d_err:
                 logger.debug(f"Could not cancel dispatch for stale booking {b_id}: {d_err}")
+            # Undrawn tubes leave the processing centre's expected list too.
+            try:
+                supabase.table("samples").update({"status": "cancelled"}) \
+                    .eq("booking_id", b_id).eq("status", "pending_collection").execute()
+            except Exception as s_err:
+                logger.debug(f"Could not cancel pending samples for stale booking {b_id}: {s_err}")
 
             _record_booking_history(
                 booking_id=b_id,
@@ -2790,8 +2845,24 @@ async def cancel_booking(booking_id: str, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=403, detail="Not authorized to cancel this booking")
         
     current_status = booking.get("status")
-    
-    if current_status in ["cancelled", "completed", "arrived", "in_progress"]:
+
+    # The booking stays provider_accepted while the collector is on the way
+    # or at the door; the dispatch row carries that finer step, and the
+    # policy below (fee when en route, blocked once arrived) depends on it.
+    if current_status in ("provider_accepted", "confirmed"):
+        try:
+            live = _rows(
+                supabase.table("dispatch_requests").select("status")
+                .eq("booking_id", booking_id)
+                .in_("status", ["en_route", "arrived", "in_progress", "completed", "samples_delivered_to_lab"])
+                .limit(1).execute()
+            )
+            if live:
+                current_status = live[0]["status"]
+        except Exception as d_err:
+            logger.warning(f"cancel_booking: dispatch lookup for {booking_id} failed: {d_err}")
+
+    if current_status in ["cancelled", "completed", "arrived", "in_progress", "samples_delivered_to_lab"]:
         raise HTTPException(status_code=400, detail=f"Cannot cancel a booking that is currently {current_status}")
         
     # 2. Enforce Cancellation Policy (Grace Period vs Fee)

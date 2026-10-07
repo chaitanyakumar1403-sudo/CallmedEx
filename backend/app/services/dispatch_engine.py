@@ -60,6 +60,20 @@ URGENT_RADIUS_MULTIPLIER = 2.0
 URGENT_MAX_OFFERS = 12
 NORMAL_MAX_OFFERS = 5
 
+# Full-time collectors cover a 20 km radius from where they are (or their
+# registered base); part-time collectors stay on the platform radius above.
+# The advance roster (services/roster.py) uses the same figure.
+FULL_TIME_PHLEBO_RADIUS_KM = 20.0
+
+# What a field provider's visit must be at before each step they can take.
+# in_progress is only ever reached through the patient's arrival OTP.
+PROVIDER_TRANSITION_PREREQS = {
+    "en_route": {"provider_accepted", "en_route"},
+    "arrived": {"en_route", "arrived"},
+    "in_progress": {"arrived", "in_progress"},
+    "completed": {"in_progress", "completed"},
+}
+
 _local_dispatches: List[dict] = []
 _LOCAL_DISPATCH_MAX_AGE_HOURS = 24  # Clean up dispatches older than 24 hours
 
@@ -396,14 +410,13 @@ class UniversalDispatchEngine:
             dist = UniversalDispatchEngine.haversine_km(
                 patient_lat, patient_lng, float(p_lat), float(p_lng)
             )
-            # Full-time phlebotomists have an expanded 25 km operational radius across
-            # the city/transit network, allowing them to travel and collect doorstep samples
-            # anywhere within 25 km. Part-time phlebotomists adhere to base local radius (15 km).
+            # Full-time phlebotomists serve a 20 km radius; part-time ones the
+            # platform radius (15 km by default).
             effective_radius = radius_km
             if provider_type == "phlebotomist":
                 p_type = phleb_types.get(user_id) or (p.get("phleb_type") or "").lower()
                 if p_type in ("full_time", "full-time", "ft"):
-                    effective_radius = max(radius_km, 25.0)
+                    effective_radius = max(radius_km, FULL_TIME_PHLEBO_RADIUS_KM)
 
             if ignore_radius or dist <= effective_radius:
                 user_data = p.get("users", {})
@@ -1158,13 +1171,15 @@ class UniversalDispatchEngine:
             except Exception as e:
                 logger.error(f"Failed to send tracking email/notification: {e}")
 
-            # Sync linked booking to in_progress and assign provider_id
+            # Sync linked booking to provider_accepted and assign provider_id.
+            # Not in_progress: nothing has started until the collector is at
+            # the door and the patient's OTP is verified.
             accepted_dispatch = accept_result.data[0] if accept_result.data else {}
             linked_booking_id = accepted_dispatch.get("booking_id")
             if linked_booking_id:
                 try:
                     supabase.table("bookings").update({
-                        "status": "in_progress",
+                        "status": "provider_accepted",
                         "provider_id": provider_id,
                         "updated_at": now,
                     }).eq("id", linked_booking_id).execute()
@@ -1413,6 +1428,32 @@ class UniversalDispatchEngine:
         if new_status not in valid_statuses:
             return {"success": False, "message": f"Invalid status: {new_status}"}
 
+        # A provider may only move their OWN visit, and only one legal step at
+        # a time. /status, /magic-status and the OTP path all reach here with
+        # provider_id; without this, any collector could mark any patient's
+        # collection completed (or in_progress without the arrival OTP).
+        if provider_id and supabase:
+            allowed_from = PROVIDER_TRANSITION_PREREQS.get(new_status)
+            if allowed_from is None:
+                return {"success": False, "message": f"Providers cannot set status '{new_status}'."}
+            try:
+                cur = (
+                    supabase.table("dispatch_requests")
+                    .select("status, assigned_provider_id")
+                    .eq("id", dispatch_id).limit(1).execute()
+                ).data or []
+            except Exception as e:
+                logger.warning(f"update_status could not read dispatch {dispatch_id}: {e}")
+                cur = []
+            if cur:
+                if cur[0].get("assigned_provider_id") != provider_id:
+                    return {"success": False, "message": "This visit is not assigned to you."}
+                if cur[0].get("status") not in allowed_from:
+                    return {
+                        "success": False,
+                        "message": f"Cannot move to '{new_status}' from '{cur[0].get('status')}'.",
+                    }
+
         now = datetime.now(timezone.utc).isoformat()
         update_data = {"status": new_status, "updated_at": now}
 
@@ -1470,10 +1511,14 @@ class UniversalDispatchEngine:
         booking_id = dispatch_row.get("booking_id") if isinstance(dispatch_row, dict) else None
         if booking_id and supabase:
             try:
+                # The booking is "in progress" only once the visit has actually
+                # started (OTP verified at the door). On the way / at the door
+                # it is still an assigned, upcoming visit — the patient's live
+                # tracking card shows those finer steps from the dispatch row.
                 status_sync_map = {
                     "provider_accepted": "provider_accepted",
-                    "en_route": "in_progress",
-                    "arrived": "in_progress",
+                    "en_route": "provider_accepted",
+                    "arrived": "provider_accepted",
                     "in_progress": "in_progress",
                     "completed": "completed",
                     "cancelled": "cancelled",
@@ -1736,6 +1781,58 @@ class UniversalDispatchEngine:
     _ensure_processing_center_bound = _ensure_processing_centre
 
     @staticmethod
+    def _geocode_registered_address(user_id: str) -> tuple:
+        """(lat, lng) of the address this user registered, or (None, None)."""
+        try:
+            user_rows = (
+                supabase.table("users")
+                .select("address, city, district, state, pincode")
+                .eq("id", user_id).limit(1).execute()
+            ).data or []
+        except Exception as e:
+            logger.info(f"Registered address lookup failed for {user_id}: {e}")
+            return None, None
+        if not user_rows:
+            return None, None
+        u = user_rows[0]
+        address = ", ".join(
+            str(part) for part in
+            (u.get("address"), u.get("pincode"), u.get("district"))
+            if part
+        )
+        if not (address or u.get("city")):
+            return None, None
+        from app.services.geocoding import geocode_address, GeocodingError
+        try:
+            return geocode_address(
+                address=address, city=u.get("city") or "", state=u.get("state") or "",
+            )
+        except GeocodingError as e:
+            logger.info(f"Base location geocode failed for phlebotomist {user_id}: {e}")
+            return None, None
+
+    @staticmethod
+    def rebase_phlebotomist(user_id: str) -> Optional[tuple]:
+        """Re-anchor a collector's base on their registered address, overwriting.
+
+        Returns the new (lat, lng), or None when the address cannot be
+        geocoded — the existing base is then left untouched, never cleared.
+        Never raises.
+        """
+        lat, lng = UniversalDispatchEngine._geocode_registered_address(user_id)
+        if lat is None or lng is None:
+            return None
+        try:
+            supabase.table("phlebotomists").update({
+                "base_lat": float(lat), "base_lng": float(lng),
+            }).eq("user_id", user_id).execute()
+        except Exception as e:
+            logger.warning(f"Re-base write failed for phlebotomist {user_id}: {e}")
+            return None
+        logger.info(f"Re-based phlebotomist {user_id} on registered address ({lat}, {lng})")
+        return float(lat), float(lng)
+
+    @staticmethod
     def _ensure_base_location(
         user_id: str,
         lat: Optional[float] = None,
@@ -1743,10 +1840,15 @@ class UniversalDispatchEngine:
     ) -> None:
         """Give a phlebotomist a base location if they have none. Never raises.
 
-        Order of preference: the live fix they just supplied, then their
-        registered address geocoded once, then the coordinates of the
-        processing centre they are attached to. Written once and left alone —
-        a collector who moves house is re-based by ops, not by a stray ping.
+        Order of preference: their registered address geocoded once (the
+        place they said they work from, and what the 20 km service radius is
+        measured from), then the live fix they just supplied or last sent,
+        then the coordinates of the processing centre they are attached to.
+        The live fix used to come first, so a collector whose first duty
+        toggle happened away from home was anchored there permanently.
+        Written once and left alone — a collector who moves house is re-based
+        by rebase_phlebotomist (on an address change, or the backfill script),
+        not by a stray ping.
         """
         try:
             rows = (
@@ -1763,41 +1865,14 @@ class UniversalDispatchEngine:
             if row.get("base_lat") is not None and row.get("base_lng") is not None:
                 return
 
-            base_lat, base_lng = lat, lng
+            base_lat, base_lng = UniversalDispatchEngine._geocode_registered_address(user_id)
 
-            # Their own last known fix, before reaching for a geocoder. A
-            # collector who has been on duty already has one, and it is a more
-            # accurate base than anything an address lookup returns.
+            # No usable address: the fix they just sent, else their last one.
+            if base_lat is None or base_lng is None:
+                base_lat, base_lng = lat, lng
             if base_lat is None or base_lng is None:
                 base_lat = row.get("current_lat")
                 base_lng = row.get("current_lng")
-
-            if base_lat is None or base_lng is None:
-                user_rows = (
-                    supabase.table("users")
-                    .select("address, city, district, state, pincode")
-                    .eq("id", user_id).limit(1).execute()
-                ).data or []
-                if user_rows:
-                    u = user_rows[0]
-                    address = ", ".join(
-                        str(part) for part in
-                        (u.get("address"), u.get("pincode"), u.get("district"))
-                        if part
-                    )
-                    if address or u.get("city"):
-                        from app.services.geocoding import geocode_address, GeocodingError
-                        try:
-                            base_lat, base_lng = geocode_address(
-                                address=address,
-                                city=u.get("city") or "",
-                                state=u.get("state") or "",
-                            )
-                        except GeocodingError as e:
-                            logger.info(
-                                f"Base location geocode failed for phlebotomist "
-                                f"{user_id}: {e}"
-                            )
 
             if (base_lat is None or base_lng is None) and row.get("processing_center_id"):
                 centre = (

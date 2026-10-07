@@ -205,7 +205,8 @@ async def test_my_jobs_enriches_patient_and_slot_time(monkeypatch):
     assert j["booking_id"] == "b-1"
     assert j["patient_name"] == "Ravi Teja"
     assert j["patient_phone"] == "+919888877777"
-    assert j["slot_time"] == "06:00 AM"
+    # slot_time stays raw HH:MM (the widget formats it); scheduled_time is the display form.
+    assert j["slot_time"] == "06:00"
     assert j["scheduled_time"] == "06:00 AM"
     assert j["selected_tests"] == ["Complete Blood Picture (CBP)", "Thyroid Profile"]
     assert j["tests"] == ["Complete Blood Picture (CBP)", "Thyroid Profile"]

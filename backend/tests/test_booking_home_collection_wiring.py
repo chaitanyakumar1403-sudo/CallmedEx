@@ -11,6 +11,7 @@ instead of failing checkout, that every pre-existing booking flow is
 completely untouched, and that no centre identity reaches the patient.
 """
 import uuid
+from datetime import date, timedelta
 
 import pytest
 
@@ -22,6 +23,9 @@ from app.models.schemas import BookingCreate, ServiceType
 from app.routers.bookings import create_booking
 from app.services.marketplace import MarketplaceService
 from tests.test_sample_lifecycle import FakeSupabase
+
+# Always in the future: create_booking rejects slots that have already passed.
+FUTURE_DATE = (date.today() + timedelta(days=30)).isoformat()
 
 
 @pytest.fixture
@@ -117,7 +121,7 @@ def _home_booking(**overrides):
     fields = dict(
         provider_id="", provider_type="",
         service_type=ServiceType.LAB_TEST,
-        slot_id="", preferred_date="2026-07-29",
+        slot_id="", preferred_date=FUTURE_DATE,
         selected_tests=["CBC"], total_price=350,
         city="Hyderabad", home=True,
     )
@@ -267,7 +271,7 @@ async def test_a_plain_provider_selected_booking_is_untouched(fake_db):
     booking = BookingCreate(
         provider_id=provider_id, provider_type="doctor",
         service_type=ServiceType.DOCTOR_APPOINTMENT,
-        slot_id=f"{provider_id}|2026-07-29|09:00",
+        slot_id=f"{provider_id}|{FUTURE_DATE}|09:00",
         total_price=500,
     )
     result = await create_booking(

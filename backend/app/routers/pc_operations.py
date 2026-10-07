@@ -624,7 +624,7 @@ async def verify_sample(
 
     rows = _rows(
         supabase.table("samples")
-        .select("id, status, processing_center_id")
+        .select("id, status, processing_center_id, phlebotomist_user_id, booking_id, barcode")
         .eq("id", sample_id)
         .limit(1)
         .execute()
@@ -680,6 +680,20 @@ async def verify_sample(
 
     _log_event(sample_id, "verified", staff["user_id"], centre_id,
                "5-point verification passed")
+
+    # Pay the collector for a tube that passed QC (part-time per-collection
+    # rate; salaried full-timers accrue 0) and settle any doorstep upsell
+    # incentive on this booking. Only the centre-handover path did this, so
+    # every collector routed through a processing centre earned nothing.
+    # Idempotent per sample; never blocks verification.
+    if sample.get("phlebotomist_user_id"):
+        try:
+            from app.services.samples import SampleService
+            SampleService._credit_for_accepted(
+                sample["phlebotomist_user_id"], [sample_id], {sample_id: sample}, staff["user_id"],
+            )
+        except Exception as e:
+            logger.error(f"collector credit failed for verified sample {sample_id}: {e}")
 
     # P2.4: Per-centre lab connector routing — read the centre's configured
     # connector type instead of hardcoding MOCDOC for all centres.
@@ -1113,6 +1127,60 @@ async def roster_summary(
         "total_dispatches": len(dispatches),
         "unassigned_count": len(unassigned_jobs),
     }
+
+
+# ─── Manual assignment fallback ───────────────────────────────────────────
+# Collectors are auto-assigned from the patient's location. These two
+# endpoints cover only what auto-assignment could not place.
+
+@router.get("/unassigned-collections")
+async def unassigned_collections(
+    date: Optional[str] = Query(default=None),
+    staff: dict = Depends(get_current_pc_staff),
+):
+    """Home collections of this centre with no collector, nearest suggestions first."""
+    from app.services.roster import manual_assignment_queue
+    target_date = date or (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date().isoformat()
+    items = manual_assignment_queue(staff["processing_center_id"], target_date)
+    return {"date": target_date, "items": items, "count": len(items)}
+
+
+class ManualAssignRequest(BaseModel):
+    booking_id: str
+    phlebotomist_user_id: str
+
+
+@router.post("/assign-collection")
+async def assign_collection(
+    body: ManualAssignRequest,
+    staff: dict = Depends(require_pc_admin),
+):
+    """Assign one of this centre's collectors to an unplaced home collection."""
+    from app.services.roster import manual_assign
+    try:
+        result = await manual_assign(
+            staff["processing_center_id"], body.booking_id,
+            body.phlebotomist_user_id, staff["user_id"],
+        )
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    try:
+        from app.services.audit import AuditService
+        AuditService.log(
+            action="dispatch.manual_assigned", entity_type="booking",
+            entity_id=body.booking_id, actor_id=staff["user_id"],
+            details={"phlebotomist_user_id": body.phlebotomist_user_id,
+                     "dispatch_id": result["dispatch_id"],
+                     "processing_center_id": staff["processing_center_id"]},
+        )
+    except Exception as e:
+        logger.error(f"audit log for manual assignment {body.booking_id} failed: {e}")
+    return {"success": True, **result,
+            "message": f"Assigned to {result.get('full_name') or 'the phlebotomist'}."}
 
 
 # ─── PC Staff & Team Management (PC Admin Only) ──────────────────────────

@@ -98,7 +98,10 @@ async def test_get_booked_slots_home_collection_by_city():
     ])
     mock_supabase.table.return_value = mock_query
 
-    with patch("app.routers.bookings.supabase", mock_supabase):
+    # Capacity is one booking per available collector in the city. Pin it, or
+    # the result depends on whether a real database is reachable.
+    with patch("app.routers.bookings.supabase", mock_supabase), \
+         patch("app.routers.bookings._home_slot_capacity", return_value=1):
         res = await get_booked_slots(
             provider_id=None,
             date_str="2026-09-11",
@@ -110,6 +113,17 @@ async def test_get_booked_slots_home_collection_by_city():
     assert "05:30" in res.data["booked_slots"]
     assert "07:30" in res.data["booked_slots"]
     assert len(res.data["booked_slots"]) == 2
+
+    # With two collectors free, one booking per slot leaves both slots open.
+    with patch("app.routers.bookings.supabase", mock_supabase), \
+         patch("app.routers.bookings._home_slot_capacity", return_value=2):
+        res = await get_booked_slots(
+            provider_id=None,
+            date_str="2026-09-11",
+            service_type="home_collection",
+            city="Visakhapatnam",
+        )
+    assert res.data["booked_slots"] == []
 
 
 @pytest.mark.asyncio

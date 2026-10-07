@@ -64,8 +64,16 @@ export default function PhlebotomistScanScreen() {
         booking_id: bookingId || undefined,
       });
 
+      // The safety check's verdict was ignored, and confirm was sent without
+      // the sample_id it requires — so every confirm was rejected. Stop on a
+      // failed check (wrong patient, not your booking, already collected…).
+      if (!verifyRes?.valid || !verifyRes?.sample_id) {
+        throw new Error(verifyRes?.message || 'This barcode failed the patient-safety check.');
+      }
+
       // 2. Confirm sample collection & link
       await api.post('/api/phlebo/confirm-sample-collection', {
+        sample_id: verifyRes.sample_id,
         barcode: trimmedBarcode,
         booking_id: bookingId || undefined,
         temperature_celsius: parseFloat(temperature) || 4.0,

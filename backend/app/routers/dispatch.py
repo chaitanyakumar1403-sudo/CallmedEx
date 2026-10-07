@@ -13,7 +13,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.middleware.auth import get_current_user
 from app.services.dispatch import DispatchService
-from app.services.dispatch_engine import UniversalDispatchEngine, search_radius_km_setting
+from app.services.dispatch_engine import (
+    PROVIDER_TRANSITION_PREREQS, UniversalDispatchEngine, search_radius_km_setting,
+)
 from app.services.otp import OTPService
 from app.services.magic_link import MagicLinkService
 from app.database import supabase
@@ -433,6 +435,12 @@ async def update_dispatch_status(
     """
     if current_user.get("role") not in FIELD_PROVIDER_ROLES:
         raise HTTPException(status_code=403, detail="Not authorized")
+    # Same arrival-proof rule as /update-status: in_progress only via OTP.
+    if update.status == "in_progress":
+        raise HTTPException(
+            status_code=400,
+            detail="in_progress can only be reached via OTP verification (/verify-otp).",
+        )
 
     result = await UniversalDispatchEngine.update_status(
         dispatch_id=dispatch_id,
@@ -836,8 +844,12 @@ async def accept_task(
             booking_id = d_row.get("booking_id")
             if booking_id:
                 try:
+                    # Accepted, not started: "in_progress" is earned at the
+                    # door (OTP). Writing it here showed the patient a visit in
+                    # progress before anyone had left, and hid the booking from
+                    # the stale-booking sweep when the collector never came.
                     supabase.table("bookings").update({
-                        "status": "in_progress",
+                        "status": "provider_accepted",
                         "provider_id": current_user["sub"],
                         "updated_at": now,
                     }).eq("id", booking_id).execute()
@@ -909,7 +921,6 @@ async def update_task_status_lifecycle(
         raise HTTPException(400, f"Invalid status. Must be one of: {allowed_statuses}")
 
     from app.database import supabase
-    from datetime import datetime, timezone
     if not supabase:
         raise HTTPException(500, "Database not configured")
 
@@ -924,19 +935,7 @@ async def update_task_status_lifecycle(
             "in_progress can only be reached via OTP verification (/verify-otp), not update-status.",
         )
 
-    PREREQUISITE_STATUS = {
-        "en_route": {"provider_accepted", "en_route"},
-        "arrived": {"en_route", "arrived"},
-        "completed": {"in_progress", "completed"},
-    }
-
-    now = datetime.now(timezone.utc).isoformat()
-    update_data: dict = {"status": body.status, "updated_at": now}
-
-    if body.status == "arrived":
-        update_data["arrived_at"] = now
-    if body.status == "completed":
-        update_data["completed_at"] = now
+    PREREQUISITE_STATUS = PROVIDER_TRANSITION_PREREQS
 
     try:
         current = (
@@ -956,33 +955,18 @@ async def update_task_status_lifecycle(
                 + (" OTP verification is required first." if body.status == "completed" else ""),
             )
 
-        result = (
-            supabase.table("dispatch_requests")
-            .update(update_data)
-            .eq("id", dispatch_id)
-            .eq("assigned_provider_id", current_user["sub"])
-            .execute()
+        # The engine owns the write: timestamps, arrival OTP, booking sync and
+        # the patient's "on the way / arrived / completed" notifications. This
+        # endpoint used to write the row itself, so web collectors moved the
+        # visit along while the patient was told nothing.
+        result = await UniversalDispatchEngine.update_status(
+            dispatch_id=dispatch_id,
+            new_status=body.status,
+            provider_id=current_user["sub"],
         )
-        if result.data:
-            # The patient's verification code is only ever produced here — the
-            # arrival transition is its trigger. Without this call the patient
-            # dashboard has nothing to show and the provider's /verify-otp
-            # step can never succeed.
-            if body.status == "arrived":
-                OTPService.generate_otp(dispatch_id)
-            if body.status == "completed":
-                d_row = result.data[0]
-                booking_id = d_row.get("booking_id")
-                if booking_id:
-                    try:
-                        supabase.table("bookings").update({
-                            "status": "completed",
-                            "updated_at": now,
-                        }).eq("id", booking_id).execute()
-                    except Exception as b_err:
-                        logger.warning(f"Failed to sync booking on completed: {b_err}")
+        if result.get("success"):
             return {"success": True, "status": body.status, "message": f"Status updated to {body.status}"}
-        raise HTTPException(404, "Dispatch not found or not assigned to you")
+        raise HTTPException(409, result.get("message", "Dispatch not found or not assigned to you"))
     except HTTPException:
         raise
     except Exception as e:

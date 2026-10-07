@@ -89,11 +89,19 @@ def trigger_dispatch_for_upcoming_bookings(self):
     try:
         existing = _rows(
             supabase.table("dispatch_requests")
-            .select("booking_id")
+            .select("booking_id, status")
             .in_("booking_id", booking_ids)
             .execute()
         )
-        already_dispatched = {r["booking_id"] for r in existing if r.get("booking_id")}
+        # An advance job every rostered collector declined is parked as
+        # needs_manual_assignment — and nothing manually assigns it. It must
+        # not count as "dispatched", or the booking is never offered live and
+        # the patient waits for a collector nobody is sending. Once the live
+        # dispatch below exists, that row blocks re-dispatch as usual.
+        already_dispatched = {
+            r["booking_id"] for r in existing
+            if r.get("booking_id") and r.get("status") != "needs_manual_assignment"
+        }
     except Exception as e:
         logger.error(f"trigger_dispatch_for_upcoming_bookings: dispatch_requests check failed: {e}")
         already_dispatched = set()

@@ -29,6 +29,7 @@ stateDiagram-v2
     handover_requested --> rejected: Damaged in transit
 
     received --> verified: Inspection passed (volume, hemolysis)
+    verified --> report_ready: Report delivered via lab connector (MediAssist/KriyaAI); also from received/batched
     received --> rejected: Hemolyzed / Lipemic / Clotted
     received --> batched: Added to cold-box rack
 
@@ -110,6 +111,40 @@ stateDiagram-v2
     cancelled --> [*]
     no_show --> [*]
 ```
+
+### Home-collection booking ↔ dispatch sync (updated 2026-10-07)
+
+Booking status follows the linked dispatch as follows (`UniversalDispatchEngine.update_status`, `accept_task`, `respond_to_offer`):
+
+| Dispatch status | Booking status |
+| :--- | :--- |
+| `provider_accepted` (offer accepted / advance roster) | `provider_accepted` |
+| `en_route`, `arrived` | `provider_accepted` (finer steps shown from the dispatch row) |
+| `in_progress` (reached **only** via patient OTP) | `in_progress` |
+| `completed` | `completed` |
+
+Before this change, accepting an offer wrote booking `in_progress`. That showed the patient a visit in progress before anyone had left, blocked patient cancellation, and hid never-serviced bookings from `auto_expire_stale_bookings`.
+
+Provider-originated transitions (`/status`, `/update-status`, `/magic-status`, OTP) are guarded in `update_status` by `PROVIDER_TRANSITION_PREREQS`: the caller must be the dispatch's `assigned_provider_id`, and only `provider_accepted→en_route→arrived→in_progress(OTP)→completed` is allowed.
+
+`auto_expire_stale_bookings` now also sweeps past-dated `provider_accepted` / `in_progress` bookings. It keeps any booking with a non-pending tube in `samples` or a dispatch that reached `arrived`+, and cancels pending tubes with the booking.
+
+Scheduled bookings with a time are refused (422) when the slot has passed. Home collection also needs `HOME_COLLECTION_LEAD_MINUTES` (60) of notice. Home slots are full at one booking per available collector in the city (`_home_slot_capacity`), not one per city.
+
+### Collector assignment order (updated 2026-10-07)
+
+Collectors are assigned automatically from the patient's location:
+
+1. At booking time (`pick_advance_collector`).
+2. By the evening roster pass.
+3. By the same-day live offer (`trigger_dispatch_for_upcoming_bookings`), which also picks up jobs left `needs_manual_assignment` after everyone declined.
+
+Radius is measured from each collector's base, which is anchored on their registered address at signup. `backend/scripts/rebase_phlebotomists.py` re-anchors existing collectors.
+
+The processing-centre fallback for anything still unplaced is `GET /api/pc/unassigned-collections` plus `POST /api/pc/assign-collection` (centre admin). Rules:
+- Suggestions are ranked free → in-radius → nearest to the patient.
+- Assignment is refused while a live offer is still out.
+- A failed auto dispatch row is reused (`assignment_mode='advance'`, so the collector can still decline through the normal reassign path).
 
 ### State Audit Logging:
 Whenever `bookings.status` changes, `_record_booking_history(booking_id, old_status, new_status, changed_by, notes)` writes a snapshot record to the `booking_history` table.

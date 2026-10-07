@@ -237,6 +237,55 @@ def _get_report_job(report_job_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
+async def _close_out_sample(job: dict, report_url: str, corrected: bool) -> None:
+    """Move the job's tube to `delivered` and tell the patient in-app.
+
+    KriyaAI already sent the report on WhatsApp, but the sample row stayed at
+    `verified` — the centre's queue showed it as still awaiting a report, and
+    the patient's CallMedex dashboard heard nothing. Never raises: the report
+    itself is delivered and recorded; this only keeps the trail in step.
+    """
+    from app.services.samples import validate_sample_transition
+    sample_id = job.get("sample_id")
+    try:
+        if sample_id:
+            rows = _rows(supabase.table("samples").select("id, status, barcode")
+                         .eq("id", sample_id).limit(1).execute())
+            current = rows[0].get("status") if rows else None
+            path = ([] if current in ("delivered", "completed")
+                    else ["delivered"] if current == "report_ready"
+                    else ["report_ready", "delivered"])
+            try:
+                state = current
+                for nxt in path:
+                    validate_sample_transition(state, nxt)
+                    state = nxt
+            except ValueError as e:
+                logger.warning(f"report delivered for sample {sample_id} in state {current!r}: {e}")
+                path = []
+            if path:
+                update = {"status": "delivered"}
+                if report_url:
+                    update.update({"report_url": report_url, "report_uploaded_at": _now_iso()})
+                supabase.table("samples").update(update).eq("id", sample_id).execute()
+                supabase.table("sample_events").insert({
+                    "id": str(uuid.uuid4()), "sample_id": sample_id, "event": "report_delivered",
+                    "actor_role": "system", "created_at": _now_iso(),
+                    "notes": "Report delivered to patient via MediAssist (WhatsApp)",
+                }).execute()
+        if job.get("patient_id"):
+            from app.services.notification_engine import NotificationEngine
+            await NotificationEngine.send(
+                user_id=job["patient_id"], channel="in_app",
+                title="Your corrected lab report is ready" if corrected else "Your lab report is ready",
+                body="Your report and its summary have been sent to you on WhatsApp and are in Health Records.",
+                data={"type": "report_delivered", "report_job_id": job.get("id"),
+                      "sample_id": sample_id, "booking_id": job.get("booking_id")},
+            )
+    except Exception as e:
+        logger.error(f"report close-out failed for job {job.get('id')}: {e}")
+
+
 def _not_found_report_job(idem_key: str, endpoint: str) -> JSONResponse:
     logger.warning(f"MediAssist callback to {endpoint} referenced an unknown report_job_id.")
     return _store_and_respond(
@@ -347,32 +396,40 @@ async def report_delivered_callback(
 
     formatted_flags = [f.model_dump(exclude_none=True) for f in analysis.abnormal_flags]
 
+    # Content-level idempotency. The idempotency-key cache is the first line,
+    # but if its lookup fails (a DB blip) a redelivered callback lands here
+    # again — and with versioned rows that would mint a duplicate version and
+    # re-insert every biomarker. An analysis identical to the latest stored
+    # version is a redelivery, not a correction.
     if existing_analyses:
-        # Update existing analysis row to preserve database UNIQUE (report_job_id) constraint
-        analysis_id = existing_analyses[0]["id"]
-        update_data = {
-            "plain_language_summary": analysis.plain_language_summary,
-            "doctor_clinical_summary": analysis.doctor_clinical_summary,
-            "abnormal_flags": formatted_flags,
-            "report_version": new_version,
-            "report_status": report_status,
-            "updated_at": now,
-        }
-        supabase.table("ai_report_analyses").update(update_data).eq("id", analysis_id).execute()
-    else:
-        analysis_row = {
-            "id": str(uuid.uuid4()),
-            "patient_id": job["patient_id"],
-            "report_job_id": body.report_job_id,
-            "raw_report_url": raw_url,
-            "plain_language_summary": analysis.plain_language_summary,
-            "doctor_clinical_summary": analysis.doctor_clinical_summary,
-            "abnormal_flags": formatted_flags,
-            "report_version": new_version,
-            "report_status": report_status,
-            "created_at": now,
-        }
-        supabase.table("ai_report_analyses").insert(analysis_row).execute()
+        latest = max(existing_analyses, key=lambda r: r.get("report_version") or 1)
+        if (
+            latest.get("plain_language_summary") == analysis.plain_language_summary
+            and latest.get("doctor_clinical_summary") == analysis.doctor_clinical_summary
+            and (latest.get("abnormal_flags") or []) == formatted_flags
+        ):
+            logger.info(f"report_job {body.report_job_id}: redelivery of version "
+                        f"{latest.get('report_version')} ignored")
+            return _store_and_respond(x_idempotency_key, endpoint, 200, {"received": True})
+
+    # Every delivery is a new version row; earlier versions are kept untouched.
+    # The row used to be overwritten in place (for a UNIQUE(report_job_id)
+    # constraint that predates versioning), so a corrected report destroyed
+    # the original the patient and doctor had already been sent. Uniqueness is
+    # now per (report_job_id, report_version) — see
+    # database/task15_report_version_history.sql. Readers pick the latest.
+    supabase.table("ai_report_analyses").insert({
+        "id": str(uuid.uuid4()),
+        "patient_id": job["patient_id"],
+        "report_job_id": body.report_job_id,
+        "raw_report_url": raw_url,
+        "plain_language_summary": analysis.plain_language_summary,
+        "doctor_clinical_summary": analysis.doctor_clinical_summary,
+        "abnormal_flags": formatted_flags,
+        "report_version": new_version,
+        "report_status": report_status,
+        "created_at": now,
+    }).execute()
 
     # Longitudinal biomarker sync into patient_biomarkers (non-blocking)
     if job.get("patient_id") and analysis.abnormal_flags:
@@ -394,6 +451,8 @@ async def report_delivered_callback(
                     }).execute()
                 except Exception as bio_err:
                     logger.warning(f"Could not persist biomarker {flag.marker}: {bio_err}")
+
+    await _close_out_sample(job, raw_url, is_corrected)
 
     AuditService.log(
         action=AuditActions.MEDIASSIST_REPORT_JOB_DELIVERED,
@@ -435,6 +494,22 @@ async def report_failed_callback(
         "failure_reason": body.failure_reason,
         "updated_at": _now_iso(),
     }).eq("id", body.report_job_id).execute()
+
+    # A failed report means a patient who was promised one is not getting it.
+    # Logging it to the audit trail alone left nobody to act on it.
+    try:
+        from app.services.ops_alerts import OpsAlertService
+        OpsAlertService.create_alert(
+            alert_type="report_delivery_failed",
+            entity_type="report_job",
+            entity_id=body.report_job_id,
+            severity="critical",
+            details={"failure_reason": body.failure_reason, "details": body.details,
+                     "sample_id": job.get("sample_id"),
+                     "processing_center_id": job.get("processing_center_id")},
+        )
+    except Exception as e:
+        logger.error(f"ops alert for failed report {body.report_job_id} not raised: {e}")
 
     AuditService.log(
         action=AuditActions.MEDIASSIST_REPORT_JOB_FAILED,

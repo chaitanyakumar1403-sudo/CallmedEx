@@ -116,6 +116,26 @@ const TIME_SLOTS = (() => {
   return slots;
 })();
 
+// Slot times are IST wall-clock wherever the patient is browsing from (an NRI
+// booking for family in India still means 6:00 AM in India).
+const IST_OFFSET_MIN = 330;
+// Notice a doorstep collector needs to reach the patient. Matches the server's
+// HOME_COLLECTION_LEAD_MINUTES, which rejects anything sooner.
+const HOME_LEAD_MINUTES = 60;
+
+const istNow = () => {
+  const d = new Date(Date.now() + IST_OFFSET_MIN * 60000);
+  return { date: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+};
+
+// True when a slot on `date` has already gone by (or starts within the lead).
+const isSlotPast = (date: string, slot: string, leadMinutes: number) => {
+  const now = istNow();
+  if (date !== now.date) return date < now.date;
+  const [h, m] = slot.split(":").map(Number);
+  return h * 60 + m < now.minutes + leadMinutes;
+};
+
 const formatSlotLabel = (t: string) => {
   const [hStr, mStr] = t.split(":");
   const h = parseInt(hStr);
@@ -733,11 +753,13 @@ function BookingPageContent() {
     return !dayTiming || !dayTiming.is_open;
   };
 
+  // IST calendar days. The old toISOString() list was the UTC date, so between
+  // midnight and 5:30 AM IST "today" was yesterday.
   const dates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
+    const d = new Date(Date.now() + IST_OFFSET_MIN * 60000);
+    d.setUTCDate(d.getUTCDate() + i);
     return {
-      label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+      label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }),
       value: d.toISOString().split("T")[0],
     };
   });
@@ -2354,13 +2376,18 @@ function BookingPageContent() {
                   </div>
                 );
               }
-              const dynamicSlots = isDoctorBooking
+              const allSlots = isDoctorBooking
                 ? (doctorRealSlots || [])
                 : (isHomeCollection
                     ? HOME_COLLECTION_SLOTS
                     : (selectedOrg?.timings?.length > 0
                         ? getDynamicSlots(selectedDate)
                         : (isWalkin ? WALKIN_CENTRE_SLOTS : TIME_SLOTS)));
+              // Today's slots that have already gone by are not offered at all
+              // (doorstep collection also needs HOME_LEAD_MINUTES of notice).
+              const dynamicSlots = allSlots.filter(
+                (t: string) => !isSlotPast(selectedDate, t, isHomeCollection ? HOME_LEAD_MINUTES : 0)
+              );
 
               if (closed) {
                 return (

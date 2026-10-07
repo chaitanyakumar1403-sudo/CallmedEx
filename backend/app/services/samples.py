@@ -43,13 +43,17 @@ ALLOWED_SAMPLE_TRANSITIONS = {
     "collected": {"in_transit", "handover_requested", "received", "cancelled"},
     "in_transit": {"handover_requested", "received", "cancelled"},
     "handover_requested": {"received", "rejected", "in_transit"},
-    "received": {"verified", "rejected", "processing", "batched"},
-    "verified": {"processing", "rejected", "batched"},
+    # report_ready straight from intake/QC/batch: a report delivered through
+    # the lab connector (MediAssist/KriyaAI ← MocDoc) never passes through an
+    # explicit "processing" write, so the tube would otherwise be stuck at
+    # verified forever while the patient already holds the report.
+    "received": {"verified", "rejected", "processing", "batched", "report_ready"},
+    "verified": {"processing", "rejected", "batched", "report_ready"},
     # Batch handling (pc_operations: add-sample -> seal -> send) writes these
     # two statuses. They were absent from the FSM entirely, so any validated
     # transition out of a batched tube — a lab rejecting it after dispatch,
     # for instance — was refused as "Terminal".
-    "batched": {"sent_to_lab", "processing", "rejected"},
+    "batched": {"sent_to_lab", "processing", "rejected", "report_ready"},
     "sent_to_lab": {"received", "processing", "report_ready", "rejected"},
     "processing": {"report_ready", "delivered", "completed", "failed"},
     "report_ready": {"delivered", "completed"},
@@ -1168,6 +1172,31 @@ class SampleService:
                 logger.error(f"custody event write failed for {sample['id']}: {e}")
 
         centre = SampleService._processing_centre(centre_id)
+
+        # Tell the centre a run is inbound — the point of this step. Best
+        # effort: the tubes have already moved and the intake scan works
+        # without it.
+        if moved:
+            try:
+                from app.services.roster import _notify_in_app
+                collector = (_first(
+                    supabase.table("users").select("full_name")
+                    .eq("id", phlebotomist_user_id).limit(1).execute()
+                ).get("full_name")) or "A phlebotomist"
+                for staff in _rows(
+                    supabase.table("processing_center_staff").select("user_id")
+                    .eq("processing_center_id", centre_id).eq("is_active", True).execute()
+                ):
+                    _notify_in_app(
+                        staff["user_id"],
+                        "Sample run on its way",
+                        f"{collector} submitted {len(moved)} tube(s). Scan them at intake to receive and verify.",
+                        {"type": "run_submitted", "processing_center_id": centre_id,
+                         "sample_ids": moved, "phlebotomist_user_id": phlebotomist_user_id},
+                    )
+            except Exception as e:
+                logger.error(f"run-submitted notification failed for centre {centre_id}: {e}")
+
         return {
             "success": bool(moved),
             "message": (
