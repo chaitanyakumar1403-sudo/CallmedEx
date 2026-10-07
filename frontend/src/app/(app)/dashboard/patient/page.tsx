@@ -151,6 +151,8 @@ export default function PatientDashboard() {
   const [requestingDispatch, setRequestingDispatch] = useState<string | null>(null);
   const [patientOtp, setPatientOtp] = useState<string | null>(null);
   const [showLiveTracker, setShowLiveTracker] = useState(false);
+  // Booking whose "Track Phlebo" found no live collector yet (shows a note).
+  const [trackNotice, setTrackNotice] = useState<string | null>(null);
   const [simStage, setSimStage] = useState<"searching" | "en_route" | "arrived">("en_route");
 
   // KPI Interactive Modals
@@ -991,8 +993,12 @@ export default function PatientDashboard() {
               completed: ["Completed", "done"],
               cancelled: ["Cancelled", "halted"],
             };
-            const statusPill = (s: string) => {
-              const [label, tone] = STATUS_TEXT[s] || [String(s || "").replace(/_/g, " "), "active"];
+            const statusPill = (s: string, b?: any) => {
+              // A next-day collection is pre-assigned to a phlebotomist while the
+              // booking itself stays "confirmed" — say who is coming is settled.
+              const [label, tone] = s === "confirmed" && b?.provider_type === "phlebotomist"
+                ? ["Phlebotomist assigned", "done"]
+                : STATUS_TEXT[s] || [String(s || "").replace(/_/g, " "), "active"];
               return <span className={`cm-pill cm-pill--${tone}`}>{label}</span>;
             };
             const whenOf = (b: any) =>
@@ -1038,7 +1044,7 @@ export default function PatientDashboard() {
                               </div>
                             </div>
                             <div className="cm-kpim-row__side">
-                              {statusPill(b.status)}
+                              {statusPill(b.status, b)}
                               {b.status === "slot_allotted" && (
                                 <div className="cm-kpim-row__actions">
                                   <button type="button" className="cm-btn cm-btn--primary cm-btn--sm" onClick={() => handleRespondSlot(b.id, true)}>
@@ -1328,7 +1334,9 @@ export default function PatientDashboard() {
           const isEnRoute = currentStatus === "provider_accepted" || currentStatus === "en_route" || currentStatus === "in_progress";
           const isArrived = currentStatus === "arrived";
 
-          const provider = isReal && trackingData.provider ? trackingData.provider : {
+          // A real dispatch without a collector attached yet must never borrow
+          // the demo profile — that put an invented phlebotomist on a real visit.
+          const provider = isReal ? (trackingData.provider || { name: "Your phlebotomist" }) : {
             name: "Ramesh Kumar",
             mobile: "+91 98490 23145",
             distance_km: 1.8,
@@ -1565,24 +1573,30 @@ export default function PatientDashboard() {
                     {/* Distance & Contact Actions */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: "1.05rem", fontWeight: 800, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
-                          {isArrived ? t.rapido.atDoorstep : t.rapido.minsAway(provider.eta_minutes || 12)}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--cm-ink-3)" }}>
-                          {isArrived ? "Ring Bell / Meet Provider" : t.rapido.kmAway(provider.distance_km || 1.8)}
-                        </div>
+                        {/* No invented ETA/distance: show only what the dispatch reports. */}
+                        {(isArrived || provider.eta_minutes != null) && (
+                          <div style={{ fontSize: "1.05rem", fontWeight: 800, color: isArrived ? "var(--cm-done)" : "var(--cm-ink)" }}>
+                            {isArrived ? t.rapido.atDoorstep : t.rapido.minsAway(provider.eta_minutes)}
+                          </div>
+                        )}
+                        {(isArrived || provider.distance_km != null) && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--cm-ink-3)" }}>
+                            {isArrived ? "Ring Bell / Meet Provider" : t.rapido.kmAway(provider.distance_km)}
+                          </div>
+                        )}
                       </div>
 
+                      {provider.mobile && (
                       <div className="cm-rapido-captain__actions">
                         <a
-                          href={`tel:${provider.mobile || "+919849023145"}`}
+                          href={`tel:${provider.mobile}`}
                           className="cm-btn cm-btn--primary cm-btn--sm"
                           style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 700, textDecoration: "none", padding: "5px 10px", fontSize: "0.75rem" }}
                         >
                           <Phone size={13} /> {t.rapido.callPhlebo}
                         </a>
                         <a
-                          href={`https://wa.me/${(provider.mobile || "919849023145").replace(/[^0-9]/g, "")}`}
+                          href={`https://wa.me/${String(provider.mobile).replace(/[^0-9]/g, "")}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="cm-btn cm-btn--secondary cm-btn--sm"
@@ -1591,11 +1605,12 @@ export default function PatientDashboard() {
                           <MessageCircle size={13} /> {t.rapido.whatsapp}
                         </a>
                       </div>
+                      )}
                     </div>
                   </div>
 
                   {/* High-Contrast Doorstep OTP Card (Shown when Arrived or Previewing) - Medium Proportions */}
-                  {(isArrived || simStage === "arrived") && (
+                  {(isArrived || (!isReal && simStage === "arrived")) && (
                     <div className="cm-rapido-otp-card">
                       <div>
                         <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.75)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700 }}>
@@ -1767,14 +1782,41 @@ export default function PatientDashboard() {
                     {(booking.service_type === "lab_test" || booking.service_type === "home_collection") && !isClosed && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowLiveTracker(true);
-                          window.scrollTo({ top: 320, behavior: "smooth" });
+                        onClick={async () => {
+                          // Track THIS booking's real dispatch. The button used to
+                          // open a simulated run with an invented collector.
+                          setTrackNotice(null);
+                          try {
+                            const res = await fetch(
+                              `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/for-booking/${booking.id}`,
+                              { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } },
+                            );
+                            const data = await res.json();
+                            if (data?.success && data.dispatch_id) {
+                              localStorage.setItem("activeDispatchId", data.dispatch_id);
+                              setActiveDispatchId(data.dispatch_id);
+                              window.scrollTo({ top: 320, behavior: "smooth" });
+                              return;
+                            }
+                          } catch {
+                            /* fall through to the note */
+                          }
+                          if (FEATURE_FLAGS.ENABLE_DEMO_DISPATCH_TRACKER) {
+                            setShowLiveTracker(true);
+                            return;
+                          }
+                          setTrackNotice(booking.id);
                         }}
                         className="cm-pbk-btn"
                       >
                         <Bike size={14} /> {t.bookings.trackPhlebo}
                       </button>
+                    )}
+                    {trackNotice === booking.id && (
+                      <span role="status" style={{ fontSize: "0.78rem", color: "var(--cm-ink-3)", flexBasis: "100%" }}>
+                        No phlebotomist is on the way yet. Live tracking appears here once your collector sets off
+                        {booking.provider_type === "phlebotomist" ? " (your collector is already assigned)" : ""}.
+                      </span>
                     )}
                     <button
                       type="button"

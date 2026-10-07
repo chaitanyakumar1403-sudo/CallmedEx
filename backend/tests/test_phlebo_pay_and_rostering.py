@@ -83,6 +83,8 @@ def _seed_phlebo(fake, centre="c1", base=(17.38, 78.48), phleb_type="full_time")
         "user_id": uid, "processing_center_id": centre,
         "base_lat": base[0], "base_lng": base[1], "phleb_type": phleb_type,
     })
+    # A real collector account (roster only assigns confirmed phlebotomists).
+    fake.db.setdefault("users", []).append({"id": uid, "role": "phlebotomist", "email": f"{uid}@example.com"})
     return uid
 
 

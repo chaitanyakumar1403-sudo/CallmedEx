@@ -121,7 +121,7 @@ const TIME_SLOTS = (() => {
 const IST_OFFSET_MIN = 330;
 // Notice a doorstep collector needs to reach the patient. Matches the server's
 // HOME_COLLECTION_LEAD_MINUTES, which rejects anything sooner.
-const HOME_LEAD_MINUTES = 60;
+const HOME_LEAD_MINUTES = 30;
 
 const istNow = () => {
   const d = new Date(Date.now() + IST_OFFSET_MIN * 60000);

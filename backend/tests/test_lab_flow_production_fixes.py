@@ -48,7 +48,7 @@ def test_past_and_too_close_slots_are_refused():
         bookings_mod._reject_past_slot(_ist(now - timedelta(hours=2)), None, False)
     assert e.value.status_code == 422
     # Doorstep collection needs the lead time; a clinic visit does not.
-    soon = _ist(now + timedelta(minutes=30))
+    soon = _ist(now + timedelta(minutes=15))
     with pytest.raises(HTTPException):
         bookings_mod._reject_past_slot(soon, None, True)
     bookings_mod._reject_past_slot(soon, None, False)
@@ -224,7 +224,7 @@ def _centre_setup(db):
             "user_id": uid, "processing_center_id": centre, "base_lat": lat,
             "base_lng": 83.2185, "phleb_type": "full_time", "verification_status": "verified",
         })
-        db.db.setdefault("users", []).append({"id": uid, "full_name": uid, "mobile": ""})
+        db.db.setdefault("users", []).append({"id": uid, "full_name": uid, "mobile": "", "role": "phlebotomist"})
     bid = str(uuid.uuid4())
     db.db.setdefault("bookings", []).append({
         "id": bid, "processing_center_id": centre, "collection_date": date,
@@ -272,3 +272,30 @@ async def test_manual_assign_respects_centre_and_live_offers(db):
         {"id": "d-2", "booking_id": bid, "status": "provider_notified", "assigned_provider_id": None})
     with pytest.raises(ValueError):                                  # live offer still out
         await roster_mod.manual_assign(centre, bid, "ph-near", "x")
+
+
+# ── Internal / admin accounts never get a patient's collection ─────────────
+
+def test_internal_test_account_and_admin_are_never_assigned_even_when_nearest(db):
+    booking = {"collection_lat": 17.6868, "collection_lng": 83.2185, "processing_center_id": "pc-1",
+               "slot_id": "x|2030-01-20|06:00"}
+    for uid, lat in (("internal", 17.69), ("owner", 17.69), ("real", 17.73)):
+        db.db.setdefault("phlebotomists", []).append({
+            "user_id": uid, "processing_center_id": "pc-1", "base_lat": lat, "base_lng": 83.2185,
+            "phleb_type": "full_time", "verification_status": "verified",
+        })
+    db.db.setdefault("users", []).extend([
+        {"id": "internal", "email": "phlebo.x@callmedex.internal", "role": "phlebotomist",
+         "registrant_role": "master_persona"},
+        {"id": "owner", "email": "owner@example.com", "role": "admin", "registrant_role": "owner"},
+        {"id": "real", "email": "real@example.com", "role": "phlebotomist"},
+    ])
+    picked = roster_mod.pick_advance_collector(booking, "2030-01-20")
+    assert picked and picked["user_id"] == "real"
+
+
+def test_candidate_filter_fails_closed_for_unconfirmed_accounts(db):
+    # No users row (or no role) means not confirmed as a collector: excluded.
+    db.db.setdefault("users", []).append({"id": "no-role", "email": "x@example.com"})
+    people = [{"user_id": "ghost"}, {"user_id": "no-role"}]
+    assert roster_mod._without_test_personas(people) == []

@@ -29,6 +29,8 @@ def _phlebo(fake, centre_id, lat, lng, available=True, date=DATE):
         "user_id": uid, "processing_center_id": centre_id,
         "base_lat": lat, "base_lng": lng, "base_pincode": "",
     })
+    # A real collector account (roster only assigns confirmed phlebotomists).
+    fake.db.setdefault("users", []).append({"id": uid, "role": "phlebotomist", "email": f"{uid}@example.com"})
     fake.db.setdefault("phlebotomist_roster", []).append({
         "id": str(uuid.uuid4()), "processing_center_id": centre_id,
         "phlebotomist_user_id": uid, "roster_date": date,

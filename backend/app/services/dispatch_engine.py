@@ -253,7 +253,7 @@ class UniversalDispatchEngine:
             # dispatched into a patient's home.
             result_a = (
                 supabase.table("provider_locations")
-                .select("*, users!inner(id, full_name, mobile, email)")
+                .select("*, users!inner(id, full_name, mobile, email, role, registrant_role)")
                 .eq("provider_type", provider_type)
                 .eq("is_online", True)
                 .not_.is_("current_lat", "null")
@@ -422,6 +422,11 @@ class UniversalDispatchEngine:
                 user_data = p.get("users", {})
                 if is_test_persona(user_data) or is_test_persona(p):
                     continue
+                # Only an account that IS a collector/nurse is offered work —
+                # an admin with a phlebotomist profile attached is not.
+                role = (user_data.get("role") or "").lower()
+                if provider_type in ("phlebotomist", "nurse") and role and role != provider_type:
+                    continue
                 candidates.append({
                     "user_id": user_id,
                     "name": user_data.get("full_name", p.get("full_name", "Unknown")),
@@ -487,7 +492,7 @@ class UniversalDispatchEngine:
                     supabase.table(table)
                     .select(
                         "*, users!phlebotomists_user_id_fkey!inner("
-                        "id, full_name, mobile, email)"
+                        "id, full_name, mobile, email, role, registrant_role)"
                     )
                     .eq("on_duty", True)
                     .eq("verification_status", "verified")
@@ -496,7 +501,7 @@ class UniversalDispatchEngine:
             elif provider_type == "nurse":
                 result = (
                     supabase.table(table)
-                    .select("*, users!inner(id, full_name, mobile, email)")
+                    .select("*, users!inner(id, full_name, mobile, email, role, registrant_role)")
                     .eq("is_online", True)
                     .eq("verification_status", "verified")
                     .not_.is_("current_lat", "null")

@@ -104,6 +104,9 @@ class _FakeQuery:
     def eq(self, *a, **k):
         return self
 
+    def in_(self, *a, **k):
+        return self
+
     def execute(self):
         return type("R", (), {"data": self._rows})()
 
@@ -111,6 +114,8 @@ class _FakeQuery:
 def _fake_db(roster_rows, people):
     class _DB:
         def table(self, name):
+            if name == "users":  # every candidate is a real collector account
+                return _FakeQuery([{"id": p["user_id"], "role": "phlebotomist"} for p in people])
             return _FakeQuery(roster_rows if name == "phlebotomist_roster" else people)
 
     return _DB()

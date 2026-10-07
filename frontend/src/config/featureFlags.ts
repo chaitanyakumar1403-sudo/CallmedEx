@@ -11,5 +11,7 @@ export const FEATURE_FLAGS = {
   // the way. Off unless a pitch build opts in with
   // NEXT_PUBLIC_ENABLE_DEMO_DISPATCH_TRACKER=true. Live tracking of a real
   // dispatch does not go through this flag.
-  ENABLE_DEMO_DISPATCH_TRACKER: true,
+  // It was hard-wired to true, so every patient's "Track Phlebo" showed this
+  // invented collector on the live site.
+  ENABLE_DEMO_DISPATCH_TRACKER: process.env.NEXT_PUBLIC_ENABLE_DEMO_DISPATCH_TRACKER === "true",
 } as const;

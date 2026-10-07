@@ -29,6 +29,28 @@ def _rows(result) -> List[dict]:
     return [dict(r) for r in data if isinstance(r, dict)]
 
 
+def _without_test_personas(people: List[dict]) -> List[dict]:
+    """Keep only real collector accounts: users.role 'phlebotomist' and not a
+    test persona. An internal dashboard-check login (@callmedex.internal) was
+    being handed real patients' collections — and an admin account with a
+    phlebotomist profile attached was a candidate too. Every roster path
+    (booking-time pick, evening pass, decline, manual list) goes through this."""
+    uids = [p.get("user_id") for p in people if p.get("user_id")]
+    if not uids:
+        return people
+    from app.utils.personas import is_test_persona
+    # Allowlist, fail-closed: an account is a candidate only if it is
+    # positively confirmed as a real collector. A failed lookup or a missing
+    # role excludes it — never sends an unknown account to a patient's door.
+    real_ids = {
+        u["id"] for u in _rows(
+            supabase.table("users").select("id, email, role, registrant_role")
+            .in_("id", uids).execute()
+        ) if (u.get("role") or "") == "phlebotomist" and not is_test_persona(u)
+    }
+    return [p for p in people if p.get("user_id") in real_ids]
+
+
 def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict]:
     """Rostered-available phlebos of this centre, with a usable base location."""
     # Absence of a roster row means "nobody said otherwise", not "unavailable"
@@ -88,7 +110,7 @@ def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict
             )
             continue
         candidates.append({**p, "base_lat": lat, "base_lng": lng})
-    return candidates
+    return _without_test_personas(candidates)
 
 
 def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[dict]:
@@ -236,7 +258,7 @@ def _city_phlebos(city: str, roster_date: str) -> List[dict]:
         if lat is None or lng is None:
             continue
         out.append({**p, "base_lat": lat, "base_lng": lng})
-    return out
+    return _without_test_personas(out)
 
 
 def pick_advance_collector(booking: dict, roster_date: str,
@@ -616,7 +638,7 @@ def _centre_collectors(processing_center_id: str, roster_date: str) -> List[dict
             "full_name": u.get("full_name") or "", "mobile": u.get("mobile") or "",
             "on_leave": p["user_id"] in on_leave,
         })
-    return out
+    return _without_test_personas(out)
 
 
 def _collection_area(booking: dict) -> str:

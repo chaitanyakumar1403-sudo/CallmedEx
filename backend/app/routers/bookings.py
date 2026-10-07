@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/bookings", tags=["Bookings"])
 HOME_COLLECTION_WINDOW = ("06:00", "11:00")
 # How far ahead a doorstep slot must be for a collector to reach it. The
 # booking wizard hides slots inside this window too (HOME_LEAD_MINUTES there).
-HOME_COLLECTION_LEAD_MINUTES = 60
+HOME_COLLECTION_LEAD_MINUTES = 30
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 

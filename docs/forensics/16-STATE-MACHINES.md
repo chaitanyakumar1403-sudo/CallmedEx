@@ -129,7 +129,7 @@ Provider-originated transitions (`/status`, `/update-status`, `/magic-status`, O
 
 `auto_expire_stale_bookings` now also sweeps past-dated `provider_accepted` / `in_progress` bookings. It keeps any booking with a non-pending tube in `samples` or a dispatch that reached `arrived`+, and cancels pending tubes with the booking.
 
-Scheduled bookings with a time are refused (422) when the slot has passed. Home collection also needs `HOME_COLLECTION_LEAD_MINUTES` (60) of notice. Home slots are full at one booking per available collector in the city (`_home_slot_capacity`), not one per city.
+Scheduled bookings with a time are refused (422) when the slot has passed. Home collection also needs `HOME_COLLECTION_LEAD_MINUTES` (30) of notice. Home slots are full at one booking per available collector in the city (`_home_slot_capacity`), not one per city.
 
 ### Collector assignment order (updated 2026-10-07)
 
