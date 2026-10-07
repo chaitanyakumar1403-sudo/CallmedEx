@@ -19,6 +19,7 @@ import {
   Plus,
   X,
   Shield,
+  Copy,
 } from "lucide-react";
 
 interface PCStaffPanelProps {
@@ -41,6 +42,31 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
     pc_role: "technician",
   });
   const [newAccountMsg, setNewAccountMsg] = useState<string | null>(null);
+  const [credentialModal, setCredentialModal] = useState<{
+    isOpen: boolean;
+    email: string;
+    password: string;
+    role: string;
+    isReset?: boolean;
+  }>({
+    isOpen: false,
+    email: "",
+    password: "",
+    role: "",
+  });
+  const [resetModal, setResetModal] = useState<{
+    isOpen: boolean;
+    userId: string;
+    email: string;
+    name: string;
+    password: string;
+  }>({
+    isOpen: false,
+    userId: "",
+    email: "",
+    name: "",
+    password: "CallMedex@2026",
+  });
 
   const fetchStaff = useCallback(async () => {
     setLoading(true);
@@ -78,14 +104,19 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
       if (form.password.trim()) payload.password = form.password.trim();
 
       const res = await pcAPI.addStaff(payload);
-      if (res.auto_created) {
-        toast.success(`Account created for ${res.email}`);
-        setNewAccountMsg(
-          `Staff account auto-created! Login: ${res.email} | Temporary Password: ${res.temporary_password || form.password || "CallMedex@2026"}`
-        );
-      } else {
-        toast.success(`Assigned ${res.full_name || res.email} as ${res.pc_role}`);
-      }
+      const assignedPass = res.temporary_password || form.password || "CallMedex@2026";
+      const roleLabel = res.pc_role === "admin" ? "Center Admin" : "Lab Technician";
+
+      toast.success(`Assigned ${res.full_name || res.email} as ${roleLabel}! Initial password: ${assignedPass}`, { duration: 7000 });
+      setNewAccountMsg(
+        `Staff account ready! Login: ${res.email} | Temporary Password: ${assignedPass}`
+      );
+      setCredentialModal({
+        isOpen: true,
+        email: res.email,
+        password: assignedPass,
+        role: roleLabel,
+      });
 
       setForm({
         email: "",
@@ -94,11 +125,42 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
         password: "",
         pc_role: "technician",
       });
+      setShowAddModal(false);
       fetchStaff();
     } catch (e: any) {
       toast.error(e.message || "Failed to add staff member");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleOpenResetPassword = (userId: string, email: string, name: string) => {
+    setResetModal({
+      isOpen: true,
+      userId,
+      email,
+      name,
+      password: "CallMedex@2026",
+    });
+  };
+
+  const handleExecuteResetPassword = async () => {
+    if (!resetModal.userId) return;
+    const passToSet = resetModal.password.trim() || "CallMedex@2026";
+    try {
+      const res = await pcAPI.resetStaffPassword(resetModal.userId, passToSet);
+      const finalPass = res.temporary_password || passToSet;
+      toast.success(`Password reset for ${resetModal.email}! Temporary password: ${finalPass}`);
+      setResetModal((prev) => ({ ...prev, isOpen: false }));
+      setCredentialModal({
+        isOpen: true,
+        email: resetModal.email,
+        password: finalPass,
+        role: "Staff Member",
+        isReset: true,
+      });
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reset staff password");
     }
   };
 
@@ -574,6 +636,29 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                                   }}
                                 >
                                   Make {s.pc_role === "admin" ? "Technician" : "Admin"}
+                                </button>
+                              )}
+
+                              {!isPhlebo && s.is_active && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResetPassword(s.user_id, s.email, s.full_name)}
+                                  title="Reset staff login password"
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    border: "1px solid #bae6fd",
+                                    background: "#f0f9ff",
+                                    color: "#0284c7",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <KeyRound size={12} /> Reset Password
                                 </button>
                               )}
 
@@ -1082,19 +1167,43 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                 <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: 4 }}>
                   Initial Password (Optional)
                 </label>
-                <input
-                  type="text"
-                  placeholder="Default: CallMedex@2026"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: "1px solid #cbd5e1",
-                    fontSize: "0.85rem",
-                  }}
-                />
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    placeholder="Default: CallMedex@2026"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "8px 80px 8px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.85rem",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rnd = Math.floor(1000 + Math.random() * 9000);
+                      setForm({ ...form, password: `CallMedex@${rnd}` });
+                    }}
+                    style={{
+                      position: "absolute",
+                      right: "6px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: "#e0f2fe",
+                      color: "#0284c7",
+                      border: "1px solid #bae6fd",
+                      borderRadius: "4px",
+                      padding: "3px 6px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ⚡ Random
+                  </button>
+                </div>
                 <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
                   If left blank, CallMedex@2026 will be assigned as initial password.
                 </span>
@@ -1135,6 +1244,335 @@ export default function PCStaffPanel({ pcRole = "technician" }: PCStaffPanelProp
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Credentials Modal ─────────────────────────────── */}
+      {credentialModal.isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(5px)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 9999,
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              maxWidth: "500px",
+              width: "100%",
+              padding: "26px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  background: "#ecfdf5",
+                  border: "1px solid #a7f3d0",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#059669",
+                }}
+              >
+                <ShieldCheck size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
+                  {credentialModal.isReset ? "Password Reset Successful" : "Staff Credentials Created"}
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                  Share these credentials with the team member to log in to CallMedex.
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "14px",
+                marginBottom: "18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Role</span>
+                <span
+                  style={{
+                    background: "#e0f2fe",
+                    color: "#0369a1",
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {credentialModal.role}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.84rem" }}>
+                <span style={{ color: "#64748b", fontWeight: 600 }}>Email</span>
+                <strong style={{ color: "#0f172a", fontFamily: "monospace", fontSize: "0.88rem" }}>{credentialModal.email}</strong>
+              </div>
+
+              {/* Password Display */}
+              <div
+                style={{
+                  marginTop: "4px",
+                  background: "#ffffff",
+                  border: "1px solid #cbd5e1",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                    Temporary Password
+                  </div>
+                  <div style={{ fontSize: "1.05rem", fontWeight: 800, fontFamily: "monospace", color: "#0f172a", letterSpacing: "0.05em" }}>
+                    {credentialModal.password}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(credentialModal.password);
+                    toast.success("Password copied to clipboard!");
+                  }}
+                  style={{
+                    padding: "5px 9px",
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    border: "1px solid #0284c7",
+                    background: "#e0f2fe",
+                    color: "#0284c7",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Copy size={12} /> Copy Password
+                </button>
+              </div>
+
+              <div style={{ fontSize: "0.74rem", color: "#64748b", marginTop: "2px" }}>
+                🌐 Login URL:{" "}
+                <strong style={{ color: "#0284c7" }}>
+                  {typeof window !== "undefined" ? window.location.origin : ""}/auth/login
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const loginUrl = `${window.location.origin}/auth/login`;
+                  const text = `🏥 CallMedex — Processing Centre Access Credentials
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👤 Role: ${credentialModal.role}
+📧 Login Email: ${credentialModal.email}
+🔑 Temporary Password: ${credentialModal.password}
+🌐 Login URL: ${loginUrl}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ℹ️ Instructions: Log in at the URL above. You can change your password anytime in the dashboard under Account Settings.`;
+                  navigator.clipboard.writeText(text);
+                  toast.success("All credentials copied to clipboard!");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "11px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                <Copy size={15} /> Copy All Credentials (Ready to Send)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCredentialModal((prev) => ({ ...prev, isOpen: false }))}
+                style={{
+                  width: "100%",
+                  padding: "9px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  background: "#f1f5f9",
+                  color: "#334155",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Reset Password Modal ─────────────────────────────── */}
+      {resetModal.isOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(5px)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 9999,
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              maxWidth: "440px",
+              width: "100%",
+              padding: "24px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: "50%",
+                  background: "#e0f2fe",
+                  border: "1px solid #bae6fd",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#0284c7",
+                }}
+              >
+                <KeyRound size={18} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: "#0f172a" }}>
+                  Reset Staff Password
+                </h3>
+                <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "#64748b" }}>
+                  Set a new password for {resetModal.name || resetModal.email}.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
+              <div style={{ fontSize: "0.8rem", color: "#475569" }}>
+                Staff Email: <strong style={{ color: "#0f172a" }}>{resetModal.email}</strong>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                New Temporary Password
+              </label>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <input
+                  value={resetModal.password}
+                  onChange={(e) => setResetModal((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder="Enter password or generate random"
+                  style={{
+                    width: "100%",
+                    padding: "9px 80px 9px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "0.85rem",
+                    fontFamily: "monospace",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rnd = Math.floor(1000 + Math.random() * 9000);
+                    setResetModal((prev) => ({ ...prev, password: `CallMedex@${rnd}` }));
+                  }}
+                  style={{
+                    position: "absolute",
+                    right: "6px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    background: "#e0f2fe",
+                    color: "#0284c7",
+                    border: "1px solid #bae6fd",
+                    borderRadius: "4px",
+                    padding: "4px 8px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ⚡ Random
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setResetModal((prev) => ({ ...prev, isOpen: false }))}
+                style={{
+                  flex: 1,
+                  padding: "9px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteResetPassword}
+                style={{
+                  flex: 1,
+                  padding: "9px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#0284c7",
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm Reset
+              </button>
+            </div>
           </div>
         </div>
       )}

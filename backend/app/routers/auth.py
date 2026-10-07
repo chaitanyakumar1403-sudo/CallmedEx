@@ -115,14 +115,23 @@ ROLE_TABLE_MAP = {
 
 def _get_user_by_email(email: str) -> dict | None:
     """Get user by email — tries Supabase first, falls back to local store."""
+    if not email:
+        return None
+    normalized = str(email).strip().lower()
     if supabase:
         try:
-            result = supabase.table("users").select("*").eq("email", email).execute()
+            result = supabase.table("users").select("*").ilike("email", normalized).execute()
             if result.data and len(result.data) > 0:
                 return result.data[0]
         except Exception as e:
             logger.debug(f"DB email lookup exception for {email}: {e}")
-    return _local_users.get(email)
+            try:
+                result = supabase.table("users").select("*").eq("email", normalized).execute()
+                if result.data and len(result.data) > 0:
+                    return result.data[0]
+            except Exception:
+                pass
+    return _local_users.get(normalized) or _local_users.get(email)
 
 
 def _create_user(user_data: dict) -> dict:
@@ -995,7 +1004,8 @@ async def accept_mou(req: AcceptMOURequest, request: Request):
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin):
     """Authenticate user and return JWT token. Supports master owner persona targeting."""
-    user = _get_user_by_email(credentials.email)
+    clean_email = str(credentials.email).strip().lower()
+    user = _get_user_by_email(clean_email)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 

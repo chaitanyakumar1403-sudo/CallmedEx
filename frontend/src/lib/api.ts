@@ -378,6 +378,8 @@ export const pcAPI = {
     api.patch(`/pc/staff/${userId}`, data),
   deleteStaff: (userId: string, permanent: boolean = false) =>
     api.delete(`/pc/staff/${userId}${permanent ? '?permanent=true' : ''}`),
+  resetStaffPassword: (userId: string, password?: string) =>
+    api.post(`/pc/staff/${userId}/reset-password`, { password }),
   // Lab Testing & Report Delivery
   startProcessingSample: (sampleId: string) =>
     api.post(`/pc/samples/${sampleId}/start-processing`),

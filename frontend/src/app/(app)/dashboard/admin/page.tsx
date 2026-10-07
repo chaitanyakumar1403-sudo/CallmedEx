@@ -41,6 +41,8 @@ import {
   MapPin,
   Pencil,
   Check,
+  KeyRound,
+  Copy,
 } from 'lucide-react';
 import Clinical3DIcon, { Clinical3DIconName } from '@/components/ui/Clinical3DIcon';
 
@@ -167,7 +169,43 @@ export default function AdminDashboard() {
   const [selectedCentre, setSelectedCentre] = useState<any>(null);
   const [staffEmail, setStaffEmail] = useState('');
   const [staffRole, setStaffRole] = useState('technician');
+  const [staffPassword, setStaffPassword] = useState('');
   const [staffMsg, setStaffMsg] = useState('');
+  const [credentialModal, setCredentialModal] = useState<{
+    isOpen: boolean;
+    email: string;
+    password: string;
+    role: string;
+    centerName: string;
+    centerCode: string;
+    isReset?: boolean;
+  }>({
+    isOpen: false,
+    email: '',
+    password: '',
+    role: '',
+    centerName: '',
+    centerCode: '',
+  });
+  const [resetModal, setResetModal] = useState<{
+    isOpen: boolean;
+    centreId: string;
+    userId: string;
+    email: string;
+    role: string;
+    centerCode: string;
+    centerName: string;
+    password: string;
+  }>({
+    isOpen: false,
+    centreId: '',
+    userId: '',
+    email: '',
+    role: '',
+    centerCode: '',
+    centerName: '',
+    password: 'CallMedex@2026',
+  });
   const [phleboEmail, setPhleboEmail] = useState('');
   const [phleboMsg, setPhleboMsg] = useState('');
   const [areaForm, setAreaForm] = useState({ city: '', pincode: '', radius_km: '', priority: 100 });
@@ -393,27 +431,84 @@ export default function AdminDashboard() {
     setStaffMsg('Assigning staff...');
     const token = getToken();
     if (!token) return;
+    const chosenPassword = staffPassword.trim() || 'CallMedex@2026';
     try {
       const addRes = await fetch(`${apiBase}/api/admin/processing-centers/${centreId}/staff`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email: staffEmail.trim(), pc_role: staffRole }),
+        body: JSON.stringify({
+          email: staffEmail.trim(),
+          pc_role: staffRole,
+          password: staffPassword.trim() || undefined,
+        }),
       });
       const d = await addRes.json();
       if (addRes.ok) {
-        if (d.auto_created) {
-          setStaffMsg(`✅ Account auto-created & assigned: ${d.email} (${d.pc_role}). Initial password: ${d.temporary_password || 'CallMedex@2026'}`);
-          toast.success(`Processing Centre account created for ${d.email}`);
-        } else {
-          setStaffMsg(`✅ ${d.full_name || d.email} assigned as ${d.pc_role}`);
-          toast.success('Staff assigned successfully');
-        }
+        const targetCenter = (centres || []).find((c: any) => c.id === centreId);
+        const resolvedPass = d.temporary_password || chosenPassword;
+        const roleLabel = d.pc_role === 'admin' ? 'Admin' : 'Technician';
+        setStaffMsg(`✅ ${d.full_name || d.email} assigned as ${d.pc_role}. Initial password: ${resolvedPass}`);
+        toast.success(`Assigned ${d.email} as ${roleLabel}! Initial password: ${resolvedPass}`, { duration: 7000 });
+        setCredentialModal({
+          isOpen: true,
+          email: d.email || staffEmail.trim(),
+          password: resolvedPass,
+          role: roleLabel,
+          centerName: targetCenter?.name || 'Processing Centre',
+          centerCode: targetCenter?.code || '',
+        });
         setStaffEmail('');
+        setStaffPassword('');
         fetchCentres();
       } else {
         setStaffMsg(`❌ ${d.detail || 'Failed'}`);
       }
     } catch { setStaffMsg('❌ Error adding staff'); }
+  };
+
+  const handleOpenResetStaffPassword = (centreId: string, centerCode: string, centerName: string, userId: string, email: string, role: string) => {
+    setResetModal({
+      isOpen: true,
+      centreId,
+      userId,
+      email,
+      role: role === 'admin' ? 'Admin' : 'Technician',
+      centerCode,
+      centerName,
+      password: 'CallMedex@2026',
+    });
+  };
+
+  const handleExecuteResetPassword = async () => {
+    const token = getToken();
+    if (!token || !resetModal.userId) return;
+    const newPass = resetModal.password.trim() || 'CallMedex@2026';
+    try {
+      const res = await fetch(`${apiBase}/api/admin/processing-centers/${resetModal.centreId}/staff/${resetModal.userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password: newPass }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        toast.success(`Password successfully reset for ${resetModal.email}!`);
+        const finalPass = d.temporary_password || newPass;
+        setResetModal(prev => ({ ...prev, isOpen: false }));
+        setCredentialModal({
+          isOpen: true,
+          email: resetModal.email,
+          password: finalPass,
+          role: resetModal.role,
+          centerName: resetModal.centerName,
+          centerCode: resetModal.centerCode,
+          isReset: true,
+        });
+      } else {
+        toast.error(d.detail || 'Failed to reset password');
+      }
+    } catch {
+      toast.error('Network error resetting staff password');
+    }
   };
 
   const handleAddPhlebo = async (centreId: string) => {
@@ -1538,6 +1633,15 @@ export default function AdminDashboard() {
                                 <span key={s.id || s.user_id} className="cm-pc-chip">
                                   {s.users?.full_name || s.full_name || s.email || `${s.user_id?.slice(0, 8)}…`}
                                   {s.role && <span className="cm-pc-chip__sub">{s.role}</span>}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResetStaffPassword(c.id, c.code, c.name, s.user_id, s.users?.email || s.email || s.full_name || s.user_id, s.role || 'admin')}
+                                    className="cm-pc-chip__key"
+                                    aria-label="Reset staff password"
+                                    title="Reset staff login password"
+                                  >
+                                    <KeyRound size={12} />
+                                  </button>
                                   <button onClick={() => handleRemoveStaff(c.id, s.user_id)}
                                     className="cm-pc-chip__x"
                                     aria-label="Remove staff" title="Remove staff"><X size={12} /></button>
@@ -1547,7 +1651,7 @@ export default function AdminDashboard() {
                           ) : (
                             <p className="cm-pc-sec__empty">No staff yet.</p>
                           )}
-                          <div className="cm-pc-add">
+                          <div className="cm-pc-add" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                             <input
                               placeholder="Staff email"
                               value={selectedCentre === c.id ? staffEmail : ''}
@@ -1555,6 +1659,39 @@ export default function AdminDashboard() {
                               onFocus={() => setSelectedCentre(c.id)}
                               className="cm-pc-input cm-pc-add__grow"
                             />
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input
+                                placeholder="Password (default: CallMedex@2026)"
+                                value={selectedCentre === c.id ? staffPassword : ''}
+                                onChange={e => { setSelectedCentre(c.id); setStaffPassword(e.target.value); }}
+                                onFocus={() => setSelectedCentre(c.id)}
+                                className="cm-pc-input"
+                                style={{ width: '230px', paddingRight: '72px', fontSize: '13px' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCentre(c.id);
+                                  const rnd = Math.floor(1000 + Math.random() * 9000);
+                                  setStaffPassword(`CallMedex@${rnd}`);
+                                }}
+                                title="Generate secure random password"
+                                style={{
+                                  position: 'absolute',
+                                  right: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: '#e0f2fe',
+                                  color: '#0284c7',
+                                  border: '1px solid #bae6fd',
+                                  borderRadius: '4px',
+                                  padding: '2px 6px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                ⚡ Random
+                              </button>
+                            </div>
                             <select
                               value={selectedCentre === c.id ? staffRole : 'technician'}
                               onChange={e => { setSelectedCentre(c.id); setStaffRole(e.target.value); }}
@@ -1567,7 +1704,30 @@ export default function AdminDashboard() {
                               className="cm-pc-btn cm-pc-btn--soft"><UserPlus size={14} /> Add Staff</button>
                           </div>
                           {selectedCentre === c.id && staffMsg && (
-                            <p className={staffMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{staffMsg}</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                              <p style={{ margin: 0 }} className={staffMsg.startsWith('✅') ? 'cm-pc-msg cm-pc-msg--ok' : 'cm-pc-msg cm-pc-msg--err'}>{staffMsg}</p>
+                              {staffMsg.startsWith('✅') && (
+                                <button
+                                  type="button"
+                                  onClick={() => setCredentialModal(prev => ({ ...prev, isOpen: true }))}
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: '#0284c7',
+                                    background: '#e0f2fe',
+                                    border: '1px solid #bae6fd',
+                                    borderRadius: '4px',
+                                    padding: '2px 8px',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                  }}
+                                >
+                                  <Copy size={11} /> View / Copy Credentials
+                                </button>
+                              )}
+                            </div>
                           )}
                         </section>
 
@@ -1818,6 +1978,348 @@ export default function AdminDashboard() {
                   style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#4f46e5", color: "white", fontWeight: 800, cursor: "pointer" }}
                 >
                   🖨️ Print Executive Report
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Staff Credentials Modal ─────────────────────────────── */}
+        {credentialModal.isOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(5px)",
+              display: "grid",
+              placeItems: "center",
+              zIndex: 9999,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: "16px",
+                maxWidth: "520px",
+                width: "100%",
+                padding: "28px",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: "50%",
+                    background: "#ecfdf5",
+                    border: "1px solid #a7f3d0",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#059669",
+                  }}
+                >
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                    {credentialModal.isReset ? "Password Reset Successful" : "Processing Centre Access Credentials"}
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.82rem", color: "#64748b" }}>
+                    Share these login credentials with the user to access the command platform.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  marginBottom: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                {credentialModal.centerCode && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", paddingBottom: "8px", borderBottom: "1px solid #e2e8f0" }}>
+                    <span style={{ color: "#64748b", fontWeight: 600 }}>Centre</span>
+                    <span style={{ color: "#0f172a", fontWeight: 700 }}>
+                      {credentialModal.centerCode} {credentialModal.centerName ? `· ${credentialModal.centerName}` : ""}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.82rem" }}>
+                  <span style={{ color: "#64748b", fontWeight: 600 }}>Role</span>
+                  <span
+                    style={{
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    {credentialModal.role}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.84rem" }}>
+                  <span style={{ color: "#64748b", fontWeight: 600 }}>Email</span>
+                  <strong style={{ color: "#0f172a", fontFamily: "monospace", fontSize: "0.9rem" }}>{credentialModal.email}</strong>
+                </div>
+
+                {/* Password Box */}
+                <div
+                  style={{
+                    marginTop: "6px",
+                    background: "#ffffff",
+                    border: "1px solid #cbd5e1",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+                      Temporary Password
+                    </div>
+                    <div style={{ fontSize: "1.1rem", fontWeight: 800, fontFamily: "monospace", color: "#0f172a", letterSpacing: "0.05em" }}>
+                      {credentialModal.password}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(credentialModal.password);
+                      toast.success("Password copied to clipboard!");
+                    }}
+                    style={{
+                      padding: "6px 10px",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      borderRadius: "6px",
+                      border: "1px solid #0284c7",
+                      background: "#e0f2fe",
+                      color: "#0284c7",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <Copy size={13} /> Copy Password
+                  </button>
+                </div>
+
+                <div style={{ fontSize: "0.76rem", color: "#64748b", marginTop: "4px" }}>
+                  🌐 Login URL:{" "}
+                  <strong style={{ color: "#0284c7" }}>
+                    {typeof window !== "undefined" ? window.location.origin : ""}/auth/login
+                  </strong>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loginUrl = `${window.location.origin}/auth/login`;
+                    const text = `🏥 CallMedex — Processing Centre Access Credentials
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📍 Centre: ${credentialModal.centerCode} (${credentialModal.centerName})
+👤 Role: ${credentialModal.role}
+📧 Login Email: ${credentialModal.email}
+🔑 Temporary Password: ${credentialModal.password}
+🌐 Login URL: ${loginUrl}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ℹ️ Instructions: Log in at the URL above. You can change your password anytime in your dashboard under Account Settings.`;
+                    navigator.clipboard.writeText(text);
+                    toast.success("All credentials copied to clipboard (ready to send)!");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    fontSize: "0.88rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    boxShadow: "0 4px 12px rgba(2, 132, 199, 0.25)",
+                  }}
+                >
+                  <Copy size={16} /> Copy All Credentials (Ready to Send)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCredentialModal((prev) => ({ ...prev, isOpen: false }))}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    background: "#f1f5f9",
+                    color: "#334155",
+                    fontWeight: 700,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Reset Password Modal ─────────────────────────────── */}
+        {resetModal.isOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.75)",
+              backdropFilter: "blur(5px)",
+              display: "grid",
+              placeItems: "center",
+              zIndex: 9999,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                borderRadius: "16px",
+                maxWidth: "460px",
+                width: "100%",
+                padding: "24px",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "#e0f2fe",
+                    border: "1px solid #bae6fd",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#0284c7",
+                  }}
+                >
+                  <KeyRound size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#0f172a" }}>
+                    Reset Staff Password
+                  </h3>
+                  <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                    Set a new temporary password for this staff member.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "16px" }}>
+                <div style={{ fontSize: "0.82rem", color: "#475569" }}>
+                  User: <strong style={{ color: "#0f172a" }}>{resetModal.email}</strong>
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "2px" }}>
+                  Role: <strong style={{ color: "#0369a1" }}>{resetModal.role}</strong> · Centre: {resetModal.centerCode}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                  New Password
+                </label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <input
+                    value={resetModal.password}
+                    onChange={(e) => setResetModal((prev) => ({ ...prev, password: e.target.value }))}
+                    placeholder="Enter password or generate random"
+                    style={{
+                      width: "100%",
+                      padding: "10px 80px 10px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.88rem",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rnd = Math.floor(1000 + Math.random() * 9000);
+                      setResetModal((prev) => ({ ...prev, password: `CallMedex@${rnd}` }));
+                    }}
+                    style={{
+                      position: "absolute",
+                      right: "6px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: "#e0f2fe",
+                      color: "#0284c7",
+                      border: "1px solid #bae6fd",
+                      borderRadius: "4px",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ⚡ Random
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setResetModal((prev) => ({ ...prev, isOpen: false }))}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    background: "#f1f5f9",
+                    color: "#475569",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteResetPassword}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#0284c7",
+                    color: "#ffffff",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Confirm Reset
                 </button>
               </div>
             </div>

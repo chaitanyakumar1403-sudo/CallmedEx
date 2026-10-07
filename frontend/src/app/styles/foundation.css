@@ -8677,6 +8677,11 @@ input[type="radio"] {
   border-radius: 50%; border: 0; background: none; cursor: pointer; color: var(--cm-ink-faint);
 }
 .cm-pc-chip__x:hover { background: var(--cm-urgent-bg); color: var(--cm-urgent); }
+.cm-pc-chip__key {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 50%; border: 0; background: none; cursor: pointer; color: var(--cm-royal, #0284c7);
+}
+.cm-pc-chip__key:hover { background: var(--cm-royal-soft, #e0f2fe); color: var(--cm-navy, #0369a1); }
 .cm-pc-add { display: flex; gap: var(--cm-2); align-items: center; flex-wrap: wrap; }
 .cm-pc-add__grow { flex: 1 1 200px; width: auto; }
 

@@ -244,22 +244,40 @@ async def add_staff(center_id: str, payload: StaffIn,
     target_user_id = payload.user_id
     email = (payload.email or "").strip().lower()
     auto_created = False
-    temp_password = None
+    temp_password = (payload.password or "").strip() or "CallMedex@2026"
 
     if not target_user_id and not email:
         raise HTTPException(status_code=400, detail="Either user_id or email is required.")
 
+    now_iso = datetime.now(timezone.utc).isoformat()
+    password_updated = False
+    full_name = (payload.full_name or "").strip()
+
     if not target_user_id and email:
-        existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("email", email).limit(1).execute())
+        existing = _rows(supabase.table("users").select("id, role, full_name, email, password_hash").ilike("email", email).limit(1).execute())
         if existing:
             target_user_id = existing[0]["id"]
             prior_role = existing[0].get("role") or ""
+            if not full_name:
+                full_name = existing[0].get("full_name") or ""
+            # If admin passed an explicit password, update the user's password_hash
+            if payload.password and payload.password.strip():
+                supabase.table("users").update({
+                    "password_hash": hash_password(temp_password),
+                    "updated_at": now_iso,
+                }).eq("id", target_user_id).execute()
+                password_updated = True
+            elif not existing[0].get("password_hash") or prior_role != "processing_center":
+                # Ensure the user has a valid password hash matching CallMedex@2026
+                supabase.table("users").update({
+                    "password_hash": hash_password(temp_password),
+                    "updated_at": now_iso,
+                }).eq("id", target_user_id).execute()
+                password_updated = True
         else:
             # Auto-create user account for processing center staff/admin (No MOU required)
             target_user_id = str(uuid.uuid4())
-            temp_password = payload.password or "CallMedex@2026"
-            full_name = (payload.full_name or "").strip() or email.split("@")[0].replace(".", " ").title()
-            now_iso = datetime.now(timezone.utc).isoformat()
+            full_name = full_name or email.split("@")[0].replace(".", " ").title()
             new_user = {
                 "id": target_user_id,
                 "email": email,
@@ -274,13 +292,22 @@ async def add_staff(center_id: str, payload: StaffIn,
             }
             supabase.table("users").insert(new_user).execute()
             auto_created = True
+            password_updated = True
             prior_role = ""
     else:
         existing = _rows(supabase.table("users").select("id, role, full_name, email").eq("id", target_user_id).limit(1).execute())
         if not existing:
             raise HTTPException(status_code=404, detail="User not found.")
         prior_role = existing[0].get("role") or ""
-        email = existing[0].get("email") or ""
+        email = (existing[0].get("email") or "").strip().lower()
+        if not full_name:
+            full_name = existing[0].get("full_name") or ""
+        if payload.password and payload.password.strip():
+            supabase.table("users").update({
+                "password_hash": hash_password(temp_password),
+                "updated_at": now_iso,
+            }).eq("id", target_user_id).execute()
+            password_updated = True
 
     # Check if already in processing_center_staff for this centre
     existing_staff = _rows(
@@ -313,10 +340,61 @@ async def add_staff(center_id: str, payload: StaffIn,
         "ok": True,
         "user_id": target_user_id,
         "email": email,
+        "full_name": full_name,
         "pc_role": payload.pc_role,
         "auto_created": auto_created,
-        "temporary_password": temp_password if auto_created else None,
+        "temporary_password": temp_password,
+        "password_updated": password_updated,
         "message": f"Successfully assigned {payload.pc_role} role to {email}",
+    }
+
+
+class StaffPasswordResetIn(BaseModel):
+    password: Optional[str] = None
+
+
+@router.post("/{center_id}/staff/{user_id}/reset-password")
+async def reset_staff_password(
+    center_id: str,
+    user_id: str,
+    payload: Optional[StaffPasswordResetIn] = None,
+    user: dict = Depends(get_current_user),
+):
+    """Admin-triggered password reset for a Processing Centre staff member."""
+    _require_admin(user)
+    staff_row = _rows(
+        supabase.table("processing_center_staff")
+        .select("id, pc_role, user_id")
+        .eq("processing_center_id", center_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not staff_row:
+        raise HTTPException(status_code=404, detail="Staff member not found in this processing centre.")
+
+    u_rows = _rows(supabase.table("users").select("id, email, full_name, token_version").eq("id", user_id).limit(1).execute())
+    if not u_rows:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    target_user = u_rows[0]
+    custom_pass = payload.password if payload and payload.password else None
+    new_password = (custom_pass or "").strip() or "CallMedex@2026"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    new_token_version = (target_user.get("token_version") or 1) + 1
+
+    supabase.table("users").update({
+        "password_hash": hash_password(new_password),
+        "token_version": new_token_version,
+        "updated_at": now_iso,
+    }).eq("id", user_id).execute()
+
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "email": target_user.get("email"),
+        "temporary_password": new_password,
+        "message": f"Password reset to '{new_password}' for {target_user.get('email')}",
     }
 
 

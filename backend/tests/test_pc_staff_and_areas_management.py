@@ -9,9 +9,11 @@ from fastapi import HTTPException
 
 from app.routers.processing_center_admin import (
     add_staff as admin_add_staff,
+    reset_staff_password as admin_reset_staff_password,
     update_area as admin_update_area,
     delete_area as admin_delete_area,
     StaffIn,
+    StaffPasswordResetIn,
     AreaIn,
     AreaUpdateIn,
 )
@@ -20,6 +22,7 @@ from app.routers.pc_operations import (
     create_pc_staff,
     update_pc_staff,
     remove_pc_staff,
+    reset_pc_staff_password,
     start_sample_processing,
     deliver_lab_report,
     get_sample_by_barcode,
@@ -27,6 +30,7 @@ from app.routers.pc_operations import (
     VerifyRequest,
     PCStaffCreateRequest,
     PCStaffUpdateRequest,
+    PCStaffPasswordResetRequest,
     DeliverReportRequest,
 )
 from tests.test_sample_lifecycle import FakeSupabase
@@ -327,4 +331,49 @@ async def test_pc_staff_permanent_removal_and_sample_intake_autolink(mock_db):
     assert v_res["success"] is True
     assert v_res["status"] == "verified"
     assert mock_db.db["samples"][0]["status"] == "verified"
+
+
+@pytest.mark.asyncio
+async def test_admin_and_pc_admin_staff_password_reset(mock_db):
+    """Both platform admin and PC admin can reset staff temporary passwords."""
+    from app.utils.security import verify_password
+    center_id = str(uuid.uuid4())
+    admin_user_id = str(uuid.uuid4())
+    tech_user_id = str(uuid.uuid4())
+
+    mock_db.db["processing_centers"] = [{"id": center_id, "code": "VSPK-01", "name": "Vizag Lab"}]
+    mock_db.db["users"] = [
+        {"id": admin_user_id, "email": "pcadmin@vizaglab.com", "role": "processing_center", "token_version": 1, "password_hash": "oldhash"},
+        {"id": tech_user_id, "email": "tech@vizaglab.com", "role": "processing_center", "token_version": 1, "password_hash": "oldhash"},
+    ]
+    mock_db.db["processing_center_staff"] = [
+        {"id": str(uuid.uuid4()), "processing_center_id": center_id, "user_id": admin_user_id, "pc_role": "admin", "is_active": True},
+        {"id": str(uuid.uuid4()), "processing_center_id": center_id, "user_id": tech_user_id, "pc_role": "technician", "is_active": True},
+    ]
+
+    # 1. Platform admin resets PC Admin's password to custom password
+    res_admin = await admin_reset_staff_password(
+        center_id=center_id,
+        user_id=admin_user_id,
+        payload=StaffPasswordResetIn(password="SecurePass@2026!"),
+        user={"role": "admin", "sub": "platform-admin-id"},
+    )
+    assert res_admin["ok"] is True
+    assert res_admin["temporary_password"] == "SecurePass@2026!"
+    user_admin = [u for u in mock_db.db["users"] if u["id"] == admin_user_id][0]
+    assert user_admin["token_version"] == 2
+    assert verify_password("SecurePass@2026!", user_admin["password_hash"]) is True
+
+    # 2. PC Admin resets Technician's password (defaults to CallMedex@2026)
+    pc_admin_ctx = {"processing_center_id": center_id, "user_id": admin_user_id, "pc_role": "admin"}
+    res_pc = await reset_pc_staff_password(
+        user_id=tech_user_id,
+        payload=None,
+        staff=pc_admin_ctx,
+    )
+    assert res_pc["ok"] is True
+    assert res_pc["temporary_password"] == "CallMedex@2026"
+    user_tech = [u for u in mock_db.db["users"] if u["id"] == tech_user_id][0]
+    assert user_tech["token_version"] == 2
+    assert verify_password("CallMedex@2026", user_tech["password_hash"]) is True
 
