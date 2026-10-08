@@ -37,11 +37,67 @@ def geocode_address(
       2. Google Geocoding API (if GOOGLE_MAPS_API_KEY is set)
       3. Geoapify API (if GEOAPIFY_API_KEY is set)
 
+    A full address that no provider matches is retried with its leading words
+    dropped (see _address_variants), so "Plot 12 Sai Residency, Gajuwaka"
+    still lands on Gajuwaka instead of failing the whole booking.
+
     Raises:
         GeocodingError: If all providers fail. Never silently defaults to Vizag.
     """
-    # Normalize key for cache
-    parts = [p.strip() for p in [address, city, state] if p.strip()]
+    tried = []
+    for variant in _address_variants(address, city, state):
+        result = _geocode_query(variant, city, state)
+        if result:
+            if variant != (address or "").strip():
+                logger.info(f"Geocoded {address!r} at locality level via {variant!r}")
+            return result
+        tried.append(variant)
+
+    raise GeocodingError(
+        f"Could not geocode address: {tried!r} (city={city!r}). "
+        f"No geocoding provider returned coordinates."
+    )
+
+
+# Extra queries after the full address misses. Bounded: each is up to three
+# provider round-trips, and this runs inside the booking request.
+MAX_ADDRESS_FALLBACKS = 3
+
+
+def _address_variants(address: str, city: str, state: str) -> list:
+    """The address, then with leading words dropped, down to the locality.
+
+    House, plot and flat names are what free geocoders miss; the locality
+    after them almost always resolves. Stops before only the city/state is
+    left — a city centre is a guess about where the patient is, not their
+    address.
+    """
+    full = (address or "").strip()
+    out = [full]
+    place_words = set(f"{city} {state} india".lower().replace(",", " ").split())
+    tokens = full.split()
+    for i in range(1, len(tokens)):
+        if len(out) > MAX_ADDRESS_FALLBACKS:
+            break
+        rest = " ".join(tokens[i:]).strip(" ,")
+        words = {w for w in rest.lower().replace(",", " ").split() if any(c.isalpha() for c in w)}
+        if not (words - place_words):
+            break
+        out.append(rest)
+    return out
+
+
+def _geocode_query(address: str, city: str, state: str) -> Optional[Tuple[float, float]]:
+    """One query through the provider chain, or None if every provider misses."""
+    # City/state already in the address are not repeated: "Gajuwaka,
+    # Visakhapatnam, Visakhapatnam" reads as a different place to Nominatim.
+    parts = [address.strip()] if address.strip() else []
+    for extra in (city, state):
+        extra = (extra or "").strip()
+        if extra and extra.lower() not in ", ".join(parts).lower():
+            parts.append(extra)
+    if not parts:
+        return None
     cache_key = ", ".join(parts).lower()
 
     if cache_key in _geocode_cache:
@@ -60,7 +116,7 @@ def geocode_address(
             logger.warning(f"Google geocoding failed for '{query}': {e}")
 
     # Try Geoapify fallback
-    geoapify_key = getattr(settings, "GEOAPIFY_API_KEY", "") or ""
+    geoapify_key = settings.GEOAPIFY_API_KEY
     if geoapify_key:
         try:
             result = _geoapify_geocode(query, geoapify_key)
@@ -79,10 +135,7 @@ def geocode_address(
     except Exception as e:
         logger.warning(f"Nominatim geocoding failed for '{query}': {e}")
 
-    raise GeocodingError(
-        f"Could not geocode address: '{query}'. "
-        f"No geocoding provider returned coordinates."
-    )
+    return None
 
 
 def get_driving_eta_minutes(

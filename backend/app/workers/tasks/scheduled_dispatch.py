@@ -107,15 +107,14 @@ def trigger_dispatch_for_upcoming_bookings(self):
         already_dispatched = set()
 
     from app.services.dispatch_engine import UniversalDispatchEngine
+    from app.services.roster import ensure_collection_coords
 
     dispatched = 0
     for booking in candidates:
         if booking["id"] in already_dispatched:
             continue
 
-        lat = booking.get("collection_lat")
-        lng = booking.get("collection_lng")
-        if lat is None or lng is None:
+        if not ensure_collection_coords(booking):
             logger.warning(f"Booking {booking['id']} due for dispatch but has no coordinates; skipping.")
             OpsAlertService.create_alert(
                 alert_type="scheduled_dispatch_missing_coordinates",
@@ -125,6 +124,7 @@ def trigger_dispatch_for_upcoming_bookings(self):
                 details={"slot_start": booking.get("slot_start")},
             )
             continue
+        lat, lng = booking["collection_lat"], booking["collection_lng"]
 
         notes_raw = booking.get("notes") or ""
         address = (

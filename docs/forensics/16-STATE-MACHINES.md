@@ -141,6 +141,11 @@ Collectors are assigned automatically from the patient's location:
 
 Radius is measured from each collector's base, which is anchored on their registered address at signup. `backend/scripts/rebase_phlebotomists.py` re-anchors existing collectors.
 
+Every step needs the booking's `collection_lat/lng`. Locating works as follows (updated 2026-10-08):
+- `geocode_address` tries Google, then Geoapify, then Nominatim. `GEOAPIFY_API_KEY` is now loaded in `config.py`; before this it was set on Render but never read.
+- If the full address does not match, it retries with leading house or plot words dropped, down to the locality. It never falls back to the bare city.
+- A booking saved without a location (geocoder outage or an unreadable address) is no longer skipped forever. `roster.ensure_collection_coords` re-geocodes it and saves the result in the roster pass, the same-day sweep and centre manual-assign. Before this change, such a booking was confirmed with no collector and nothing ever retried.
+
 The processing-centre fallback for anything still unplaced is `GET /api/pc/unassigned-collections` plus `POST /api/pc/assign-collection` (centre admin). Rules:
 - Suggestions are ranked free → in-radius → nearest to the patient.
 - Assignment is refused while a live offer is still out.

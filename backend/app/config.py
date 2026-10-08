@@ -68,6 +68,9 @@ class Settings:
         "ABDM_SANDBOX_URL", "https://sandbox.abdm.gov.in"
     )
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
+    # Set on Render (render.yaml) but was never loaded, so geocoding skipped
+    # straight to Nominatim — which misses most house-level Indian addresses.
+    GEOAPIFY_API_KEY: str = os.getenv("GEOAPIFY_API_KEY", "")
 
     # ─── Phase 3: Telephony (Masked Calling) ──────────────────────────
     EXOTEL_API_KEY: str = os.getenv("EXOTEL_API_KEY", "")

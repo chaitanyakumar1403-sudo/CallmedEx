@@ -113,6 +113,33 @@ def _available_phlebos(processing_center_id: str, roster_date: str) -> List[dict
     return _without_test_personas(candidates)
 
 
+def ensure_collection_coords(booking: dict) -> bool:
+    """Geocode and save a home collection's missing lat/lng. True once it has one.
+
+    Checkout geocodes the address, but when that fails (provider outage, or an
+    address the geocoder could not read) the booking was confirmed with no
+    location — and every assignment path skips location-less bookings, so it
+    never got a collector. Retrying here lets each later pass recover it.
+    """
+    if booking.get("collection_lat") is not None and booking.get("collection_lng") is not None:
+        return True
+    from app.services.geocoding import geocode_address
+    city = booking.get("collection_city") or booking.get("collection_district") or ""
+    try:
+        lat, lng = geocode_address(address=_collection_area(booking), city=city)
+    except Exception as e:
+        logger.warning(f"Booking {booking.get('id')} still has no collection location: {e}")
+        return False
+    try:
+        supabase.table("bookings").update(
+            {"collection_lat": lat, "collection_lng": lng}
+        ).eq("id", booking["id"]).execute()
+    except Exception as e:
+        logger.warning(f"Could not save location for booking {booking.get('id')}: {e}")
+    booking["collection_lat"], booking["collection_lng"] = lat, lng
+    return True
+
+
 def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[dict]:
     bookings = _rows(
         supabase.table("bookings")
@@ -136,8 +163,7 @@ def _unassigned_bookings(processing_center_id: str, roster_date: str) -> List[di
     return [
         b for b in bookings
         if b["id"] not in existing               # idempotent
-        and b.get("collection_lat") is not None
-        and b.get("collection_lng") is not None
+        and ensure_collection_coords(b)
     ]
 
 
@@ -734,8 +760,11 @@ async def manual_assign(processing_center_id: str, booking_id: str,
         raise PermissionError("This booking belongs to another processing centre.")
     if booking.get("booking_kind") != "home_collection" or booking.get("status") not in _LIVE_BOOKING:
         raise ValueError(f"This booking cannot be assigned (status: {booking.get('status')}).")
-    if booking.get("collection_lat") is None or booking.get("collection_lng") is None:
-        raise ValueError("This booking has no collection location yet, so it cannot be dispatched.")
+    if not ensure_collection_coords(booking):
+        raise ValueError(
+            "We could not locate this booking's collection address, so it cannot be "
+            "dispatched yet. Confirm the address with the patient."
+        )
 
     roster_date = booking.get("collection_date") or (booking.get("slot_start") or "")[:10]
     collector = next(

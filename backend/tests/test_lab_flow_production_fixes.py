@@ -299,3 +299,71 @@ def test_candidate_filter_fails_closed_for_unconfirmed_accounts(db):
     db.db.setdefault("users", []).append({"id": "no-role", "email": "x@example.com"})
     people = [{"user_id": "ghost"}, {"user_id": "no-role"}]
     assert roster_mod._without_test_personas(people) == []
+
+
+# ── A booking whose address failed to geocode still gets a collector ───────
+
+def test_geocoder_falls_back_to_the_locality_never_to_the_city(monkeypatch):
+    import app.services.geocoding as geo
+    monkeypatch.setattr(geo.settings, "GOOGLE_MAPS_API_KEY", "")
+    monkeypatch.setattr(geo.settings, "GEOAPIFY_API_KEY", "")
+    monkeypatch.setattr(geo, "_geocode_cache", {})
+    asked = []
+
+    def nominatim(query):  # only knows the locality, like the real thing
+        asked.append(query)
+        return (17.69, 83.21) if query.startswith("Sai Residency, Gajuwaka") else None
+
+    monkeypatch.setattr(geo, "_nominatim_geocode", nominatim)
+    assert geo.geocode_address("Plot 12 Sai Residency, Gajuwaka", city="Visakhapatnam") == (17.69, 83.21)
+    assert asked[0] == "Plot 12 Sai Residency, Gajuwaka, Visakhapatnam, India"
+
+    asked.clear()
+    with pytest.raises(geo.GeocodingError):
+        geo.geocode_address("Flat 4, Visakhapatnam", city="Visakhapatnam")
+    assert all("Flat" in q or "4" in q for q in asked)   # never queried the bare city
+
+
+def _locationless_booking(db, slot_start=None):
+    bid = str(uuid.uuid4())
+    db.db.setdefault("bookings", []).append({
+        "id": bid, "processing_center_id": "pc-1", "collection_date": "2030-01-20",
+        "booking_kind": "home_collection", "status": "confirmed", "patient_id": "p-1",
+        "slot_id": "x|2030-01-20|07:00", "slot_start": slot_start or "2030-01-20T07:00:00+05:30",
+        "collection_lat": None, "collection_lng": None, "collection_city": "Visakhapatnam",
+        "notes": "Collection address: Plot 12 Sai Residency, Gajuwaka", "selected_tests": ["CBC"],
+    })
+    return bid
+
+
+def test_roster_pass_geocodes_and_assigns_a_booking_saved_without_a_location(db, monkeypatch):
+    import app.services.geocoding as geo
+    db.db.setdefault("phlebotomists", []).append({
+        "user_id": "ph-1", "processing_center_id": "pc-1", "base_lat": 17.70,
+        "base_lng": 83.21, "phleb_type": "full_time",
+    })
+    db.db.setdefault("users", []).append({"id": "ph-1", "role": "phlebotomist", "email": "ph1@example.com"})
+    bid = _locationless_booking(db)
+    monkeypatch.setattr(geo, "geocode_address", lambda address, city="", state="": (17.69, 83.21))
+
+    assigned = roster_mod.run_roster_pass("pc-1", "2030-01-20")
+    assert [a["phlebotomist_user_id"] for a in assigned] == ["ph-1"]
+    row = next(b for b in db.db["bookings"] if b["id"] == bid)
+    assert (row["collection_lat"], row["collection_lng"]) == (17.69, 83.21)
+
+
+def test_same_day_sweep_geocodes_instead_of_skipping_a_location_less_booking(db, monkeypatch):
+    import app.services.geocoding as geo
+    import app.workers.tasks.scheduled_dispatch as sweep_mod
+    monkeypatch.setattr(sweep_mod, "supabase", db)
+    monkeypatch.setattr(geo, "geocode_address", lambda address, city="", state="": (17.69, 83.21))
+    soon = _ist(datetime.now(IST) + timedelta(minutes=30))
+    bid = _locationless_booking(db, slot_start=soon)
+    sent = []
+
+    async def create_dispatch(**kw):
+        sent.append(kw)
+
+    monkeypatch.setattr(engine_mod.UniversalDispatchEngine, "create_dispatch", create_dispatch)
+    sweep_mod.trigger_dispatch_for_upcoming_bookings()
+    assert [(s["booking_id"], s["patient_lat"], s["patient_lng"]) for s in sent] == [(bid, 17.69, 83.21)]
