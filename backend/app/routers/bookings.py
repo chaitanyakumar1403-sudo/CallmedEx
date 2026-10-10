@@ -5,6 +5,7 @@ Includes booking history audit trail for every status change.
 """
 import uuid
 import logging
+import secrets
 from datetime import datetime, timezone, date, time, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -20,6 +21,7 @@ from app.services.processing_center import assign_booking
 from app.services.dispatch_engine import UniversalDispatchEngine
 from app.routers.family_members import ensure_self_member
 from app.services.email import EmailService
+from app.services.otp import _hash_otp
 from app.utils.db_helpers import _rows
 
 logger = logging.getLogger(__name__)
@@ -1230,6 +1232,8 @@ async def create_booking(
                                     assigned_phlebo_id = chosen_phlebo["user_id"] if chosen_phlebo else None
                                     adv_req_id = str(uuid.uuid4())
                                     if assigned_phlebo_id:
+                                        adv_otp = str(secrets.randbelow(900000) + 100000)
+                                        adv_otp_hash = _hash_otp(adv_otp)
                                         supabase.table("dispatch_requests").insert({
                                             "id": adv_req_id,
                                             "booking_id": booking_id,
@@ -1245,8 +1249,13 @@ async def create_booking(
                                             "patient_lat": float(patient_lat),
                                             "patient_lng": float(patient_lng),
                                             "notes": f"Advance collection ({col_slot_time}): {', '.join((booking.selected_tests or [])[:3])}",
+                                            "verification_otp": adv_otp_hash,
+                                            "patient_otp": adv_otp,
+                                            "otp_generated_at": now,
+                                            "otp_verified": False,
+                                            "otp_attempts": 0,
                                         }).execute()
-                                        logger.info(f"Created advance dispatch {adv_req_id} for booking {booking_id} assigned to phlebo {assigned_phlebo_id}")
+                                        logger.info(f"Created advance dispatch {adv_req_id} with OTP for booking {booking_id} assigned to phlebo {assigned_phlebo_id}")
                                     else:
                                         logger.info(
                                             f"No collector free for booking {booking_id} at {scheduled_date} {col_slot_time}; "

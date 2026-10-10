@@ -178,13 +178,13 @@ export const PhlebotomistRadar: React.FC<Props> = ({
           <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, color: '#e0f2fe' }}>
             Doorstep Verification OTP
           </div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: 3, background: '#fff', color: '#0284c7', padding: '3px 12px', borderRadius: 6, display: 'inline-block', margin: '0 auto' }}>
-            {otpPin || '••••'}
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: 3, background: '#fff', color: '#0284c7', padding: '3px 12px', borderRadius: 6, display: 'inline-block', margin: '0 auto', fontVariantNumeric: 'tabular-nums' }}>
+            {otpPin || '••••••'}
           </div>
           <div style={{ fontSize: '0.66rem', color: '#bae6fd', marginTop: 4, lineHeight: 1.2 }}>
             {otpPin
-              ? 'Share only upon phlebotomist arrival'
-              : 'Appears upon collector arrival'}
+              ? (status === 'arrived' ? 'Share code with your collector now' : 'Share only upon phlebotomist arrival')
+              : (status === 'provider_accepted' || status === 'en_route' ? 'Generating doorstep OTP…' : 'Appears upon collector arrival')}
           </div>
         </div>
       </div>

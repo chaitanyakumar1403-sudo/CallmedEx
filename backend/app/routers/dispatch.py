@@ -1038,7 +1038,7 @@ async def verify_dispatch_otp(
     result = await UniversalDispatchEngine.verify_otp_and_start(
         dispatch_id=dispatch_id,
         provider_id=current_user["sub"],
-        otp=body.otp,
+        otp=str(body.otp or "").strip(),
     )
     if not result["success"]:
         raise HTTPException(400, result.get("error", "OTP verification failed"))

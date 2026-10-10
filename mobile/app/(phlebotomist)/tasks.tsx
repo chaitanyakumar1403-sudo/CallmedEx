@@ -54,7 +54,7 @@ export default function PhlebotomistTasksScreen() {
       time: '07:30 AM',
       fasting: '10-12 hrs Fasting Required',
       status: 'DISPATCHED',
-      collectionOtp: '4829',
+      collectionOtp: '482915',
     },
     {
       id: 't-2',
@@ -65,7 +65,7 @@ export default function PhlebotomistTasksScreen() {
       time: '08:45 AM',
       fasting: 'Non-Fasting',
       status: 'CONFIRMED',
-      collectionOtp: '9103',
+      collectionOtp: '910382',
     },
   ]);
 
@@ -84,7 +84,7 @@ export default function PhlebotomistTasksScreen() {
     if (!activeTaskModal) return;
 
     if (!enteredOtp || enteredOtp.trim() !== activeTaskModal.collectionOtp) {
-      Alert.alert('Invalid OTP', 'Please enter the 4-digit verification code provided by the patient.');
+      Alert.alert('Invalid OTP', 'Please enter the 6-digit verification code provided by the patient.');
       return;
     }
 
@@ -230,12 +230,12 @@ export default function PhlebotomistTasksScreen() {
 
               <View style={{ marginTop: spacing.md }}>
                 <Input
-                  label="Patient 4-Digit Doorstep PIN"
-                  placeholder="Enter 4-digit code (e.g. 4829)"
+                  label="Patient 6-Digit Doorstep PIN"
+                  placeholder="Enter 6-digit code (e.g. 482915)"
                   value={enteredOtp}
                   onChangeText={setEnteredOtp}
                   keyboardType="numeric"
-                  maxLength={4}
+                  maxLength={6}
                 />
 
                 <Input

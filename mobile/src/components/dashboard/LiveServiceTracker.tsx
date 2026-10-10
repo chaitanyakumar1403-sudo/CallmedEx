@@ -88,11 +88,11 @@ export const LiveServiceTracker: React.FC<LiveServiceTrackerProps> = ({
         </View>
       )}
 
-      {/* Arrived OTP Display */}
-      {isArrived && patientOtp && (
+      {/* Doorstep Verification PIN Display */}
+      {patientOtp && !['completed', 'cancelled'].includes(trackingData?.status) && (
         <View style={styles.otpBox}>
-          <Text style={styles.otpHeader}>Provider Has Arrived!</Text>
-          <Text style={styles.otpSub}>Share this 6-digit PIN with the provider to commence service:</Text>
+          <Text style={styles.otpHeader}>{isArrived ? 'Provider Has Arrived!' : 'Doorstep Verification PIN'}</Text>
+          <Text style={styles.otpSub}>{isArrived ? 'Share this 6-digit PIN with the provider to commence service:' : 'Share this 6-digit PIN with your provider only upon arrival:'}</Text>
           <View style={styles.otpDisplay}>
             <Text style={styles.otpText}>{patientOtp}</Text>
           </View>

@@ -221,7 +221,7 @@ export default function PatientHomeScreen() {
         const res = await api.get(`/api/dispatch/track/${activeDispatchId}`);
         if (res.data) {
           setTrackingData(res.data);
-          if (res.data.status === 'arrived') {
+          if (['provider_accepted', 'en_route', 'arrived', 'in_progress'].includes(res.data.status)) {
             try {
               const otpRes = await api.get(`/api/dispatch/${activeDispatchId}/patient-otp`);
               if (otpRes.data?.otp) {

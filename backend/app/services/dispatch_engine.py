@@ -70,7 +70,7 @@ FULL_TIME_PHLEBO_RADIUS_KM = 20.0
 PROVIDER_TRANSITION_PREREQS = {
     "en_route": {"provider_accepted", "en_route"},
     "arrived": {"en_route", "arrived"},
-    "in_progress": {"arrived", "in_progress"},
+    "in_progress": {"arrived", "en_route", "provider_accepted", "in_progress"},
     "completed": {"in_progress", "completed"},
 }
 
@@ -1382,18 +1382,19 @@ class UniversalDispatchEngine:
         replay: it re-drives the status change instead of refusing it. Anywhere
         else, an already-verified code is still rejected.
         """
-        result = OTPService.verify_otp(dispatch_id, otp)
+        clean_otp = str(otp or "").strip().replace(" ", "").replace("-", "")
+        result = OTPService.verify_otp(dispatch_id, clean_otp)
         if not result.get("success"):
             if result.get("error") != "OTP already verified":
                 return {
                     "success": False,
                     "error": result.get("error", "OTP verification failed"),
                 }
-            if UniversalDispatchEngine._dispatch_status(dispatch_id) != "arrived":
+            if UniversalDispatchEngine._dispatch_status(dispatch_id) not in ("arrived", "en_route", "provider_accepted"):
                 return {"success": False, "error": "OTP already verified"}
             logger.info(
                 f"Dispatch {dispatch_id}: OTP already verified but status is still "
-                "'arrived' — re-driving the interrupted transition to in_progress."
+                "prior to 'in_progress' — re-driving the interrupted transition to in_progress."
             )
 
         status_result = await UniversalDispatchEngine.update_status(
@@ -1509,7 +1510,7 @@ class UniversalDispatchEngine:
                 "message": "Dispatch not found or could not be updated.",
             }
 
-        if new_status == "arrived":
+        if new_status in ("provider_accepted", "arrived"):
             OTPService.generate_otp(dispatch_id)
 
         # Sync linked booking status across transitions

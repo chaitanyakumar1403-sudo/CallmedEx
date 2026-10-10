@@ -123,7 +123,7 @@ export default function LiveTrackingPage() {
   }, [fetchDispatch]);
 
   useEffect(() => {
-    if (dispatch?.status === "arrived" || dispatch?.status === "in_progress") {
+    if (["provider_accepted", "en_route", "arrived", "in_progress"].includes(dispatch?.status)) {
       fetchOtp();
       otpPollRef.current = setInterval(fetchOtp, 5000);
     }

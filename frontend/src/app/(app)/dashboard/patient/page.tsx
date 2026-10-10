@@ -157,6 +157,7 @@ export default function PatientDashboard() {
 
   // KPI Interactive Modals
   const [activeKpiModal, setActiveKpiModal] = useState<'upcoming' | 'completed' | 'prescriptions' | 'records' | null>(null);
+  const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
   const [recordsTab, setRecordsTab] = useState<"self" | "family">("self");
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>("all");
   const familyState = useFamilyHubStore();
@@ -410,7 +411,9 @@ export default function PatientDashboard() {
         ["confirmed", "provider_accepted", "in_progress"].includes(b.status) &&
         isLiveBooking(b, today) &&
         (b.booking_kind === "home_collection" ||
-          b.consultation_mode === "home_visit")
+          b.consultation_mode === "home_visit" ||
+          b.service_type === "lab_test" ||
+          b.service_type === "home_collection")
     );
     if (candidates.length === 0) return;
 
@@ -468,8 +471,8 @@ export default function PatientDashboard() {
         const data = await res.json();
         setTrackingData(data);
 
-        // If arrived, fetch OTP so patient can tell the provider
-        if (data.status === "arrived") {
+        // Fetch OTP whenever collector is assigned or visit is underway
+        if (["provider_accepted", "en_route", "arrived", "in_progress"].includes(data.status)) {
           const otpRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/${activeDispatchId}/patient-otp`, {
             headers: { "Authorization": `Bearer ${token}` }
           });
@@ -477,7 +480,7 @@ export default function PatientDashboard() {
           if (otpData.success && otpData.otp) {
             setPatientOtp(otpData.otp);
           }
-        } else {
+        } else if (["completed", "cancelled", "no_provider"].includes(data.status)) {
           setPatientOtp(null);
         }
 
@@ -1005,6 +1008,25 @@ export default function PatientDashboard() {
               formatSlot(b.slot_start) || b.booking_date || b.scheduled_date || "";
             const titleOf = (b: any) =>
               b.service_title || b.test_names || b.package_name || parseBookingNotes(b.notes, b.service_type).title;
+            const scrollToBooking = (bookingId: string) => {
+              setActiveKpiModal(null);
+              setHighlightedBookingId(bookingId);
+              setTimeout(() => {
+                const element = document.getElementById(`booking-${bookingId}`);
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "center" });
+                } else {
+                  const historySection = document.getElementById("recent-bookings");
+                  if (historySection) {
+                    historySection.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }
+              }, 100);
+              setTimeout(() => {
+                setHighlightedBookingId(null);
+              }, 3200);
+            };
+
             const closeTo = (id: string) => {
               setActiveKpiModal(null);
               setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -1035,7 +1057,20 @@ export default function PatientDashboard() {
                     {activeKpiModal === "upcoming" && (upcomingBookings.length > 0 ? (
                       <ul className="cm-kpim__list">
                         {upcomingBookings.map((b) => (
-                          <li key={b.id} className="cm-kpim-row">
+                          <li
+                            key={b.id}
+                            className="cm-kpim-row cm-kpim-row--interactive"
+                            onClick={() => scrollToBooking(b.id)}
+                            role="button"
+                            tabIndex={0}
+                            title="Click to view details in recent booking history"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                scrollToBooking(b.id);
+                              }
+                            }}
+                          >
                             <div className="cm-kpim-row__main">
                               <div className="cm-kpim-row__kind">{bookingKindLabel(b.service_type)}</div>
                               <div className="cm-kpim-row__title">{titleOf(b)}</div>
@@ -1045,16 +1080,49 @@ export default function PatientDashboard() {
                             </div>
                             <div className="cm-kpim-row__side">
                               {statusPill(b.status, b)}
-                              {b.status === "slot_allotted" && (
-                                <div className="cm-kpim-row__actions">
-                                  <button type="button" className="cm-btn cm-btn--primary cm-btn--sm" onClick={() => handleRespondSlot(b.id, true)}>
-                                    Accept time
+                              <div className="cm-kpim-row__actions" onClick={(e) => e.stopPropagation()}>
+                                {b.status === "slot_allotted" && (
+                                  <>
+                                    <button type="button" className="cm-btn cm-btn--primary cm-btn--sm" onClick={() => handleRespondSlot(b.id, true)}>
+                                      Accept time
+                                    </button>
+                                    <button type="button" className="cm-btn cm-btn--secondary cm-btn--sm" onClick={() => handleRespondSlot(b.id, false, "Reschedule requested by patient")}>
+                                      Ask for another
+                                    </button>
+                                  </>
+                                )}
+                                {(b.provider_type === "phlebotomist" || b.service_type === "lab_test" || b.service_type === "home_collection") && (
+                                  <button
+                                    type="button"
+                                    className="cm-btn cm-btn--secondary cm-btn--sm"
+                                    onClick={async () => {
+                                      setActiveKpiModal(null);
+                                      try {
+                                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/dispatch/for-booking/${b.id}`, {
+                                          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+                                        });
+                                        const data = await res.json();
+                                        if (data?.success && data.dispatch_id) {
+                                          localStorage.setItem("activeDispatchId", data.dispatch_id);
+                                          setActiveDispatchId(data.dispatch_id);
+                                        }
+                                      } catch {}
+                                      window.scrollTo({ top: 320, behavior: "smooth" });
+                                    }}
+                                    title="View collector live tracking & OTP on top"
+                                  >
+                                    <ShieldCheck size={14} /> Tracking & OTP
                                   </button>
-                                  <button type="button" className="cm-btn cm-btn--secondary cm-btn--sm" onClick={() => handleRespondSlot(b.id, false, "Reschedule requested by patient")}>
-                                    Ask for another
-                                  </button>
-                                </div>
-                              )}
+                                )}
+                                <button
+                                  type="button"
+                                  className="cm-btn cm-btn--ghost cm-btn--sm"
+                                  onClick={() => scrollToBooking(b.id)}
+                                  title="View details in booking history"
+                                >
+                                  Details <ChevronRight size={14} />
+                                </button>
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -1347,7 +1415,7 @@ export default function PatientDashboard() {
             nabl_verified: true,
           };
 
-          const otp = isReal ? patientOtp : "4829";
+          const otp = isReal ? patientOtp : "482915";
 
           // Every string in this card used to say "phlebotomist". The card now
           // also carries physiotherapy, dietetics, nursing and home-visit
@@ -1743,7 +1811,11 @@ export default function PatientDashboard() {
               const isClosed = isAutoExpired || booking.status === "cancelled" || booking.status === "completed" || booking.status === "slot_rejected";
 
               return (
-              <article key={booking.id} className="cm-pbk-card">
+              <article
+                key={booking.id}
+                id={`booking-${booking.id}`}
+                className={`cm-pbk-card ${highlightedBookingId === booking.id ? "cm-pbk-card--highlighted" : ""}`}
+              >
                 <div className="cm-pbk-card__main">
                   <div className={`cm-pbk-card__icon cm-pbk-card__icon--${kindTone}`}>
                     {booking.service_type === "lab_test" ? <Activity size={20} /> : booking.service_type === "video_consult" ? <Video size={20} /> : <Stethoscope size={20} />}

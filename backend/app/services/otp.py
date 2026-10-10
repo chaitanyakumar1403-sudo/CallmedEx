@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # In-memory OTP store for local dev (when no Supabase)
 _local_otps: dict = {}  # dispatch_id -> {"otp_hash": str, "created_at": datetime, "verified": bool, "attempts": int, "locked_until": datetime | None}
 
-OTP_EXPIRY_MINUTES = 10
+OTP_EXPIRY_MINUTES = 2880  # 48 hours for doorstep sample collection / scheduled visits
 MAX_OTP_ATTEMPTS = 5
 OTP_LOCKOUT_MINUTES = 15
 
@@ -63,11 +63,43 @@ class OTPService:
     """Manages OTP generation and verification for dispatch services."""
 
     @staticmethod
-    def generate_otp(dispatch_id: str) -> str:
-        """Generate a 6-digit OTP for a dispatch and store it (hashed)."""
-        otp = str(secrets.randbelow(900000) + 100000)  # cryptographically secure
-        otp_hash = _hash_otp(otp)
+    def generate_otp(dispatch_id: str, force_regenerate: bool = False) -> str:
+        """Generate a 6-digit OTP for a dispatch and store it (hashed).
+        If an unverified, valid OTP already exists and force_regenerate is False,
+        returns the existing OTP to prevent overwriting active codes that the patient already sees.
+        """
         now = datetime.now(timezone.utc)
+
+        if not force_regenerate:
+            if supabase:
+                try:
+                    res = (
+                        supabase.table("dispatch_requests")
+                        .select("patient_otp, verification_otp, otp_verified, otp_generated_at")
+                        .eq("id", dispatch_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if res.data:
+                        rec = res.data[0]
+                        existing_otp = rec.get("patient_otp")
+                        existing_hash = rec.get("verification_otp")
+                        verified = rec.get("otp_verified", False)
+                        gen_str = rec.get("otp_generated_at")
+                        if existing_otp and existing_hash and not verified:
+                            gen_dt = _parse_iso_datetime(str(gen_str)) if gen_str else None
+                            if not gen_dt or (now - gen_dt) <= timedelta(minutes=OTP_EXPIRY_MINUTES):
+                                return str(existing_otp)
+                except Exception as e:
+                    logger.debug(f"Could not check existing OTP in DB: {e}")
+            else:
+                existing = _local_otps.get(dispatch_id)
+                if existing and not existing.get("verified") and existing.get("patient_otp"):
+                    if (now - existing["created_at"]) <= timedelta(minutes=OTP_EXPIRY_MINUTES):
+                        return str(existing["patient_otp"])
+
+        otp = str(secrets.randbelow(900000) + 100000)  # 6-digit cryptographically secure
+        otp_hash = _hash_otp(otp)
 
         if supabase:
             try:
@@ -108,7 +140,11 @@ class OTPService:
     def verify_otp(dispatch_id: str, entered_otp: str) -> dict:
         """Verify the OTP entered by the provider with brute-force protection."""
         now = datetime.now(timezone.utc)
-        entered_hash = _hash_otp(entered_otp)
+        entered_clean = str(entered_otp or "").strip().replace(" ", "").replace("-", "")
+        if not entered_clean:
+            return {"success": False, "error": "OTP is required"}
+
+        entered_hash = _hash_otp(entered_clean)
 
         if supabase:
             try:
@@ -180,9 +216,9 @@ class OTPService:
 
             except Exception as e:
                 logger.error(f"OTP verification DB error: {e}")
-                return OTPService._verify_local(dispatch_id, entered_otp, now)
+                return OTPService._verify_local(dispatch_id, entered_clean, now)
         else:
-            return OTPService._verify_local(dispatch_id, entered_otp, now)
+            return OTPService._verify_local(dispatch_id, entered_clean, now)
 
     @staticmethod
     def _verify_local(dispatch_id: str, entered_otp: str, now: datetime) -> dict:
@@ -226,12 +262,14 @@ class OTPService:
     def get_patient_otp(dispatch_id: str) -> dict:
         """
         Get the OTP status and plaintext PIN for the patient's tracking screen.
+        Available whenever the dispatch is active so the patient has the code ready.
         """
+        now = datetime.now(timezone.utc)
         if supabase:
             try:
                 result = (
                     supabase.table("dispatch_requests")
-                    .select("otp_verified, otp_generated_at, status, otp_attempts, otp_locked_until, patient_otp")
+                    .select("otp_verified, otp_generated_at, status, otp_attempts, otp_locked_until, patient_otp, verification_otp")
                     .eq("id", dispatch_id)
                     .execute()
                 )
@@ -245,22 +283,34 @@ class OTPService:
                 attempts = record.get("otp_attempts", 0)
                 locked_until = record.get("otp_locked_until")
                 patient_otp = record.get("patient_otp")
+                stored_hash = record.get("verification_otp")
 
-                # Only show OTP status when provider has arrived
-                if status not in ("arrived", "in_progress"):
+                # Closed / completed dispatches do not have active OTP
+                if status in ("cancelled", "completed", "no_provider"):
                     return {
                         "success": True,
                         "otp_active": False,
-                        "message": "OTP will be generated when your provider arrives",
                         "verified": verified,
+                        "otp": None,
+                        "message": "Visit completed ✅" if verified else "Dispatch closed",
                     }
+
+                # Ensure OTP exists if missing on an active dispatch
+                if not patient_otp or not stored_hash:
+                    patient_otp = OTPService.generate_otp(dispatch_id)
+                    generated_at = now.isoformat()
 
                 # Check if OTP is expired
                 expired = False
                 if generated_at:
                     gen_time = _parse_iso_datetime(str(generated_at))
-                    if gen_time:
-                        expired = (datetime.now(timezone.utc) - gen_time) > timedelta(minutes=OTP_EXPIRY_MINUTES)
+                    if gen_time and (now - gen_time) > timedelta(minutes=OTP_EXPIRY_MINUTES):
+                        expired = True
+
+                # If expired and not yet verified, refresh
+                if expired and not verified:
+                    patient_otp = OTPService.generate_otp(dispatch_id, force_regenerate=True)
+                    expired = False
 
                 return {
                     "success": True,
@@ -272,8 +322,7 @@ class OTPService:
                     "otp": patient_otp if not verified and not expired else None,
                     "message": (
                         "OTP verified ✅" if verified
-                        else "OTP expired. Please request a new one." if expired
-                        else "Share the OTP with your provider"
+                        else "Share the OTP with your provider upon arrival"
                     ),
                 }
             except Exception as e:
@@ -285,13 +334,21 @@ class OTPService:
     @staticmethod
     def _get_local_otp(dispatch_id: str) -> dict:
         """Get OTP status from in-memory store."""
+        now = datetime.now(timezone.utc)
         otp_data = _local_otps.get(dispatch_id)
-        if not otp_data:
-            return {"success": True, "otp_active": False, "message": "OTP will be generated when provider arrives", "verified": False}
+        if not otp_data or not otp_data.get("patient_otp"):
+            OTPService.generate_otp(dispatch_id)
+            otp_data = _local_otps.get(dispatch_id)
+            if not otp_data:
+                return {"success": True, "otp_active": False, "message": "OTP not found", "verified": False}
 
         verified = otp_data.get("verified", False)
-        now = datetime.now(timezone.utc)
         expired = (now - otp_data["created_at"]) > timedelta(minutes=OTP_EXPIRY_MINUTES)
+        if expired and not verified:
+            OTPService.generate_otp(dispatch_id, force_regenerate=True)
+            otp_data = _local_otps.get(dispatch_id)
+            expired = False
+
         patient_otp = otp_data.get("patient_otp")
 
         return {
@@ -304,7 +361,6 @@ class OTPService:
             "otp": patient_otp if not verified and not expired else None,
             "message": (
                 "OTP verified ✅" if verified
-                else "OTP expired. Please request a new one." if expired
-                else "Share the OTP with your provider"
+                else "Share the OTP with your provider upon arrival"
             ),
         }
