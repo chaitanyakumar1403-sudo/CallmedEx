@@ -79,18 +79,6 @@ services:
       # pretending to deliver.
       - key: FCM_SERVICE_ACCOUNT_JSON
         sync: false
-      # iOS goes to APNs directly — Expo's getDevicePushTokenAsync() returns an
-      # APNs token on iOS, which FCM cannot address. APNS_PRIVATE_KEY is the
-      # .p8 file contents.
-      - key: APNS_KEY_ID
-        sync: false
-      - key: APNS_TEAM_ID
-        sync: false
-      - key: APNS_PRIVATE_KEY
-        sync: false
-      - key: APNS_USE_SANDBOX
-        value: false
-
       # ─── Notification SMS (DLT-registered MSG91 flow, not the OTP template) ──
       - key: MSG91_FLOW_ID
         sync: false

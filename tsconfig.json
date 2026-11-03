@@ -14,8 +14,7 @@
     "types": []
   },
   "include": [
-    "frontend/src/**/*",
-    "mobile/src/**/*"
+    "frontend/src/**/*"
   ],
   "exclude": [
     "node_modules",

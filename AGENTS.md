@@ -34,9 +34,6 @@
 │   ├── src/app/(public)/     # Public landing, doctor directory, login
 │   ├── e2e/                  # Playwright browser test suites
 │   └── package.json          # Node dependencies
-├── mobile/                   # React Native (Expo SDK 52) Mobile Application
-│   ├── app/                  # Expo Router file-based screens
-│   └── package.json          # Expo & native module dependencies
 ├── database/                 # PostgreSQL SQL schemas, RLS policies, migrations
 ├── docs/forensics/           # Complete 33-file Forensic Repository Intelligence Suite
 ├── docker-compose.yml        # 5-container topology (Backend, Celery Worker, Beat, Redis, Nginx)
@@ -52,7 +49,6 @@
 - **Run Backend Tests**: `pytest backend/tests/ -v`
 - **Run Full Docker Stack**: `docker compose up -d`
 - **Web Frontend**: `cd frontend && npm run dev`
-- **Mobile Client**: `cd mobile && npx expo start`
 
 ---
 
