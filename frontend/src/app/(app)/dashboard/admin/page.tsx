@@ -1126,7 +1126,7 @@ export default function AdminDashboard() {
             });
           };
 
-          const handleBulkAction = async (action: 'suspend' | 'activate' | 'delete') => {
+          const handleBulkAction = async (action: 'suspend' | 'activate' | 'delete' | 'verify') => {
             const ids = Array.from(selectedUserIds);
             if (ids.length === 0) return;
             if (action === 'delete' && !(await customConfirm(`Are you sure you want to DELETE ${ids.length} user(s)? This action cannot be undone.`))) return;

@@ -5,9 +5,9 @@ import { Icon, Panel, Pill, Modal } from "@/components/ui";
 import {
   Building2, Clock, FileText, FlaskConical, GraduationCap, Mail,
   MapPin, Package, Phone, Stethoscope, Syringe, User, Pencil, Check,
-  X, ShieldCheck, Sparkles, AlertCircle, CheckCircle2, Award, Lock, Download
+  X, ShieldCheck, Sparkles, AlertCircle, CheckCircle2, Award, Lock, Download,
+  Camera, Upload, Trash2, RefreshCw
 } from "@/components/ui/icons";
-import { Camera, Upload, Trash2, RefreshCw } from "lucide-react";
 import type { LucideIcon } from "@/components/ui/icons";
 import MouDocuments, { type MouDocument } from "@/components/MouDocuments";
 
@@ -731,7 +731,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                     disabled={verifying}
                     className="cm-btn cm-btn--secondary cm-btn--sm"
                   >
-                    <Icon as={RefreshCw} size={13} className={verifying ? "animate-spin" : ""} />
+                    <Icon as={RefreshCw} size={14} className={verifying ? "animate-spin" : ""} />
                     <span>{verifying ? "Verifying..." : "Verify Credentials Now"}</span>
                   </button>
                 </>

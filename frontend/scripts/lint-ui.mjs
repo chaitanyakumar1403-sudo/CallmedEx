@@ -10,7 +10,7 @@
  * the gate is enforceable from the first converted file instead of only after
  * the whole codebase is clean.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -79,4 +79,4 @@ function main() {
   console.log(`ui-lint: clean across ${files.length} converted file(s).`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && (process.argv[1] === fileURLToPath(import.meta.url) || realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)))) main();
