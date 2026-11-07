@@ -24,6 +24,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const [currentProfile, setCurrentProfile] = useState<any>(profile || {});
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // Profile Photo Studio state
@@ -247,6 +248,37 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
   const mouDocuments: MouDocument[] = Array.isArray(mouData?.documents) ? mouData.documents : [];
   const mouAcceptedAt: string | null = mouData?.acceptance?.accepted_at || null;
 
+  // Run instant credential verification check
+  const handleRunVerification = async () => {
+    setVerifying(true);
+    setSaveMsg(null);
+    try {
+      const token = getToken();
+      if (!token) return;
+      const res = await fetch(`${apiBase}/api/verification/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.data?.status === "verified") {
+        const updated = { ...currentProfile, verification_status: "verified" };
+        setCurrentProfile(updated);
+        if (onProfileUpdated) onProfileUpdated(updated);
+        setSaveMsg({ text: "Credentials verified successfully! Your account is now active.", ok: true });
+      } else {
+        const msg = data.message || (data.data?.checks?.filter((c: any) => !c.passed).map((c: any) => c.detail).join(", ")) || "Verification is in progress.";
+        setSaveMsg({ text: msg, ok: false });
+      }
+    } catch {
+      setSaveMsg({ text: "Network error connecting to verification service.", ok: false });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   // Save edited profile
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +318,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
             ...pharmForm,
             full_name: pharmForm.pharmacy_name.trim(),
             service_radius_km: radius ?? currentProfile?.service_radius_km,
+            verification_status: data.data?.verification_status || currentProfile?.verification_status,
           };
           setCurrentProfile(updated);
           if (onProfileUpdated) onProfileUpdated(updated);
@@ -315,6 +348,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
           qualification: formData.qualification,
           hospital_clinic_name: formData.hospital_clinic_name,
           medical_license_number: formData.medical_license_number,
+          certification_number: formData.medical_license_number,
           years_of_experience: Number(formData.years_of_experience) || 0,
           bio: formData.bio,
           fee_justification: formData.fee_justification,
@@ -325,9 +359,20 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setSaveMsg({ text: "Professional credentials and fee presentation updated successfully.", ok: true });
+        const newStatus = data.data?.verification_status || (formData.medical_license_number ? "verified" : currentProfile?.verification_status);
+        setSaveMsg({
+          text: newStatus === "verified"
+            ? "Professional credentials updated and verified successfully."
+            : "Professional credentials and fee presentation updated successfully.",
+          ok: true
+        });
         setIsEditing(false);
-        const updated = { ...currentProfile, ...formData };
+        const updated = {
+          ...currentProfile,
+          ...formData,
+          certification_number: formData.medical_license_number || currentProfile?.certification_number,
+          verification_status: newStatus,
+        };
         setCurrentProfile(updated);
         if (onProfileUpdated) onProfileUpdated(updated);
       } else {
@@ -677,7 +722,20 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
               const status = String(p.verification_status || "").toLowerCase();
               if (status === "verified") return <Pill tone="done">{role.toUpperCase()} VERIFIED</Pill>;
               if (status === "rejected") return <Pill tone="urgent">VERIFICATION REJECTED</Pill>;
-              return <Pill tone="waiting">VERIFICATION PENDING</Pill>;
+              return (
+                <>
+                  <Pill tone="waiting">VERIFICATION PENDING</Pill>
+                  <button
+                    type="button"
+                    onClick={handleRunVerification}
+                    disabled={verifying}
+                    className="cm-btn cm-btn--secondary cm-btn--sm"
+                  >
+                    <Icon as={RefreshCw} size={13} className={verifying ? "animate-spin" : ""} />
+                    <span>{verifying ? "Verifying..." : "Verify Credentials Now"}</span>
+                  </button>
+                </>
+              );
             })()}
           </div>
 
@@ -704,7 +762,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
                   specialization: p.specialization || "",
                   qualification: p.qualification || "",
                   hospital_clinic_name: p.hospital_clinic_name || p.clinic_name || "",
-                  medical_license_number: p.medical_license_number || p.license_number || p.registration_number || "",
+                  medical_license_number: p.certification_number || p.medical_license_number || p.license_number || p.registration_number || "",
                   years_of_experience: p.years_of_experience || 0,
                   bio: p.bio || "",
                   fee_justification: p.fee_justification || "",
@@ -725,7 +783,7 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
             <Icon as={ShieldCheck} size={16} /> <strong>Verification pending:</strong>{" "}
             {role === "pharmacy"
               ? "Your drug licence and registration documents are being reviewed. You can keep your operating details up to date below."
-              : "Your credentials are pending council verification. You can edit your specialization, degrees, and fee justifications below."}
+              : "Your credentials are pending verification. Complete your profile details and click 'Verify Credentials Now' to activate your account instantly."}
           </p>
         )}
 
@@ -848,13 +906,13 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
 
               <div className="cm-profile__form-group">
                 <label className="cm-profile__form-label">
-                  Medical Council License / Reg Number
+                  {role === "phlebotomist" ? "Phlebotomy Certification / Council Reg Number" : role === "nurse" ? "Nursing Council Registration Number" : "Medical Council License / Reg Number"}
                 </label>
                 <input
                   type="text"
                   value={formData.medical_license_number}
                   onChange={(e) => setFormData({ ...formData, medical_license_number: e.target.value })}
-                  placeholder="e.g. APMC-64821-NMC"
+                  placeholder={role === "phlebotomist" ? "e.g. 6483 or DMLT-AP-1029" : role === "nurse" ? "e.g. APNC-84912" : "e.g. APMC-64821-NMC"}
                   className="cm-input"
                 />
               </div>
@@ -959,7 +1017,8 @@ export default function DashboardProfile({ profile, role, onProfileUpdated }: Da
             {role === "phlebotomist" && (
               <>
                 {field(Syringe, "Employment Type", p.phleb_type?.replace("_", " "), true)}
-                {field(FileText, "Certification Number", p.certification_number)}
+                {field(FileText, "Certification Number", p.certification_number || p.medical_license_number)}
+                {p.qualification && field(GraduationCap, "Qualification", p.qualification)}
                 {field(FlaskConical, "Specimen Handling", "Cold-Chain Certified (2C-8C)")}
               </>
             )}

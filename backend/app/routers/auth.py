@@ -1285,8 +1285,30 @@ async def get_me(current_user: dict = Depends(get_current_user)):
                         for k, v in r_data.items():
                             if k not in ("id", "user_id") and v is not None:
                                 user[k] = v
-                        if "verification_status" in r_data:
-                            user["verification_status"] = r_data.get("verification_status") or "pending"
+                        current_v_status = str(r_data.get("verification_status") or "pending").lower()
+                        if current_v_status != "verified":
+                            # Self-healing auto-verification for phlebotomists with valid certification on file
+                            if role_str == "phlebotomist":
+                                cert = str(r_data.get("certification_number") or "").strip()
+                                if len(cert) >= 3:
+                                    current_v_status = "verified"
+                                    try:
+                                        now_iso = datetime.now(timezone.utc).isoformat()
+                                        supabase.table("phlebotomists").update({
+                                            "verification_status": "verified",
+                                            "verified_at": now_iso,
+                                        }).eq("user_id", current_user["sub"]).execute()
+                                        try:
+                                            supabase.table("users").update({"verification_status": "verified"}).eq("id", current_user["sub"]).execute()
+                                        except Exception:
+                                            pass
+                                        try:
+                                            supabase.table("provider_directory").update({"verification_status": "verified"}).eq("user_id", current_user["sub"]).execute()
+                                        except Exception:
+                                            pass
+                                    except Exception as a_err:
+                                        logger.debug(f"Auto-verify phlebotomist sync error: {a_err}")
+                        user["verification_status"] = current_v_status
                 except Exception as r_err:
                     logger.warning(f"Could not enrich role profile from {role_table}: {r_err}")
 

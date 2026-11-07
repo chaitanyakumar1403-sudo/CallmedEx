@@ -176,6 +176,7 @@ class ProviderProfileUpdate(BaseModel):
     hospital_clinic_name: Optional[str] = None
     years_of_experience: Optional[int] = None
     medical_license_number: Optional[str] = None
+    certification_number: Optional[str] = None
     bio: Optional[str] = None
     fee_justification: Optional[str] = None
     languages_spoken: Optional[List[str]] = None
@@ -1096,22 +1097,71 @@ async def update_provider_profile(
                 raise HTTPException(500, "Could not save your pharmacy details")
         return {"success": True, "message": "Pharmacy profile saved.", "data": {**user_updates, **role_updates}}
 
-    if body.specialization is not None:
-        role_updates["specialization"] = body.specialization
-    if body.qualification is not None:
-        role_updates["qualification"] = body.qualification
-    if body.hospital_clinic_name is not None:
-        role_updates["hospital_clinic_name"] = body.hospital_clinic_name
-        if role == "dentist":
+    if role == "phlebotomist":
+        cert_val = (body.certification_number or body.medical_license_number or "").strip()
+        if cert_val:
+            role_updates["certification_number"] = cert_val
+        if body.qualification is not None:
+            role_updates["qualification"] = body.qualification
+        if body.specialization is not None:
+            role_updates["specialization"] = body.specialization
+        if body.years_of_experience is not None:
+            role_updates["years_of_experience"] = body.years_of_experience
+    elif role == "nurse":
+        lic_val = (body.medical_license_number or "").strip()
+        if lic_val:
+            role_updates["nursing_license_number"] = lic_val
+            role_updates["license_number"] = lic_val
+        if body.qualification is not None:
+            role_updates["qualification"] = body.qualification
+        if body.specialization is not None:
+            role_updates["specialization"] = body.specialization
+        if body.years_of_experience is not None:
+            role_updates["years_of_experience"] = body.years_of_experience
+    elif role == "dentist":
+        lic_val = (body.medical_license_number or "").strip()
+        if lic_val:
+            role_updates["dental_license_number"] = lic_val
+            role_updates["license_number"] = lic_val
+        if body.qualification is not None:
+            role_updates["qualification"] = body.qualification
+        if body.specialization is not None:
+            role_updates["specialization"] = body.specialization
+        if body.hospital_clinic_name is not None:
             role_updates["clinic_name"] = body.hospital_clinic_name
-    if body.years_of_experience is not None:
-        role_updates["years_of_experience"] = body.years_of_experience
-    if body.medical_license_number is not None:
-        role_updates["medical_license_number"] = body.medical_license_number
-        if role in ("nurse", "dentist", "dietitian", "physiotherapist"):
-            role_updates["license_number"] = body.medical_license_number
-    if body.languages_spoken is not None:
-        role_updates["languages_spoken"] = body.languages_spoken
+            role_updates["hospital_clinic_name"] = body.hospital_clinic_name
+        if body.years_of_experience is not None:
+            role_updates["years_of_experience"] = body.years_of_experience
+    elif role in ("dietitian", "physiotherapist"):
+        lic_val = (body.medical_license_number or "").strip()
+        if lic_val:
+            if role == "dietitian":
+                role_updates["dietitian_license_number"] = lic_val
+            else:
+                role_updates["physio_license_number"] = lic_val
+            role_updates["license_number"] = lic_val
+        if body.qualification is not None:
+            role_updates["qualification"] = body.qualification
+        if body.specialization is not None:
+            role_updates["specialization"] = body.specialization
+        if body.hospital_clinic_name is not None:
+            role_updates["hospital_clinic_name"] = body.hospital_clinic_name
+            role_updates["clinic_center_name"] = body.hospital_clinic_name
+        if body.years_of_experience is not None:
+            role_updates["years_of_experience"] = body.years_of_experience
+    else: # doctor and default roles
+        if body.specialization is not None:
+            role_updates["specialization"] = body.specialization
+        if body.qualification is not None:
+            role_updates["qualification"] = body.qualification
+        if body.hospital_clinic_name is not None:
+            role_updates["hospital_clinic_name"] = body.hospital_clinic_name
+        if body.years_of_experience is not None:
+            role_updates["years_of_experience"] = body.years_of_experience
+        if body.medical_license_number is not None:
+            role_updates["medical_license_number"] = body.medical_license_number
+        if body.languages_spoken is not None:
+            role_updates["languages_spoken"] = body.languages_spoken
 
     if role_table and role_updates and supabase:
         try:
@@ -1122,6 +1172,18 @@ async def update_provider_profile(
                 supabase.table(role_table).insert(role_updates).execute()
         except Exception as e:
             logger.error(f"Failed to update role table {role_table}: {e}")
+
+    # ─── Automatic Structural Verification Check on Profile Save ──────────────
+    verification_status = "pending"
+    try:
+        from app.services.verification import VerificationService
+        verif_res = await VerificationService.run_verification(user_id=user_id, role=role)
+        if verif_res.get("status") == "verified":
+            verification_status = "verified"
+        else:
+            verification_status = verif_res.get("status") or "pending"
+    except Exception as ve:
+        logger.warning(f"Auto-verification check on profile save failed: {ve}")
 
     # Bio and Fee Justification Presentation Storage
     presentation_data = {}
@@ -1174,10 +1236,12 @@ async def update_provider_profile(
     return {
         "success": True,
         "message": "Provider profile, presentation, and fee justification saved successfully.",
+        "verification_status": verification_status,
         "data": {
             **user_updates,
             **role_updates,
             **presentation_data,
+            "verification_status": verification_status,
         },
     }
 

@@ -344,7 +344,7 @@ export default function PhlebotomistDashboard() {
         <>
           <SelfieVerificationCard />
           <PhleboPerformancePanel />
-          <DashboardProfile profile={profile} role="phlebotomist" />
+          <DashboardProfile profile={profile} role="phlebotomist" onProfileUpdated={setProfile} />
         </>
       )}
     </DashboardShell>

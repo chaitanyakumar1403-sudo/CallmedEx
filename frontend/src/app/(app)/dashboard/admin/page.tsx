@@ -1142,6 +1142,13 @@ export default function AdminDashboard() {
                   ids.map(id => fetch(`${apiBase}/api/admin/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }))
                 );
                 setUsers(users.filter((u: any) => !selectedUserIds.has(u.id)));
+              } else if (action === 'verify') {
+                await Promise.allSettled(
+                  ids.map(id => fetch(`${apiBase}/api/admin/users/${id}`, {
+                    method: 'PATCH', headers, body: JSON.stringify({ verification_status: 'verified' })
+                  }))
+                );
+                setUsers(users.map((u: any) => selectedUserIds.has(u.id) ? { ...u, verification_status: 'verified' } : u));
               } else {
                 const isActive = action === 'activate';
                 await Promise.allSettled(
@@ -1244,6 +1251,17 @@ export default function AdminDashboard() {
                       ✅ Activate ({selectedUserIds.size})
                     </button>
                     <button
+                      onClick={() => handleBulkAction('verify')}
+                      disabled={bulkActionLoading}
+                      style={{
+                        padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(52, 211, 153, 0.4)',
+                        background: 'rgba(52, 211, 153, 0.2)', color: '#34d399',
+                        fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                      }}
+                    >
+                      🛡 Verify ({selectedUserIds.size})
+                    </button>
+                    <button
                       onClick={() => handleBulkAction('delete')}
                       disabled={bulkActionLoading}
                       style={{
@@ -1278,7 +1296,7 @@ export default function AdminDashboard() {
                           style={{ cursor: 'pointer', width: 16, height: 16 }}
                         />
                       </th>
-                      {['Name', 'Email', 'Role', 'City', 'Status', 'Actions'].map(h => (
+                      {['Name', 'Email', 'Role', 'City', 'Status', 'Verification', 'Actions'].map(h => (
                         <th key={h} style={{ padding: 10, textAlign: 'left', color: '#6b7280', fontSize: '0.7rem', textTransform: 'uppercase' }}>{h}</th>
                       ))}
                     </tr>
@@ -1286,6 +1304,9 @@ export default function AdminDashboard() {
                   <tbody>
                     {displayedUsers.map((u: any) => {
                       const isChecked = selectedUserIds.has(u.id);
+                      const isProvider = ['doctor', 'phlebotomist', 'nurse', 'pharmacy', 'organization', 'dentist', 'dietitian', 'physiotherapist'].includes(u.role);
+                      const vStatus = (u.verification_status || 'pending').toLowerCase();
+                      const isVerified = vStatus === 'verified';
                       const roleBadgeColors: Record<string, { bg: string; text: string }> = {
                         admin: { bg: '#ede9fe', text: '#5b21b6' },
                         doctor: { bg: '#f3e8ff', text: '#7c3aed' },
@@ -1324,7 +1345,43 @@ export default function AdminDashboard() {
                             {u.is_active ? '● Active' : '● Suspended'}
                           </td>
                           <td style={{ padding: 8 }}>
-                            <div style={{ display: 'flex', gap: 6 }}>
+                            {isProvider ? (
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '3px 8px',
+                                borderRadius: 12,
+                                fontSize: '0.65rem',
+                                fontWeight: 600,
+                                backgroundColor: isVerified ? '#ecfdf5' : '#fffbeb',
+                                color: isVerified ? '#065f46' : '#92400e',
+                                border: `1px solid ${isVerified ? '#a7f3d0' : '#fde68a'}`
+                              }}>
+                                {isVerified ? '✓ Verified' : '⏳ Pending'}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>-</span>
+                            )}
+                          </td>
+                          <td style={{ padding: 8 }}>
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              {isProvider && (
+                                <button
+                                  onClick={() => handleUpdateUser(u.id, { verification_status: isVerified ? 'pending' : 'verified' })}
+                                  title={isVerified ? "Revoke Verification" : "Mark as Verified"}
+                                  style={{
+                                    fontSize: '0.7rem', padding: '4px 8px', cursor: 'pointer',
+                                    border: `1px solid ${isVerified ? '#fcd34d' : '#86efac'}`,
+                                    borderRadius: 6,
+                                    backgroundColor: isVerified ? '#fffbeb' : '#f0fdf4',
+                                    color: isVerified ? '#b45309' : '#15803d',
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {isVerified ? 'Revoke' : 'Verify'}
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleUpdateUser(u.id, { is_active: !u.is_active })}
                                 style={{

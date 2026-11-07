@@ -90,7 +90,43 @@ async def get_users(role: Optional[str] = None, q: Optional[str] = None, current
         query = query.ilike("email", f"%{q_escaped}%")
 
     result = query.execute()
-    return {"success": True, "city_scope": city or "Global", "users": result.data or []}
+    users_data = result.data or []
+
+    # Enrich provider users with verification_status from their role tables
+    try:
+        from app.routers.auth import ROLE_TABLE_MAP
+        role_to_ids = {}
+        for u in users_data:
+            r = u.get("role")
+            if r:
+                role_to_ids.setdefault(r, []).append(u.get("id"))
+
+        user_verifications = {}
+        for r, ids in role_to_ids.items():
+            t_name = None
+            for r_enum, table in ROLE_TABLE_MAP.items():
+                if (isinstance(r_enum, str) and r_enum == r) or (hasattr(r_enum, "value") and r_enum.value == r):
+                    t_name = table
+                    break
+            if t_name and t_name != "patients":
+                try:
+                    role_res = supabase.table(t_name).select("user_id, verification_status").in_("user_id", ids).execute()
+                    for row in (role_res.data or []):
+                        if row.get("user_id"):
+                            user_verifications[row["user_id"]] = row.get("verification_status") or "pending"
+                except Exception as re_err:
+                    logger.debug(f"Could not load verification_status from {t_name}: {re_err}")
+
+        for u in users_data:
+            r = u.get("role")
+            if r in ("patient", "admin", "supervisor", "staff"):
+                u["verification_status"] = "verified"
+            else:
+                u["verification_status"] = user_verifications.get(u.get("id"), "pending")
+    except Exception as enrich_err:
+        logger.debug(f"Error enriching user verification_status: {enrich_err}")
+
+    return {"success": True, "city_scope": city or "Global", "users": users_data}
 
 
 
@@ -161,10 +197,11 @@ async def create_supervisor(data: SupervisorCreate, current_user: dict = Depends
 class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    verification_status: Optional[str] = None
 
 @router.patch("/users/{user_id}")
 async def update_user(user_id: str, data: UserUpdate, current_user: dict = Depends(get_current_user)):
-    """Super Admin only: Update user role or status."""
+    """Super Admin only: Update user role, active status, or verification status."""
     admin_data = check_admin_access(current_user)
     if admin_data.get("managed_city") is not None:
         raise HTTPException(status_code=403, detail="Only Super Admins can modify users")
@@ -177,11 +214,43 @@ async def update_user(user_id: str, data: UserUpdate, current_user: dict = Depen
         update_dict["role"] = data.role
     if data.is_active is not None:
         update_dict["is_active"] = data.is_active
+    if data.verification_status is not None:
+        update_dict["verification_status"] = data.verification_status
 
     if not update_dict:
         return {"success": False, "detail": "No data provided"}
 
-    supabase.table("users").update(update_dict).eq("id", user_id).execute()
+    try:
+        supabase.table("users").update(update_dict).eq("id", user_id).execute()
+    except Exception as ue:
+        logger.debug(f"User table update warning: {ue}")
+
+    # If verification_status was updated, propagate to corresponding provider role table & provider_directory
+    if data.verification_status is not None:
+        v_status = data.verification_status.lower().strip()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        try:
+            u_res = supabase.table("users").select("role").eq("id", user_id).limit(1).execute()
+            if u_res.data:
+                target_role = u_res.data[0].get("role")
+                from app.routers.auth import ROLE_TABLE_MAP
+                t_name = None
+                for r_enum, table in ROLE_TABLE_MAP.items():
+                    if (isinstance(r_enum, str) and r_enum == target_role) or (hasattr(r_enum, "value") and r_enum.value == target_role):
+                        t_name = table
+                        break
+                if t_name and t_name != "patients":
+                    payload = {"verification_status": v_status}
+                    if v_status == "verified":
+                        payload["verified_at"] = now_iso
+                    supabase.table(t_name).update(payload).eq("user_id", user_id).execute()
+                try:
+                    supabase.table("provider_directory").update({"verification_status": v_status}).eq("user_id", user_id).execute()
+                except Exception:
+                    pass
+        except Exception as ve:
+            logger.warning(f"Failed to cascade verification_status to role table: {ve}")
+
     return {"success": True, "message": "User updated successfully"}
 
 import logging
