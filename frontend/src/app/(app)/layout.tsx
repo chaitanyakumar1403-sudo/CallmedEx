@@ -36,6 +36,27 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!user?.id || !user?.role) {
         throw new Error('Invalid user data');
       }
+
+      // Restrict /dashboard/patient exclusively to patients (and super admins)
+      if (pathname?.startsWith('/dashboard/patient') && user.role !== 'patient' && user.role !== 'admin') {
+        const ROLE_ROUTE_MAP: Record<string, string> = {
+          doctor: "/dashboard/doctor",
+          dentist: "/dashboard/dentist",
+          phlebotomist: "/dashboard/phlebotomist",
+          nurse: "/dashboard/nurse",
+          dietitian: "/dashboard/dietitian",
+          physiotherapist: "/dashboard/physiotherapist",
+          organization: "/dashboard/organization",
+          pharmacy: "/dashboard/pharmacy",
+          staff: "/dashboard/staff",
+          supervisor: "/dashboard/supervisor",
+          processing_center: "/dashboard/processing-center",
+        };
+        const dest = ROLE_ROUTE_MAP[user.role] || `/dashboard/${user.role}`;
+        router.replace(dest);
+        return;
+      }
+
       setAuthorized(true);
     } catch {
       localStorage.removeItem('token');

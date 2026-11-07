@@ -202,7 +202,27 @@ export default function PatientDashboard() {
     }
     const stored = localStorage.getItem("user");
     if (stored) {
-      setUser(JSON.parse(stored));
+      try {
+        const u = JSON.parse(stored);
+        if (u.role && u.role !== "patient" && u.role !== "admin") {
+          const ROLE_ROUTE_MAP: Record<string, string> = {
+            doctor: "/dashboard/doctor",
+            dentist: "/dashboard/dentist",
+            phlebotomist: "/dashboard/phlebotomist",
+            nurse: "/dashboard/nurse",
+            dietitian: "/dashboard/dietitian",
+            physiotherapist: "/dashboard/physiotherapist",
+            organization: "/dashboard/organization",
+            pharmacy: "/dashboard/pharmacy",
+            staff: "/dashboard/staff",
+            supervisor: "/dashboard/supervisor",
+            processing_center: "/dashboard/processing-center",
+          };
+          router.replace(ROLE_ROUTE_MAP[u.role] || `/dashboard/${u.role}`);
+          return;
+        }
+        setUser(u);
+      } catch {}
     }
 
     // Fetch bookings
@@ -232,6 +252,23 @@ export default function PatientDashboard() {
         });
         const data = await res.json();
         if (data.success && data.data) {
+          if (data.data.role && data.data.role !== "patient" && data.data.role !== "admin") {
+            const ROLE_ROUTE_MAP: Record<string, string> = {
+              doctor: "/dashboard/doctor",
+              dentist: "/dashboard/dentist",
+              phlebotomist: "/dashboard/phlebotomist",
+              nurse: "/dashboard/nurse",
+              dietitian: "/dashboard/dietitian",
+              physiotherapist: "/dashboard/physiotherapist",
+              organization: "/dashboard/organization",
+              pharmacy: "/dashboard/pharmacy",
+              staff: "/dashboard/staff",
+              supervisor: "/dashboard/supervisor",
+              processing_center: "/dashboard/processing-center",
+            };
+            router.replace(ROLE_ROUTE_MAP[data.data.role] || `/dashboard/${data.data.role}`);
+            return;
+          }
           setProfile(data.data);
           if (data.data.full_name) {
             setUser({ full_name: data.data.full_name, role: data.data.role || "patient" });

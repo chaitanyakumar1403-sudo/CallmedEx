@@ -17,16 +17,41 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
   const router = useRouter();
   const pathname = usePathname();
   const [resolvedRole, setResolvedRole] = useState(role || "");
+  const [currentUserRole, setCurrentUserRole] = useState(role || "");
   const [resolvedUser, setResolvedUser] = useState(userName || "");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(3);
 
   const getDashboardRoute = () => {
+    const ROLE_ROUTE_MAP: Record<string, string> = {
+      doctor: "/dashboard/doctor",
+      dentist: "/dashboard/dentist",
+      patient: "/dashboard/patient",
+      phlebotomist: "/dashboard/phlebotomist",
+      nurse: "/dashboard/nurse",
+      dietitian: "/dashboard/dietitian",
+      physiotherapist: "/dashboard/physiotherapist",
+      organization: "/dashboard/organization",
+      pharmacy: "/dashboard/pharmacy",
+      staff: "/dashboard/staff",
+      admin: "/dashboard/admin",
+      supervisor: "/dashboard/supervisor",
+      processing_center: "/dashboard/processing-center",
+      "processing-center": "/dashboard/processing-center",
+    };
+
     if (pathname?.includes("/dashboard/doctor")) return "/dashboard/doctor";
     if (pathname?.includes("/dashboard/phlebotomist")) return "/dashboard/phlebotomist";
+    if (pathname?.includes("/dashboard/nurse")) return "/dashboard/nurse";
+    if (pathname?.includes("/dashboard/pharmacy")) return "/dashboard/pharmacy";
+    if (pathname?.includes("/dashboard/dentist")) return "/dashboard/dentist";
+    if (pathname?.includes("/dashboard/dietitian")) return "/dashboard/dietitian";
+    if (pathname?.includes("/dashboard/physiotherapist")) return "/dashboard/physiotherapist";
     if (pathname?.includes("/dashboard/collection-point")) return "/dashboard/collection-point";
     if (pathname?.includes("/dashboard/organization")) return "/dashboard/organization";
     if (pathname?.includes("/dashboard/admin")) return "/dashboard/admin";
+    if (pathname?.includes("/dashboard/supervisor")) return "/dashboard/supervisor";
+    if (pathname?.includes("/dashboard/staff")) return "/dashboard/staff";
     if (pathname?.includes("/dashboard/processing-center")) return "/dashboard/processing-center";
     if (pathname?.includes("/dashboard/patient")) return "/dashboard/patient";
 
@@ -34,12 +59,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
       const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
       if (userStr) {
         const u = JSON.parse(userStr);
-        if (u.role === "processing_center") return "/dashboard/processing-center";
-        if (u.role === "doctor") return "/dashboard/doctor";
-        if (u.role === "phlebotomist") return "/dashboard/phlebotomist";
-        if (u.role === "collection_point") return "/dashboard/collection-point";
-        if (u.role === "organization") return "/dashboard/organization";
-        if (u.role === "admin") return "/dashboard/admin";
+        if (u.role && ROLE_ROUTE_MAP[u.role]) return ROLE_ROUTE_MAP[u.role];
       }
     } catch {}
     return "/dashboard/patient";
@@ -53,6 +73,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
   useEffect(() => {
     if (role) {
       setResolvedRole(role);
+      setCurrentUserRole(role);
       return;
     }
 
@@ -70,6 +91,9 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
       const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
       if (userStr) {
         const u = JSON.parse(userStr);
+        if (u.role) {
+          setCurrentUserRole(u.role);
+        }
         if (!userName && u.full_name) {
           setResolvedUser(u.full_name);
         }
@@ -95,6 +119,7 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
   };
 
   const isPatientRoute = pathname?.includes("/dashboard/patient");
+  const isPatient = (currentUserRole === "patient") || (!currentUserRole && isPatientRoute);
 
   return (
     <header className="cm-appbar">
@@ -168,15 +193,17 @@ export function AppBar({ role, userName }: { role?: string; userName?: string })
           {resolvedUser}
         </span>
       )}
-      <Button
-        variant="ghost"
-        className={`cm-appbar__patient-nav ${isPatientRoute ? "cm-appbar__patient-nav--active" : ""}`}
-        onClick={() => router.push("/dashboard/patient")}
-        aria-label="My Portal"
-      >
-        <Icon as={LayoutDashboard} size={16} />
-        <span className="cm-appbar__btn-label">My Portal</span>
-      </Button>
+      {isPatient && (
+        <Button
+          variant="ghost"
+          className={`cm-appbar__patient-nav ${isPatientRoute ? "cm-appbar__patient-nav--active" : ""}`}
+          onClick={() => router.push("/dashboard/patient")}
+          aria-label="My Portal"
+        >
+          <Icon as={LayoutDashboard} size={16} />
+          <span className="cm-appbar__btn-label">My Portal</span>
+        </Button>
+      )}
       <Button variant="ghost" className="cm-appbar__logout-btn" onClick={logout} aria-label="Log out">
         <Icon as={LogOut} size={16} />
         <span className="cm-appbar__btn-label">Log out</span>
